@@ -124,7 +124,7 @@ body.locked .top,body.locked .layout,body.locked #printArea{display:none}
 /* ---------- เมนูหลัก / หน้าอื่น ๆ (สลับด้วย body[data-nav]) ---------- */
 .page{display:none}
 body[data-nav="portal"] #portal,body[data-nav="settings"] #settingsPage,
-body[data-nav="sound"] #soundPage,body[data-nav="assets"] #assetsPage,body[data-nav="music"] #musicPage,body[data-nav="history"] #historyPage{display:block}
+body[data-nav="sound"] #soundPage,body[data-nav="assets"] #assetsPage,body[data-nav="music"] #musicPage
 body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:none}
 .phead{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 18px;flex-wrap:wrap}
 .phead h1{font-size:18px;margin:0;font-weight:700;flex:1;min-width:200px}
@@ -316,7 +316,6 @@ td.act{white-space:nowrap;min-width:170px}
 /* ---------- สิทธิ์การ์ดรายคน / ประวัติการใช้งาน ---------- */
 .permbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px}
 .permbox label{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:14px;color:var(--ink)}
-#historyPage .pwrap{max-width:1200px}
 #settingsPage .pwrap{max-width:1100px}
 .hirow-time{white-space:nowrap}
 /* ---------- รายการสินทรัพย์ ---------- */
@@ -345,10 +344,6 @@ td.act{white-space:nowrap;min-width:170px}
 
 <header class="top">
   <h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
-  <div class="status" id="status" aria-live="polite">
-    <span class="dot none" id="stDot"></span>
-    <div><b>อัพเดตข้อมูลล่าสุด</b> <span id="stMain">กำลังโหลด…</span><small id="stSub"></small></div>
-  </div>
   <span class="me" id="me"></span>
   <button class="btn ghost small" id="btnHome">← เมนูหลัก</button>
   <button class="btn ghost small" id="btnReload">โหลดใหม่</button>
@@ -382,7 +377,6 @@ td.act{white-space:nowrap;min-width:170px}
 
       <div class="card">
         <h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
-        <div class="muted" id="dStatus"></div>
       </div>
 
       <div class="card">
@@ -427,15 +421,6 @@ td.act{white-space:nowrap;min-width:170px}
       </div>
     </section>
 
-    <!-- ========== แท็บประวัติ ========== -->
-    <section id="v-log" class="card hidden">
-      <h3>ประวัติการอัพเดต (80 รายการล่าสุด)</h3>
-      <div style="overflow:auto">
-        <table class="logt"><thead><tr><th>เวลา</th><th>ผู้บันทึก</th><th>ชีต / หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
-        <tbody id="logBody"></tbody></table>
-      </div>
-    </section>
-
   </main>
 </div>
 
@@ -444,7 +429,6 @@ td.act{white-space:nowrap;min-width:170px}
   <header class="phead">
     <h1>CMUCOOP SUPPORT</h1>
     <span class="me" id="pMe"></span>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
     <button class="btn ghost small js-logout">ออกจากระบบ</button>
   </header>
   <div class="pwrap">
@@ -453,12 +437,6 @@ td.act{white-space:nowrap;min-width:170px}
       <button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b></button>
       <button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b></button>
       <button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b></button>
-      <a class="mcard" id="mLabel" href="http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ทำป้ายราคา</b></a>
-      <a class="mcard" id="mPrice" href="https://cmu-coops.com/product/countpd.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ตรวจสอบราคาสินค้า</b></a>
-      <a class="mcard hidden" id="mOffline" href="http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ระบบ CMUCOOP Offline</b></a>
-      <a class="mcard hidden" id="mOnline" href="https://cmu-coops.com/adEntry.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ระบบ CMUCOOP Online</b></a>
-      <a class="mcard hidden" id="mAssets" href="#" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>รายการสินทรัพย์</b></a>
-      <button class="mcard hidden" id="mHistory"><b>ประวัติการใช้งาน</b></button>
       <button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
     </div>
   </div>
@@ -479,6 +457,7 @@ td.act{white-space:nowrap;min-width:170px}
       <button data-sp="banner">Banner</button>
       <button data-sp="users">ผู้ใช้งาน</button>
       <button data-sp="sound">เสียงประกาศ</button>
+      <button data-sp="history">ประวัติการใช้งาน</button>
     </nav>
 
     <section class="stp" id="st-cards" style="display:grid;gap:16px">
@@ -599,6 +578,22 @@ td.act{white-space:nowrap;min-width:170px}
     </div>
     </section>
 
+    <section class="stp hidden" id="st-history" style="display:grid;gap:16px">
+    <nav class="cnav" id="hiNav"></nav>
+    <div class="card">
+      <div class="asbar">
+        <input type="search" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off">
+        <button class="btn ghost small" id="hiReload">โหลดใหม่</button>
+        <button class="btn ghost small" id="hiClear" style="color:#c0392b">🗑 ล้างประวัติ</button>
+        <span class="muted" id="hiCount"></span>
+      </div>
+      <div style="overflow:auto"><table class="logt">
+        <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
+        <tbody id="hiBody"></tbody></table></div>
+      <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
+    </div>
+    </section>
+
     <section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
       <div class="card">
         <h3>หน้ารับสัญญาณสำหรับ TV</h3>
@@ -714,32 +709,6 @@ td.act{white-space:nowrap;min-width:170px}
     <div class="muted">ระบบทำสำเนาก่อนนำเข้าและก่อนกู้คืนทุกครั้ง (ถ้าข้อมูลต่างจากชุดล่าสุด) ชุดที่เก่ากว่าถูกลบอัตโนมัติ · กู้คืน = นำข้อมูลในสำเนากลับมาแทนที่ข้อมูลปัจจุบัน</div>
     <div id="bcBkList"></div>
     <div class="addbar"><button class="btn ghost" id="bcBkClose">ปิด</button></div>
-  </div>
-</div>
-
-<!-- ========== ประวัติการใช้งาน ========== -->
-<div id="historyPage" class="page">
-  <header class="phead">
-    <h1>ประวัติการใช้งาน</h1>
-    <span class="me" id="hiMe"></span>
-    <button class="btn ghost small" id="hiHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
-    <button class="btn ghost small js-logout">ออกจากระบบ</button>
-  </header>
-  <div class="pwrap">
-    <nav class="cnav" id="hiNav"></nav>
-    <div class="card">
-      <div class="asbar">
-        <input type="search" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off">
-        <button class="btn ghost small" id="hiReload">โหลดใหม่</button>
-        <button class="btn ghost small hidden" id="hiClear" style="color:#c0392b">🗑 ล้างประวัติ</button>
-        <span class="muted" id="hiCount"></span>
-      </div>
-      <div style="overflow:auto"><table class="logt">
-        <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
-        <tbody id="hiBody"></tbody></table></div>
-      <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
-    </div>
   </div>
 </div>
 
@@ -1016,17 +985,7 @@ function curCat() {
   return S.cats.filter(function (c) { return c.key === S.cur; })[0];
 }
 
-function renderStatus() {
-  var dot = $('#stDot'), main = $('#stMain'), sub = $('#stSub');
-  if (S.saving > 0) { dot.className = 'dot busy'; main.textContent = 'กำลังบันทึกลงชีต…'; sub.textContent = ''; return; }
-  var o = S.overall;
-  if (!o) { dot.className = 'dot none'; main.textContent = 'ยังไม่มีข้อมูลสถานะ'; sub.textContent = ''; return; }
-  var f = fresh(o);
-  dot.className = 'dot ' + f.cls;
-  main.textContent = fmt(o.ts) + ' (' + f.rel + ')';
-  sub.textContent = (o.user ? 'โดย ' + o.user + ' | ' : 'ตามข้อความในชีต | ') + o.sheet + (o.cat ? ' / ' + o.cat : '') +
-    (o.user && o.action ? ' | ' + o.action : '') + (o.user && o.detail ? ': ' + o.detail : '');
-}
+function renderStatus() { /* เอาแถบสถานะการอัพเดตออกแล้ว (ประวัติทั้งหมดอยู่ที่ ตั้งค่า > ประวัติการใช้งาน) */ }
 function withSaving(p) {
   S.saving++; renderStatus();
   return p.then(function (r) { S.saving--; renderStatus(); return r; },
@@ -1085,14 +1044,7 @@ async function selectCat(key) {
   $('#btnAdd').disabled = false;
   renderCurStatus(); renderTable();
 }
-function renderCurStatus() {
-  var c = curCat(); if (!c) return;
-  var o = S.overall;          // อัพเดตล่าสุด = ตามการบันทึกครั้งล่าสุดของระบบ
-  $('#dStatus').textContent = o
-    ? 'อัพเดตล่าสุด ' + fmt(o.ts) + ' (' + fresh(o).rel + ')' + (o.user ? ' โดย ' + o.user : '') +
-      (o.user && o.action ? ' | ' + o.action : '')
-    : 'ยังไม่มีข้อมูลสถานะ';
-}
+function renderCurStatus() {}
 function buildHead(sc) {
   $('#thead').innerHTML = '<tr>' + sc.cols.map(function (c) { return '<th>' + esc(c.label) + '</th>'; }).join('') + '<th>จัดการ</th></tr>';
 }
@@ -1465,21 +1417,9 @@ $('#bcExpBtn').addEventListener('click', function () {
 });
 
 /* ============================ ประวัติ / แท็บ ============================ */
-async function loadLog() {
-  $('#logBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
-  try {
-    var rows = await call('getLog', 80);
-    $('#logBody').innerHTML = rows.map(function (r) {
-      return '<tr><td>' + (r.ts ? fmt(r.ts) : '') + '</td><td>' + esc(r.who) + '</td><td>' + esc(r.sheet) +
-        (r.cat ? ' / ' + esc(r.cat) : '') + '</td><td>' + esc(r.action) + '</td><td>' + esc(r.detail) + '</td></tr>';
-    }).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีประวัติ</td></tr>';
-  } catch (e) { toast(e.message, true); }
-}
 function switchTab(t) {
-  if (t === 'log') t = (S.me && S.me.role === 'admin') ? 'data' : 'print';   // แท็บ "ประวัติการอัพเดต" ถูกเอาออกแล้ว
   document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x.dataset.t === t); });
-  ['data', 'print', 'log'].forEach(function (k) { $('#v-' + k).classList.toggle('hidden', k !== t); });
-  if (t === 'log') loadLog();
+  ['data', 'print'].forEach(function (k) { $('#v-' + k).classList.toggle('hidden', k !== t); });
   if (t === 'print') renderPrintList();
 }
 document.querySelector('.tabs').addEventListener('click', function (e) {
@@ -1561,9 +1501,9 @@ $('#userBody').addEventListener('click', async function (e) {
   }
 });
 /* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
-var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง', label: 'ทำป้ายราคา', price: 'ตรวจสอบราคาสินค้า', offline: 'ระบบ CMUCOOP Offline', online: 'ระบบ CMUCOOP Online', assets: 'รายการสินทรัพย์', history: 'ประวัติการใช้งาน' };
+var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง' };
 var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, label: true, price: true, offline: false, online: false, assets: true, history: false };
+var PERM_DEFAULT = { barcode: true, sound: true, music: true };
 function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
 function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
 function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
@@ -1626,7 +1566,7 @@ function goPortal() {
   $('#pMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
-  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'label:mLabel', 'price:mPrice', 'offline:mOffline', 'online:mOnline', 'assets:mAssets', 'history:mHistory'].forEach(function (x) {
+  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่แอดมินติ๊กให้ผู้ใช้คนนี้
   });
 }
@@ -1641,15 +1581,10 @@ async function startApp(me) {
 var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' },
-  { k: 'label', id: 'mLabel', t: 'ทำป้ายราคา', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php' },   // u = ลิงก์เริ่มต้น (การ์ดที่เป็นลิงก์ แอดมินแก้ได้)
-  { k: 'price', id: 'mPrice', t: 'ตรวจสอบราคาสินค้า', u: 'https://cmu-coops.com/product/countpd.php' },
-  { k: 'offline', id: 'mOffline', t: 'ระบบ CMUCOOP Offline', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php' },
-  { k: 'online', id: 'mOnline', t: 'ระบบ CMUCOOP Online', u: 'https://cmu-coops.com/adEntry.php' },
-  { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์', u: '' }, { k: 'history', id: 'mHistory', t: 'ประวัติการใช้งาน' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
-var CARD_TITLES = {}, CARD_WORK_T = {}, CARD_LINKS = {}, CARD_WORK_L = {};      // ชื่อ/ลิงก์ที่แอดมินแก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
+var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่แอดมินแก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
 var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่แอดมินสร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
 function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
 function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
@@ -1660,13 +1595,6 @@ function applyCardOrder(order) {
   order.forEach(function (k) { var el = cardEl(k); if (el) menu.appendChild(el); });
 }
 function cardTitle(k) { var c = customOf(k); return c ? c.t : (CARD_TITLES[k] || cardDef(k).t); }
-function cardLink(k) { return CARD_LINKS[k] || cardDef(k).u || ''; }
-function applyCardLinks() {
-  CARD_DEF.forEach(function (d) {
-    var el = d.u !== undefined && document.getElementById(d.id);
-    if (el && el.tagName === 'A') el.href = cardLink(d.k) || '#';
-  });
-}
 function applyCardTitles() {
   CARD_DEF.forEach(function (d) {
     var el = document.getElementById(d.id), b = el && el.querySelector('b');
@@ -1683,11 +1611,11 @@ function renderCustomCards() {                                                  
     b.textContent = c.t; a.appendChild(b); menu.appendChild(a);
   });
 }
-function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); applyCardTitles(); applyCardLinks(); }
+function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); applyCardTitles(); }
 function loadCardOrder() {
   function ok(fn, def) { return call(fn).catch(function () { return def; }); }
-  Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCardLinks', {}), ok('getCustomCards', [])]).then(function (r) {
-    CARD_ORDER = r[0]; CARD_TITLES = r[1] || {}; CARD_LINKS = r[2] || {}; CUSTOM = r[3] || [];
+  Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', [])]).then(function (r) {
+    CARD_ORDER = r[0]; CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
     refreshCards();
   });
 }
@@ -1704,13 +1632,12 @@ document.querySelector('#portal .menu').addEventListener('click', function (e) {
   var el = e.target.closest('.mcard'); if (!el) return;
   if (el.dataset.ck) { logUse('card', 'เปิดการ์ด', cardTitle(el.dataset.ck)); return; }
   var d = CARD_DEF.filter(function (c) { return c.id === el.id; })[0];
-  if (d && d.k === 'assets' && !cardLink('assets')) { e.preventDefault(); toast('ยังไม่ได้ตั้งลิงก์รายการสินทรัพย์ — แอดมินตั้งได้ที่ ตั้งค่า > การ์ดเมนูหลัก', true); return; }
   if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));                  // รวมการ์ดที่เป็นลิงก์ออกภายนอก
 });
 
 /* ----- ตั้งค่า > การ์ดเมนูหลัก : จัดลำดับ + แก้ชื่อ/ลิงก์ + สร้าง/ลบการ์ดลิงก์ ----- */
 function stCardsLoad() {
-  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CARD_WORK_L = {}; CUSTOM_WORK = {};
+  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CUSTOM_WORK = {};
   CUSTOM.forEach(function (c) { CUSTOM_WORK[c.k] = { t: c.t, u: c.u }; });
   renderSortList();
 }
@@ -1728,10 +1655,6 @@ function renderSortList() {
       var cur = CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k);
       title = '<input type="text" data-k="' + esc(k) + '" value="' + esc(cur) + '" maxlength="40" placeholder="' + esc(d.t) + '" style="flex:1;min-width:0">';
       link = '';
-      if (d.u !== undefined) {
-        var lv = CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k);
-        link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div><input type="text" data-lk="' + esc(k) + '" value="' + esc(lv) + '" maxlength="500" placeholder="' + esc(d.u) + '" autocomplete="off" style="width:100%;font-size:13px">';
-      }
     }
     return '<div class="pitem" style="display:block"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
       '<span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><b>' + (i + 1) + '.</b> ' + title + '</span><span style="white-space:nowrap">' +
@@ -1742,7 +1665,6 @@ function renderSortList() {
 $('#sortList').addEventListener('input', function (e) {
   var inp = e.target.closest('input'); if (!inp) return;
   if (inp.dataset.k) CARD_WORK_T[inp.dataset.k] = inp.value;
-  else if (inp.dataset.lk) CARD_WORK_L[inp.dataset.lk] = inp.value;
   else if (inp.dataset.ck && CUSTOM_WORK[inp.dataset.ck]) CUSTOM_WORK[inp.dataset.ck].t = inp.value;
   else if (inp.dataset.cu && CUSTOM_WORK[inp.dataset.cu]) CUSTOM_WORK[inp.dataset.cu].u = inp.value;
 });
@@ -1759,12 +1681,12 @@ $('#sortList').addEventListener('click', function (e) {
 });
 $('#sortReset').addEventListener('click', function () {
   CARD_WORK = CARD_DEF.map(function (c) { return c.k; }).concat(CARD_WORK.filter(isCustom));
-  CARD_WORK_T = {}; CARD_WORK_L = {};
-  CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; if (c.u !== undefined) CARD_WORK_L[c.k] = c.u; });      // คืนชื่อและลิงก์เริ่มต้นด้วย
+  CARD_WORK_T = {};
+  CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; });      // คืนชื่อเริ่มต้น
   renderSortList();
 });
 $('#sortSave').addEventListener('click', function () {
-  var titles = {}, links = {}, bad = '', cl = [];                     // ส่งเฉพาะที่ต่างจากค่าเริ่มต้น
+  var titles = {}, bad = '', cl = [];                     // ส่งเฉพาะที่ต่างจากค่าเริ่มต้น
   CARD_WORK.forEach(function (k) {
     if (isCustom(k)) {
       var w = CUSTOM_WORK[k]; if (!w) return;
@@ -1777,18 +1699,12 @@ $('#sortSave').addEventListener('click', function () {
     var d = cardDef(k); if (!d) return;
     var tt = (CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k)).replace(/\s+/g, ' ').trim();
     if (tt && tt !== d.t) titles[k] = tt;
-    if (d.u !== undefined) {
-      var uu = (CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k)).trim();
-      if (uu && !/^https?:\/\/\S+$/i.test(uu)) bad = bad || cardTitle(k);
-      else if (uu && uu !== d.u) links[k] = uu;
-    }
   });
   if (bad) { toast('ข้อมูลของการ์ด "' + bad + '" ไม่ถูกต้อง (ต้องมีชื่อ และลิงก์ขึ้นต้นด้วย http:// หรือ https:// ไม่มีช่องว่าง)', true); return; }
   busy(this, async function () {
     if (CUSTOM.length || cl.length) CUSTOM = await call('setCustomCards', cl);
     CARD_ORDER = await call('setCardOrder', CARD_WORK);
     CARD_TITLES = await call('setCardTitles', titles);
-    CARD_LINKS = await call('setCardLinks', links);
     refreshCards(); stCardsLoad(); toast('บันทึกการตั้งค่าการ์ดแล้ว');
   });
 });
@@ -1871,9 +1787,8 @@ async function openBarcode() {
   $('#me').textContent = me.name + ' (' + (me.role === 'admin' ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
   var admin = me.role === 'admin';
   document.querySelectorAll('.tab').forEach(function (t) {
-    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data' || t.dataset.t === 'log'));
+    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data'));
   });
-  $('#status').classList.toggle('hidden', !admin);      // แถบ "อัพเดตข้อมูลล่าสุด" : เฉพาะแอดมิน
   $('.layout').classList.add('single');                 // ไม่ใช้แถบหมวดด้านข้างแล้ว เลือกหมวดที่ช่อง "หมวด" ในฟอร์มแทน
   $('aside').classList.add('hidden');
   switchTab(admin ? 'data' : 'print');
@@ -1881,7 +1796,7 @@ async function openBarcode() {
   try {
     await refreshCats();
     if (admin) await selectCat(allCat().key);          // เปิดมาแสดงรายการทั้งหมดก่อน
-  } catch (e) { if (S.me) $('#stMain').textContent = 'โหลดข้อมูลไม่สำเร็จ: ' + e.message; }
+  } catch (e) { if (S.me) toast('โหลดข้อมูลไม่สำเร็จ: ' + e.message, true); }
 }
 async function doLogin() {
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
@@ -1944,7 +1859,7 @@ $('#mBarcode').addEventListener('click', openBarcode);
 $('#btnHome').addEventListener('click', goPortal);
 
 /* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
-var ST_PANELS = ['cards', 'banner', 'users', 'sound'];
+var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'history'];
 $('#mSettings').addEventListener('click', function () { openSettings('cards'); });
 $('#stHome').addEventListener('click', goPortal);
 function openSettings(p) {
@@ -1960,6 +1875,7 @@ function stPanel(p) {
   else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
   else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
   else if (p === 'sound') sndLoadAdmin();
+  else if (p === 'history') openHistory();
 }
 $('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
 
@@ -2453,14 +2369,7 @@ $('#mMusic').addEventListener('click', openMusic);
 
 /* ============================ ประวัติการใช้งาน ============================ */
 var HI = { cat: 'all', cats: [], rows: [] };
-function openHistory() {
-  if (!hasPerm('history')) return;
-  setNav('history');
-  $('#hiMe').textContent = S.me.name + ' (' + (S.me.role === 'admin' ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
-  HI.cat = 'all'; $('#hiQ').value = '';
-  $('#hiClear').classList.toggle('hidden', S.me.role !== 'admin');
-  loadHistory();
-}
+function openHistory() { HI.cat = 'all'; $('#hiQ').value = ''; loadHistory(); }
 async function loadHistory() {
   $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
   try {
@@ -2496,8 +2405,6 @@ $('#hiClear').addEventListener('click', async function () {
   } catch (e) { toast(e.message, true); }
   btn.disabled = false;
 });
-$('#hiHome').addEventListener('click', goPortal);
-$('#mHistory').addEventListener('click', openHistory);
 
 /* ============================ เริ่มต้น ============================ */
 $('#btnReload').addEventListener('click', async function () {
