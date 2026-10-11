@@ -32,6 +32,68 @@
   .mwrap { aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; }
   .mwrap iframe { width:100%; height:100%; display:block; }
   .msub { margin-top:8px; font-size:14px; color:var(--steel); }
+
+/* ================= LIQUID GLASS ================= */
+:root{
+  --g-fill:rgba(255,255,255,.42); --g-edge:rgba(255,255,255,.7);
+  --g-blur:blur(22px) saturate(180%);
+  --g-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.28),inset 0 0 22px rgba(255,255,255,.2);
+  --g-shadow:0 10px 34px rgba(70,40,140,.2),var(--g-hi);
+}
+html{
+  background:
+    radial-gradient(60vmax 60vmax at 10% 6%,#b894ff 0,transparent 60%),
+    radial-gradient(55vmax 55vmax at 94% 10%,#86b6ff 0,transparent 58%),
+    radial-gradient(60vmax 60vmax at 82% 96%,#ffa3d3 0,transparent 60%),
+    radial-gradient(50vmax 50vmax at 4% 92%,#8f7bff 0,transparent 60%),
+    #dccff8;
+  background-attachment:fixed;
+}
+body{background:transparent}
+body::before{
+  content:"";position:fixed;inset:-15%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(28vmax 28vmax at 25% 30%,rgba(255,255,255,.55),transparent 70%),
+    radial-gradient(24vmax 24vmax at 75% 65%,rgba(184,148,255,.5),transparent 70%),
+    radial-gradient(20vmax 20vmax at 60% 15%,rgba(255,190,225,.45),transparent 70%);
+  animation:gdrift 36s ease-in-out infinite alternate;
+}
+@keyframes gdrift{from{transform:translate3d(-3%,-2%,0) rotate(0)}to{transform:translate3d(3%,3%,0) rotate(8deg)}}
+
+.appbar{
+  background:linear-gradient(135deg,rgba(74,46,160,.74),rgba(122,75,224,.56));
+  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  border:1px solid rgba(255,255,255,.38);border-top:0;
+  box-shadow:0 8px 28px rgba(70,40,140,.3),inset 0 -1px 0 rgba(255,255,255,.3),inset 0 1px 0 rgba(255,255,255,.35);
+  text-shadow:0 1px 2px rgba(42,31,71,.35);
+}
+
+.state,.musicbox{
+  background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
+  border:1px solid var(--g-edge);box-shadow:var(--g-shadow);
+}
+.state{border-color:rgba(255,255,255,.7);box-shadow:var(--g-shadow),0 0 0 6px rgba(111,124,138,.14)}
+.state span{color:#6f7c8a}
+.state.on{border-color:rgba(26,127,75,.5);box-shadow:var(--g-shadow),0 0 0 6px rgba(26,127,75,.16),0 0 60px rgba(26,127,75,.3)}
+.state.on span{color:var(--ok)}
+.state.error{border-color:rgba(180,35,24,.5);box-shadow:var(--g-shadow),0 0 0 6px rgba(180,35,24,.14),0 0 60px rgba(180,35,24,.28)}
+.state.error span{color:var(--bad)}
+@keyframes pulse{50%{box-shadow:var(--g-shadow),0 0 0 16px rgba(26,127,75,.16),0 0 76px rgba(26,127,75,.45)}}
+
+.loadinfo{width:fit-content;max-width:92vw;margin:14px auto 0;padding:6px 16px;border-radius:999px;
+  background:rgba(255,255,255,.4);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.85)}
+.musicbox{border-radius:24px}
+.mwrap{border-radius:16px;box-shadow:0 6px 20px rgba(42,31,71,.3),0 0 0 1px rgba(255,255,255,.5)}
+
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--g-fill:rgba(255,255,255,.9)}
+}
+@media (prefers-reduced-transparency:reduce){
+  :root{--g-fill:#fff}
+  *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
+@media (prefers-reduced-motion:reduce){body::before{animation:none}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 </head>
