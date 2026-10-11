@@ -646,7 +646,10 @@ td.act{white-space:nowrap;min-width:170px}
         <span id="asLiveInfo"></span>
         <a class="btn small ad-only" id="asLiveLink" href="#" target="_blank" rel="noopener">เปิดไฟล์ ↗</a>
         <button class="btn ghost small ad-only" id="asSrcBtn">ตั้ง/เปลี่ยนลิงก์ไฟล์</button>
-        <button class="btn ghost small" id="asBkBtn">สำเนา (0/10)</button>
+        <button class="btn ghost small ad-only" id="asImpBtn">นำเข้า Excel</button>
+        <input type="file" id="asImpFile" accept=".xlsx,.xls,.csv" class="hidden">
+        <button class="btn ghost small" id="asExpBtn">ส่งออก Excel</button>
+        <button class="btn ghost small" id="asBkBtn">สำเนา (0/2)</button>
         <span class="muted" id="asBkState"></span>
         <span class="muted" id="asSaveState"></span>
       </div>
@@ -672,8 +675,8 @@ td.act{white-space:nowrap;min-width:170px}
 
 <div class="modalwrap hidden" id="asBkModal">
   <div class="modal" style="width:min(620px,100%);max-height:90vh;overflow:auto">
-    <h3>สำเนาไฟล์รายการสินทรัพย์ (สูงสุด 10 เวอร์ชัน)</h3>
-    <div class="muted" style="margin-bottom:8px">ระบบทำสำเนาไฟล์ต้นทางทุกครั้งที่เปิดการ์ดนี้ เรียงตามเวลา (ใหม่สุดอยู่บน) · เปิดสำเนาเพื่อดูหรือคัดลอกข้อมูลกลับได้</div>
+    <h3>สำเนาข้อมูลรายการสินทรัพย์ (เก็บล่าสุด 2 ชุด)</h3>
+    <div class="muted" style="margin-bottom:8px">ระบบทำสำเนาข้อมูลก่อนนำเข้า/เปลี่ยนแหล่งข้อมูล และทุกครั้งที่เปิดการ์ดนี้ (ถ้าข้อมูลเปลี่ยนไปจากชุดล่าสุด) เก็บแค่ 2 ชุด ชุดเก่ากว่าถูกลบอัตโนมัติ · ดาวน์โหลดเป็นไฟล์ CSV เปิดใน Excel ได้</div>
     <div id="asBkList"></div>
     <div class="addbar"><button class="btn ghost" id="asBkClose">ปิด</button></div>
   </div>
@@ -1609,11 +1612,50 @@ function openAssets() {
 var AS_BK = [];
 function asBkFmt(ts) { return new Date(ts).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' }); }
 function asBkRender() {
-  $('#asBkBtn').textContent = 'สำเนา (' + AS_BK.length + '/10)';
-  $('#asBkList').innerHTML = AS_BK.length ? '<div class="astwrap" style="max-height:50vh"><table class="ast" style="min-width:0"><thead><tr><th>#</th><th>เวลาที่ทำสำเนา</th><th>ไฟล์</th></tr></thead><tbody>' +
-    AS_BK.map(function (b, i) { return '<tr><td>' + (i + 1) + '</td><td>' + esc(asBkFmt(b.ts)) + '</td><td class="wrap"><a href="' + esc(b.url) + '" target="_blank" rel="noopener">เปิดสำเนา ' + esc(b.name) + ' ↗</a></td></tr>'; }).join('') + '</tbody></table></div>'
+  $('#asBkBtn').textContent = 'สำเนา (' + AS_BK.length + '/2)';
+  $('#asBkList').innerHTML = AS_BK.length ? '<div class="astwrap" style="max-height:50vh"><table class="ast" style="min-width:0"><thead><tr><th>#</th><th>เวลาที่ทำสำเนา</th><th>ข้อมูล</th></tr></thead><tbody>' +
+    AS_BK.map(function (b, i) { return '<tr><td>' + (i + 1) + '</td><td>' + esc(asBkFmt(b.ts)) + '</td><td class="wrap">' + esc(b.name) + ' <button class="btn ghost small" data-bk="' + b.id + '">ดาวน์โหลด CSV</button></td></tr>'; }).join('') + '</tbody></table></div>'
     : '<div class="muted">ยังไม่มีสำเนา</div>';
 }
+$('#asBkList').addEventListener('click', async function (e) {
+  var b = e.target.closest('button[data-bk]'); if (!b) return;
+  b.disabled = true;
+  try {
+    var r = await call('assetBackupData', Number(b.dataset.bk)), a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = r.name + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (err) { toast(err.message, true); }
+  b.disabled = false;
+});
+/* ----- นำเข้า / ส่งออก Excel ----- */
+$('#asImpBtn').addEventListener('click', function () { $('#asImpFile').click(); });
+$('#asImpFile').addEventListener('change', function () {
+  var f = this.files[0]; this.value = ''; if (!f) return;
+  if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
+  var fr = new FileReader();
+  fr.onerror = function () { toast('อ่านไฟล์ไม่ได้', true); };
+  fr.onload = function () {
+    try {
+      var wb = XLSX.read(fr.result, { type: 'array' }), grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
+      if (!confirm('นำเข้าข้อมูลจากไฟล์ "' + f.name + '" (แผ่นงาน ' + wb.SheetNames[0] + ' · ' + grid.length + ' แถว)?\n\nข้อมูลสินทรัพย์ในระบบจะถูกแทนที่ทั้งหมด (ระบบทำสำเนาข้อมูลเดิมไว้ให้ก่อน)')) return;
+      busy($('#asImpBtn'), async function () {
+        var r = await call('assetImportRows', grid);
+        AS_BK = r.backups || AS_BK; asBkRender(); toast('นำเข้าแล้ว ' + r.count + ' รายการ'); await loadAssets();
+      });
+    } catch (err) { toast('อ่านไฟล์ Excel ไม่สำเร็จ: ' + err.message, true); }
+  };
+  fr.readAsArrayBuffer(f);
+});
+$('#asExpBtn').addEventListener('click', function () {
+  if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
+  var head = ['ลำดับ', 'ชื่อรายการ', 'รหัสสินทรัพย์', 'วันที่รับสินทรัพย์', 'สถานที่ตั้งสินทรัพย์', 'ลิงก์รูปภาพ', 'สถานะ ปกติ', 'สถานะ ไม่สามารถซ่อมได้', 'สถานะ ต้องทำการซ่อม', 'สถานะ ลดลงระหว่างปี', 'สถานะ รวม', 'อัตราร้อยละ',
+    'ค่าเสื่อมราคาสะสม ยกมา', 'ค่าเสื่อมราคาสะสม เพิ่มระหว่างปี', 'ค่าเสื่อมราคาสะสม ลดระหว่างปี', 'ค่าเสื่อมราคาสะสม ยกไป', 'ราคาสินทรัพย์สุทธิ', 'หมายเหตุ'];
+  var keys = ['name', 'code', 'date', 'place', 'link', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
+  var aoa = [head].concat(AS.rows.map(function (x) { return [x.no].concat(keys.map(function (k) { return x[k]; })); }));
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'สินทรัพย์');
+  XLSX.writeFile(wb, 'รายการสินทรัพย์_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+});
 async function assetBackupBg() {
   $('#asBkState').textContent = 'กำลังทำสำเนาไฟล์…';
   try {
@@ -1635,17 +1677,16 @@ async function loadAssets(backup, quiet) {
     var r = await call('assetList');
     AS.rows = r.rows || []; AS.canEdit = !!r.canEdit; AS.live = !!r.live;
     document.querySelectorAll('#assetsPage .ad-only').forEach(function (el) { el.classList.toggle('hidden', !AS.canEdit); });
-    var showBar = AS.live || r.srcError || AS.canEdit;
-    $('#asLiveBar').classList.toggle('hidden', !showBar);
-    $('#asLiveInfo').innerHTML = AS.live ? '📄 ข้อมูลจากไฟล์ต้นทาง (ดึงอัตโนมัติ · บันทึกอัตโนมัติ): <b>' + esc(r.srcName || '') + '</b>'
-      : r.srcError ? '<span style="color:var(--bad)">เปิดไฟล์ต้นทางไม่ได้: ' + esc(r.srcError) + '</span>'
-      : 'ยังไม่ได้ตั้งลิงก์ไฟล์ต้นทาง — กด "ตั้ง/เปลี่ยนลิงก์ไฟล์" เพื่อใช้ Google Sheet';
-    $('#asLiveLink').classList.toggle('hidden', !(AS.canEdit && AS.live));
-    $('#asBkBtn').classList.toggle('hidden', !AS.live);
-    if (AS.live) $('#asLiveLink').href = r.srcUrl || '#';
+    $('#asLiveBar').classList.remove('hidden');
+    $('#asLiveInfo').innerHTML = AS.live ? '📄 ข้อมูลจาก Google Sheet (ดึงอัตโนมัติ · บันทึกกลับอัตโนมัติ): <b>' + esc(r.srcName || '') + '</b>'
+      : r.srcError ? '<span style="color:var(--bad)">เปิด Google Sheet ไม่ได้: ' + esc(r.srcError) + '</span>'
+      : '🗂 ข้อมูลในระบบ (นำเข้าจาก Excel) — กด "นำเข้า Excel" หรือ "ตั้ง/เปลี่ยนลิงก์ไฟล์" เพื่อใช้ Google Sheet';
+    $('#asLiveLink').classList.toggle('hidden', !(AS.canEdit && r.srcUrl));
+    $('#asImpBtn').classList.toggle('hidden', !AS.canEdit || r.mode === 'sheet');
+    if (r.srcUrl) $('#asLiveLink').href = r.srcUrl;
     if (AS.live && r.srcDiag) $('#asLiveInfo').innerHTML += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(r.srcDiag) + '</div>';
     renderAssets();
-    if (AS.live && backup === true) assetBackupBg();   // แสดงข้อมูลก่อน แล้วทำสำเนาต่อเบื้องหลัง
+    if (backup === true && !r.srcError) assetBackupBg();   // แสดงข้อมูลก่อน แล้วทำสำเนาต่อเบื้องหลัง
   } catch (e) { if (!quiet) $('#asBody').innerHTML = '<tr><td colspan="20" class="muted">' + esc(e.message) + '</td></tr>'; toast(e.message, true); }
 }
 function renderAssets() {
