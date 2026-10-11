@@ -17,7 +17,8 @@ const CARD_LINK_DEF = {
   label: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php',
   price: 'https://cmu-coops.com/product/countpd.php',
   offline: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php',
-  online: 'https://cmu-coops.com/adEntry.php'
+  online: 'https://cmu-coops.com/adEntry.php',
+  assets: ''                       // รายการสินทรัพย์ = การ์ดลิงก์ ไม่มีลิงก์เริ่มต้น (แอดมินตั้งเอง)
 };
 const ACT_GROUPS = [
   { key: 'barcode', label: 'รายการบาร์', sheets: ['บาร์สินค้า'] },
@@ -39,8 +40,7 @@ const SOUND_LEGACY = 'https://ratthaphontha-wq.github.io/--audio/';
 const NOT_YET = 'ระบบนี้ยังไม่ได้ย้ายมาใช้หลังบ้านใหม่ (อยู่ระหว่างพัฒนา)';
 
 /* ---------- ฟังก์ชันที่ยังไม่รองรับในเฟส 1 (ตอบข้อความชัดเจนแทนที่จะพัง) ---------- */
-const PENDING = ['addItem', 'createCategory', 'deleteItem', 'editItem', 'findBarcode', 'getCategoryData', 'getInit', 'getLog', 'makePdf',
-  'musicApproveAll', 'musicCancel', 'musicDecide', 'musicRequest'];
+const PENDING = ['makePdf', 'musicApproveAll', 'musicCancel', 'musicDecide', 'musicRequest'];   // makePdf: ใช้ปุ่มปริ้นจากเบราว์เซอร์แทน
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)',
@@ -52,7 +52,9 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS banners (id TEXT PRIMARY KEY, pos INTEGER, title TEXT, link TEXT, visible INTEGER, ts INTEGER, who TEXT, mime TEXT)',
   'CREATE TABLE IF NOT EXISTS sounds (rid INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, code TEXT, label TEXT, fid TEXT, fname TEXT, value TEXT, enabled INTEGER, ts INTEGER, who TEXT)',
   'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))',
-  'CREATE TABLE IF NOT EXISTS asset_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, name TEXT, code TEXT, date TEXT, place TEXT, link TEXT, ok TEXT, broken TEXT, repair TEXT, reduce TEXT, total TEXT, rate TEXT, dep0 TEXT, depAdd TEXT, depSub TEXT, dep1 TEXT, net TEXT, note TEXT)',
+  'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT)',
+  'CREATE INDEX IF NOT EXISTS bc_cat ON barcode_items(cat, pos)',
+  'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
   'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)'
 ];
 let schemaReady = false;
@@ -706,204 +708,217 @@ API.musicTvTick = async C => {                     // หน้า TV เรี�
 };
 API.musicTvEnd = async () => true;
 
-/* ============================ Google Sheets (Service Account) ============================
- * ต้องตั้ง Secret 2 ตัวใน Cloudflare:  GOOGLE_SA_EMAIL (client_email)  และ  GOOGLE_SA_KEY (private_key ของ Service Account)
- * แล้วแชร์ Google Sheet ให้อีเมลนั้นเป็น "ผู้แก้ไข" */
-const BACKUP_KEEP = 2;                         // เก็บสำเนาล่าสุดแค่ 2 ชุด
-let gTok = { v: '', exp: 0 };
-const b64url = b => btoa(typeof b === 'string' ? b : String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-async function googleToken(C) {
-  if (gTok.v && gTok.exp > now() + 60000) return gTok.v;
-  const email = C.env.GOOGLE_SA_EMAIL, key = C.env.GOOGLE_SA_KEY;
-  if (!email || !key) throw new Error('ยังไม่ได้ตั้งค่า Google Service Account (Secret GOOGLE_SA_EMAIL / GOOGLE_SA_KEY ใน Cloudflare)');
-  const pem = String(key).replace(/\\n/g, '\n').replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
-  const k = await crypto.subtle.importKey('pkcs8', Uint8Array.from(atob(pem), c => c.charCodeAt(0)), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
-  const iat = Math.floor(now() / 1000);
-  const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const body = b64url(JSON.stringify({ iss: email, scope: 'https://www.googleapis.com/auth/spreadsheets', aud: 'https://oauth2.googleapis.com/token', iat, exp: iat + 3600 }));
-  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', k, new TextEncoder().encode(head + '.' + body));
-  const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + head + '.' + body + '.' + b64url(sig) });
-  const j = await res.json().catch(() => ({}));
-  if (!j.access_token) throw new Error('ขอสิทธิ์ Google ไม่สำเร็จ: ' + (j.error_description || j.error || res.status));
-  gTok = { v: j.access_token, exp: now() + (j.expires_in || 3600) * 1000 };
-  return gTok.v;
-}
-async function gApi(C, path, opt) {
-  opt = opt || {};
-  const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + path, { method: opt.method || 'GET', body: opt.body,
-    headers: { Authorization: 'Bearer ' + await googleToken(C), 'Content-Type': 'application/json' } });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const m = (j.error && j.error.message) || res.status;
-    throw new Error(res.status === 403 || res.status === 404 ? 'เปิดชีตไม่ได้ (' + m + ') — ต้องแชร์ชีตให้ ' + (C.env.GOOGLE_SA_EMAIL || 'Service Account') + ' เป็นผู้แก้ไข' : 'Google Sheets: ' + m);
-  }
-  return j;
-}
-async function sheetInfo(C, src) {
-  const m = await gApi(C, src.id + '?fields=properties.title,sheets.properties');
-  const sh = (m.sheets || []).map(s => s.properties).filter(p => src.gid === '' || String(p.sheetId) === String(src.gid))[0];
-  if (!sh) throw new Error('ไม่พบแผ่นงานตาม gid ในไฟล์นี้');
-  return { title: m.properties.title, tab: sh.title, sheetId: sh.sheetId };
-}
-const tabRange = (info, a1) => encodeURIComponent("'" + info.tab.replace(/'/g, "''") + "'!" + a1);
-function colLetter(n) { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; }
-const safeVal = v => { v = str(v); return /^[=]/.test(v) ? "'" + v : v; };
+/* ============================ รายการบาร์เดี่ยว/บาร์แพ็ค (เก็บใน D1 + นำเข้าจาก Excel) ============================
+ * ข้อมูลทั้งหมดอยู่ใน Cloud (ตาราง barcode_items / barcode_cats) แก้ไขผ่านหน้าเว็บ · นำเข้าจาก Excel ได้ (หัวตารางอ่านจากชื่อคอลัมน์)
+ * ก่อนนำเข้า/กู้คืนทุกครั้งระบบทำสำเนาไว้ให้ เก็บล่าสุดแค่ BACKUP_KEEP ชุด */
+const BC_SHEET = 'บาร์สินค้า', BACKUP_KEEP = 2, BC_DEFCAT = 'ไม่ระบุหมวด';
+const BC_COMPANY = 'ร้านสหกรณ์ มหาวิทยาลัยเชียงใหม่', BC_TITLE = 'รายการบาร์เดี่ยว/บาร์แพ็ค';
+const BC_SCHEMA = {
+  cols: [
+    { k: 'no', label: 'ลำดับ', w: 5, num: true, calc: true },
+    { k: 'partner', label: 'รหัสคู่ค้า', w: 9 },
+    { k: 'cat', label: 'หมวด', w: 10 },
+    { k: 'name', label: 'ชื่อรายการ', w: 29 },
+    { k: 'packBar', label: 'เลขบาร์แพ็ค', w: 13, text: true },
+    { k: 'unitBar', label: 'เลขบาร์เดี่ยว', w: 13, text: true },
+    { k: 'qtySys', label: 'จำนวนในระบบ', w: 7, num: true, edit: true },
+    { k: 'spread', label: 'กระจาย', w: 7, edit: true },
+    { k: 'old', label: 'ของเดิม', w: 7, edit: true }
+  ],
+  groups: [{ label: 'ตรวจนับ', from: 7, to: 9 }],
+  handLines: ['ผู้ตรวจนับ ......................', 'วันที่ ......................'],
+  nameCol: 4
+};
+const BC_FIELDS = ['partner', 'cat', 'name', 'packBar', 'unitBar'];
+const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/\s+/g, '') : v.replace(/\s+/g, ' '); };
+function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
+const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), '', '', ''] });
+const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
+const bcLog = (C, me, cat, action, detail) => appendLog(C, me.name, BC_SHEET, cat || '', action, detail);
 
-/* ============================ รายการสินทรัพย์ ============================
- * แหล่งข้อมูล: (1) Google Sheet ตามลิงก์ที่ตั้งไว้ อ่าน/แก้ไขสดผ่าน Service Account  หรือ  (2) ตารางใน D1 ที่นำเข้าจาก Excel
- * หัวตารางอ่านจากชื่อคอลัมน์ในไฟล์ (ไม่ผูกตำแหน่งคอลัมน์) ทั้งหัว 1 แถวและ 2 แถว */
-const AS_KEYS = ['name', 'code', 'date', 'place', 'link', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
-const AS_LABELS = ['ชื่อรายการ', 'รหัสสินทรัพย์', 'วันที่รับสินทรัพย์', 'สถานที่ตั้งสินทรัพย์', 'ลิงก์รูปภาพ', 'สถานะ ปกติ', 'สถานะ ไม่สามารถซ่อมได้', 'สถานะ ต้องทำการซ่อม', 'สถานะ ลดลงระหว่างปี', 'สถานะ รวม', 'อัตราร้อยละ',
-  'ค่าเสื่อมราคาสะสม ยกมา', 'ค่าเสื่อมราคาสะสม เพิ่มระหว่างปี', 'ค่าเสื่อมราคาสะสม ลดระหว่างปี', 'ค่าเสื่อมราคาสะสม ยกไป', 'ราคาสินทรัพย์สุทธิ', 'หมายเหตุ'];
-const AS_PATS = [['reduce', /ลดลง/], ['depSub', /ลดระหว่าง/], ['broken', /ไม่สามารถ/], ['repair', /ซ่อม/], ['ok', /ปกติ/], ['total', /รวม/], ['rate', /ร้อยละ/],
-  ['dep0', /ยกมา/], ['depAdd', /เพิ่ม/], ['dep1', /ยกไป/], ['net', /สุทธิ/], ['name', /รายการ/], ['code', /รหัส/], ['date', /วันที่/], ['place', /สถานที่/],
-  ['link', /รูป|ภาพ|ลิ[งค]ก์/], ['note', /หมายเหตุ/]];
-function parseAssetGrid(grid) {
-  grid = Array.isArray(grid) ? grid : [];
-  const cell = (r, c) => str((grid[r] || [])[c]);
-  let h = -1;
-  for (let r = 0; r < Math.min(grid.length, 20); r++) { const t = (grid[r] || []).join(' '); if (/รายการ/.test(t) && /รหัส/.test(t)) { h = r; break; } }
-  if (h < 0) throw new Error('ไม่พบหัวตาราง — ต้องมีคอลัมน์ "รายการ" และ "รหัสสินทรัพย์"');
-  const two = !/ปกติ|ยกมา|ยกไป/.test((grid[h] || []).join(' ')) && /ปกติ|ยกมา|ยกไป/.test((grid[h + 1] || []).join(' '));   // หัวตาราง 2 แถว (มีหัวกลุ่ม "สถานะ"/"ค่าเสื่อม")
-  const width = Math.max((grid[h] || []).length, (grid[h + 1] || []).length), cols = {};
-  for (let c = 0; c < width; c++) {
-    const label = (cell(h, c) + ' ' + (two ? cell(h + 1, c) : '')).trim();
-    if (!label) continue;
-    for (const [k, re] of AS_PATS) if (cols[k] === undefined && re.test(label)) { cols[k] = c; break; }
+async function bcDup(C, v, exceptId) {
+  const same = await one(C, 'SELECT id FROM barcode_items WHERE cat=? AND name=? AND id<>?', v.cat, v.name, exceptId);
+  if (same) return 'มีรายการชื่อ "' + v.name + '" ในหมวด ' + v.cat + ' อยู่แล้ว';
+  for (const [k, label] of [['packBar', 'เลขบาร์แพ็ค'], ['unitBar', 'เลขบาร์เดี่ยว']]) {
+    if (!v[k]) continue;
+    const m = await one(C, 'SELECT name,cat FROM barcode_items WHERE id<>? AND (packBar=? OR unitBar=?)', exceptId, v[k], v[k]);
+    if (m) return label + ' ' + v[k] + ' ซ้ำกับรายการ: ' + m.name + ' (หมวด ' + m.cat + ')';
   }
-  if (cols.name === undefined || cols.code === undefined) throw new Error('หัวตารางต้องมีคอลัมน์ "รายการ" และ "รหัสสินทรัพย์"');
-  const rows = []; let no = 0;
-  for (let r = h + (two ? 2 : 1); r < grid.length; r++) {
-    const g = grid[r] || [], o = { row: r + 1 };
-    AS_KEYS.forEach(k => { o[k] = cols[k] === undefined ? '' : str(g[cols[k]]); });
-    if (!o.name && !o.code) continue;
-    o.no = ++no; rows.push(o);
-  }
-  return { rows, cols, width };
+  return '';
 }
-const assetSrc = C => kvJson(C, 'ASSET_SRC', null);
-const asSheetUrl = s => 'https://docs.google.com/spreadsheets/d/' + s.id + '/edit' + (s.gid !== '' ? '#gid=' + s.gid : '');
-async function assetRead(C) {
-  const src = await assetSrc(C);
-  if (src) {
-    const info = await sheetInfo(C, src), g = await gApi(C, src.id + '/values/' + tabRange(info, 'A1:AZ5000') + '?valueRenderOption=FORMATTED_VALUE');
-    const p = parseAssetGrid(g.values || []);
-    return { mode: 'sheet', src, info, rows: p.rows, cols: p.cols, width: p.width };
-  }
-  const rows = (await all(C, 'SELECT * FROM asset_rows ORDER BY pos,id')).map((r, i) => { const o = { row: r.id, no: i + 1 }; AS_KEYS.forEach(k => { o[k] = str(r[k]); }); return o; });
-  return { mode: 'local', rows };
-}
-const asLog = (C, me, action, detail) => appendLog(C, me.name, 'รายการสินทรัพย์', '', action, detail);
 
-/* สำเนา: เก็บล่าสุดแค่ BACKUP_KEEP ชุด (ข้ามถ้าข้อมูลเหมือนชุดล่าสุด) */
-async function assetSnapshot(C) {
-  const d = await assetRead(C), data = JSON.stringify(d.rows.map(r => AS_KEYS.map(k => r[k])));
-  if (d.rows.length) {
-    const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'asset');
+API.getInit = async (C, token) => {
+  await authPerm(C, token, 'barcode');
+  const cats = await all(C, 'SELECT cat, COUNT(*) AS n, MAX(ts) AS ts, MIN(pos) AS p FROM barcode_items GROUP BY cat ORDER BY p');
+  const parts = await all(C, 'SELECT cat, partner, COUNT(*) AS n FROM barcode_items GROUP BY cat, partner');
+  const empties = await all(C, 'SELECT cat FROM barcode_cats ORDER BY cat');
+  const map = {}, list = [];
+  const add = (cat, n, ts) => { if (map[cat]) return; map[cat] = { key: BC_SHEET + '|' + cat, sheet: BC_SHEET, cat, label: cat, items: n, last: ts ? { ts } : null, partners: {} }; list.push(map[cat]); };
+  cats.forEach(r => add(str(r.cat), r.n, r.ts));
+  empties.forEach(r => add(str(r.cat), 0, 0));
+  parts.forEach(r => { const c = map[str(r.cat)], p = str(r.partner); if (c && p) c.partners[p] = r.n; });
+  const lg = await one(C, 'SELECT ts,who,cat,action,detail FROM log WHERE sheet=? ORDER BY id DESC LIMIT 1', BC_SHEET);
+  const mx = await one(C, 'SELECT MAX(ts) AS m FROM barcode_items'), lastTs = Math.max(lg ? lg.ts : 0, mx && mx.m || 0);
+  return {
+    categories: list,
+    sheets: { [BC_SHEET]: { schema: 'bar', statusText: lastTs ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(lastTs) : '' } },
+    schemas: { bar: BC_SCHEMA },
+    overall: lg ? { ts: lg.ts, user: str(lg.who), sheet: BC_SHEET, cat: str(lg.cat), action: str(lg.action), detail: str(lg.detail) } : (lastTs ? { ts: lastTs, user: '', sheet: BC_SHEET, cat: '', action: '', detail: '' } : null),
+    now: now()
+  };
+};
+API.getCategoryData = async (C, token, sheet, cat) => {
+  await authPerm(C, token, 'barcode'); cat = str(cat);
+  const rows = cat === '*' ? await all(C, 'SELECT * FROM barcode_items ORDER BY pos') : await all(C, 'SELECT * FROM barcode_items WHERE cat=? ORDER BY pos', cat);
+  const ts = rows.reduce((m, r) => Math.max(m, r.ts || 0), 0);
+  return { sheet: BC_SHEET, cat: cat === '*' ? '' : cat, last: ts ? { ts } : null,
+    header: { company: BC_COMPANY, title: BC_TITLE, statusText: ts ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(ts) : '' },
+    rows: rows.map((r, i) => bcRow(r, i + 1)) };
+};
+API.findBarcode = async (C, token, code, exSheet, exRow) => {
+  await authPerm(C, token, 'barcode'); code = bcClean('packBar', code);
+  if (code.length < 5) return [];
+  const rows = await all(C, 'SELECT id,name,cat,packBar,unitBar FROM barcode_items WHERE (packBar=? OR unitBar=?) AND id<>? LIMIT 5', code, code, Number(exRow) || 0);
+  return rows.map(r => ({ field: str(r.packBar) === code ? 'เลขบาร์แพ็ค' : 'เลขบาร์เดี่ยว', name: str(r.name), sheet: BC_SHEET, cat: str(r.cat), row: r.id }));
+};
+API.createCategory = async (C, token, name) => {
+  const me = await auth(C, token, true); name = bcClean('cat', name).slice(0, 100);
+  if (!name) throw new Error('กรุณากรอกชื่อหมวด');
+  if ((await one(C, 'SELECT 1 AS x FROM barcode_items WHERE cat=?', name)) || (await one(C, 'SELECT 1 AS x FROM barcode_cats WHERE cat=?', name))) throw new Error('มีหมวดนี้อยู่แล้ว');
+  await run(C, 'INSERT INTO barcode_cats(cat) VALUES(?)', name);
+  await bcLog(C, me, name, 'สร้างหมวด', name);
+  return { ok: true, key: BC_SHEET + '|' + name };
+};
+API.addItem = async (C, token, sheet, catArg, item, force) => {
+  const me = await auth(C, token, true), v = bcVals(item || {});
+  v.cat = v.cat || bcClean('cat', catArg);
+  if (!v.name) throw new Error('กรุณากรอกชื่อรายการ');
+  if (!v.cat) throw new Error('กรุณาเลือกหมวด');
+  if (!force) { const d = await bcDup(C, v, 0); if (d) return { duplicate: true, message: d }; }
+  let a = v.partner ? await one(C, 'SELECT MAX(pos) AS p FROM barcode_items WHERE cat=? AND partner=?', v.cat, v.partner) : null;
+  if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items WHERE cat=?', v.cat);
+  if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items');
+  const at = ((a && a.p) || 0) + 1;                       // แทรกต่อจากรายการของคู่ค้า/หมวดเดียวกัน
+  await run(C, 'UPDATE barcode_items SET pos=pos+1 WHERE pos>=?', at);
+  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name);
+  await run(C, 'DELETE FROM barcode_cats WHERE cat=?', v.cat);
+  await bcLog(C, me, v.cat, 'เพิ่มรายการ', v.name + (v.packBar ? ' · แพ็ค ' + v.packBar : '') + (v.unitBar ? ' · เดี่ยว ' + v.unitBar : ''));
+  return { ok: true, cat: v.cat, row: r.meta.last_row_id };
+};
+API.editItem = async (C, token, sheet, row, oldName, vals, force) => {
+  const me = await auth(C, token, true); vals = vals || {};
+  const cur = await one(C, 'SELECT * FROM barcode_items WHERE id=?', Number(row) || 0);
+  if (!cur || str(cur.name) !== str(oldName)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนแก้ไข');
+  const src = {}; BC_FIELDS.forEach(k => { src[k] = vals[k] === undefined ? cur[k] : vals[k]; });
+  const v = bcVals(src);
+  if (!v.name) throw new Error('กรุณากรอกชื่อรายการ');
+  if (!v.cat) throw new Error('กรุณากรอกหมวด');
+  const changed = BC_FIELDS.filter(k => str(cur[k]) !== v[k]);
+  if (!changed.length) return { ok: true, nochange: true, cat: str(cur.cat) };
+  if (!force) { const d = await bcDup(C, v, cur.id); if (d) return { duplicate: true, message: d }; }
+  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name, cur.id);
+  await bcLog(C, me, v.cat, 'แก้ไขรายการ', str(oldName) + ' · ' + changed.map(k => k + ': ' + str(cur[k]) + ' → ' + v[k]).join(' | '));
+  return { ok: true, cat: v.cat };
+};
+API.deleteItem = async (C, token, sheet, row, name) => {
+  const me = await auth(C, token, true);
+  const cur = await one(C, 'SELECT * FROM barcode_items WHERE id=?', Number(row) || 0);
+  if (!cur || str(cur.name) !== str(name)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
+  await run(C, 'DELETE FROM barcode_items WHERE id=?', cur.id);
+  if (!(await one(C, 'SELECT 1 AS x FROM barcode_items WHERE cat=?', cur.cat))) await run(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', cur.cat);   // หมวดว่างยังอยู่
+  await bcLog(C, me, str(cur.cat), 'ลบรายการ', str(cur.name) + (cur.packBar ? ' · แพ็ค ' + cur.packBar : '') + (cur.unitBar ? ' · เดี่ยว ' + cur.unitBar : ''));
+  return { ok: true };
+};
+API.getLog = async (C, token, limit) => {
+  await auth(C, token, true); limit = Math.min(Math.max(Number(limit) || 80, 1), 500);
+  return (await all(C, 'SELECT ts,who,sheet,cat,action,detail FROM log WHERE sheet=? ORDER BY id DESC LIMIT ?', BC_SHEET, limit)).map(r => ({ ts: r.ts, who: str(r.who), sheet: str(r.sheet), cat: str(r.cat), action: str(r.action), detail: str(r.detail) }));
+};
+
+/* ---------- สำเนา (เก็บ 2 ชุดล่าสุด) ---------- */
+const bcBackups = async C => (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'barcode')).map(b => ({ id: b.id, ts: b.ts, name: b.name }));
+async function bcSnapshot(C, why) {
+  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar FROM barcode_items ORDER BY pos');
+  const cats = (await all(C, 'SELECT cat FROM barcode_cats')).map(r => str(r.cat));
+  if (rows.length || cats.length) {
+    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar)]), cats });
+    if (data.length > 1900000) throw new Error('ข้อมูลใหญ่เกินกว่าจะทำสำเนาได้');
+    const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'barcode');
     if (!last || last.hash !== hash) {
-      await run(C, 'INSERT INTO backups(kind,ts,name,hash,data) VALUES(?,?,?,?,?)', 'asset', now(), d.mode === 'sheet' ? d.info.title + ' / ' + d.info.tab : 'ข้อมูลในระบบ (Excel)', hash, data);
-      await run(C, 'DELETE FROM backups WHERE kind=? AND id NOT IN (SELECT id FROM backups WHERE kind=? ORDER BY id DESC LIMIT ?)', 'asset', 'asset', BACKUP_KEEP);
+      await run(C, 'INSERT INTO backups(kind,ts,name,hash,data) VALUES(?,?,?,?,?)', 'barcode', now(), rows.length + ' รายการ · ' + why, hash, data);
+      await run(C, 'DELETE FROM backups WHERE kind=? AND id NOT IN (SELECT id FROM backups WHERE kind=? ORDER BY id DESC LIMIT ?)', 'barcode', 'barcode', BACKUP_KEEP);
     }
   }
-  return assetBackups(C);
+  return bcBackups(C);
 }
-async function assetBackups(C) { return (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'asset')).map(b => ({ id: b.id, ts: b.ts, name: b.name })); }
-
-API.assetList = async (C, token) => {
-  const me = await authPerm(C, token, 'assets'), out = { canEdit: me.role === 'admin', rows: [], mode: 'local', live: false };
-  const src = await assetSrc(C);
-  if (src) {
-    out.mode = 'sheet'; out.srcUrl = asSheetUrl(src);
-    try {
-      const d = await assetRead(C);
-      out.rows = d.rows; out.live = true; out.srcName = d.info.title + ' / ' + d.info.tab;
-      const miss = AS_KEYS.filter(k => d.cols[k] === undefined);
-      if (miss.length) out.srcDiag = 'ไม่พบคอลัมน์ในชีต: ' + miss.map(k => AS_LABELS[AS_KEYS.indexOf(k)]).join(', ') + ' (ช่องเหล่านี้จะแก้ไขไม่ได้)';
-    } catch (e) { out.srcError = e.message; }
-  } else out.rows = (await assetRead(C)).rows;
-  return out;
-};
-API.assetBackup = async (C, token) => { await authPerm(C, token, 'assets'); return { backups: await assetSnapshot(C) }; };
-API.assetBackupList = async (C, token) => { await authPerm(C, token, 'assets'); return { backups: await assetBackups(C) }; };
-API.assetBackupData = async (C, token, id) => {          // ดาวน์โหลดสำเนาเป็น CSV (เปิดใน Excel ได้)
-  await authPerm(C, token, 'assets');
-  const b = await one(C, 'SELECT name,data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'asset');
+API.barcodeBackupList = async (C, token) => { await auth(C, token, true); return { backups: await bcBackups(C) }; };
+API.barcodeBackupData = async (C, token, id) => {
+  await auth(C, token, true);
+  const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  return { name: 'สำเนาสินทรัพย์', csv: '\ufeff' + [AS_LABELS].concat(JSON.parse(b.data)).map(r => r.map(q).join(',')).join('\r\n') };
+  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
 };
-API.assetSrcSet = async (C, token, url) => {
-  const me = await auth(C, token, true); url = str(url);
-  if (!url) { await kvSet(C, 'ASSET_SRC', 'null'); await asLog(C, me, 'เลิกใช้ลิงก์ Google Sheet', ''); return { ok: true }; }
-  const id = (/\/spreadsheets\/d\/([\w-]+)/.exec(url) || [])[1], gid = (/[#&?]gid=(\d+)/.exec(url) || [])[1];
-  if (!id) throw new Error('ลิงก์ต้องเป็นลิงก์ Google Sheet (docs.google.com/spreadsheets/d/...)');
-  const src = { id, gid: gid === undefined ? '' : gid };
-  const info = await sheetInfo(C, src);                       // ทดสอบเปิดไฟล์ได้จริงก่อนบันทึก
-  const g = await gApi(C, id + '/values/' + tabRange(info, 'A1:AZ5000'));
-  const p = parseAssetGrid(g.values || []);                   // ทดสอบว่าหัวตารางอ่านได้
-  await assetSnapshot(C).catch(() => {});                     // สำเนาข้อมูลเดิมก่อนเปลี่ยนแหล่งข้อมูล
-  await kvSet(C, 'ASSET_SRC', JSON.stringify(src));
-  await asLog(C, me, 'ตั้งลิงก์ Google Sheet', info.title + ' / ' + info.tab + ' · ' + p.rows.length + ' รายการ');
-  return { ok: true, count: p.rows.length };
-};
-API.assetCellSave = async (C, token, p) => {
-  const me = await auth(C, token, true); p = p || {};
-  const key = str(p.key), row = Number(p.row) || 0, val = str(p.value).slice(0, 500);
-  if (AS_KEYS.indexOf(key) < 0 || row < 1) throw new Error('ข้อมูลไม่ถูกต้อง');
-  const d = await assetRead(C), cur = d.rows.filter(r => r.row === row)[0];
-  if (!cur || cur.code !== str(p.code)) throw new Error('ข้อมูลในไฟล์เปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนแก้ไข');
-  if (d.mode === 'sheet') {
-    if (d.cols[key] === undefined) throw new Error('ไม่พบคอลัมน์นี้ในชีต แก้ไขไม่ได้');
-    await gApi(C, d.src.id + '/values/' + tabRange(d.info, colLetter(d.cols[key]) + row) + '?valueInputOption=USER_ENTERED', { method: 'PUT', body: JSON.stringify({ values: [[safeVal(val)]] }) });
-  } else await run(C, 'UPDATE asset_rows SET ' + key + '=? WHERE id=?', val, row);
-  await asLog(C, me, 'แก้ไขช่อง', (cur.name || cur.code) + ' · ' + AS_LABELS[AS_KEYS.indexOf(key)] + ': ' + cur[key] + ' → ' + val);
-  return { ok: true };
-};
-API.assetSave = async (C, token, p) => {
-  const me = await auth(C, token, true); p = p || {};
-  const f = {}; AS_KEYS.forEach(k => { f[k] = str(p[k]).slice(0, 500); });
-  if (!f.name) throw new Error('กรุณากรอกชื่อรายการ');
-  const row = Number(p.row) || 0, d = await assetRead(C);
-  if (row && !d.rows.some(r => r.row === row)) throw new Error('ไม่พบรายการที่แก้ไข กรุณาโหลดใหม่');
-  if (d.mode === 'sheet') {
-    const cols = d.cols, arr = [];
-    if (row) {
-      const data = AS_KEYS.filter(k => cols[k] !== undefined).map(k => ({ range: decodeURIComponent(tabRange(d.info, colLetter(cols[k]) + row)), values: [[safeVal(f[k])]] }));
-      await gApi(C, d.src.id + '/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) });
-    } else {
-      for (let i = 0; i < Math.max(d.width, 1); i++) arr.push('');
-      AS_KEYS.forEach(k => { if (cols[k] !== undefined) arr[cols[k]] = safeVal(f[k]); });
-      await gApi(C, d.src.id + '/values/' + tabRange(d.info, 'A1') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', { method: 'POST', body: JSON.stringify({ values: [arr] }) });
-    }
-  } else if (row) await run(C, 'UPDATE asset_rows SET ' + AS_KEYS.map(k => k + '=?').join(',') + ' WHERE id=?', ...AS_KEYS.map(k => f[k]), row);
-  else {
-    const pos = ((await one(C, 'SELECT MAX(pos) AS m FROM asset_rows')).m || 0) + 1;
-    await run(C, 'INSERT INTO asset_rows(pos,' + AS_KEYS.join(',') + ') VALUES(?,' + AS_KEYS.map(() => '?').join(',') + ')', pos, ...AS_KEYS.map(k => f[k]));
-  }
-  await asLog(C, me, row ? 'แก้ไขรายการ' : 'เพิ่มรายการ', f.name + (f.code ? ' (' + f.code + ')' : ''));
-  return { ok: true };
-};
-API.assetDelete = async (C, token, row, code) => {
-  const me = await auth(C, token, true); row = Number(row) || 0;
-  const d = await assetRead(C), cur = d.rows.filter(r => r.row === row)[0];
-  if (!cur || cur.code !== str(code)) throw new Error('ข้อมูลในไฟล์เปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
-  if (d.mode === 'sheet') await gApi(C, d.src.id + ':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: d.info.sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }) });
-  else await run(C, 'DELETE FROM asset_rows WHERE id=?', row);
-  await asLog(C, me, 'ลบรายการ', (cur.name || '') + (cur.code ? ' (' + cur.code + ')' : ''));
-  return { ok: true };
-};
-/** นำเข้าจาก Excel: หน้าเว็บอ่านไฟล์เป็นตาราง (แถว×คอลัมน์) แล้วส่งมา — ทำสำเนาข้อมูลเดิมก่อน แล้วแทนที่ทั้งหมด */
-API.assetImportRows = async (C, token, grid) => {
+const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, now(), who);
+async function bcInsertAll(C, who, items, startPos) {
+  for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => bcInsert(C, startPos + i + j + 1, who, r)));
+}
+API.barcodeRestore = async (C, token, id) => {
   const me = await auth(C, token, true);
-  if (await assetSrc(C)) throw new Error('ตอนนี้ใช้ข้อมูลจาก Google Sheet อยู่ — กด "ตั้ง/เปลี่ยนลิงก์ไฟล์" แล้วเว้นว่างเพื่อเลิกใช้ลิงก์ก่อน จึงจะนำเข้า Excel ได้');
-  if (!Array.isArray(grid) || grid.length > 5000) throw new Error('ไฟล์ว่างหรือมีแถวมากเกิน 5,000 แถว');
-  const p = parseAssetGrid(grid);
-  if (!p.rows.length) throw new Error('ไม่พบรายการข้อมูลในไฟล์');
-  await assetSnapshot(C);                                    // สำเนาก่อนแทนที่
-  const ins = 'INSERT INTO asset_rows(pos,' + AS_KEYS.join(',') + ') VALUES(?,' + AS_KEYS.map(() => '?').join(',') + ')';
-  await run(C, 'DELETE FROM asset_rows');
-  for (let i = 0; i < p.rows.length; i += 80) await batch(C, p.rows.slice(i, i + 80).map((r, j) => stmt(C, ins, i + j + 1, ...AS_KEYS.map(k => r[k].slice(0, 500)))));
-  await asLog(C, me, 'นำเข้าจาก Excel', p.rows.length + ' รายการ');
-  return { ok: true, count: p.rows.length, backups: await assetBackups(C) };
+  const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
+  if (!b) throw new Error('ไม่พบสำเนานี้');
+  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4] }));
+  await bcSnapshot(C, 'ก่อนกู้คืน');
+  await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c))));
+  await bcInsertAll(C, me.name, items, 0);
+  await bcLog(C, me, '', 'กู้คืนจากสำเนา', items.length + ' รายการ');
+  return { ok: true, count: items.length, backups: await bcBackups(C) };
+};
+
+/* ---------- นำเข้าจาก Excel ---------- */
+const BC_PATS = [
+  ['packBar', /แพ็ค|แพค|pack/i, /บาร์|bar|รหัส|เลข|code/i], ['unitBar', /เดี่ยว|เดียว|unit|single|ชิ้น/i, /บาร์|bar|รหัส|เลข|code/i],
+  ['partner', /คู่ค้า|ซัพพลายเออร์|supplier|vendor|partner/i], ['cat', /หมวด|categor/i], ['name', /ชื่อ|name|^รายการ|description/i]];
+function parseBarGrid(grid, defCat) {
+  grid = Array.isArray(grid) ? grid : [];
+  for (let h = 0; h < Math.min(grid.length, 30); h++) {
+    const cols = {};
+    (grid[h] || []).forEach((cell, c) => {
+      const label = str(cell); if (!label) return;
+      for (const [k, re, re2] of BC_PATS) if (cols[k] === undefined && re.test(label) && (!re2 || re2.test(label))) { cols[k] = c; break; }
+    });
+    if (cols.name === undefined || (cols.packBar === undefined && cols.unitBar === undefined)) continue;
+    const items = []; let lastCat = '';
+    for (let r = h + 1; r < grid.length; r++) {
+      const g = grid[r] || [], o = {};
+      BC_FIELDS.forEach(k => { o[k] = cols[k] === undefined ? '' : bcClean(k, g[cols[k]]).slice(0, 200); });
+      if (o.cat) lastCat = o.cat; else o.cat = lastCat || defCat || BC_DEFCAT;
+      if (!o.name) continue;
+      items.push(o);
+    }
+    return items;
+  }
+  throw new Error('ไม่พบหัวตาราง (ต้องมีคอลัมน์ชื่อสินค้า/รายการ และเลขบาร์แพ็ค หรือ เลขบาร์เดี่ยว)');
+}
+API.importBarcodeData = async (C, token, sheets, mode) => {
+  const me = await auth(C, token, true);
+  if (!Array.isArray(sheets) || !sheets.length) throw new Error('ไม่พบข้อมูลในไฟล์');
+  const items = [], notes = [];
+  sheets.forEach(s => {
+    try { parseBarGrid(s && s.grid, str(s && s.name)).forEach(x => items.push(x)); }
+    catch (e) { notes.push(str(s && s.name) + ': ' + e.message); }
+  });
+  if (!items.length) throw new Error('นำเข้าไม่ได้ — ' + (notes.join(' | ') || 'ไม่พบรายการ'));
+  if (items.length > 20000) throw new Error('มีรายการเกิน 20,000 แถว');
+  const replace = mode !== 'append';
+  await bcSnapshot(C, replace ? 'ก่อนนำเข้า (แทนที่)' : 'ก่อนนำเข้า (เพิ่ม)');
+  let add = items, dup = 0, start = 0;
+  if (replace) await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')]);
+  else {
+    const have = new Set((await all(C, 'SELECT cat,name,packBar,unitBar FROM barcode_items')).map(r => [r.cat, r.name, r.packBar, r.unitBar].join('\u0001')));
+    add = items.filter(x => { const k = [x.cat, x.name, x.packBar, x.unitBar].join('\u0001'); if (have.has(k)) { dup++; return false; } have.add(k); return true; });
+    start = (await one(C, 'SELECT MAX(pos) AS m FROM barcode_items')).m || 0;
+  }
+  await bcInsertAll(C, me.name, add, start);
+  await bcLog(C, me, '', 'นำเข้าจาก Excel', (replace ? 'แทนที่ทั้งหมด' : 'เพิ่มต่อท้าย') + ' · ' + add.length + ' รายการ' + (dup ? ' · ข้ามซ้ำ ' + dup : ''));
+  return { ok: true, count: add.length, duplicates: dup, notes, backups: await bcBackups(C) };
 };
