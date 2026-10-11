@@ -314,8 +314,14 @@ td.act{white-space:nowrap;min-width:170px}
 .cnav button{border:0;background:none;border-radius:999px;padding:9px 16px;font-weight:600;color:var(--steel);white-space:nowrap}
 .cnav button.on{background:var(--grad);color:#fff}
 /* ---------- สิทธิ์การ์ดรายคน / ประวัติการใช้งาน ---------- */
-.permbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px}
-.permbox label{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:14px;color:var(--ink)}
+.uform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
+.uform .full{grid-column:1/-1}
+.uform .ulink{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+.uform .ulink.hidden{display:none}
+.permwrap{display:grid;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;background:#fbf9ff}
+@media (max-width:760px){.uform{grid-template-columns:1fr}}
+.permbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px}
+.permbox label{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:14px;color:var(--ink);line-height:1.3}
 #settingsPage .pwrap{max-width:1100px}
 .hirow-time{white-space:nowrap}
 /* ---------- รายการสินทรัพย์ ---------- */
@@ -347,7 +353,6 @@ td.act{white-space:nowrap;min-width:170px}
   <span class="me" id="me"></span>
   <button class="btn ghost small" id="btnHome">← เมนูหลัก</button>
   <button class="btn ghost small" id="btnReload">โหลดใหม่</button>
-  <button class="btn ghost small" id="btnPw">เปลี่ยนรหัสผ่าน</button>
   <button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
 </header>
 
@@ -557,18 +562,21 @@ td.act{white-space:nowrap;min-width:170px}
         <tbody id="userBody"></tbody></table>
       </div>
       <h3 id="uFormTitle" style="margin-top:18px">เพิ่มผู้ใช้</h3>
-      <div class="grid" id="uForm">
+      <div class="uform" id="uForm">
         <label>รหัสผู้ใช้<input type="text" id="uName" autocomplete="off"></label>
         <label>ชื่อที่แสดง (ไม่บังคับ)<input type="text" id="uDisp" autocomplete="off"></label>
         <label>รหัสผ่าน<input type="password" id="uPass" autocomplete="new-password" disabled></label>
-        <label class="wide" id="uLinkRow" style="display:flex;gap:8px;align-items:center;flex-direction:row">
+        <label class="full ulink" id="uLinkRow">
           <input type="checkbox" id="uLink" checked> ไม่ต้องตั้งรหัสผ่าน — ให้ระบบสร้างลิงก์เข้าใช้งานให้</label>
-        <label class="wide">สิทธิ์
+        <label class="full">สิทธิ์
           <select id="uRole">
-            <option value="viewer">ผู้ใช้งาน (ปริ้นรายงานได้เท่านั้น ไม่เห็นข้อมูลการอัพเดต)</option>
+            <option value="viewer">ผู้ใช้งาน (ปริ้นรายงานได้เท่านั้น)</option>
             <option value="admin">แอดมิน (ทำได้ทุกอย่าง)</option>
           </select></label>
-        <div class="wide"><div class="muted" style="margin-bottom:6px">การ์ดที่ผู้ใช้นี้ใช้งาน/มองเห็นได้ (แอดมินใช้ได้ทุกการ์ด · "จัดการผู้ใช้งาน" และ "Banner" เป็นของแอดมินเท่านั้น)</div><div class="permbox" id="uPermBox"></div></div>
+        <div class="full permwrap">
+          <div class="muted">การ์ดที่ผู้ใช้นี้ใช้งาน/มองเห็นได้ (แอดมินใช้ได้ทุกการ์ด)</div>
+          <div class="permbox" id="uPermBox"></div>
+        </div>
       </div>
       <div class="addbar">
         <button class="btn" id="uSave">เพิ่มผู้ใช้</button>
@@ -719,7 +727,6 @@ td.act{white-space:nowrap;min-width:170px}
     <span class="me" id="sMe"></span>
     <button class="btn ghost small hidden" id="sGoCfg">⚙ ตั้งค่าเสียง</button>
     <button class="btn ghost small" id="sHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
     <button class="btn ghost small js-logout">ออกจากระบบ</button>
   </header>
   <div class="pwrap">
@@ -814,7 +821,6 @@ td.act{white-space:nowrap;min-width:170px}
     <h1>ขอเพลง / คิวเพลง</h1>
     <span class="me" id="muMe"></span>
     <button class="btn ghost small" id="muHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
     <button class="btn ghost small js-logout">ออกจากระบบ</button>
   </header>
   <div class="pwrap">
