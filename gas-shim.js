@@ -1,6 +1,6 @@
 /* gas-shim.js — ให้หน้าเว็บ (GitHub Pages) เรียกฟังก์ชันฝั่งหลังบ้าน (Cloudflare Worker) ได้ด้วยรูปแบบเดิม google.script.run.xxx()
  * แก้ API_URL เป็นลิงก์ของ Worker (https://ชื่อworker.ชื่อบัญชี.workers.dev) เท่านั้น */
-window.API_URL = 'https://cmucoop-api.cmucoopsupport.workers.dev';
+window.API_URL = 'https://cmucoop-api.cmucoopcashier.workers.dev';
 
 (function () {
   function post(fn, args) {
