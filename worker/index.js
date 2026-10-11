@@ -11,7 +11,8 @@ const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
 const PERM_KEYS = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history'];
 const PERM_DEFAULT = { barcode: true, sound: true, music: true, label: true, price: true, offline: false, online: false, assets: true, history: false };
-const CARD_KEYS = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history', 'users', 'cards', 'banner'];
+const CARD_KEYS = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history', 'settings'];
+const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
 const CARD_LINK_DEF = {
   label: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php',
@@ -148,11 +149,13 @@ function rowToUser(r) {
 function userPerms(u) {
   const out = {}, p = u.perms || {};
   PERM_KEYS.forEach(k => { out[k] = u.role === 'admin' ? true : (p[k] !== undefined ? !!p[k] : PERM_DEFAULT[k]); });
+  Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = u.role === 'admin' ? true : p[k] !== false; });   // การ์ดกำหนดเอง: ไม่ได้ตั้ง = เห็นได้
   return out;
 }
 function cleanPerms(p, role) {
   const out = {}; p = p || {};
   PERM_KEYS.forEach(k => { out[k] = role === 'admin' ? true : (p[k] === undefined ? PERM_DEFAULT[k] : !(p[k] === false || p[k] === 'false')); });
+  Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = role === 'admin' ? true : !(p[k] === false || p[k] === 'false'); });
   return out;
 }
 async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
@@ -332,15 +335,47 @@ API.deleteUser = async (C, token, username) => {
 };
 
 /* ---------- การ์ดเมนูหลัก ---------- */
-function normCardOrder(list) {
-  const out = [];
-  (Array.isArray(list) ? list : []).forEach(k => { k = str(k); if (CARD_KEYS.indexOf(k) >= 0 && out.indexOf(k) < 0) out.push(k); });
-  CARD_KEYS.forEach(k => { if (out.indexOf(k) < 0) out.push(k); });
+function normCardOrder(list, extra) {
+  const out = [], keys = CARD_KEYS.concat(extra || []);
+  (Array.isArray(list) ? list : []).forEach(k => { k = str(k); if (keys.indexOf(k) >= 0 && out.indexOf(k) < 0) out.push(k); });
+  keys.forEach(k => { if (out.indexOf(k) < 0) out.push(k); });
   return out;
 }
-API.getCardOrder = async (C, token) => { await auth(C, token); return normCardOrder(await kvJson(C, 'CARD_ORDER', null)); };
+async function customCards(C) {
+  const raw = await kvJson(C, 'CUSTOM_CARDS', []), out = [];
+  (Array.isArray(raw) ? raw : []).forEach(c => {
+    const k = str(c && c.k), t = str(c && c.t), u = str(c && c.u);
+    if (CUSTOM_KEY.test(k) && t && validCardLink(u) && !out.some(x => x.k === k)) out.push({ k, t: t.slice(0, CARD_TITLE_MAX), u });
+  });
+  return out;
+}
+const customIds = async C => (await customCards(C)).map(c => c.k);
+API.getCardOrder = async (C, token) => { await auth(C, token); return normCardOrder(await kvJson(C, 'CARD_ORDER', null), await customIds(C)); };
+API.getCustomCards = async (C, token) => {           // ผู้ใช้ทั่วไปเห็นเฉพาะการ์ดที่แอดมินไม่ได้ปิดสิทธิ์ไว้
+  const me = await auth(C, token), list = await customCards(C);
+  return me.role === 'admin' ? list : list.filter(c => me.perms[c.k] !== false);
+};
+API.setCustomCards = async (C, token, list) => {     // รับรายการทั้งหมด (ตามลำดับ) ตอบกลับรายการพร้อมรหัสที่กำหนดให้การ์ดใหม่
+  const me = await auth(C, token, true), old = await customCards(C), out = [];
+  list = Array.isArray(list) ? list : [];
+  if (list.length > MAX_CUSTOM_CARDS) throw new Error('สร้างการ์ดได้ไม่เกิน ' + MAX_CUSTOM_CARDS + ' ใบ');
+  list.forEach(c => {
+    c = c || {};
+    const t = str(c.t).replace(/\s+/g, ' ').trim(), u = str(c.u);
+    if (!t) throw new Error('กรุณากรอกชื่อการ์ด');
+    if (t.length > CARD_TITLE_MAX) throw new Error('ชื่อการ์ดยาวเกิน ' + CARD_TITLE_MAX + ' ตัวอักษร');
+    if (!validCardLink(u)) throw new Error('ลิงก์ของการ์ด "' + t + '" ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https:// และไม่มีช่องว่าง)');
+    let k = str(c.k);
+    if (!(old.some(x => x.k === k) && !out.some(x => x.k === k))) { do { k = 'c_' + uuid().replace(/-/g, '').slice(0, 8); } while (out.some(x => x.k === k) || old.some(x => x.k === k)); }
+    out.push({ k, t, u });
+  });
+  await kvSet(C, 'CUSTOM_CARDS', JSON.stringify(out));
+  await kvSet(C, 'CARD_ORDER', JSON.stringify(normCardOrder(await kvJson(C, 'CARD_ORDER', null), out.map(c => c.k))));
+  await sysLog(C, me.name, 'จัดการการ์ดลิงก์', out.map(c => c.t).join(' | ') || '(ไม่มี)');
+  return out;
+};
 API.setCardOrder = async (C, token, order) => {
-  const me = await auth(C, token, true), out = normCardOrder(order);
+  const me = await auth(C, token, true), out = normCardOrder(order, await customIds(C));
   await kvSet(C, 'CARD_ORDER', JSON.stringify(out));
   await sysLog(C, me.name, 'จัดลำดับการ์ดเมนูหลัก', out.join(','));
   return out;
