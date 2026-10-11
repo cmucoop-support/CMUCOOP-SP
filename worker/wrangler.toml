@@ -9,4 +9,4 @@ enabled = true
 [[d1_databases]]
 binding = "DB"
 database_name = "cmucoop"
-database_id = "วาง-DATABASE-ID-จริงตรงนี้"
+database_id = "8975c351-ffb0-411c-81ce-73b6a7fc4bc0"
