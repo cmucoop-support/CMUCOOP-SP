@@ -269,8 +269,13 @@ function musicApply(r) {
   }
   if (r.action === 'play') { if (MUS.held > 0) MUS.next = r.item; else musicStart(r.item); }
 }
+var lastPing = 0;
 function musicTick() {
-  if (MUS.held > 0 || MUS.calling) return;                 // ระหว่างประกาศไม่เริ่มเพลงใหม่
+  if (MUS.held > 0) {                                      // ระหว่างประกาศไม่เริ่มเพลงใหม่ แต่ยังส่งสัญญาณชีพให้หน้าขอเพลงรู้ว่า TV ออนไลน์
+    if (Date.now() - lastPing > 20000) { lastPing = Date.now(); try { google.script.run.withFailureHandler(function () {}).musicTvPing(); } catch (e) {} }
+    return;
+  }
+  if (MUS.calling) return;
   MUS.calling = true;
   google.script.run
     .withSuccessHandler(function (r) { MUS.calling = false; musicApply(r); })

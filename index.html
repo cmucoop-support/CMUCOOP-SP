@@ -343,6 +343,50 @@ td.act{white-space:nowrap;min-width:170px}
 .asbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .asbar input[type=search]{flex:1;min-width:180px}
 .asprev{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:10px}
+
+/* ---------- ขอเพลง / คิวเพลง ---------- */
+.mu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.mu-head h3{margin:0}
+.mu-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:1px 10px;font-size:12.5px;font-weight:600;background:#eceff3;color:var(--steel);white-space:nowrap}
+.mu-chip i{width:8px;height:8px;border-radius:50%;background:var(--old);display:inline-block}
+.mu-chip.ok{background:#e3f6ec;color:var(--ok)}.mu-chip.ok i{background:var(--ok)}
+.mu-chip.warn{background:#fdf0d5;color:var(--warn)}.mu-chip.warn i{background:var(--warn)}
+.mu-chip.bad{background:#fde7e4;color:var(--bad)}.mu-chip.bad i{background:var(--bad)}
+.mu-chip.wait{background:var(--accent-soft);color:var(--accent-text)}.mu-chip.wait i{background:var(--accent)}
+.mu-now{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.mu-nowinfo{flex:1;min-width:200px}
+.mu-art{width:128px;aspect-ratio:16/9;border-radius:8px;background:var(--accent-soft) center/cover no-repeat;display:grid;place-items:center;font-size:26px;flex:none}
+.mu-title{font-weight:700;font-size:16.5px;line-height:1.35;overflow-wrap:anywhere}
+.mu-sub{color:var(--steel);font-size:13.5px}
+.mu-eq{display:inline-flex;gap:2px;align-items:flex-end;height:14px;margin-right:6px;vertical-align:-1px}
+.mu-eq b{width:3px;height:3px;background:var(--ok);border-radius:1px;animation:mueq 1s infinite ease-in-out}
+.mu-eq b:nth-child(2){animation-delay:.25s}.mu-eq b:nth-child(3){animation-delay:.5s}
+@keyframes mueq{0%,100%{height:3px}50%{height:14px}}
+@media (prefers-reduced-motion:reduce){.mu-eq b{animation:none;height:10px}}
+.mu-prev{display:flex;gap:10px;align-items:center;margin-top:10px;padding:8px;border:1px dashed var(--line);border-radius:10px}
+.mu-prev .mu-art{width:96px}
+.mu-prev.bad{border-color:var(--bad);color:var(--bad)}
+.mu-opt{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);white-space:nowrap}
+#muMaxUser{width:auto;min-width:64px;padding:4px 8px}
+.mu-tabs{display:flex;gap:6px}
+.mu-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 14px;font-weight:600;color:var(--steel)}
+.mu-tab.on{background:var(--accent-soft);border-color:var(--accent-text);color:var(--accent-text)}
+.mu-list{display:grid;gap:8px}
+.mu-item{display:grid;grid-template-columns:26px 96px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
+.mu-item.playing{border-color:var(--ok);background:#f3fbf6}
+.mu-item.dim{opacity:.7}
+.mu-item .mu-art{width:96px;font-size:20px}
+.mu-item .mu-title{font-size:15px}
+.mu-num{font-weight:700;color:var(--steel);text-align:center}
+.mu-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
+.mu-act .btn.danger{border-color:var(--bad);background:#fff;color:var(--bad)}
+.mu-empty{padding:18px 8px;text-align:center}
+@media (max-width:640px){
+  .mu-item{grid-template-columns:22px 72px 1fr}
+  .mu-item .mu-art{width:72px}
+  .mu-item .mu-act{grid-column:1 / -1;justify-content:flex-start}
+  .mu-art{width:100px}
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -825,35 +869,44 @@ td.act{white-space:nowrap;min-width:170px}
   </header>
   <div class="pwrap">
     <div class="card">
-      <h3>ขอเพลง</h3>
-      <div class="row">
-        <input type="text" id="muUrl" placeholder="วางลิงก์ YouTube (วิดีโอ/เพลย์ลิสต์) หรือไฟล์เสียง (.mp3 .m4a ...)" style="flex:1;min-width:240px" autocomplete="off">
-        <button class="btn" id="muSend">ส่งคำขอ</button>
-      </div>
-      <div class="muted" id="muNote" style="margin-top:6px"></div>
-    </div>
-    <div class="card hidden" id="muAdminCard">
-      <h3>ตั้งค่าสำหรับแอดมิน</h3>
-      <div class="row">
-        <label style="display:flex;gap:8px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink)">
-          <input type="checkbox" id="muAuto"> อนุมัติเพลงอัตโนมัติตลอด</label>
-        <button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
-      </div>
-    </div>
-    <div class="card">
-      <h3>ความดังเพลง</h3>
-      <div class="row">
+      <div class="mu-head"><h3>กำลังเล่นที่ TV</h3><span class="mu-chip" id="muTv"><i></i><span>กำลังตรวจสอบ…</span></span></div>
+      <div class="mu-now" id="muNow"></div>
+      <div class="row" style="margin-top:12px">
         <label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">
           🔉 ความดังเพลง <input type="range" id="muVol" min="0" max="100" step="5" value="70" style="flex:1"> <b id="muVolTxt" style="min-width:48px">70%</b></label>
       </div>
       <div class="muted" style="margin-top:4px">ใครก็ปรับได้ · มีผลกับเพลงที่เล่นที่ TV เท่านั้น เสียงประกาศไม่เปลี่ยน (แอดมินตั้งความดังประกาศที่ ระบบเสียงประกาศ → ตั้งค่าเสียง) · TV ปรับตามภายในไม่กี่วินาที</div>
     </div>
+
     <div class="card">
-      <div class="cardrow"><h3>คิวเพลง</h3><span class="muted" id="muCount"></span></div>
-      <div style="overflow:auto"><table class="logt">
-        <thead><tr><th>#</th><th>เพลง</th><th>ผู้ขอ</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody id="muBody"></tbody></table></div>
-      <div class="muted" style="margin-top:6px">เพลงจะหยุดชั่วคราวทุกครั้งที่มีเสียงประกาศ และเล่นต่อเมื่อประกาศจบ · ถ้า YouTube เล่นโฆษณาคั่น TV จะปิดเสียงไว้จนโฆษณาจบ แล้วค่อยเปิดเสียงตอนเป็นตัวเพลง</div>
+      <div class="mu-head"><h3>ขอเพลง</h3><span class="muted" id="muQuota"></span></div>
+      <div class="row">
+        <input type="text" id="muUrl" placeholder="วางลิงก์ YouTube (วิดีโอ/เพลย์ลิสต์) หรือไฟล์เสียง (.mp3 .m4a ...)" style="flex:1;min-width:240px" autocomplete="off" inputmode="url">
+        <button class="btn" id="muSend">ส่งคำขอ</button>
+      </div>
+      <div id="muPrev" class="mu-prev hidden"></div>
+      <div class="muted" id="muNote" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card hidden" id="muAdminCard">
+      <div class="mu-head"><h3>ตั้งค่าสำหรับแอดมิน</h3><span class="mu-chip warn hidden" id="muPendBadge"><i></i><span></span></span></div>
+      <div class="row">
+        <label class="mu-opt"><input type="checkbox" id="muAuto"> อนุมัติเพลงอัตโนมัติตลอด</label>
+        <button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
+        <label class="mu-opt">จำกัดต่อคน
+          <select id="muMaxUser"></select> เพลง</label>
+        <button class="btn ghost small" id="muClear">ล้างประวัติ</button>
+      </div>
+      <div class="muted" style="margin-top:6px">แอดมินขอเพลงแล้วเข้าคิวทันทีและไม่ถูกจำกัดจำนวน · ผู้ใช้ทั่วไปมีเพลงค้างในคิวพร้อมกันได้ไม่เกินจำนวนที่ตั้งไว้</div>
+    </div>
+
+    <div class="card">
+      <div class="mu-head">
+        <div class="mu-tabs"><button class="mu-tab on" data-t="q" id="muTabQ">คิว</button><button class="mu-tab" data-t="h" id="muTabH">ประวัติ</button></div>
+        <span class="muted" id="muCount"></span>
+      </div>
+      <div class="mu-list" id="muBody"></div>
+      <div class="muted" style="margin-top:8px">เพลงจะหยุดชั่วคราวทุกครั้งที่มีเสียงประกาศ และเล่นต่อเมื่อประกาศจบ · ถ้า YouTube เล่นโฆษณาคั่น TV จะปิดเสียงไว้จนโฆษณาจบ แล้วค่อยเปิดเสียงตอนเป็นตัวเพลง · ประวัติเก็บไว้ 7 วัน</div>
     </div>
   </div>
 </div>
@@ -2288,16 +2341,20 @@ $('#sImport').addEventListener('click', async function () {
 });
 
 /* ============================ ขอเพลง / คิวเพลง ============================ */
-var MU = { auto: false, vol: 70, volDrag: false, avol: 100, avDrag: false, rows: [], timer: null, MQ: 'cmucoop/audio/control/music_v1' };
+var MU = { auto: false, vol: 70, volDrag: false, avol: 100, avDrag: false, rows: [], timer: null, MQ: 'cmucoop/audio/control/music_v1', tab: 'q', tv: null, maxUser: 3, fails: 0 };
+var MU_LIVE = { 'รออนุมัติ': 1, 'รอคิว': 1, 'กำลังเล่น': 1 };
 function muNotify() {                              // สะกิดให้ TV เช็กคิวทันที
   try { if (SND.client && SND.client.connected) SND.client.publish(MU.MQ, JSON.stringify({ mode: 'refresh' })); } catch (e) {}
 }
+function muTime(ts) { if (!ts) return ''; var d = new Date(ts); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
 function openMusic() {
   if (!hasPerm('music')) return;
   setNav('music');
   var admin = S.me.role === 'admin';
   $('#muMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
   $('#muAdminCard').classList.toggle('hidden', !admin);
+  if (!$('#muMaxUser').options.length) $('#muMaxUser').innerHTML = [1, 2, 3, 4, 5, 6, 8, 10].map(function (n) { return '<option>' + n + '</option>'; }).join('');
+  MU.tab = 'q'; MU.fails = 0;
   sndConnect(); muLoad();
   clearInterval(MU.timer);
   MU.timer = setInterval(function () {
@@ -2306,46 +2363,138 @@ function openMusic() {
   }, 5000);
 }
 async function muLoad() {
-  try { var r = await call('musicList'); MU.rows = r.rows; MU.auto = r.auto; if (!MU.volDrag) MU.vol = r.vol; if (!MU.avDrag) MU.avol = r.avol; muRender(); } catch (e) {}
+  try {
+    var r = await call('musicList');
+    MU.rows = r.rows; MU.auto = r.auto; MU.tv = r.tv; MU.maxUser = r.maxUser; MU.fails = 0;
+    if (!MU.volDrag) MU.vol = r.vol; if (!MU.avDrag) MU.avol = r.avol;
+    muRender();
+  } catch (e) { if (++MU.fails >= 2) $('#muCount').textContent = '⚠ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…'; }
 }
-function muBtn(a, label, id, cls) { return '<button class="btn ' + (cls || 'ghost') + ' small" data-a="' + a + '" data-i="' + esc(id) + '">' + label + '</button> '; }
+
+/* ---------- ตรวจลิงก์ที่วาง (ฝั่งหน้าเว็บ ใช้แสดงตัวอย่างทันที ฝั่งเซิร์ฟเวอร์ตรวจซ้ำอีกครั้ง) ---------- */
+function muParse(raw) {
+  var s = (raw || '').trim(); if (!s) return null;
+  var u; try { u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s); } catch (e) { return { bad: true, label: 'ลิงก์ไม่ถูกต้อง' }; }
+  var h = u.hostname.toLowerCase().replace(/^(www|m|music)\./, ''), id = '', list = u.searchParams.get('list'), v = u.searchParams.get('v'),
+      seg = u.pathname.split('/').filter(Boolean), ID = /^[A-Za-z0-9_-]{11}$/;
+  var mix = { bad: true, label: 'YouTube Mix (เล่นอัตโนมัติ) ไม่รองรับ — ใช้ลิงก์วิดีโอหรือเพลย์ลิสต์ปกติ' };
+  if (h === 'youtu.be') id = seg[0] || '';
+  else if (h === 'youtube.com' || h === 'youtube-nocookie.com') {
+    if (u.pathname === '/playlist' && list) return /^RD/.test(list) ? mix : { kind: 'ytlist', label: 'เพลย์ลิสต์ YouTube' };
+    id = v || (['shorts', 'embed', 'live', 'v'].indexOf(seg[0]) >= 0 ? seg[1] : '') || '';
+    if (!ID.test(id) && list) return /^RD/.test(list) ? mix : { kind: 'ytlist', label: 'เพลย์ลิสต์ YouTube' };
+  } else if (/\.(mp3|m4a|aac|wav|ogg|oga|opus|webm|flac)$/i.test(u.pathname)) {
+    var n = u.pathname.split('/').pop(); try { n = decodeURIComponent(n); } catch (e) {}
+    return { kind: 'audio', label: 'ไฟล์เสียง: ' + n };
+  }
+  if (ID.test(id)) return { kind: 'yt', thumb: 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg', label: 'วิดีโอ YouTube' };
+  return { bad: true, label: 'รองรับเฉพาะลิงก์ YouTube หรือไฟล์เสียง (.mp3 .m4a .wav .ogg)' };
+}
+function muArt(x) {
+  return '<div class="mu-art"' + (x.thumb ? ' style="background-image:url(\'' + esc(x.thumb) + '\')"' : '') + '>' + (x.thumb ? '' : (x.kind === 'ytlist' ? '📃' : '🎵')) + '</div>';
+}
+function muPreview() {
+  var p = muParse($('#muUrl').value), box = $('#muPrev');
+  box.classList.toggle('hidden', !p); box.classList.toggle('bad', !!(p && p.bad));
+  if (!p) { box.innerHTML = ''; return; }
+  box.innerHTML = p.bad ? '⚠ ' + esc(p.label) : muArt(p) + '<div><b>' + esc(p.label) + '</b><div class="mu-sub">กด "ส่งคำขอ" แล้วระบบจะดึงชื่อเพลงให้อัตโนมัติ</div></div>';
+}
+
+/* ---------- แสดงผล ---------- */
+function muChip(st) {
+  var c = { 'กำลังเล่น': 'ok', 'รอคิว': 'wait', 'รออนุมัติ': 'warn', 'ปฏิเสธ': 'bad', 'ผิดพลาด': 'bad' }[st] || '';
+  return '<span class="mu-chip ' + c + '"><i></i>' + esc(st) + '</span>';
+}
+function muBtn(a, label, id, cls) { return '<button class="btn ' + (cls || 'ghost') + ' small" data-a="' + a + '" data-i="' + esc(id) + '">' + label + '</button>'; }
 function muRender() {
-  var admin = S.me && S.me.role === 'admin', n = 0;
+  var admin = S.me && S.me.role === 'admin';
+  var live = MU.rows.filter(function (x) { return MU_LIVE[x.status]; }), hist = MU.rows.filter(function (x) { return !MU_LIVE[x.status]; });
+  var playing = live.filter(function (x) { return x.status === 'กำลังเล่น'; })[0];
+  var queue = live.filter(function (x) { return x.status !== 'กำลังเล่น'; });
+  var waiting = queue.filter(function (x) { return x.status === 'รอคิว'; }), pending = queue.filter(function (x) { return x.status === 'รออนุมัติ'; });
+
+  /* สถานะ TV */
+  var tv = MU.tv || {}, chip = $('#muTv');
+  chip.className = 'mu-chip ' + (tv.online ? 'ok' : (tv.seen ? 'bad' : 'warn'));
+  chip.lastChild.textContent = tv.online ? 'TV ออนไลน์' : (tv.seen ? 'TV ไม่ตอบสนอง · ล่าสุด ' + muTime(tv.seen) : 'ยังไม่พบ TV');
+
+  /* กำลังเล่น */
+  if (playing) {
+    $('#muNow').innerHTML = muArt(playing) + '<div class="mu-nowinfo"><div class="mu-title"><span class="mu-eq"><b></b><b></b><b></b></span>' + esc(playing.title) + '</div>' +
+      '<div class="mu-sub">ขอโดย ' + esc(playing.by) + (playing.start ? ' · เริ่มเล่น ' + muTime(playing.start) : '') + '</div></div>' +
+      (admin ? '<div class="mu-act">' + muBtn('skip', '⏭ ข้ามเพลง', playing.id) + '</div>' : '');
+  } else {
+    var hint = waiting.length ? (tv.online ? 'เพลงถัดไปกำลังจะเริ่มที่ TV ภายในไม่กี่วินาที' : 'มีเพลงรอคิว แต่ไม่พบ TV — ต้องเปิดหน้ารับสัญญาณ (receiver.html) ค้างไว้ที่ TV')
+      : pending.length ? 'มีเพลงรออนุมัติ ' + pending.length + ' เพลง' : 'ขอเพลงได้จากช่องด้านล่างเลย';
+    $('#muNow').innerHTML = '<div class="mu-art">🎵</div><div class="mu-nowinfo"><div class="mu-title">ตอนนี้ไม่มีเพลงที่กำลังเล่น</div><div class="mu-sub">' + hint + '</div></div>';
+  }
+
+  /* ช่องขอเพลง + โควตา */
+  var mine = live.filter(function (x) { return x.mine; }).length;
+  $('#muQuota').textContent = admin ? 'แอดมิน: เข้าคิวทันที ไม่จำกัดจำนวน' : 'คุณมีเพลงในคิว ' + mine + '/' + MU.maxUser;
+  $('#muNote').textContent = MU.auto ? 'เปิดอนุมัติอัตโนมัติอยู่ — เพลงที่ขอจะเข้าคิวทันที' : (admin ? 'ผู้ใช้ทั่วไปต้องรอแอดมินอนุมัติก่อนจึงเข้าคิว (เพลงที่แอดมินขอเข้าคิวทันที)' : 'เพลงที่ขอต้องรอแอดมินอนุมัติก่อนจึงเข้าคิว');
+
+  /* ส่วนแอดมิน */
   $('#muAuto').checked = !!MU.auto;
+  if (document.activeElement !== $('#muMaxUser')) $('#muMaxUser').value = String(MU.maxUser);
+  var pb = $('#muPendBadge'); pb.classList.toggle('hidden', !pending.length); if (pending.length) pb.lastChild.textContent = 'รออนุมัติ ' + pending.length + ' เพลง';
+  $('#muApproveAll').disabled = !pending.length;
+
+  /* ความดัง */
   if (!MU.volDrag) { $('#muVol').value = MU.vol; $('#muVolTxt').textContent = MU.vol + '%'; }
   if (!MU.avDrag) { $('#muAVol').value = MU.avol; $('#muAVolTxt').textContent = MU.avol + '%'; }
-  $('#muNote').textContent = MU.auto ? 'เปิดอนุมัติอัตโนมัติอยู่ — เพลงที่ขอจะเข้าคิวทันที' : 'เพลงที่ขอต้องรอแอดมินอนุมัติก่อนจึงเข้าคิว';
-  $('#muBody').innerHTML = MU.rows.map(function (x) {
-    var live = x.status === 'รออนุมัติ' || x.status === 'รอคิว' || x.status === 'กำลังเล่น', b = '';
-    if (admin) {
-      if (x.status === 'รออนุมัติ') b = muBtn('approve', 'อนุมัติ', x.id, '') + muBtn('reject', 'ปฏิเสธ', x.id, 'danger');
-      else if (x.status === 'กำลังเล่น') b = muBtn('skip', 'ข้ามเพลง', x.id);
-      else if (x.status === 'รอคิว') b = muBtn('remove', 'ลบ', x.id, 'danger');
-    } else if (x.mine && (x.status === 'รออนุมัติ' || x.status === 'รอคิว')) b = muBtn('cancel', 'ยกเลิก', x.id);
-    return '<tr' + (live ? '' : ' style="opacity:.55"') + '><td>' + (live ? ++n : '') + '</td><td><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.title) + '</a></td><td>' +
-      esc(x.by) + '</td><td>' + (x.status === 'กำลังเล่น' ? '<span class="tag">🎵 กำลังเล่น</span>' : esc(x.status)) + '</td><td>' + b + '</td></tr>';
-  }).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีเพลงในคิว</td></tr>';
-  $('#muCount').textContent = n ? 'ในคิว ' + n + ' เพลง' : '';
+
+  /* แท็บ + รายการ */
+  $('#muTabQ').textContent = 'คิว' + (queue.length ? ' (' + queue.length + ')' : ''); $('#muTabH').textContent = 'ประวัติ' + (hist.length ? ' (' + hist.length + ')' : '');
+  $('#muTabQ').classList.toggle('on', MU.tab === 'q'); $('#muTabH').classList.toggle('on', MU.tab === 'h');
+  $('#muCount').textContent = live.length ? 'ในคิว ' + live.length + ' เพลง' : '';
+  var n = 0, html;
+  if (MU.tab === 'q') {
+    html = queue.map(function (x) {
+      var b = '';
+      if (admin) {
+        if (x.status === 'รออนุมัติ') b = muBtn('approve', 'อนุมัติ', x.id, '') + muBtn('reject', 'ปฏิเสธ', x.id, 'danger');
+        else b = (waiting[0] && waiting[0].id !== x.id ? muBtn('next', '▲ เล่นถัดไป', x.id) : '') + muBtn('remove', 'ลบ', x.id, 'danger');
+      } else if (x.mine) b = muBtn('cancel', 'ยกเลิก', x.id);
+      return '<div class="mu-item">' + '<div class="mu-num">' + (x.status === 'รอคิว' ? ++n : '–') + '</div>' + muArt(x) +
+        '<div><div class="mu-title"><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.title) + '</a></div><div class="mu-sub">ขอโดย ' + esc(x.by) + (x.mine ? ' (คุณ)' : '') + ' · ' + muTime(x.ts) + ' ' + muChip(x.status) + '</div></div>' +
+        '<div class="mu-act">' + b + '</div></div>';
+    }).join('') || '<div class="muted mu-empty">ยังไม่มีเพลงในคิว</div>';
+  } else {
+    html = hist.map(function (x) {
+      return '<div class="mu-item dim"><div class="mu-num"></div>' + muArt(x) +
+        '<div><div class="mu-title"><a href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.title) + '</a></div><div class="mu-sub">ขอโดย ' + esc(x.by) + ' · ' + muTime(x.end || x.ts) + ' ' + muChip(x.status) + '</div></div>' +
+        '<div class="mu-act"><button class="btn ghost small" data-a="again" data-u="' + esc(x.url) + '">ขออีกครั้ง</button></div></div>';
+    }).join('') || '<div class="muted mu-empty">ยังไม่มีประวัติ</div>';
+  }
+  $('#muBody').innerHTML = html;
 }
+
+/* ---------- การกระทำ ---------- */
+$('#muUrl').addEventListener('input', muPreview);
 $('#muSend').addEventListener('click', function () {
   var u = $('#muUrl').value.trim();
   if (!u) { toast('วางลิงก์เพลงก่อน', true); return; }
   busy(this, async function () {
     var r = await call('musicRequest', u);
-    $('#muUrl').value = '';
+    $('#muUrl').value = ''; muPreview(); MU.tab = 'q';
     toast(r.status === 'รอคิว' ? 'เข้าคิวแล้ว: ' + r.title : 'ส่งคำขอแล้ว รอแอดมินอนุมัติ: ' + r.title);
     muNotify(); await muLoad();
   });
 });
 $('#muUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#muSend').click(); });
-$('#muBody').addEventListener('click', async function (e) {
+$('#musicPage').addEventListener('click', async function (e) {
+  var t = e.target.closest('.mu-tab');
+  if (t) { MU.tab = t.dataset.t; muRender(); return; }
   var b = e.target.closest('button[data-a]'); if (!b) return;
+  var a = b.dataset.a;
+  if (a === 'again') { $('#muUrl').value = b.dataset.u; muPreview(); $('#muUrl').scrollIntoView({ behavior: 'smooth', block: 'center' }); $('#muUrl').focus(); return; }
+  if (a === 'skip' && !confirm('ข้ามเพลงที่กำลังเล่นอยู่?')) return;
   b.disabled = true;
   try {
-    if (b.dataset.a === 'cancel') await call('musicCancel', b.dataset.i);
-    else await call('musicDecide', b.dataset.i, b.dataset.a);
+    if (a === 'cancel') await call('musicCancel', b.dataset.i); else await call('musicDecide', b.dataset.i, a);
     muNotify(); await muLoad();
-  } catch (err) { toast(err.message, true); b.disabled = false; }
+  } catch (err) { toast(err.message, true); b.disabled = false; muLoad(); }
 });
 $('#muAuto').addEventListener('change', async function () {
   var on = this.checked;
@@ -2353,7 +2502,16 @@ $('#muAuto').addEventListener('change', async function () {
   catch (e) { toast(e.message, true); this.checked = !on; }
 });
 $('#muApproveAll').addEventListener('click', async function () {
-  try { var r = await call('musicApproveAll'); toast('อนุมัติแล้ว ' + r.count + ' เพลง'); muNotify(); await muLoad(); }
+  try { var r = await call('musicApproveAll'); toast(r.count ? 'อนุมัติแล้ว ' + r.count + ' เพลง' : 'ไม่มีเพลงที่รออนุมัติ'); muNotify(); await muLoad(); }
+  catch (e) { toast(e.message, true); }
+});
+$('#muMaxUser').addEventListener('change', async function () {
+  try { var r = await call('musicSetMaxUser', this.value); MU.maxUser = r.maxUser; muRender(); toast('ผู้ใช้ทั่วไปขอเพลงค้างในคิวได้ ' + r.maxUser + ' เพลง'); }
+  catch (e) { toast(e.message, true); this.value = String(MU.maxUser); }
+});
+$('#muClear').addEventListener('click', async function () {
+  if (!confirm('ล้างประวัติเพลงทั้งหมด? (ไม่กระทบเพลงที่อยู่ในคิว)')) return;
+  try { var r = await call('musicClearHistory'); toast('ล้างประวัติแล้ว ' + r.count + ' รายการ'); await muLoad(); }
   catch (e) { toast(e.message, true); }
 });
 $('#muVol').addEventListener('input', function () { MU.volDrag = true; $('#muVolTxt').textContent = this.value + '%'; });
