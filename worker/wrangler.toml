@@ -1,0 +1,12 @@
+# CMUCOOP API (Cloudflare Worker + D1)
+name = "cmucoop-api"
+main = "index.js"
+compatibility_date = "2025-09-01"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cmucoop"
+database_id = "วาง-DATABASE-ID-จริงตรงนี้"
