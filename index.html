@@ -123,7 +123,7 @@ body.locked .top,body.locked .layout,body.locked #printArea{display:none}
 
 /* ---------- เมนูหลัก / หน้าอื่น ๆ (สลับด้วย body[data-nav]) ---------- */
 .page{display:none}
-body[data-nav="portal"] #portal,body[data-nav="admin"] #adminPage,body[data-nav="users"] #usersPage,
+body[data-nav="portal"] #portal,body[data-nav="settings"] #settingsPage,
 body[data-nav="sound"] #soundPage,body[data-nav="assets"] #assetsPage,body[data-nav="music"] #musicPage,body[data-nav="history"] #historyPage{display:block}
 body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:none}
 .phead{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 18px;flex-wrap:wrap}
@@ -317,6 +317,7 @@ td.act{white-space:nowrap;min-width:170px}
 .permbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 12px}
 .permbox label{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:14px;color:var(--ink)}
 #historyPage .pwrap{max-width:1200px}
+#settingsPage .pwrap{max-width:1100px}
 .hirow-time{white-space:nowrap}
 /* ---------- รายการสินทรัพย์ ---------- */
 #assetsPage,#assetsPage .pwrap,#assetsPage .card{min-width:0;max-width:100%}
@@ -458,23 +459,47 @@ td.act{white-space:nowrap;min-width:170px}
       <a class="mcard hidden" id="mOnline" href="https://cmu-coops.com/adEntry.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ระบบ CMUCOOP Online</b></a>
       <a class="mcard hidden" id="mAssets" href="#" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>รายการสินทรัพย์</b></a>
       <button class="mcard hidden" id="mHistory"><b>ประวัติการใช้งาน</b></button>
-      <button class="mcard hidden" id="mUsers"><b>จัดการผู้ใช้งาน</b></button>
-      <button class="mcard hidden" id="mCards"><b>จัดการการ์ด</b></button>
-      <button class="mcard hidden" id="mAdmin"><b>Banner</b></button>
+      <button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
     </div>
   </div>
 </div>
 
-<!-- ========== หน้าแอดมิน : จัดการ Banner ========== -->
-<div id="adminPage" class="page">
+<!-- ========== ตั้งค่า (แอดมิน) : รวมทุกการตั้งค่าไว้ที่เดียว ========== -->
+<div id="settingsPage" class="page">
   <header class="phead">
-    <h1>หน้าแอดมิน · จัดการ Banner</h1>
-    <span class="me" id="aMe"></span>
-    <button class="btn ghost small" id="aHome">← เมนูหลัก</button>
+    <h1>ตั้งค่า</h1>
+    <span class="me" id="stMe"></span>
+    <button class="btn ghost small" id="stHome">← เมนูหลัก</button>
     <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
     <button class="btn ghost small js-logout">ออกจากระบบ</button>
   </header>
   <div class="pwrap">
+    <nav class="cnav" id="stNav">
+      <button class="on" data-sp="cards">การ์ดเมนูหลัก</button>
+      <button data-sp="banner">Banner</button>
+      <button data-sp="users">ผู้ใช้งาน</button>
+      <button data-sp="sound">เสียงประกาศ</button>
+    </nav>
+
+    <section class="stp" id="st-cards" style="display:grid;gap:16px">
+      <div class="card">
+        <h3>สร้างการ์ดลิงก์ใหม่</h3>
+        <div class="muted" style="margin-bottom:8px">การ์ดจะขึ้นที่เมนูหลักของทุกคน กดแล้วเปิดลิงก์ในแท็บใหม่ · เลือกว่าผู้ใช้คนไหนเห็นได้ที่แท็บ "ผู้ใช้งาน"</div>
+        <div class="grid">
+          <label>ชื่อการ์ด<input type="text" id="ncTitle" maxlength="40" autocomplete="off"></label>
+          <label class="wide">ลิงก์<input type="text" id="ncLink" placeholder="https://..." autocomplete="off"></label>
+        </div>
+        <div class="addbar"><button class="btn" id="ncAdd">+ สร้างการ์ด</button></div>
+      </div>
+      <div class="card">
+        <div class="cardrow"><h3>จัดการการ์ดเมนูหลัก</h3><button class="btn ghost small" id="sortReset">กลับค่าเริ่มต้น</button></div>
+        <div class="muted" style="margin-bottom:8px">▲ ▼ เลื่อนลำดับ · แก้ชื่อในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดลิงก์แก้ปลายทางได้ (ล้างช่อง = ใช้ลิงก์เดิม) · การ์ดที่สร้างเองลบได้ · ใช้กับผู้ใช้ทุกคน (การ์ดที่ผู้ใช้ไม่มีสิทธิ์จะไม่แสดงตามเดิม)</div>
+        <div id="sortList" style="display:grid;gap:6px"></div>
+        <div class="addbar"><button class="btn" id="sortSave">บันทึก</button></div>
+      </div>
+    </section>
+
+    <section class="stp hidden" id="st-banner" style="display:grid;gap:16px">
     <div class="card">
       <h3>เพิ่ม Banner</h3>
       <div class="row">
@@ -536,19 +561,9 @@ td.act{white-space:nowrap;min-width:170px}
         <button class="btn ghost small" id="bCopyEmbed">คัดลอกโค้ดฝังเว็บ</button>
       </div>
     </div>
-  </div>
-</div>
+    </section>
 
-<!-- ========== หน้าจัดการผู้ใช้งาน (แอดมิน) ========== -->
-<div id="usersPage" class="page">
-  <header class="phead">
-    <h1>หน้าแอดมิน · จัดการผู้ใช้งาน</h1>
-    <span class="me" id="uMe"></span>
-    <button class="btn ghost small" id="uHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
-    <button class="btn ghost small js-logout">ออกจากระบบ</button>
-  </header>
-  <div class="pwrap">
+    <section class="stp hidden" id="st-users" style="display:grid;gap:16px">
     <div class="card">
       <h3>รหัสกู้คืนแอดมิน</h3>
       <div class="muted" id="recInfo" style="margin-bottom:8px"></div>
@@ -582,19 +597,76 @@ td.act{white-space:nowrap;min-width:170px}
         <span class="muted" id="uHint"></span>
       </div>
     </div>
-  </div>
-</div>
+    </section>
 
-<div class="modalwrap hidden" id="sortModal">
-  <div class="modal" style="width:min(640px,100%)">
-    <h3>จัดการการ์ดเมนูหลัก</h3>
-    <div class="muted">▲ ▼ เลื่อนลำดับ · แก้ชื่อการ์ดในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดที่เป็นลิงก์จะมีช่อง "ลิงก์" ให้แก้ปลายทางได้ (ล้างช่อง = ใช้ลิงก์เดิม) · ใช้กับผู้ใช้ทุกคน (การ์ดที่ผู้ใช้ไม่มีสิทธิ์จะไม่แสดงตามเดิม)</div>
-    <div id="sortList" style="display:grid;gap:6px;max-height:55vh;overflow:auto"></div>
-    <div class="addbar">
-      <button class="btn" id="sortSave">บันทึก</button>
-      <button class="btn ghost" id="sortReset">กลับค่าเริ่มต้น</button>
-      <button class="btn ghost" id="sortCancel">ยกเลิก</button>
-    </div>
+    <section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
+      <div class="card">
+        <h3>หน้ารับสัญญาณสำหรับ TV</h3>
+        <div class="row">
+          <input type="text" id="sRecv" readonly style="flex:1;min-width:260px">
+          <button class="btn ghost small" id="sRecvCopy">คัดลอกลิงก์</button>
+          <a class="btn small" id="sRecvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
+        </div>
+        <div class="muted" style="margin-top:6px">เปิดลิงก์นี้บนเครื่อง TV แล้วกดปลดล็อกลำโพง 1 ครั้ง · เสียงที่เพิ่ม/แก้ไขที่นี่จะถูกใช้บน TV เองภายใน 1 นาที</div>
+      </div>
+      <div class="card">
+        <h3>ความดังเสียงประกาศ</h3>
+        <div class="row"><label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">🔔 ความดังประกาศ
+          <input type="range" id="muAVol" min="10" max="100" step="5" value="100" style="flex:1"> <b id="muAVolTxt" style="min-width:48px">100%</b></label></div>
+        <div class="muted" style="margin-top:6px">ใช้กับเสียงประกาศทุกแบบ (ปุ่ม ตามเวลา เรียกพนักงาน งดรับเงิน) ปรับแยกจากความดังเพลงในหน้า "ขอเพลง / คิวเพลง" · ขั้นต่ำ 10% · TV ปรับตามภายในไม่กี่วินาที ประกาศที่กำลังเล่นอยู่จะใช้ค่าใหม่ครั้งถัดไป</div>
+      </div>
+      <nav class="cnav" id="cfgNav">
+        <button class="on" data-cp="btn">ระบบปุ่มประกาศ</button>
+        <button data-cp="sch">ตารางเวลาประกาศ</button>
+        <button data-cp="timed">ไฟล์เสียงตามเวลา</button>
+        <button data-cp="other">เสียงอื่นๆ</button>
+      </nav>
+
+      <div class="card cpanel" id="cp-btn">
+        <div class="cardrow"><h3>ระบบปุ่มประกาศ</h3><button class="btn small" id="sAddBtn">+ เพิ่มปุ่ม</button></div>
+        <div class="muted" style="margin-bottom:8px">ปุ่มเลขในแท็บ "ปุ่มประกาศ" · แต่ละปุ่มจะเล่นไฟล์เสียงอะไร</div>
+        <div style="overflow:auto"><table class="logt"><thead><tr><th>ปุ่ม (รหัส)</th><th>ชื่อปุ่ม</th><th>ไฟล์เสียงที่เล่น</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyBtn"></tbody></table></div>
+      </div>
+
+      <div class="cpanel hidden" id="cp-sch" style="display:grid;gap:14px">
+        <div class="card">
+          <div class="cardrow"><h3>ตารางเวลาประกาศอัตโนมัติ</h3><button class="btn small" id="sAddSch">+ เพิ่มเวลา</button></div>
+          <div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง TV จะเล่นเสียงที่เลือกเองอัตโนมัติ · แก้ไขได้ทั้งเวลา และเลข/ไฟล์เสียงที่จะประกาศ</div>
+          <div style="overflow:auto"><table class="logt"><thead><tr><th>เวลา</th><th>เลขเสียงที่ประกาศ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodySch"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>ประกาศซ้ำช่วงกลางวัน (09:00–19:00)</h3>
+          <div class="muted" style="margin-bottom:8px">เล่นเสียงที่เลือกซ้ำตามช่วงนาทีที่กำหนด</div>
+          <div class="row">
+            <label style="width:150px">สถานะ<select id="dtOn"><option value="ใช้งาน">เปิดใช้งาน</option><option value="ปิด">ปิด</option></select></label>
+            <label style="min-width:220px;flex:1">เสียงที่จะเล่น (เลข / ไฟล์)<select id="dtKey"></select></label>
+            <label style="width:150px">ทุกกี่นาที<input type="text" id="dtInt" inputmode="numeric" autocomplete="off"></label>
+            <button class="btn" id="dtSave" style="align-self:end">บันทึก</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card cpanel hidden" id="cp-timed">
+        <div class="cardrow"><h3>ไฟล์เสียงตามเวลา</h3><button class="btn small" id="sAddTimed">+ เพิ่มไฟล์เสียง</button></div>
+        <div class="muted" style="margin-bottom:8px">คลังไฟล์ที่ใช้ในตารางเวลา (เล่นพร้อมเสียงเปิด-ปิด) · เพิ่ม/เปลี่ยนไฟล์ที่นี่ แล้วไปเลือกใช้ในแท็บ "ตารางเวลาประกาศ"</div>
+        <div style="overflow:auto"><table class="logt"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyTimed"></tbody></table></div>
+      </div>
+
+      <div class="card cpanel hidden" id="cp-other">
+        <div class="cardrow"><h3>เสียงอื่นๆ</h3>
+          <div class="row">
+            <select id="sFilter" style="width:auto"></select>
+            <button class="btn small" id="sAdd">+ เพิ่มรายการ</button>
+            <button class="btn ghost small" id="sImport">นำเข้าไฟล์เสียงเดิมจาก GitHub</button>
+          </div>
+        </div>
+        <div class="muted" style="margin-bottom:6px">เสียงเปิด-ปิด · เสียงอ่านชื่อพนักงาน · สถานที่ · แคชเชียร์ · ประเภทงดรับ</div>
+        <div class="muted" id="sImpMsg" style="margin-bottom:6px"></div>
+        <div style="overflow:auto">
+          <table class="logt"><thead><tr><th>ประเภท</th><th>รหัส</th><th>ชื่อที่แสดง</th><th>ค่าเพิ่มเติม</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBody"></tbody></table>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -676,6 +748,7 @@ td.act{white-space:nowrap;min-width:170px}
   <header class="phead">
     <h1>ระบบเสียงประกาศ</h1>
     <span class="me" id="sMe"></span>
+    <button class="btn ghost small hidden" id="sGoCfg">⚙ ตั้งค่าเสียง</button>
     <button class="btn ghost small" id="sHome">← เมนูหลัก</button>
     <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
     <button class="btn ghost small js-logout">ออกจากระบบ</button>
@@ -685,7 +758,6 @@ td.act{white-space:nowrap;min-width:170px}
       <button class="stab on" data-st="send">ปุ่มประกาศ</button>
       <button class="stab" data-st="timed">เสียงตามเวลา</button>
       <button class="stab" data-st="staff">เรียกพนักงาน</button>
-      <button class="stab hidden" id="sTabCfg" data-st="cfg">ตั้งค่าเสียง</button>
     </nav>
     <div id="sStatus" class="sbox">กำลังเชื่อมต่อระบบส่งสัญญาณ…</div>
 
@@ -726,75 +798,6 @@ td.act{white-space:nowrap;min-width:170px}
           <label>สถานที่ให้ไปพบ<select id="sLoc"></select></label>
         </div>
         <div class="addbar"><button class="btn" id="sStaffSend">ส่งสัญญาณประกาศเรียกพนักงาน</button></div>
-      </div>
-    </section>
-
-    <section id="s-cfg" style="display:none;gap:14px">
-      <div class="card">
-        <h3>หน้ารับสัญญาณสำหรับ TV</h3>
-        <div class="row">
-          <input type="text" id="sRecv" readonly style="flex:1;min-width:260px">
-          <button class="btn ghost small" id="sRecvCopy">คัดลอกลิงก์</button>
-          <a class="btn small" id="sRecvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
-        </div>
-        <div class="muted" style="margin-top:6px">เปิดลิงก์นี้บนเครื่อง TV แล้วกดปลดล็อกลำโพง 1 ครั้ง · เสียงที่เพิ่ม/แก้ไขที่นี่จะถูกใช้บน TV เองภายใน 1 นาที</div>
-      </div>
-      <div class="card">
-        <h3>ความดังเสียงประกาศ</h3>
-        <div class="row"><label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">🔔 ความดังประกาศ
-          <input type="range" id="muAVol" min="10" max="100" step="5" value="100" style="flex:1"> <b id="muAVolTxt" style="min-width:48px">100%</b></label></div>
-        <div class="muted" style="margin-top:6px">ใช้กับเสียงประกาศทุกแบบ (ปุ่ม ตามเวลา เรียกพนักงาน งดรับเงิน) ปรับแยกจากความดังเพลงในหน้า "ขอเพลง / คิวเพลง" · ขั้นต่ำ 10% · TV ปรับตามภายในไม่กี่วินาที ประกาศที่กำลังเล่นอยู่จะใช้ค่าใหม่ครั้งถัดไป</div>
-      </div>
-      <nav class="cnav" id="cfgNav">
-        <button class="on" data-cp="btn">ระบบปุ่มประกาศ</button>
-        <button data-cp="sch">ตารางเวลาประกาศ</button>
-        <button data-cp="timed">ไฟล์เสียงตามเวลา</button>
-        <button data-cp="other">เสียงอื่นๆ</button>
-      </nav>
-
-      <div class="card cpanel" id="cp-btn">
-        <div class="cardrow"><h3>ระบบปุ่มประกาศ</h3><button class="btn small" id="sAddBtn">+ เพิ่มปุ่ม</button></div>
-        <div class="muted" style="margin-bottom:8px">ปุ่มเลขในแท็บ "ปุ่มประกาศ" · แต่ละปุ่มจะเล่นไฟล์เสียงอะไร</div>
-        <div style="overflow:auto"><table class="logt"><thead><tr><th>ปุ่ม (รหัส)</th><th>ชื่อปุ่ม</th><th>ไฟล์เสียงที่เล่น</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyBtn"></tbody></table></div>
-      </div>
-
-      <div class="cpanel hidden" id="cp-sch" style="display:grid;gap:14px">
-        <div class="card">
-          <div class="cardrow"><h3>ตารางเวลาประกาศอัตโนมัติ</h3><button class="btn small" id="sAddSch">+ เพิ่มเวลา</button></div>
-          <div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง TV จะเล่นเสียงที่เลือกเองอัตโนมัติ · แก้ไขได้ทั้งเวลา และเลข/ไฟล์เสียงที่จะประกาศ</div>
-          <div style="overflow:auto"><table class="logt"><thead><tr><th>เวลา</th><th>เลขเสียงที่ประกาศ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodySch"></tbody></table></div>
-        </div>
-        <div class="card">
-          <h3>ประกาศซ้ำช่วงกลางวัน (09:00–19:00)</h3>
-          <div class="muted" style="margin-bottom:8px">เล่นเสียงที่เลือกซ้ำตามช่วงนาทีที่กำหนด</div>
-          <div class="row">
-            <label style="width:150px">สถานะ<select id="dtOn"><option value="ใช้งาน">เปิดใช้งาน</option><option value="ปิด">ปิด</option></select></label>
-            <label style="min-width:220px;flex:1">เสียงที่จะเล่น (เลข / ไฟล์)<select id="dtKey"></select></label>
-            <label style="width:150px">ทุกกี่นาที<input type="text" id="dtInt" inputmode="numeric" autocomplete="off"></label>
-            <button class="btn" id="dtSave" style="align-self:end">บันทึก</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card cpanel hidden" id="cp-timed">
-        <div class="cardrow"><h3>ไฟล์เสียงตามเวลา</h3><button class="btn small" id="sAddTimed">+ เพิ่มไฟล์เสียง</button></div>
-        <div class="muted" style="margin-bottom:8px">คลังไฟล์ที่ใช้ในตารางเวลา (เล่นพร้อมเสียงเปิด-ปิด) · เพิ่ม/เปลี่ยนไฟล์ที่นี่ แล้วไปเลือกใช้ในแท็บ "ตารางเวลาประกาศ"</div>
-        <div style="overflow:auto"><table class="logt"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyTimed"></tbody></table></div>
-      </div>
-
-      <div class="card cpanel hidden" id="cp-other">
-        <div class="cardrow"><h3>เสียงอื่นๆ</h3>
-          <div class="row">
-            <select id="sFilter" style="width:auto"></select>
-            <button class="btn small" id="sAdd">+ เพิ่มรายการ</button>
-            <button class="btn ghost small" id="sImport">นำเข้าไฟล์เสียงเดิมจาก GitHub</button>
-          </div>
-        </div>
-        <div class="muted" style="margin-bottom:6px">เสียงเปิด-ปิด · เสียงอ่านชื่อพนักงาน · สถานที่ · แคชเชียร์ · ประเภทงดรับ</div>
-        <div class="muted" id="sImpMsg" style="margin-bottom:6px"></div>
-        <div style="overflow:auto">
-          <table class="logt"><thead><tr><th>ประเภท</th><th>รหัส</th><th>ชื่อที่แสดง</th><th>ค่าเพิ่มเติม</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBody"></tbody></table>
-        </div>
       </div>
     </section>
 
@@ -1557,15 +1560,20 @@ $('#userBody').addEventListener('click', async function (e) {
     catch (err) { toast(err.message, true); }
   }
 });
-/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) */
+/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
 var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง', label: 'ทำป้ายราคา', price: 'ตรวจสอบราคาสินค้า', offline: 'ระบบ CMUCOOP Offline', online: 'ระบบ CMUCOOP Online', assets: 'รายการสินทรัพย์', history: 'ประวัติการใช้งาน' };
 var PERM_KEYS = Object.keys(PERM_LABELS);
 var PERM_DEFAULT = { barcode: true, sound: true, music: true, label: true, price: true, offline: false, online: false, assets: true, history: false };
-$('#uPermBox').innerHTML = PERM_KEYS.map(function (k) {
-  return '<label><input type="checkbox" data-pk="' + k + '"> ' + esc(PERM_LABELS[k]) + '</label>';
-}).join('');
+function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
+function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
+function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
+function renderPermBox() {
+  $('#uPermBox').innerHTML = permKeys().map(function (k) {
+    return '<label><input type="checkbox" data-pk="' + esc(k) + '"> ' + esc(permLabel(k)) + '</label>';
+  }).join('');
+}
 function setPermBox(p) {
-  document.querySelectorAll('#uPermBox input').forEach(function (i) { i.checked = p[i.dataset.pk] === undefined ? !!PERM_DEFAULT[i.dataset.pk] : !!p[i.dataset.pk]; });
+  document.querySelectorAll('#uPermBox input').forEach(function (i) { i.checked = p[i.dataset.pk] === undefined ? permDef(i.dataset.pk) : !!p[i.dataset.pk]; });
 }
 function getPermBox() {
   var p = {}; document.querySelectorAll('#uPermBox input').forEach(function (i) { p[i.dataset.pk] = i.checked; }); return p;
@@ -1576,7 +1584,7 @@ function syncPerms() {                                      // แอดมิ�
 }
 function permText(u) {
   if (u.role === 'admin') return 'ทุกการ์ด';
-  var t = PERM_KEYS.filter(function (k) { return u.perms && u.perms[k]; }).map(function (k) { return PERM_LABELS[k]; });
+  var t = permKeys().filter(function (k) { return u.perms && u.perms[k] !== undefined ? u.perms[k] : permDef(k); }).map(permLabel);
   return t.length ? t.join(' · ') : 'ไม่มี';
 }
 $('#uRole').addEventListener('change', syncPerms);
@@ -1616,9 +1624,7 @@ function goPortal() {
   var admin = S.me && S.me.role === 'admin';
   setNav('portal');
   $('#pMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
-  $('#mAdmin').classList.toggle('hidden', !admin);
-  $('#mUsers').classList.toggle('hidden', !admin);
-  $('#mCards').classList.toggle('hidden', !admin);
+  $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
   ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'label:mLabel', 'price:mPrice', 'offline:mOffline', 'online:mOnline', 'assets:mAssets', 'history:mHistory'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่แอดมินติ๊กให้ผู้ใช้คนนี้
@@ -1640,21 +1646,49 @@ var CARD_DEF = [
   { k: 'offline', id: 'mOffline', t: 'ระบบ CMUCOOP Offline', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php' },
   { k: 'online', id: 'mOnline', t: 'ระบบ CMUCOOP Online', u: 'https://cmu-coops.com/adEntry.php' },
   { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์', u: '' }, { k: 'history', id: 'mHistory', t: 'ประวัติการใช้งาน' },
-  { k: 'users', id: 'mUsers', t: 'จัดการผู้ใช้งาน' }, { k: 'cards', id: 'mCards', t: 'จัดการการ์ด' }, { k: 'banner', id: 'mAdmin', t: 'Banner' }
+  { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
-var CARD_TITLES = {}, CARD_WORK_T = {}, CARD_LINKS = {}, CARD_WORK_L = {};      // ชื่อที่แอดมินแก้เอง (เฉพาะการ์ดที่เปลี่ยน) / ชื่อที่กำลังแก้ในหน้าต่างจัดลำดับ
+var CARD_TITLES = {}, CARD_WORK_T = {}, CARD_LINKS = {}, CARD_WORK_L = {};      // ชื่อ/ลิงก์ที่แอดมินแก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
+var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่แอดมินสร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
+function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
+function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
 function cardDef(k) { return CARD_DEF.filter(function (c) { return c.k === k; })[0]; }
+function cardEl(k) { var d = cardDef(k); return d ? document.getElementById(d.id) : document.querySelector('#portal .mcard[data-ck="' + k + '"]'); }
 function applyCardOrder(order) {
   var menu = document.querySelector('#portal .menu');
-  order.forEach(function (k) { var d = cardDef(k), el = d && document.getElementById(d.id); if (el) menu.appendChild(el); });
+  order.forEach(function (k) { var el = cardEl(k); if (el) menu.appendChild(el); });
 }
-function cardTitle(k) { return CARD_TITLES[k] || cardDef(k).t; }
+function cardTitle(k) { var c = customOf(k); return c ? c.t : (CARD_TITLES[k] || cardDef(k).t); }
 function cardLink(k) { return CARD_LINKS[k] || cardDef(k).u || ''; }
 function applyCardLinks() {
   CARD_DEF.forEach(function (d) {
     var el = d.u !== undefined && document.getElementById(d.id);
     if (el && el.tagName === 'A') el.href = cardLink(d.k) || '#';
+  });
+}
+function applyCardTitles() {
+  CARD_DEF.forEach(function (d) {
+    var el = document.getElementById(d.id), b = el && el.querySelector('b');
+    if (b) b.textContent = cardTitle(d.k);
+  });
+}
+function renderCustomCards() {                                                   // วาดการ์ดลิงก์ที่แอดมินสร้างเองลงเมนูหลัก
+  var menu = document.querySelector('#portal .menu');
+  menu.querySelectorAll('.mcard[data-ck]').forEach(function (x) { x.remove(); });
+  CUSTOM.forEach(function (c) {
+    var a = document.createElement('a'), b = document.createElement('b');
+    a.className = 'mcard'; a.dataset.ck = c.k; a.href = c.u; a.target = '_blank'; a.rel = 'noopener';
+    a.style.cssText = 'text-decoration:none;color:inherit';
+    b.textContent = c.t; a.appendChild(b); menu.appendChild(a);
+  });
+}
+function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); applyCardTitles(); applyCardLinks(); }
+function loadCardOrder() {
+  function ok(fn, def) { return call(fn).catch(function () { return def; }); }
+  Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCardLinks', {}), ok('getCustomCards', [])]).then(function (r) {
+    CARD_ORDER = r[0]; CARD_TITLES = r[1] || {}; CARD_LINKS = r[2] || {}; CUSTOM = r[3] || [];
+    refreshCards();
   });
 }
 /* ----- บันทึกการใช้งานลงประวัติ (ส่งแบบไม่รอผล ไม่หน่วงหน้าจอ) ----- */
@@ -1668,74 +1702,105 @@ function logUse(area, action, detail) {
 }
 document.querySelector('#portal .menu').addEventListener('click', function (e) {
   var el = e.target.closest('.mcard'); if (!el) return;
+  if (el.dataset.ck) { logUse('card', 'เปิดการ์ด', cardTitle(el.dataset.ck)); return; }
   var d = CARD_DEF.filter(function (c) { return c.id === el.id; })[0];
-  if (d && d.k === 'assets' && !cardLink('assets')) { e.preventDefault(); toast('ยังไม่ได้ตั้งลิงก์รายการสินทรัพย์ — แอดมินตั้งได้ที่การ์ด "จัดการการ์ด"', true); return; }
+  if (d && d.k === 'assets' && !cardLink('assets')) { e.preventDefault(); toast('ยังไม่ได้ตั้งลิงก์รายการสินทรัพย์ — แอดมินตั้งได้ที่ ตั้งค่า > การ์ดเมนูหลัก', true); return; }
   if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));                  // รวมการ์ดที่เป็นลิงก์ออกภายนอก
 });
-function applyCardTitles() {
-  CARD_DEF.forEach(function (d) {
-    var el = document.getElementById(d.id), b = el && el.querySelector('b');
-    if (b) b.textContent = cardTitle(d.k);
-  });
-}
-function loadCardOrder() {
-  call('getCardOrder').then(function (o) { CARD_ORDER = o; applyCardOrder(o); }).catch(function () {});
-  call('getCardTitles').then(function (t) { CARD_TITLES = t || {}; applyCardTitles(); }).catch(function () {});
-  call('getCardLinks').then(function (l) { CARD_LINKS = l || {}; applyCardLinks(); }).catch(function () {});
+
+/* ----- ตั้งค่า > การ์ดเมนูหลัก : จัดลำดับ + แก้ชื่อ/ลิงก์ + สร้าง/ลบการ์ดลิงก์ ----- */
+function stCardsLoad() {
+  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CARD_WORK_L = {}; CUSTOM_WORK = {};
+  CUSTOM.forEach(function (c) { CUSTOM_WORK[c.k] = { t: c.t, u: c.u }; });
+  renderSortList();
 }
 function renderSortList() {
+  var last = CARD_WORK.length - 1;
   $('#sortList').innerHTML = CARD_WORK.map(function (k, i) {
-    var d = cardDef(k), cur = CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k), link = '';
-    if (d.u !== undefined) {
-      var lv = CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k);
-      link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div>' +
-        '<input type="text" data-lk="' + esc(k) + '" value="' + esc(lv) + '" maxlength="500" placeholder="' + esc(d.u) + '" autocomplete="off" style="width:100%;font-size:13px">';
+    var cu = isCustom(k), d = cu ? null : cardDef(k), title, link, ph, del = '';
+    if (cu) {
+      var w = CUSTOM_WORK[k]; if (!w) return '';
+      title = '<input type="text" data-ck="' + esc(k) + '" value="' + esc(w.t) + '" maxlength="40" placeholder="ชื่อการ์ด" style="flex:1;min-width:0">';
+      link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div><input type="text" data-cu="' + esc(k) + '" value="' + esc(w.u) + '" maxlength="500" placeholder="https://..." autocomplete="off" style="width:100%;font-size:13px">';
+      del = ' <button class="btn danger small" data-del="' + esc(k) + '">ลบ</button>';
+    } else {
+      if (!d) return '';
+      var cur = CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k);
+      title = '<input type="text" data-k="' + esc(k) + '" value="' + esc(cur) + '" maxlength="40" placeholder="' + esc(d.t) + '" style="flex:1;min-width:0">';
+      link = '';
+      if (d.u !== undefined) {
+        var lv = CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k);
+        link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div><input type="text" data-lk="' + esc(k) + '" value="' + esc(lv) + '" maxlength="500" placeholder="' + esc(d.u) + '" autocomplete="off" style="width:100%;font-size:13px">';
+      }
     }
     return '<div class="pitem" style="display:block"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
-      '<span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><b>' + (i + 1) + '.</b> ' +
-      '<input type="text" data-k="' + esc(k) + '" value="' + esc(cur) + '" maxlength="40" placeholder="' + esc(d.t) + '" style="flex:1;min-width:0"></span><span style="white-space:nowrap">' +
+      '<span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><b>' + (i + 1) + '.</b> ' + title + '</span><span style="white-space:nowrap">' +
       '<button class="btn ghost small" data-m="-1" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button> ' +
-      '<button class="btn ghost small" data-m="1" data-i="' + i + '"' + (i === CARD_WORK.length - 1 ? ' disabled' : '') + '>▼</button></span></div>' + link + '</div>';
+      '<button class="btn ghost small" data-m="1" data-i="' + i + '"' + (i === last ? ' disabled' : '') + '>▼</button>' + del + '</span></div>' + link + '</div>';
   }).join('');
 }
-$('#mCards').addEventListener('click', function () {                    // การ์ด "จัดการการ์ด" (แอดมิน) : จัดลำดับ + แก้ชื่อ + แก้ลิงก์
-  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CARD_WORK_L = {}; renderSortList(); $('#sortModal').classList.remove('hidden');
-});
 $('#sortList').addEventListener('input', function (e) {
-  var inp = e.target.closest('input');
-  if (!inp) return;
+  var inp = e.target.closest('input'); if (!inp) return;
   if (inp.dataset.k) CARD_WORK_T[inp.dataset.k] = inp.value;
   else if (inp.dataset.lk) CARD_WORK_L[inp.dataset.lk] = inp.value;
+  else if (inp.dataset.ck && CUSTOM_WORK[inp.dataset.ck]) CUSTOM_WORK[inp.dataset.ck].t = inp.value;
+  else if (inp.dataset.cu && CUSTOM_WORK[inp.dataset.cu]) CUSTOM_WORK[inp.dataset.cu].u = inp.value;
 });
 $('#sortList').addEventListener('click', function (e) {
+  var del = e.target.closest('button[data-del]');
+  if (del) {
+    var w = CUSTOM_WORK[del.dataset.del];
+    if (!confirm('ลบการ์ด "' + (w ? w.t : '') + '" ?\n\n(มีผลเมื่อกด "บันทึก")')) return;
+    CARD_WORK = CARD_WORK.filter(function (k) { return k !== del.dataset.del; }); delete CUSTOM_WORK[del.dataset.del]; renderSortList(); return;
+  }
   var b = e.target.closest('button[data-m]'); if (!b || b.disabled) return;
   var i = Number(b.dataset.i), j = i + Number(b.dataset.m), t = CARD_WORK[i];
   CARD_WORK[i] = CARD_WORK[j]; CARD_WORK[j] = t; renderSortList();
 });
 $('#sortReset').addEventListener('click', function () {
-  CARD_WORK = CARD_DEF.map(function (c) { return c.k; });
+  CARD_WORK = CARD_DEF.map(function (c) { return c.k; }).concat(CARD_WORK.filter(isCustom));
   CARD_WORK_T = {}; CARD_WORK_L = {};
   CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; if (c.u !== undefined) CARD_WORK_L[c.k] = c.u; });      // คืนชื่อและลิงก์เริ่มต้นด้วย
   renderSortList();
 });
-$('#sortCancel').addEventListener('click', function () { $('#sortModal').classList.add('hidden'); });
 $('#sortSave').addEventListener('click', function () {
-  var titles = {}, links = {}, bad = '';                 // ส่งเฉพาะที่ต่างจากค่าเริ่มต้น
+  var titles = {}, links = {}, bad = '', cl = [];                     // ส่งเฉพาะที่ต่างจากค่าเริ่มต้น
   CARD_WORK.forEach(function (k) {
-    var d = cardDef(k), t = (CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k)).replace(/\s+/g, ' ').trim();
-    if (t && t !== d.t) titles[k] = t;
+    if (isCustom(k)) {
+      var w = CUSTOM_WORK[k]; if (!w) return;
+      var t = String(w.t).replace(/\s+/g, ' ').trim(), u = String(w.u).trim();
+      if (!t) bad = bad || 'การ์ดลิงก์ที่ยังไม่ได้ตั้งชื่อ';
+      else if (!/^https?:\/\/\S+$/i.test(u)) bad = bad || t;
+      cl.push({ k: k, t: t, u: u });
+      return;
+    }
+    var d = cardDef(k); if (!d) return;
+    var tt = (CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k)).replace(/\s+/g, ' ').trim();
+    if (tt && tt !== d.t) titles[k] = tt;
     if (d.u !== undefined) {
-      var u = (CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k)).trim();
-      if (u && !/^https?:\/\/\S+$/i.test(u)) bad = bad || cardTitle(k);
-      else if (u && u !== d.u) links[k] = u;
+      var uu = (CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k)).trim();
+      if (uu && !/^https?:\/\/\S+$/i.test(uu)) bad = bad || cardTitle(k);
+      else if (uu && uu !== d.u) links[k] = uu;
     }
   });
-  if (bad) { toast('ลิงก์ของการ์ด "' + bad + '" ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https:// และไม่มีช่องว่าง)', true); return; }
+  if (bad) { toast('ข้อมูลของการ์ด "' + bad + '" ไม่ถูกต้อง (ต้องมีชื่อ และลิงก์ขึ้นต้นด้วย http:// หรือ https:// ไม่มีช่องว่าง)', true); return; }
   busy(this, async function () {
-    CARD_ORDER = await call('setCardOrder', CARD_WORK); applyCardOrder(CARD_ORDER);
-    CARD_TITLES = await call('setCardTitles', titles); applyCardTitles();
-    CARD_LINKS = await call('setCardLinks', links); applyCardLinks();
-    $('#sortModal').classList.add('hidden'); toast('บันทึกการตั้งค่าการ์ดแล้ว');
+    if (CUSTOM.length || cl.length) CUSTOM = await call('setCustomCards', cl);
+    CARD_ORDER = await call('setCardOrder', CARD_WORK);
+    CARD_TITLES = await call('setCardTitles', titles);
+    CARD_LINKS = await call('setCardLinks', links);
+    refreshCards(); stCardsLoad(); toast('บันทึกการตั้งค่าการ์ดแล้ว');
+  });
+});
+$('#ncAdd').addEventListener('click', function () {
+  var t = $('#ncTitle').value.replace(/\s+/g, ' ').trim(), u = $('#ncLink').value.trim();
+  if (!t) { toast('กรุณากรอกชื่อการ์ด', true); return; }
+  if (!/^https?:\/\/\S+$/i.test(u)) { toast('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https:// และไม่มีช่องว่าง', true); return; }
+  busy(this, async function () {
+    CUSTOM = await call('setCustomCards', CUSTOM.map(function (c) { return { k: c.k, t: c.t, u: c.u }; }).concat([{ t: t, u: u }]));
+    CARD_ORDER = await call('getCardOrder');
+    $('#ncTitle').value = ''; $('#ncLink').value = '';
+    refreshCards(); stCardsLoad(); toast('สร้างการ์ดแล้ว: ' + t);
   });
 });
 /* ----- ปรับขนาดการ์ดเมนูหลัก (ผูกกับบัญชีบนเซิร์ฟเวอร์ ตามไปทุกเครื่อง; เก็บสำเนาในเครื่องไว้ให้ขึ้นเร็ว) ----- */
@@ -1876,30 +1941,31 @@ document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
 
 /* ============================ เมนูหลัก + Banner (หน้าแอดมิน) ============================ */
 $('#mBarcode').addEventListener('click', openBarcode);
-$('#mAdmin').addEventListener('click', openAdmin);
-$('#mUsers').addEventListener('click', openUsers);
-$('#uHome').addEventListener('click', goPortal);
-function openUsers() {
-  if (!S.me || S.me.role !== 'admin') return;
-  setNav('users');
-  $('#uMe').textContent = S.me.name + ' (แอดมิน)';
-  resetUserForm();
-  loadUsers();
-  loadRecovery();
-}
 $('#btnHome').addEventListener('click', goPortal);
-$('#aHome').addEventListener('click', goPortal);
+
+/* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
+var ST_PANELS = ['cards', 'banner', 'users', 'sound'];
+$('#mSettings').addEventListener('click', function () { openSettings('cards'); });
+$('#stHome').addEventListener('click', goPortal);
+function openSettings(p) {
+  if (!S.me || S.me.role !== 'admin') return;
+  setNav('settings');
+  $('#stMe').textContent = S.me.name + ' (แอดมิน)';
+  stPanel(p || 'cards');
+}
+function stPanel(p) {
+  document.querySelectorAll('#stNav button').forEach(function (b) { b.classList.toggle('on', b.dataset.sp === p); });
+  ST_PANELS.forEach(function (k) { $('#st-' + k).classList.toggle('hidden', k !== p); });
+  if (p === 'cards') stCardsLoad();
+  else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
+  else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
+  else if (p === 'sound') sndLoadAdmin();
+}
+$('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
 
 var B = { list: [], busy: false };
 var BANNER_HINT = 'รองรับ JPG, PNG, WEBP, GIF · ระบบย่อรูปให้ด้านยาวไม่เกิน 1600 px ก่อนอัปโหลด (GIF ไม่ย่อ) · เลือกได้หลายไฟล์พร้อมกัน';
 
-function openAdmin() {
-  if (!S.me || S.me.role !== 'admin') return;
-  setNav('admin');
-  $('#aMe').textContent = S.me.name + ' (แอดมิน)';
-  $('#bUpHint').textContent = BANNER_HINT;
-  loadBanners();
-}
 async function loadBanners() {
   try {
     var r = await call('listBanners');
@@ -2097,15 +2163,13 @@ async function openSound() {
   setNav('sound');
   var admin = S.me.role === 'admin';
   $('#sMe').textContent = S.me.name;
-  $('#sTabCfg').classList.toggle('hidden', !admin);
+  $('#sGoCfg').classList.toggle('hidden', !admin);
   sndTab('send'); sndConnect(); sndRenderHist();
   try { SND.cfg = await call('getSoundConfig'); sndRender(); } catch (e) { toast(e.message, true); }
 }
 function sndTab(t) {
   document.querySelectorAll('#sTabs .stab').forEach(function (x) { x.classList.toggle('on', x.dataset.st === t); });
-  ['send', 'timed', 'staff', 'cfg'].forEach(function (k) { $('#s-' + k).style.display = k === t ? 'grid' : 'none'; });
-  $('#sHistCard').classList.toggle('hidden', t === 'cfg');
-  if (t === 'cfg') sndLoadAdmin();
+  ['send', 'timed', 'staff'].forEach(function (k) { $('#s-' + k).style.display = k === t ? 'grid' : 'none'; });
 }
 $('#sTabs').addEventListener('click', function (e) { var b = e.target.closest('.stab'); if (b) sndTab(b.dataset.st); });
 $('#s-send').addEventListener('click', function (e) {
@@ -2233,7 +2297,8 @@ $('#sAddTimed').addEventListener('click', function () { sndOpenEdit(null, 'เ�
 $('#sFilter').addEventListener('change', sndRenderAdmin);
 $('#sRecvCopy').addEventListener('click', function () { copyField('#sRecv', 'คัดลอกลิงก์แล้ว'); });
 function sndRow(r) { return SND.all.filter(function (x) { return x.row === Number(r); })[0]; }
-$('#s-cfg').addEventListener('click', async function (e) {
+$('#sGoCfg').addEventListener('click', function () { openSettings('sound'); });
+$('#st-sound').addEventListener('click', async function (e) {
   var b = e.target.closest('button[data-a]'); if (!b) return;
   if (b.dataset.a === 'play') {
     b.disabled = true;
