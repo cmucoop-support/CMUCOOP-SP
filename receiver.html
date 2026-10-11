@@ -349,6 +349,8 @@ function checkInternalSchedule() {
   lastPlayedTimeStr = cur;
   var it = findItem(key);
   if (!it) return;
+  /* บันทึกประวัติการเล่นเสียงตามระบบ (หลายเครื่อง TV ส่งซ้ำได้ ฝั่งหลังบ้านรวมเหลือรายการเดียว) */
+  try { google.script.run.withFailureHandler(function () {}).soundScheduleLog(cur, key, found ? 'ตามตารางเวลา' : 'ประกาศซ้ำช่วงกลางวัน', isPlayingBusy); } catch (e) {}
   triggerAnnouncement(it.id, true, it.label, 1, 0);
 }
 setInterval(checkInternalSchedule, 1000);
