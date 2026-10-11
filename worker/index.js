@@ -39,8 +39,7 @@ const SOUND_LEGACY = 'https://ratthaphontha-wq.github.io/--audio/';
 const NOT_YET = 'ระบบนี้ยังไม่ได้ย้ายมาใช้หลังบ้านใหม่ (อยู่ระหว่างพัฒนา)';
 
 /* ---------- ฟังก์ชันที่ยังไม่รองรับในเฟส 1 (ตอบข้อความชัดเจนแทนที่จะพัง) ---------- */
-const PENDING = ['addItem', 'assetBackup', 'assetBackupList', 'assetCellSave', 'assetDelete', 'assetList', 'assetSave', 'assetSrcSet',
-  'createCategory', 'deleteItem', 'editItem', 'findBarcode', 'getCategoryData', 'getInit', 'getLog', 'makePdf',
+const PENDING = ['addItem', 'createCategory', 'deleteItem', 'editItem', 'findBarcode', 'getCategoryData', 'getInit', 'getLog', 'makePdf',
   'musicApproveAll', 'musicCancel', 'musicDecide', 'musicRequest'];
 
 const SCHEMA = [
@@ -52,7 +51,9 @@ const SCHEMA = [
   'CREATE INDEX IF NOT EXISTS log_ts ON log(ts)',
   'CREATE TABLE IF NOT EXISTS banners (id TEXT PRIMARY KEY, pos INTEGER, title TEXT, link TEXT, visible INTEGER, ts INTEGER, who TEXT, mime TEXT)',
   'CREATE TABLE IF NOT EXISTS sounds (rid INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, code TEXT, label TEXT, fid TEXT, fname TEXT, value TEXT, enabled INTEGER, ts INTEGER, who TEXT)',
-  'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))'
+  'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))',
+  'CREATE TABLE IF NOT EXISTS asset_rows (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, name TEXT, code TEXT, date TEXT, place TEXT, link TEXT, ok TEXT, broken TEXT, repair TEXT, reduce TEXT, total TEXT, rate TEXT, dep0 TEXT, depAdd TEXT, depSub TEXT, dep1 TEXT, net TEXT, note TEXT)',
+  'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)'
 ];
 let schemaReady = false;
 
@@ -705,3 +706,204 @@ API.musicTvTick = async C => {                     // หน้า TV เรี�
 };
 API.musicTvEnd = async () => true;
 
+/* ============================ Google Sheets (Service Account) ============================
+ * ต้องตั้ง Secret 2 ตัวใน Cloudflare:  GOOGLE_SA_EMAIL (client_email)  และ  GOOGLE_SA_KEY (private_key ของ Service Account)
+ * แล้วแชร์ Google Sheet ให้อีเมลนั้นเป็น "ผู้แก้ไข" */
+const BACKUP_KEEP = 2;                         // เก็บสำเนาล่าสุดแค่ 2 ชุด
+let gTok = { v: '', exp: 0 };
+const b64url = b => btoa(typeof b === 'string' ? b : String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function googleToken(C) {
+  if (gTok.v && gTok.exp > now() + 60000) return gTok.v;
+  const email = C.env.GOOGLE_SA_EMAIL, key = C.env.GOOGLE_SA_KEY;
+  if (!email || !key) throw new Error('ยังไม่ได้ตั้งค่า Google Service Account (Secret GOOGLE_SA_EMAIL / GOOGLE_SA_KEY ใน Cloudflare)');
+  const pem = String(key).replace(/\\n/g, '\n').replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+  const k = await crypto.subtle.importKey('pkcs8', Uint8Array.from(atob(pem), c => c.charCodeAt(0)), { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const iat = Math.floor(now() / 1000);
+  const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const body = b64url(JSON.stringify({ iss: email, scope: 'https://www.googleapis.com/auth/spreadsheets', aud: 'https://oauth2.googleapis.com/token', iat, exp: iat + 3600 }));
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', k, new TextEncoder().encode(head + '.' + body));
+  const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + head + '.' + body + '.' + b64url(sig) });
+  const j = await res.json().catch(() => ({}));
+  if (!j.access_token) throw new Error('ขอสิทธิ์ Google ไม่สำเร็จ: ' + (j.error_description || j.error || res.status));
+  gTok = { v: j.access_token, exp: now() + (j.expires_in || 3600) * 1000 };
+  return gTok.v;
+}
+async function gApi(C, path, opt) {
+  opt = opt || {};
+  const res = await fetch('https://sheets.googleapis.com/v4/spreadsheets/' + path, { method: opt.method || 'GET', body: opt.body,
+    headers: { Authorization: 'Bearer ' + await googleToken(C), 'Content-Type': 'application/json' } });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const m = (j.error && j.error.message) || res.status;
+    throw new Error(res.status === 403 || res.status === 404 ? 'เปิดชีตไม่ได้ (' + m + ') — ต้องแชร์ชีตให้ ' + (C.env.GOOGLE_SA_EMAIL || 'Service Account') + ' เป็นผู้แก้ไข' : 'Google Sheets: ' + m);
+  }
+  return j;
+}
+async function sheetInfo(C, src) {
+  const m = await gApi(C, src.id + '?fields=properties.title,sheets.properties');
+  const sh = (m.sheets || []).map(s => s.properties).filter(p => src.gid === '' || String(p.sheetId) === String(src.gid))[0];
+  if (!sh) throw new Error('ไม่พบแผ่นงานตาม gid ในไฟล์นี้');
+  return { title: m.properties.title, tab: sh.title, sheetId: sh.sheetId };
+}
+const tabRange = (info, a1) => encodeURIComponent("'" + info.tab.replace(/'/g, "''") + "'!" + a1);
+function colLetter(n) { let s = ''; for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; }
+const safeVal = v => { v = str(v); return /^[=]/.test(v) ? "'" + v : v; };
+
+/* ============================ รายการสินทรัพย์ ============================
+ * แหล่งข้อมูล: (1) Google Sheet ตามลิงก์ที่ตั้งไว้ อ่าน/แก้ไขสดผ่าน Service Account  หรือ  (2) ตารางใน D1 ที่นำเข้าจาก Excel
+ * หัวตารางอ่านจากชื่อคอลัมน์ในไฟล์ (ไม่ผูกตำแหน่งคอลัมน์) ทั้งหัว 1 แถวและ 2 แถว */
+const AS_KEYS = ['name', 'code', 'date', 'place', 'link', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
+const AS_LABELS = ['ชื่อรายการ', 'รหัสสินทรัพย์', 'วันที่รับสินทรัพย์', 'สถานที่ตั้งสินทรัพย์', 'ลิงก์รูปภาพ', 'สถานะ ปกติ', 'สถานะ ไม่สามารถซ่อมได้', 'สถานะ ต้องทำการซ่อม', 'สถานะ ลดลงระหว่างปี', 'สถานะ รวม', 'อัตราร้อยละ',
+  'ค่าเสื่อมราคาสะสม ยกมา', 'ค่าเสื่อมราคาสะสม เพิ่มระหว่างปี', 'ค่าเสื่อมราคาสะสม ลดระหว่างปี', 'ค่าเสื่อมราคาสะสม ยกไป', 'ราคาสินทรัพย์สุทธิ', 'หมายเหตุ'];
+const AS_PATS = [['reduce', /ลดลง/], ['depSub', /ลดระหว่าง/], ['broken', /ไม่สามารถ/], ['repair', /ซ่อม/], ['ok', /ปกติ/], ['total', /รวม/], ['rate', /ร้อยละ/],
+  ['dep0', /ยกมา/], ['depAdd', /เพิ่ม/], ['dep1', /ยกไป/], ['net', /สุทธิ/], ['name', /รายการ/], ['code', /รหัส/], ['date', /วันที่/], ['place', /สถานที่/],
+  ['link', /รูป|ภาพ|ลิ[งค]ก์/], ['note', /หมายเหตุ/]];
+function parseAssetGrid(grid) {
+  grid = Array.isArray(grid) ? grid : [];
+  const cell = (r, c) => str((grid[r] || [])[c]);
+  let h = -1;
+  for (let r = 0; r < Math.min(grid.length, 20); r++) { const t = (grid[r] || []).join(' '); if (/รายการ/.test(t) && /รหัส/.test(t)) { h = r; break; } }
+  if (h < 0) throw new Error('ไม่พบหัวตาราง — ต้องมีคอลัมน์ "รายการ" และ "รหัสสินทรัพย์"');
+  const two = !/ปกติ|ยกมา|ยกไป/.test((grid[h] || []).join(' ')) && /ปกติ|ยกมา|ยกไป/.test((grid[h + 1] || []).join(' '));   // หัวตาราง 2 แถว (มีหัวกลุ่ม "สถานะ"/"ค่าเสื่อม")
+  const width = Math.max((grid[h] || []).length, (grid[h + 1] || []).length), cols = {};
+  for (let c = 0; c < width; c++) {
+    const label = (cell(h, c) + ' ' + (two ? cell(h + 1, c) : '')).trim();
+    if (!label) continue;
+    for (const [k, re] of AS_PATS) if (cols[k] === undefined && re.test(label)) { cols[k] = c; break; }
+  }
+  if (cols.name === undefined || cols.code === undefined) throw new Error('หัวตารางต้องมีคอลัมน์ "รายการ" และ "รหัสสินทรัพย์"');
+  const rows = []; let no = 0;
+  for (let r = h + (two ? 2 : 1); r < grid.length; r++) {
+    const g = grid[r] || [], o = { row: r + 1 };
+    AS_KEYS.forEach(k => { o[k] = cols[k] === undefined ? '' : str(g[cols[k]]); });
+    if (!o.name && !o.code) continue;
+    o.no = ++no; rows.push(o);
+  }
+  return { rows, cols, width };
+}
+const assetSrc = C => kvJson(C, 'ASSET_SRC', null);
+const asSheetUrl = s => 'https://docs.google.com/spreadsheets/d/' + s.id + '/edit' + (s.gid !== '' ? '#gid=' + s.gid : '');
+async function assetRead(C) {
+  const src = await assetSrc(C);
+  if (src) {
+    const info = await sheetInfo(C, src), g = await gApi(C, src.id + '/values/' + tabRange(info, 'A1:AZ5000') + '?valueRenderOption=FORMATTED_VALUE');
+    const p = parseAssetGrid(g.values || []);
+    return { mode: 'sheet', src, info, rows: p.rows, cols: p.cols, width: p.width };
+  }
+  const rows = (await all(C, 'SELECT * FROM asset_rows ORDER BY pos,id')).map((r, i) => { const o = { row: r.id, no: i + 1 }; AS_KEYS.forEach(k => { o[k] = str(r[k]); }); return o; });
+  return { mode: 'local', rows };
+}
+const asLog = (C, me, action, detail) => appendLog(C, me.name, 'รายการสินทรัพย์', '', action, detail);
+
+/* สำเนา: เก็บล่าสุดแค่ BACKUP_KEEP ชุด (ข้ามถ้าข้อมูลเหมือนชุดล่าสุด) */
+async function assetSnapshot(C) {
+  const d = await assetRead(C), data = JSON.stringify(d.rows.map(r => AS_KEYS.map(k => r[k])));
+  if (d.rows.length) {
+    const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'asset');
+    if (!last || last.hash !== hash) {
+      await run(C, 'INSERT INTO backups(kind,ts,name,hash,data) VALUES(?,?,?,?,?)', 'asset', now(), d.mode === 'sheet' ? d.info.title + ' / ' + d.info.tab : 'ข้อมูลในระบบ (Excel)', hash, data);
+      await run(C, 'DELETE FROM backups WHERE kind=? AND id NOT IN (SELECT id FROM backups WHERE kind=? ORDER BY id DESC LIMIT ?)', 'asset', 'asset', BACKUP_KEEP);
+    }
+  }
+  return assetBackups(C);
+}
+async function assetBackups(C) { return (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'asset')).map(b => ({ id: b.id, ts: b.ts, name: b.name })); }
+
+API.assetList = async (C, token) => {
+  const me = await authPerm(C, token, 'assets'), out = { canEdit: me.role === 'admin', rows: [], mode: 'local', live: false };
+  const src = await assetSrc(C);
+  if (src) {
+    out.mode = 'sheet'; out.srcUrl = asSheetUrl(src);
+    try {
+      const d = await assetRead(C);
+      out.rows = d.rows; out.live = true; out.srcName = d.info.title + ' / ' + d.info.tab;
+      const miss = AS_KEYS.filter(k => d.cols[k] === undefined);
+      if (miss.length) out.srcDiag = 'ไม่พบคอลัมน์ในชีต: ' + miss.map(k => AS_LABELS[AS_KEYS.indexOf(k)]).join(', ') + ' (ช่องเหล่านี้จะแก้ไขไม่ได้)';
+    } catch (e) { out.srcError = e.message; }
+  } else out.rows = (await assetRead(C)).rows;
+  return out;
+};
+API.assetBackup = async (C, token) => { await authPerm(C, token, 'assets'); return { backups: await assetSnapshot(C) }; };
+API.assetBackupList = async (C, token) => { await authPerm(C, token, 'assets'); return { backups: await assetBackups(C) }; };
+API.assetBackupData = async (C, token, id) => {          // ดาวน์โหลดสำเนาเป็น CSV (เปิดใน Excel ได้)
+  await authPerm(C, token, 'assets');
+  const b = await one(C, 'SELECT name,data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'asset');
+  if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  return { name: 'สำเนาสินทรัพย์', csv: '\ufeff' + [AS_LABELS].concat(JSON.parse(b.data)).map(r => r.map(q).join(',')).join('\r\n') };
+};
+API.assetSrcSet = async (C, token, url) => {
+  const me = await auth(C, token, true); url = str(url);
+  if (!url) { await kvSet(C, 'ASSET_SRC', 'null'); await asLog(C, me, 'เลิกใช้ลิงก์ Google Sheet', ''); return { ok: true }; }
+  const id = (/\/spreadsheets\/d\/([\w-]+)/.exec(url) || [])[1], gid = (/[#&?]gid=(\d+)/.exec(url) || [])[1];
+  if (!id) throw new Error('ลิงก์ต้องเป็นลิงก์ Google Sheet (docs.google.com/spreadsheets/d/...)');
+  const src = { id, gid: gid === undefined ? '' : gid };
+  const info = await sheetInfo(C, src);                       // ทดสอบเปิดไฟล์ได้จริงก่อนบันทึก
+  const g = await gApi(C, id + '/values/' + tabRange(info, 'A1:AZ5000'));
+  const p = parseAssetGrid(g.values || []);                   // ทดสอบว่าหัวตารางอ่านได้
+  await assetSnapshot(C).catch(() => {});                     // สำเนาข้อมูลเดิมก่อนเปลี่ยนแหล่งข้อมูล
+  await kvSet(C, 'ASSET_SRC', JSON.stringify(src));
+  await asLog(C, me, 'ตั้งลิงก์ Google Sheet', info.title + ' / ' + info.tab + ' · ' + p.rows.length + ' รายการ');
+  return { ok: true, count: p.rows.length };
+};
+API.assetCellSave = async (C, token, p) => {
+  const me = await auth(C, token, true); p = p || {};
+  const key = str(p.key), row = Number(p.row) || 0, val = str(p.value).slice(0, 500);
+  if (AS_KEYS.indexOf(key) < 0 || row < 1) throw new Error('ข้อมูลไม่ถูกต้อง');
+  const d = await assetRead(C), cur = d.rows.filter(r => r.row === row)[0];
+  if (!cur || cur.code !== str(p.code)) throw new Error('ข้อมูลในไฟล์เปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนแก้ไข');
+  if (d.mode === 'sheet') {
+    if (d.cols[key] === undefined) throw new Error('ไม่พบคอลัมน์นี้ในชีต แก้ไขไม่ได้');
+    await gApi(C, d.src.id + '/values/' + tabRange(d.info, colLetter(d.cols[key]) + row) + '?valueInputOption=USER_ENTERED', { method: 'PUT', body: JSON.stringify({ values: [[safeVal(val)]] }) });
+  } else await run(C, 'UPDATE asset_rows SET ' + key + '=? WHERE id=?', val, row);
+  await asLog(C, me, 'แก้ไขช่อง', (cur.name || cur.code) + ' · ' + AS_LABELS[AS_KEYS.indexOf(key)] + ': ' + cur[key] + ' → ' + val);
+  return { ok: true };
+};
+API.assetSave = async (C, token, p) => {
+  const me = await auth(C, token, true); p = p || {};
+  const f = {}; AS_KEYS.forEach(k => { f[k] = str(p[k]).slice(0, 500); });
+  if (!f.name) throw new Error('กรุณากรอกชื่อรายการ');
+  const row = Number(p.row) || 0, d = await assetRead(C);
+  if (row && !d.rows.some(r => r.row === row)) throw new Error('ไม่พบรายการที่แก้ไข กรุณาโหลดใหม่');
+  if (d.mode === 'sheet') {
+    const cols = d.cols, arr = [];
+    if (row) {
+      const data = AS_KEYS.filter(k => cols[k] !== undefined).map(k => ({ range: decodeURIComponent(tabRange(d.info, colLetter(cols[k]) + row)), values: [[safeVal(f[k])]] }));
+      await gApi(C, d.src.id + '/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) });
+    } else {
+      for (let i = 0; i < Math.max(d.width, 1); i++) arr.push('');
+      AS_KEYS.forEach(k => { if (cols[k] !== undefined) arr[cols[k]] = safeVal(f[k]); });
+      await gApi(C, d.src.id + '/values/' + tabRange(d.info, 'A1') + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS', { method: 'POST', body: JSON.stringify({ values: [arr] }) });
+    }
+  } else if (row) await run(C, 'UPDATE asset_rows SET ' + AS_KEYS.map(k => k + '=?').join(',') + ' WHERE id=?', ...AS_KEYS.map(k => f[k]), row);
+  else {
+    const pos = ((await one(C, 'SELECT MAX(pos) AS m FROM asset_rows')).m || 0) + 1;
+    await run(C, 'INSERT INTO asset_rows(pos,' + AS_KEYS.join(',') + ') VALUES(?,' + AS_KEYS.map(() => '?').join(',') + ')', pos, ...AS_KEYS.map(k => f[k]));
+  }
+  await asLog(C, me, row ? 'แก้ไขรายการ' : 'เพิ่มรายการ', f.name + (f.code ? ' (' + f.code + ')' : ''));
+  return { ok: true };
+};
+API.assetDelete = async (C, token, row, code) => {
+  const me = await auth(C, token, true); row = Number(row) || 0;
+  const d = await assetRead(C), cur = d.rows.filter(r => r.row === row)[0];
+  if (!cur || cur.code !== str(code)) throw new Error('ข้อมูลในไฟล์เปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
+  if (d.mode === 'sheet') await gApi(C, d.src.id + ':batchUpdate', { method: 'POST', body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId: d.info.sheetId, dimension: 'ROWS', startIndex: row - 1, endIndex: row } } }] }) });
+  else await run(C, 'DELETE FROM asset_rows WHERE id=?', row);
+  await asLog(C, me, 'ลบรายการ', (cur.name || '') + (cur.code ? ' (' + cur.code + ')' : ''));
+  return { ok: true };
+};
+/** นำเข้าจาก Excel: หน้าเว็บอ่านไฟล์เป็นตาราง (แถว×คอลัมน์) แล้วส่งมา — ทำสำเนาข้อมูลเดิมก่อน แล้วแทนที่ทั้งหมด */
+API.assetImportRows = async (C, token, grid) => {
+  const me = await auth(C, token, true);
+  if (await assetSrc(C)) throw new Error('ตอนนี้ใช้ข้อมูลจาก Google Sheet อยู่ — กด "ตั้ง/เปลี่ยนลิงก์ไฟล์" แล้วเว้นว่างเพื่อเลิกใช้ลิงก์ก่อน จึงจะนำเข้า Excel ได้');
+  if (!Array.isArray(grid) || grid.length > 5000) throw new Error('ไฟล์ว่างหรือมีแถวมากเกิน 5,000 แถว');
+  const p = parseAssetGrid(grid);
+  if (!p.rows.length) throw new Error('ไม่พบรายการข้อมูลในไฟล์');
+  await assetSnapshot(C);                                    // สำเนาก่อนแทนที่
+  const ins = 'INSERT INTO asset_rows(pos,' + AS_KEYS.join(',') + ') VALUES(?,' + AS_KEYS.map(() => '?').join(',') + ')';
+  await run(C, 'DELETE FROM asset_rows');
+  for (let i = 0; i < p.rows.length; i += 80) await batch(C, p.rows.slice(i, i + 80).map((r, j) => stmt(C, ins, i + j + 1, ...AS_KEYS.map(k => r[k].slice(0, 500)))));
+  await asLog(C, me, 'นำเข้าจาก Excel', p.rows.length + ' รายการ');
+  return { ok: true, count: p.rows.length, backups: await assetBackups(C) };
+};
