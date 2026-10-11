@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#a37bb9;--ink:#2b2234;--per:3;--gap:18px}
+:root{--bg:#9E76B4;--ink:#2b2234;--per:3;--gap:18px}
 @media (max-width:900px){:root{--per:2}}
 @media (max-width:560px){:root{--per:1}}
 *{box-sizing:border-box}
@@ -36,47 +36,6 @@ html,body{height:100%;overflow:hidden}
 body{padding:0}
 .panel{position:absolute;left:8px;right:8px;top:8px;max-width:none;margin:0;padding:12px;display:flex;align-items:center}
 .viewport{width:100%;padding:6px 0}
-
-/* ================= LIQUID GLASS ================= */
-:root{
-  --g-edge:rgba(255,255,255,.7);
-  --g-blur:blur(22px) saturate(180%);
-  --g-hi:inset 0 1px 0 rgba(255,255,255,.9),inset 0 -1px 0 rgba(255,255,255,.28),inset 0 0 22px rgba(255,255,255,.2);
-}
-html,body{
-  background:
-    radial-gradient(60vmax 60vmax at 10% 6%,#b894ff 0,transparent 60%),
-    radial-gradient(55vmax 55vmax at 94% 10%,#86b6ff 0,transparent 58%),
-    radial-gradient(60vmax 60vmax at 82% 96%,#ffa3d3 0,transparent 60%),
-    radial-gradient(50vmax 50vmax at 4% 92%,#8f7bff 0,transparent 60%),
-    #a98be0;
-}
-.panel{
-  background:rgba(255,255,255,.3);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
-  border:1px solid var(--g-edge);box-shadow:0 12px 40px rgba(70,40,140,.25),var(--g-hi);
-}
-.slide{
-  background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.75);
-  box-shadow:0 6px 20px rgba(58,32,80,.18),var(--g-hi);
-}
-.slide.sk{
-  background:linear-gradient(100deg,rgba(255,255,255,.25) 30%,rgba(255,255,255,.6) 50%,rgba(255,255,255,.25) 70%);
-  background-size:200% 100%;box-shadow:none;
-}
-.nav{
-  background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(14px) saturate(170%);backdrop-filter:blur(14px) saturate(170%);
-  border:1px solid rgba(255,255,255,.8);box-shadow:0 4px 14px rgba(58,32,80,.25),var(--g-hi);
-}
-.nav:hover{background:rgba(255,255,255,.8)}
-.msg{color:#4a3b66}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  .panel{background:rgba(255,255,255,.88)}
-  .nav{background:#fff}
-}
-@media (prefers-reduced-transparency:reduce){
-  .panel,.nav{background:#fff}
-  *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
-}
 </style>
 </head>
 <body>

@@ -6,7 +6,7 @@
 <base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#9966FF">
+<meta name="theme-color" content="#9E76B4">
 <title>ระบบรับสัญญาณเสียงประกาศ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -33,44 +33,14 @@
   .mwrap iframe { width:100%; height:100%; display:block; }
   .msub { margin-top:8px; font-size:14px; color:var(--steel); }
 
-/* ================= MINIMAL GLASS ================= */
-:root{
-  --g-fill:rgba(255,255,255,.62); --g-edge:rgba(255,255,255,.85);
-  --g-blur:blur(18px) saturate(160%);
-  --g-shadow:0 1px 2px rgba(60,40,120,.06),0 10px 28px rgba(60,40,120,.1);
-  --steel:#5f5480; --old:#6f7c8a;
-}
-html{
-  background:
-    radial-gradient(70vmax 50vmax at 0% 0%,#eadffc 0,transparent 60%),
-    radial-gradient(60vmax 50vmax at 100% 100%,#dce6fb 0,transparent 60%),
-    #f1ecfb;
-  background-attachment:fixed;
-}
-body{background:transparent}
-.appbar{
-  padding:calc(14px + env(safe-area-inset-top)) clamp(14px,3vw,24px) 14px;border-radius:0;
-  background:rgba(255,255,255,.8);color:var(--ink);font-size:17px;font-weight:700;
-  -webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
-  border-bottom:1px solid var(--g-edge);box-shadow:0 1px 0 rgba(95,84,128,.16);
-}
-.state,.musicbox{
-  background:var(--g-fill);-webkit-backdrop-filter:var(--g-blur);backdrop-filter:var(--g-blur);
-  border:1px solid var(--g-edge);box-shadow:var(--g-shadow);
-}
-.state{border-radius:28px;border-width:1px;border-color:var(--g-edge);box-shadow:var(--g-shadow),0 0 0 6px rgba(111,124,138,.12)}
-.state span{color:var(--old)}
-.state.on{border-color:rgba(26,127,75,.45);box-shadow:var(--g-shadow),0 0 0 6px rgba(26,127,75,.14)}
-.state.on span{color:var(--ok)}
-.state.error{border-color:rgba(180,35,24,.45);box-shadow:var(--g-shadow),0 0 0 6px rgba(180,35,24,.12)}
-.state.error span{color:var(--bad)}
-@keyframes pulse{50%{box-shadow:var(--g-shadow),0 0 0 14px rgba(26,127,75,.14)}}
-.loadinfo{width:fit-content;max-width:92vw;margin:14px auto 0;padding:6px 16px;border-radius:999px;
-  background:rgba(255,255,255,.55);border:1px solid var(--g-edge)}
-.musicbox{border-radius:24px}
-.mwrap{border-radius:16px}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--g-fill:rgba(255,255,255,.92)}.appbar{background:#fff}}
-@media (prefers-reduced-transparency:reduce){:root{--g-fill:#fff}.appbar{background:#fff}*{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}}
+/* ===== พื้นหลังม่วง การ์ดขาวเรียบ ===== */
+:root{--bg:#9E76B4;--head:#6f4a85;--steel:#6d5f78;--old:#6f7c8a}
+html,body{background:var(--bg)}
+.appbar{background:var(--head);border-radius:0;box-shadow:0 2px 6px rgba(43,34,52,.25);padding:calc(14px + env(safe-area-inset-top)) clamp(14px,3vw,24px) 14px;font-size:17px}
+.state,.musicbox{box-shadow:0 1px 3px rgba(43,34,52,.25)}
+.state{border-width:3px}
+.loadinfo{width:fit-content;max-width:92vw;margin:14px auto 0;padding:6px 16px;border-radius:999px;background:#fff;color:var(--steel)}
+.mwrap{border-radius:14px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 </head>
