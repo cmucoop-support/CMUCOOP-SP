@@ -43,7 +43,7 @@ const SOUND_LEGACY = 'https://ratthaphontha-wq.github.io/--audio/';
 const NOT_YET = 'ระบบนี้ยังไม่ได้ย้ายมาใช้หลังบ้านใหม่ (อยู่ระหว่างพัฒนา)';
 
 /* ---------- ฟังก์ชันที่ยังไม่รองรับในเฟส 1 (ตอบข้อความชัดเจนแทนที่จะพัง) ---------- */
-const PENDING = ['makePdf', 'musicApproveAll', 'musicCancel', 'musicDecide', 'musicRequest'];   // makePdf: ใช้ปุ่มปริ้นจากเบราว์เซอร์แทน
+const PENDING = ['makePdf'];   // makePdf: ใช้ปุ่มปริ้นจากเบราว์เซอร์แทน
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)',
@@ -58,6 +58,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT)',
   'CREATE INDEX IF NOT EXISTS bc_cat ON barcode_items(cat, pos)',
   'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
+  'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
+  'CREATE INDEX IF NOT EXISTS mq_status ON music_queue(status, seq)',
   'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)'
 ];
 let schemaReady = false;
@@ -722,12 +724,142 @@ API.soundImportLegacy = async (C, token) => {
   return { done, missing: missSet, remaining };
 };
 
-/* ============================== ขอเพลง (เฟส 1: เฉพาะค่าความดัง ส่วนคิวเพลงยังไม่ย้าย) ============================== */
+/* ============================== ขอเพลง / คิวเพลง ==============================
+ * ตาราง music_queue : 1 แถว = 1 คำขอ  สถานะ  รออนุมัติ → รอคิว → กำลังเล่น → เล่นแล้ว
+ *                                         (แยกออก: ปฏิเสธ · ยกเลิก · ลบแล้ว · ข้ามแล้ว · ผิดพลาด)
+ * TV (receiver.html) เรียก musicTvTick ทุก 5 วินาที เพื่อรับว่าต้องเล่นเพลงไหน และเรียก musicTvEnd เมื่อเพลงจบ */
+const MU_LIVE = "('รออนุมัติ','รอคิว','กำลังเล่น')";
+const MU_MAX_QUEUE = 60, MU_KEEP_DAYS = 7, MU_USER_DEF = 3, MU_TV_ONLINE_MS = 90000;
+const MU_AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|webm|flac)$/i;
+const MU_YT_HOST = /^(?:www\.|m\.|music\.)?(?:youtube\.com|youtube-nocookie\.com)$/i;
+const YT_ID = /^[A-Za-z0-9_-]{11}$/, YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
+
 async function musicState(C) {
-  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO']);
-  return { vol: numSetting(m.MUSIC_VOL, 0, 100, 70, true), avol: numSetting(m.ANN_VOL, 10, 100, 100, true), auto: m.MUSIC_AUTO === '1' };
+  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO', 'MUSIC_MAX_USER', 'MUSIC_TV_SEEN']);
+  return {
+    vol: numSetting(m.MUSIC_VOL, 0, 100, 70, true), avol: numSetting(m.ANN_VOL, 10, 100, 100, true), auto: m.MUSIC_AUTO === '1',
+    maxUser: numSetting(m.MUSIC_MAX_USER, 1, 10, MU_USER_DEF, true), tvSeen: Number(m.MUSIC_TV_SEEN) || 0
+  };
 }
-API.musicList = async (C, token) => { await authPerm(C, token, 'music'); const s = await musicState(C); return { rows: [], auto: s.auto, vol: s.vol, avol: s.avol }; };
+
+/* แปลงลิงก์ที่วางมา → { kind: 'yt' | 'ytlist' | 'audio', ref, url, thumb, title } หรือโยนข้อความผิดพลาด */
+function ytItem(kind, id) {
+  return kind === 'yt'
+    ? { kind, ref: id, url: 'https://www.youtube.com/watch?v=' + id, thumb: 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg', title: 'วิดีโอ YouTube (' + id + ')' }
+    : { kind, ref: id, url: 'https://www.youtube.com/playlist?list=' + id, thumb: '', title: 'เพลย์ลิสต์ YouTube' };
+}
+function parseMusicUrl(raw) {
+  let s = str(raw);
+  if (!s) throw new Error('วางลิงก์เพลงก่อน');
+  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  let u; try { u = new URL(s); } catch (e) { throw new Error('ลิงก์ไม่ถูกต้อง'); }
+  const host = u.hostname.toLowerCase();
+  if (host === 'youtu.be' || host === 'www.youtu.be') {
+    const id = u.pathname.slice(1).split('/')[0];
+    if (YT_ID.test(id)) return ytItem('yt', id);
+  } else if (MU_YT_HOST.test(host)) {
+    const v = u.searchParams.get('v'), list = u.searchParams.get('list'), seg = u.pathname.split('/').filter(Boolean);
+    if (u.pathname === '/playlist' && list) {
+      if (/^RD/.test(list)) throw new Error('YouTube Mix (รายการเล่นอัตโนมัติ) ไม่รองรับ — ใช้ลิงก์วิดีโอหรือเพลย์ลิสต์ปกติแทน');
+      if (YT_LIST.test(list)) return ytItem('ytlist', list);
+    }
+    if (v && YT_ID.test(v)) return ytItem('yt', v);                                            // ลิงก์วิดีโอที่มี &list= ติดมา → เล่นเฉพาะวิดีโอนั้น
+    if (['shorts', 'embed', 'live', 'v'].indexOf(seg[0]) >= 0 && YT_ID.test(seg[1] || '')) return ytItem('yt', seg[1]);
+    if (list && !/^RD/.test(list) && YT_LIST.test(list)) return ytItem('ytlist', list);
+  } else if (MU_AUDIO_EXT.test(u.pathname)) {
+    let name = u.pathname.split('/').pop().replace(MU_AUDIO_EXT, '');
+    try { name = decodeURIComponent(name); } catch (e) { /* ใช้ชื่อดิบ */ }
+    return { kind: 'audio', ref: u.href, url: u.href, thumb: '', title: name.slice(0, 150) || 'ไฟล์เสียง' };
+  }
+  throw new Error('รองรับเฉพาะลิงก์ YouTube (วิดีโอ/เพลย์ลิสต์) หรือไฟล์เสียง .mp3 .m4a .wav .ogg');
+}
+/* ถามชื่อเพลงและเช็กว่าฝังเล่นได้ไหมจาก YouTube oEmbed (ถ้าเช็กไม่ได้ ใช้ชื่อสำรอง ไม่ขวางการขอเพลง) */
+async function ytMeta(item) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+  try {
+    const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(item.url), { signal: ctl.signal });
+    if (res.ok) { const j = await res.json(); return { title: str(j.title).slice(0, 150) }; }
+    if (item.kind === 'yt' && (res.status === 401 || res.status === 403)) return { error: 'วิดีโอนี้เป็นส่วนตัวหรือเจ้าของปิดการฝังเล่น TV จะเล่นไม่ได้ — เลือกเพลงอื่น' };
+    if (item.kind === 'yt' && res.status === 404) return { error: 'ไม่พบวิดีโอนี้ (ลิงก์ผิดหรือถูกลบแล้ว)' };
+  } catch (e) { /* ใช้ชื่อสำรอง */ } finally { clearTimeout(t); }
+  return { title: '' };
+}
+
+const muRow = (r, me) => ({
+  id: r.id, title: r.title, url: r.url, kind: r.kind, thumb: r.thumb || '', by: r.who, status: r.status,
+  mine: !!me && r.uname === me.user, ts: r.ts, start: r.t_start || 0, end: r.t_end || 0
+});
+const muItem = r => ({ id: r.id, kind: r.kind, ref: r.ref, title: r.title, by: r.who });
+
+API.musicList = async (C, token) => {
+  const me = await authPerm(C, token, 'music'), s = await musicState(C);
+  const live = await all(C, 'SELECT * FROM music_queue WHERE status IN ' + MU_LIVE + " ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 WHEN 'รอคิว' THEN 1 ELSE 2 END, seq");
+  const hist = await all(C, 'SELECT * FROM music_queue WHERE status NOT IN ' + MU_LIVE + ' ORDER BY COALESCE(t_end, ts) DESC LIMIT 40');
+  return {
+    rows: live.concat(hist).map(r => muRow(r, me)), auto: s.auto, vol: s.vol, avol: s.avol, maxUser: s.maxUser,
+    tv: { online: s.tvSeen > 0 && now() - s.tvSeen < MU_TV_ONLINE_MS, seen: s.tvSeen }, max: MU_MAX_QUEUE
+  };
+};
+API.musicRequest = async (C, token, url) => {
+  const me = await authPerm(C, token, 'music'), item = parseMusicUrl(url), s = await musicState(C), admin = me.role === 'admin';
+  const live = await all(C, 'SELECT uname, ref FROM music_queue WHERE status IN ' + MU_LIVE);
+  if (live.length >= MU_MAX_QUEUE) throw new Error('คิวเต็มแล้ว (สูงสุด ' + MU_MAX_QUEUE + ' เพลง) ลองใหม่เมื่อมีเพลงเล่นจบ');
+  if (live.some(x => x.ref === item.ref)) throw new Error('เพลงนี้อยู่ในคิวแล้ว');
+  const mine = live.filter(x => x.uname === me.user).length;
+  if (!admin && mine >= s.maxUser) throw new Error('คุณมีเพลงในคิวครบ ' + s.maxUser + ' เพลงแล้ว — รอให้เล่นจบหรือยกเลิกอันเดิมก่อน');
+  if (item.kind !== 'audio') { const m = await ytMeta(item); if (m.error) throw new Error(m.error); if (m.title) item.title = m.title; }
+  const id = uuid().replace(/-/g, '').slice(0, 12), status = (s.auto || admin) ? 'รอคิว' : 'รออนุมัติ';
+  await run(C, 'INSERT INTO music_queue(id,seq,ts,uname,who,kind,ref,url,title,thumb,status) VALUES(?, (SELECT COALESCE(MAX(seq),0)+1 FROM music_queue), ?,?,?,?,?,?,?,?,?)',
+    id, now(), me.user, me.name, item.kind, item.ref, item.url, item.title, item.thumb, status);
+  await run(C, 'DELETE FROM music_queue WHERE status NOT IN ' + MU_LIVE + ' AND COALESCE(t_end, ts)<?', now() - MU_KEEP_DAYS * 86400000);
+  await appendLog(C, me.name, 'Music', '', 'ขอเพลง', item.title + (status === 'รออนุมัติ' ? ' (รออนุมัติ)' : ''));
+  return { id, status, title: item.title, kind: item.kind };
+};
+async function muMove(C, id, from, to, extra) {            // เปลี่ยนสถานะแบบกันชนกัน: สำเร็จเฉพาะเมื่อแถวยังอยู่สถานะเดิม
+  const q = "UPDATE music_queue SET status=?, t_end=CASE WHEN ? IN ('รอคิว','กำลังเล่น') THEN t_end ELSE ? END WHERE id=? AND status IN (" + from.map(() => '?').join(',') + ')';
+  const r = await run(C, q, to, to, now(), id, ...from);
+  if (!r.meta.changes) throw new Error('สถานะเพลงเปลี่ยนไปแล้ว กรุณารีเฟรชแล้วลองใหม่');
+}
+API.musicCancel = async (C, token, id) => {
+  const me = await authPerm(C, token, 'music'); id = str(id);
+  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
+  if (!r) throw new Error('ไม่พบคำขอนี้');
+  if (r.uname !== me.user && me.role !== 'admin') throw new Error('ยกเลิกได้เฉพาะเพลงที่คุณขอเอง');
+  await muMove(C, id, ['รออนุมัติ', 'รอคิว'], 'ยกเลิก');
+  await appendLog(C, me.name, 'Music', '', 'ยกเลิกคำขอเพลง', r.title);
+  return true;
+};
+API.musicDecide = async (C, token, id, action) => {
+  const me = await auth(C, token, true); id = str(id); action = str(action);
+  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
+  if (!r) throw new Error('ไม่พบคำขอนี้');
+  let label;
+  if (action === 'approve') { await muMove(C, id, ['รออนุมัติ'], 'รอคิว'); label = 'อนุมัติเพลง'; }
+  else if (action === 'reject') { await muMove(C, id, ['รออนุมัติ'], 'ปฏิเสธ'); label = 'ปฏิเสธเพลง'; }
+  else if (action === 'skip') { await muMove(C, id, ['กำลังเล่น'], 'ข้ามแล้ว'); label = 'ข้ามเพลง'; }
+  else if (action === 'remove') { await muMove(C, id, ['รออนุมัติ', 'รอคิว'], 'ลบแล้ว'); label = 'ลบเพลงออกจากคิว'; }
+  else if (action === 'next') {                                  // ดันขึ้นเป็นเพลงถัดไป (ถ้ายังรออนุมัติ จะอนุมัติให้ด้วย)
+    const top = await one(C, "SELECT COALESCE(MIN(seq),1) AS m FROM music_queue WHERE status='รอคิว'");
+    await muMove(C, id, ['รออนุมัติ', 'รอคิว'], 'รอคิว');
+    await run(C, 'UPDATE music_queue SET seq=? WHERE id=?', (top ? top.m : 1) - 1, id);
+    label = 'ดันเป็นเพลงถัดไป';
+  } else throw new Error('คำสั่งไม่ถูกต้อง');
+  await appendLog(C, me.name, 'Music', '', label, r.title);
+  return { ok: true };
+};
+API.musicApproveAll = async (C, token) => {
+  const me = await auth(C, token, true);
+  const r = await run(C, "UPDATE music_queue SET status='รอคิว' WHERE status='รออนุมัติ'");
+  const n = r.meta.changes || 0;
+  if (n) await appendLog(C, me.name, 'Music', '', 'อนุมัติเพลงทั้งหมดที่รออยู่', n + ' เพลง');
+  return { count: n };
+};
+API.musicClearHistory = async (C, token) => {
+  const me = await auth(C, token, true);
+  const r = await run(C, 'DELETE FROM music_queue WHERE status NOT IN ' + MU_LIVE);
+  await appendLog(C, me.name, 'Music', '', 'ล้างประวัติเพลง', (r.meta.changes || 0) + ' รายการ');
+  return { count: r.meta.changes || 0 };
+};
 API.musicSetVolume = async (C, token, v) => {
   const me = await authPerm(C, token, 'music'); v = Math.round(Number(v));
   if (!(v >= 0 && v <= 100)) throw new Error('ความดังต้องอยู่ระหว่าง 0–100');
@@ -741,16 +873,35 @@ API.musicSetAnnounceVolume = async (C, token, v) => {
   return { ok: true, avol: v };
 };
 API.musicSetAuto = async (C, token, on) => {
-  const me = await authPerm(C, token, 'music'); const flag = on === true || on === 'true';
+  const me = await auth(C, token, true); const flag = on === true || on === 'true';
   await kvSet(C, 'MUSIC_AUTO', flag ? '1' : '0'); await appendLog(C, me.name, 'Music', '', flag ? 'เปิดอนุมัติอัตโนมัติ' : 'ปิดอนุมัติอัตโนมัติ', '');
   return { ok: true, auto: flag };
 };
-let tickCache = { at: 0, v: null };
-API.musicTvTick = async C => {                     // หน้า TV เรียกทุก 5 วินาที → ตอบจากแคชในหน่วยความจำ 30 วินาที ลดภาระฐานข้อมูล
-  if (!tickCache.v || now() - tickCache.at > 30000) { const s = await musicState(C); tickCache = { at: now(), v: { action: 'idle', vol: s.vol, avol: s.avol } }; }
-  return tickCache.v;
+API.musicSetMaxUser = async (C, token, n) => {
+  const me = await auth(C, token, true); n = Math.round(Number(n));
+  if (!(n >= 1 && n <= 10)) throw new Error('จำนวนต้องอยู่ระหว่าง 1–10 เพลง');
+  await kvSet(C, 'MUSIC_MAX_USER', n); await appendLog(C, me.name, 'Music', '', 'ตั้งจำนวนเพลงสูงสุดต่อคน', n + ' เพลง');
+  return { ok: true, maxUser: n };
 };
-API.musicTvEnd = async () => true;
+
+/* ---------- ฝั่ง TV ---------- */
+let tvSeenWrite = 0;
+async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { tvSeenWrite = now(); await kvSet(C, 'MUSIC_TV_SEEN', now()); } }
+API.musicTvPing = async C => { await muHeartbeat(C); return true; };     // TV เรียกระหว่างหยุดเพลงเพื่อประกาศ จะได้ไม่ถูกมองว่าออฟไลน์
+API.musicTvTick = async (C, curId) => {
+  curId = str(curId); await muHeartbeat(C);
+  const [s, top] = await Promise.all([musicState(C),
+    one(C, "SELECT id,kind,ref,title,who,status FROM music_queue WHERE status IN ('กำลังเล่น','รอคิว') ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 ELSE 1 END, seq LIMIT 1")]);
+  const base = { vol: s.vol, avol: s.avol };
+  if (!top) return Object.assign({ action: 'idle' }, base);
+  if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep' }, base) : Object.assign({ action: 'play', item: muItem(top) }, base);
+  const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว'", now(), top.id);
+  return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top) }, base) : Object.assign({ action: 'keep' }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
+};
+API.musicTvEnd = async (C, id, ok) => {
+  await run(C, "UPDATE music_queue SET status=?, t_end=? WHERE id=? AND status='กำลังเล่น'", (ok === true || ok === 'true') ? 'เล่นแล้ว' : 'ผิดพลาด', now(), str(id));
+  return true;
+};
 
 /* ============================ รายการบาร์เดี่ยว/บาร์แพ็ค (เก็บใน D1 + นำเข้าจาก Excel) ============================
  * ข้อมูลทั้งหมดอยู่ใน Cloud (ตาราง barcode_items / barcode_cats) แก้ไขผ่านหน้าเว็บ · นำเข้าจาก Excel ได้ (หัวตารางอ่านจากชื่อคอลัมน์)
