@@ -370,6 +370,16 @@ td.act{white-space:nowrap;min-width:170px}
     <!-- ========== แท็บข้อมูล ========== -->
     <section id="v-data" style="display:grid;gap:14px">
       <div class="card">
+        <div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
+        <div class="row">
+          <input type="file" id="bcImpFile" accept=".xlsx,.xls,.csv">
+          <select id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
+          <button class="btn" id="bcImpBtn" disabled>นำเข้า</button>
+        </div>
+        <div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
+      </div>
+
+      <div class="card">
         <h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
         <div class="muted" id="dStatus"></div>
       </div>
@@ -410,8 +420,8 @@ td.act{white-space:nowrap;min-width:170px}
         <button type="button" class="btn ghost small" id="pPartnerClear">ล้างที่เลือก</button></div>
       <div class="plist" id="pPartners" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));max-height:30vh"></div>
       <div class="row" style="margin-top:12px">
-        <button class="btn" id="btnPrint">สร้าง PDF และปริ้น</button>
-        <button class="btn ghost" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
+        <button class="btn" id="btnPrint">ปริ้นรายงาน</button>
+        <button class="btn ghost hidden" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
         <span class="muted">หมวดละเริ่มหน้าใหม่ หัวตารางพิมพ์ซ้ำทุกหน้า กระดาษ A4 แนวตั้ง</span>
       </div>
     </section>
@@ -446,7 +456,7 @@ td.act{white-space:nowrap;min-width:170px}
       <a class="mcard" id="mPrice" href="https://cmu-coops.com/product/countpd.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ตรวจสอบราคาสินค้า</b></a>
       <a class="mcard hidden" id="mOffline" href="http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ระบบ CMUCOOP Offline</b></a>
       <a class="mcard hidden" id="mOnline" href="https://cmu-coops.com/adEntry.php" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>ระบบ CMUCOOP Online</b></a>
-      <button class="mcard hidden" id="mAssets"><b>รายการสินทรัพย์</b></button>
+      <a class="mcard hidden" id="mAssets" href="#" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><b>รายการสินทรัพย์</b></a>
       <button class="mcard hidden" id="mHistory"><b>ประวัติการใช้งาน</b></button>
       <button class="mcard hidden" id="mUsers"><b>จัดการผู้ใช้งาน</b></button>
       <button class="mcard hidden" id="mCards"><b>จัดการการ์ด</b></button>
@@ -626,59 +636,12 @@ td.act{white-space:nowrap;min-width:170px}
   </div>
 </div>
 
-<!-- ========== รายการสินทรัพย์ ========== -->
-<div id="assetsPage" class="page">
-  <header class="phead">
-    <h1>รายการสินทรัพย์</h1>
-    <span class="me" id="asMe"></span>
-    <button class="btn ghost small" id="asHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
-    <button class="btn ghost small js-logout">ออกจากระบบ</button>
-  </header>
-  <div class="pwrap" style="max-width:1200px">
-    <div class="card">
-      <div class="asbar">
-        <input type="search" id="asQ" placeholder="ค้นหา ชื่อรายการ / รหัส / สถานที่ / หมายเหตุ" autocomplete="off">
-        <button class="btn small ad-only" id="asAdd">+ เพิ่มรายการ</button>
-        <span class="muted" id="asCount"></span>
-      </div>
-      <div id="asLiveBar" class="asLive hidden">
-        <span id="asLiveInfo"></span>
-        <a class="btn small ad-only" id="asLiveLink" href="#" target="_blank" rel="noopener">เปิดไฟล์ ↗</a>
-        <button class="btn ghost small ad-only" id="asSrcBtn">ตั้ง/เปลี่ยนลิงก์ไฟล์</button>
-        <button class="btn ghost small ad-only" id="asImpBtn">นำเข้า Excel</button>
-        <input type="file" id="asImpFile" accept=".xlsx,.xls,.csv" class="hidden">
-        <button class="btn ghost small" id="asExpBtn">ส่งออก Excel</button>
-        <button class="btn ghost small" id="asBkBtn">สำเนา (0/2)</button>
-        <span class="muted" id="asBkState"></span>
-        <span class="muted" id="asSaveState"></span>
-      </div>
-      <div class="astwrap"><table class="ast">
-        <thead>
-          <tr><th rowspan="2">ลำดับ</th><th rowspan="2">รูปภาพ</th><th rowspan="2">รายการ</th><th rowspan="2">รหัสสินทรัพย์</th><th rowspan="2">วันที่รับสินทรัพย์</th><th rowspan="2">สถานที่ตั้งสินทรัพย์</th>
-              <th colspan="5">สถานะ</th><th rowspan="2">อัตราร้อยละ</th><th colspan="4">ค่าเสื่อมราคาสะสม</th><th rowspan="2">ราคาสินทรัพย์สุทธิ</th><th rowspan="2">หมายเหตุ</th><th rowspan="2" class="ad-only">จัดการ</th></tr>
-          <tr><th>ปกติ</th><th>ไม่สามารถซ่อมได้</th><th>ต้องทำการซ่อม</th><th>ลดลงระหว่างปี</th><th>รวม</th><th>ยกมา</th><th>เพิ่มระหว่างปี</th><th>ลดระหว่างปี</th><th>ยกไป</th></tr>
-        </thead>
-        <tbody id="asBody"></tbody>
-      </table></div>
-    </div>
-  </div>
-</div>
-
-<div class="modalwrap hidden" id="asModal">
-  <div class="modal" style="width:min(720px,100%);max-height:90vh;overflow:auto">
-    <h3 id="asTitle">เพิ่มรายการสินทรัพย์</h3>
-    <div class="grid" id="asForm"></div>
-    <div class="addbar"><button class="btn" id="asSave">บันทึก</button><button class="btn ghost" id="asCancel">ยกเลิก</button></div>
-  </div>
-</div>
-
-<div class="modalwrap hidden" id="asBkModal">
-  <div class="modal" style="width:min(620px,100%);max-height:90vh;overflow:auto">
-    <h3>สำเนาข้อมูลรายการสินทรัพย์ (เก็บล่าสุด 2 ชุด)</h3>
-    <div class="muted" style="margin-bottom:8px">ระบบทำสำเนาข้อมูลก่อนนำเข้า/เปลี่ยนแหล่งข้อมูล และทุกครั้งที่เปิดการ์ดนี้ (ถ้าข้อมูลเปลี่ยนไปจากชุดล่าสุด) เก็บแค่ 2 ชุด ชุดเก่ากว่าถูกลบอัตโนมัติ · ดาวน์โหลดเป็นไฟล์ CSV เปิดใน Excel ได้</div>
-    <div id="asBkList"></div>
-    <div class="addbar"><button class="btn ghost" id="asBkClose">ปิด</button></div>
+<div class="modalwrap hidden" id="bcBkModal">
+  <div class="modal" style="width:min(620px,100%)">
+    <h3>สำเนาข้อมูลรายการบาร์ (เก็บล่าสุด 2 ชุด)</h3>
+    <div class="muted">ระบบทำสำเนาก่อนนำเข้าและก่อนกู้คืนทุกครั้ง (ถ้าข้อมูลต่างจากชุดล่าสุด) ชุดที่เก่ากว่าถูกลบอัตโนมัติ · กู้คืน = นำข้อมูลในสำเนากลับมาแทนที่ข้อมูลปัจจุบัน</div>
+    <div id="bcBkList"></div>
+    <div class="addbar"><button class="btn ghost" id="bcBkClose">ปิด</button></div>
   </div>
 </div>
 
@@ -1414,21 +1377,7 @@ function pdfBlob(b64) {
 }
 function closePdf() { $('#pdfModal').classList.add('hidden'); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = ''; } }
 $('#pdfClose').addEventListener('click', closePdf);
-$('#btnPrint').addEventListener('click', async function () {
-  var keys = checkedCatKeys();
-  if (!keys.length) { toast('เลือกหมวดที่ต้องการปริ้นก่อน', true); return; }
-  var btn = this; btn.textContent = 'กำลังสร้าง PDF… (อาจใช้เวลาสักครู่)';
-  await busy(btn, async function () {
-    var r = await call('makePdf', keys, selectedPartners());
-    if (pdfUrl) URL.revokeObjectURL(pdfUrl);               // เก็บเฉพาะไฟล์ปัจจุบัน
-    pdfUrl = URL.createObjectURL(pdfBlob(r.base64));
-    $('#pdfName').textContent = r.name;
-    $('#pdfOpen').href = pdfUrl;
-    $('#pdfDl').href = pdfUrl; $('#pdfDl').setAttribute('download', r.name);
-    $('#pdfModal').classList.remove('hidden');
-  });
-  btn.textContent = 'สร้าง PDF และปริ้น';
-});
+$('#btnPrint').addEventListener('click', function () { $('#btnPrintOld').click(); });
 $('#btnPrintOld').addEventListener('click', async function () {
   logUse('barcode', 'ปริ้นจากเบราว์เซอร์', '');
   var keys = checkedCatKeys();
@@ -1443,6 +1392,73 @@ $('#btnPrintOld').addEventListener('click', async function () {
     setTimeout(function () { window.print(); }, 150);
   });
   btn.textContent = 'ปริ้นจากเบราว์เซอร์ (สำรอง)';
+});
+
+/* ============================ นำเข้า / ส่งออก / สำเนา (รายการบาร์) ============================ */
+var BC_BK = [];
+function bcBkFmt(ts) { return new Date(ts).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' }); }
+function bcBkRender() {
+  $('#bcBkBtn').textContent = 'สำเนา (' + BC_BK.length + '/2)';
+  $('#bcBkList').innerHTML = BC_BK.length ? '<table class="logt"><thead><tr><th>#</th><th>เวลา</th><th>ข้อมูล</th><th></th></tr></thead><tbody>' +
+    BC_BK.map(function (b, i) { return '<tr><td>' + (i + 1) + '</td><td>' + esc(bcBkFmt(b.ts)) + '</td><td>' + esc(b.name) + '</td><td class="act"><div class="actw"><button class="btn ghost small" data-dl="' + b.id + '">ดาวน์โหลด CSV</button><button class="btn ghost small" data-rs="' + b.id + '">กู้คืน</button></div></td></tr>'; }).join('') + '</tbody></table>'
+    : '<div class="muted">ยังไม่มีสำเนา</div>';
+}
+function bcLoadBk() { call('barcodeBackupList').then(function (r) { BC_BK = r.backups || []; bcBkRender(); }).catch(function () {}); }
+$('#bcBkBtn').addEventListener('click', function () { bcBkRender(); $('#bcBkModal').classList.remove('hidden'); bcLoadBk(); });
+$('#bcBkClose').addEventListener('click', function () { $('#bcBkModal').classList.add('hidden'); });
+$('#bcBkList').addEventListener('click', async function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.dl) {
+    b.disabled = true;
+    try {
+      var r = await call('barcodeBackupData', Number(b.dataset.dl)), a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = r.name + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+    } catch (err) { toast(err.message, true); }
+    b.disabled = false;
+  } else if (b.dataset.rs) {
+    if (!confirm('กู้คืนข้อมูลจากสำเนานี้?\n\nข้อมูลปัจจุบันจะถูกแทนที่ (ระบบทำสำเนาข้อมูลปัจจุบันไว้ให้ก่อน)')) return;
+    b.disabled = true;
+    try {
+      var rr = await withSaving(call('barcodeRestore', Number(b.dataset.rs)));
+      BC_BK = rr.backups || BC_BK; bcBkRender(); $('#bcBkModal').classList.add('hidden');
+      toast('กู้คืนแล้ว ' + rr.count + ' รายการ'); await refreshCats(); await selectCat(allCat().key);
+    } catch (err) { toast(err.message, true); }
+    b.disabled = false;
+  }
+});
+$('#bcImpFile').addEventListener('change', function () { $('#bcImpBtn').disabled = !this.files.length; });
+$('#bcImpBtn').addEventListener('click', function () {
+  var f = $('#bcImpFile').files[0], mode = $('#bcImpMode').value; if (!f) return;
+  if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
+  var fr = new FileReader();
+  fr.onerror = function () { toast('อ่านไฟล์ไม่ได้', true); };
+  fr.onload = function () {
+    var sheets;
+    try {
+      var wb = XLSX.read(fr.result, { type: 'array' });
+      sheets = wb.SheetNames.map(function (n) { return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }) }; });
+    } catch (err) { toast('อ่านไฟล์ Excel ไม่สำเร็จ: ' + err.message, true); return; }
+    if (!confirm('นำเข้าจากไฟล์ "' + f.name + '" (' + sheets.length + ' แผ่นงาน)\n\n' + (mode === 'replace' ? 'ข้อมูลรายการบาร์ในระบบจะถูกแทนที่ทั้งหมด' : 'เพิ่มต่อท้ายข้อมูลเดิม (ข้ามรายการที่ซ้ำ)') + '\nระบบทำสำเนาข้อมูลเดิมไว้ให้ก่อน')) return;
+    busy($('#bcImpBtn'), async function () {
+      var r = await withSaving(call('importBarcodeData', sheets, mode));
+      BC_BK = r.backups || BC_BK; bcBkRender();
+      $('#bcImpFile').value = ''; $('#bcImpBtn').disabled = true;
+      toast('นำเข้าแล้ว ' + r.count + ' รายการ' + (r.duplicates ? ' (ข้ามซ้ำ ' + r.duplicates + ')' : '') + (r.notes && r.notes.length ? ' · ข้ามบางแผ่นงาน: ' + r.notes.join(' | ') : ''));
+      await refreshCats(); await selectCat(allCat().key);
+    });
+  };
+  fr.readAsArrayBuffer(f);
+});
+$('#bcExpBtn').addEventListener('click', function () {
+  if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
+  busy(this, async function () {
+    var d = await call('getCategoryData', allCat().sheet, '*');
+    var aoa = [['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(d.rows.map(function (x) { return x.v.slice(0, 6); }));
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
+    XLSX.writeFile(wb, 'รายการบาร์_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  });
 });
 
 /* ============================ ประวัติ / แท็บ ============================ */
@@ -1581,202 +1597,6 @@ $('#uSave').addEventListener('click', function () {
   });
 });
 
-/* ============================ รายการสินทรัพย์ ============================ */
-var AS = { rows: [], canEdit: false, editRow: 0, imp: null };
-var AS_FIELDS = [
-  ['name', 'ชื่อรายการ', 1], ['code', 'รหัสสินทรัพย์'], ['date', 'วันที่รับสินทรัพย์ (เช่น 01/01/2567)'], ['place', 'สถานที่ตั้งสินทรัพย์', 1],
-  ['link', 'ลิงค์ภาพ (ลิงก์รูป / Google Drive)', 1],
-  ['ok', 'สถานะ: ปกติ'], ['broken', 'สถานะ: ไม่สามารถซ่อมได้'], ['repair', 'สถานะ: ต้องทำการซ่อม'], ['reduce', 'สถานะ: ลดลงระหว่างปี'], ['total', 'สถานะ: รวม'], ['rate', 'อัตราร้อยละ'],
-  ['dep0', 'ค่าเสื่อมสะสม: ยกมา'], ['depAdd', 'ค่าเสื่อมสะสม: เพิ่มระหว่างปี'], ['depSub', 'ค่าเสื่อมสะสม: ลดระหว่างปี'], ['dep1', 'ค่าเสื่อมสะสม: ยกไป'],
-  ['net', 'ราคาสินทรัพย์สุทธิ'], ['note', 'หมายเหตุ', 1]
-];
-var AS_COLS = ['name', 'code', 'date', 'place', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
-var AS_NUMS = { ok: 1, broken: 1, repair: 1, reduce: 1, total: 1, rate: 1, dep0: 1, depAdd: 1, depSub: 1, dep1: 1, net: 1 };
-$('#asForm').innerHTML = AS_FIELDS.map(function (f) {
-  return '<label' + (f[2] ? ' class="wide"' : '') + '>' + f[1] + '<input type="text" id="af_' + f[0] + '" autocomplete="off"' + (AS_NUMS[f[0]] ? ' inputmode="decimal"' : '') + '></label>';
-}).join('');
-
-function asImgUrl(link) {
-  link = String(link || '').trim();
-  if (!/^https?:\/\//i.test(link)) return '';
-  var m = link.match(/\/d\/([\w-]{20,})/) || link.match(/[?&]id=([\w-]{20,})/);
-  return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w200' : link;
-}
-function openAssets() {
-  if (!hasPerm('assets')) return;
-  setNav('assets');
-  $('#asMe').textContent = S.me.name + ' (' + (S.me.role === 'admin' ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
-  $('#asQ').value = '';
-  loadAssets(true);                                  // เปิดการ์ด = โหลดข้อมูล + ทำสำเนาไฟล์ (โหมดอ่านตรง)
-}
-var AS_BK = [];
-function asBkFmt(ts) { return new Date(ts).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' }); }
-function asBkRender() {
-  $('#asBkBtn').textContent = 'สำเนา (' + AS_BK.length + '/2)';
-  $('#asBkList').innerHTML = AS_BK.length ? '<div class="astwrap" style="max-height:50vh"><table class="ast" style="min-width:0"><thead><tr><th>#</th><th>เวลาที่ทำสำเนา</th><th>ข้อมูล</th></tr></thead><tbody>' +
-    AS_BK.map(function (b, i) { return '<tr><td>' + (i + 1) + '</td><td>' + esc(asBkFmt(b.ts)) + '</td><td class="wrap">' + esc(b.name) + ' <button class="btn ghost small" data-bk="' + b.id + '">ดาวน์โหลด CSV</button></td></tr>'; }).join('') + '</tbody></table></div>'
-    : '<div class="muted">ยังไม่มีสำเนา</div>';
-}
-$('#asBkList').addEventListener('click', async function (e) {
-  var b = e.target.closest('button[data-bk]'); if (!b) return;
-  b.disabled = true;
-  try {
-    var r = await call('assetBackupData', Number(b.dataset.bk)), a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = r.name + '_' + new Date().toISOString().slice(0, 10) + '.csv';
-    document.body.appendChild(a); a.click(); a.remove();
-  } catch (err) { toast(err.message, true); }
-  b.disabled = false;
-});
-/* ----- นำเข้า / ส่งออก Excel ----- */
-$('#asImpBtn').addEventListener('click', function () { $('#asImpFile').click(); });
-$('#asImpFile').addEventListener('change', function () {
-  var f = this.files[0]; this.value = ''; if (!f) return;
-  if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
-  var fr = new FileReader();
-  fr.onerror = function () { toast('อ่านไฟล์ไม่ได้', true); };
-  fr.onload = function () {
-    try {
-      var wb = XLSX.read(fr.result, { type: 'array' }), grid = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: '' });
-      if (!confirm('นำเข้าข้อมูลจากไฟล์ "' + f.name + '" (แผ่นงาน ' + wb.SheetNames[0] + ' · ' + grid.length + ' แถว)?\n\nข้อมูลสินทรัพย์ในระบบจะถูกแทนที่ทั้งหมด (ระบบทำสำเนาข้อมูลเดิมไว้ให้ก่อน)')) return;
-      busy($('#asImpBtn'), async function () {
-        var r = await call('assetImportRows', grid);
-        AS_BK = r.backups || AS_BK; asBkRender(); toast('นำเข้าแล้ว ' + r.count + ' รายการ'); await loadAssets();
-      });
-    } catch (err) { toast('อ่านไฟล์ Excel ไม่สำเร็จ: ' + err.message, true); }
-  };
-  fr.readAsArrayBuffer(f);
-});
-$('#asExpBtn').addEventListener('click', function () {
-  if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
-  var head = ['ลำดับ', 'ชื่อรายการ', 'รหัสสินทรัพย์', 'วันที่รับสินทรัพย์', 'สถานที่ตั้งสินทรัพย์', 'ลิงก์รูปภาพ', 'สถานะ ปกติ', 'สถานะ ไม่สามารถซ่อมได้', 'สถานะ ต้องทำการซ่อม', 'สถานะ ลดลงระหว่างปี', 'สถานะ รวม', 'อัตราร้อยละ',
-    'ค่าเสื่อมราคาสะสม ยกมา', 'ค่าเสื่อมราคาสะสม เพิ่มระหว่างปี', 'ค่าเสื่อมราคาสะสม ลดระหว่างปี', 'ค่าเสื่อมราคาสะสม ยกไป', 'ราคาสินทรัพย์สุทธิ', 'หมายเหตุ'];
-  var keys = ['name', 'code', 'date', 'place', 'link', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
-  var aoa = [head].concat(AS.rows.map(function (x) { return [x.no].concat(keys.map(function (k) { return x[k]; })); }));
-  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'สินทรัพย์');
-  XLSX.writeFile(wb, 'รายการสินทรัพย์_' + new Date().toISOString().slice(0, 10) + '.xlsx');
-});
-async function assetBackupBg() {
-  $('#asBkState').textContent = 'กำลังทำสำเนาไฟล์…';
-  try {
-    var r = await call('assetBackup');
-    AS_BK = r.backups || []; asBkRender();
-    $('#asBkState').textContent = AS_BK.length ? 'สำเนาล่าสุด ' + asBkFmt(AS_BK[0].ts) : '';
-  } catch (e) { $('#asBkState').textContent = 'ทำสำเนาไม่สำเร็จ: ' + e.message; }
-}
-$('#asBkBtn').addEventListener('click', async function () {
-  asBkRender(); $('#asBkModal').classList.remove('hidden');
-  try { var r = await call('assetBackupList'); AS_BK = r.backups || []; asBkRender(); } catch (e) { toast(e.message, true); }
-});
-$('#asBkClose').addEventListener('click', function () { $('#asBkModal').classList.add('hidden'); });
-var AS_EDIT = ['name', 'code', 'date', 'place', 'ok', 'broken', 'repair', 'reduce', 'total', 'rate', 'dep0', 'depAdd', 'depSub', 'dep1', 'net', 'note'];
-var AS_BUSY = 0;
-async function loadAssets(backup, quiet) {
-  if (!quiet) $('#asBody').innerHTML = '<tr><td colspan="20" class="muted">กำลังโหลด…</td></tr>';
-  try {
-    var r = await call('assetList');
-    AS.rows = r.rows || []; AS.canEdit = !!r.canEdit; AS.live = !!r.live;
-    document.querySelectorAll('#assetsPage .ad-only').forEach(function (el) { el.classList.toggle('hidden', !AS.canEdit); });
-    $('#asLiveBar').classList.remove('hidden');
-    $('#asLiveInfo').innerHTML = AS.live ? '📄 ข้อมูลจาก Google Sheet (ดึงอัตโนมัติ · บันทึกกลับอัตโนมัติ): <b>' + esc(r.srcName || '') + '</b>'
-      : r.srcError ? '<span style="color:var(--bad)">เปิด Google Sheet ไม่ได้: ' + esc(r.srcError) + '</span>'
-      : '🗂 ข้อมูลในระบบ (นำเข้าจาก Excel) — กด "นำเข้า Excel" หรือ "ตั้ง/เปลี่ยนลิงก์ไฟล์" เพื่อใช้ Google Sheet';
-    $('#asLiveLink').classList.toggle('hidden', !(AS.canEdit && r.srcUrl));
-    $('#asImpBtn').classList.toggle('hidden', !AS.canEdit || r.mode === 'sheet');
-    if (r.srcUrl) $('#asLiveLink').href = r.srcUrl;
-    if (AS.live && r.srcDiag) $('#asLiveInfo').innerHTML += '<div class="muted" style="font-size:12px;margin-top:2px">' + esc(r.srcDiag) + '</div>';
-    renderAssets();
-    if (backup === true && !r.srcError) assetBackupBg();   // แสดงข้อมูลก่อน แล้วทำสำเนาต่อเบื้องหลัง
-  } catch (e) { if (!quiet) $('#asBody').innerHTML = '<tr><td colspan="20" class="muted">' + esc(e.message) + '</td></tr>'; toast(e.message, true); }
-}
-function renderAssets() {
-  var q = $('#asQ').value.trim().toLowerCase();
-  var list = AS.rows.filter(function (x) {
-    return !q || [x.name, x.code, x.place, x.note, x.date].join(' ').toLowerCase().indexOf(q) >= 0;
-  });
-  $('#asCount').textContent = 'ทั้งหมด ' + list.length + (q ? ' / ' + AS.rows.length : '') + ' รายการ';
-  var n = AS.canEdit ? 20 : 19;
-  $('#asBody').innerHTML = list.map(function (x) {
-    var im = asImgUrl(x.link), img = im ? '<a href="' + esc(x.link) + '" target="_blank" rel="noopener"><img class="athumb" loading="lazy" referrerpolicy="no-referrer" src="' + esc(im) + '" alt="" onerror="this.style.display=\'none\'"></a>' : '';
-    function c(k, cls) {
-      return '<td class="' + (cls || '') + (AS.canEdit ? ' ce' : '') + '"' + (AS.canEdit ? ' contenteditable="plaintext-only" spellcheck="false" data-r="' + x.row + '" data-c="' + esc(x.code) + '" data-k="' + k + '"' : '') + '>' + esc(x[k]) + '</td>';
-    }
-    return '<tr><td>' + esc(x.no) + '</td><td>' + img + '</td>' + c('name', 'wrap') + c('code') + c('date') + c('place') +
-      c('ok', 'num') + c('broken', 'num') + c('repair', 'num') + c('reduce', 'num') + c('total', 'num') + c('rate', 'num') + c('dep0', 'num') + c('depAdd', 'num') + c('depSub', 'num') + c('dep1', 'num') + c('net', 'num') +
-      c('note', 'wrap') +
-      (AS.canEdit ? '<td class="act"><div class="actw"><button class="btn danger small" data-a="del" data-r="' + x.row + '" data-c="' + esc(x.code) + '">ลบ</button></div></td>' : '') + '</tr>';
-  }).join('') || '<tr><td colspan="' + n + '" class="muted">ไม่มีรายการ</td></tr>';
-}
-/* ----- บันทึกอัตโนมัติ : แก้ในช่องแล้วคลิกออก/กด Enter = บันทึกทันที (เฉพาะช่องที่แก้) ----- */
-$('#asBody').addEventListener('focusin', function (e) { var td = e.target.closest('td.ce'); if (td) td.dataset.old = td.textContent; });
-$('#asBody').addEventListener('keydown', function (e) {
-  var td = e.target.closest('td.ce'); if (!td) return;
-  if (e.key === 'Enter') { e.preventDefault(); td.blur(); }
-  else if (e.key === 'Escape') { td.textContent = td.dataset.old || ''; td.blur(); }
-});
-$('#asBody').addEventListener('focusout', async function (e) {
-  var td = e.target.closest('td.ce'); if (!td || td.dataset.old === undefined) return;
-  var v = td.textContent.replace(/\s+/g, ' ').trim(), old = td.dataset.old; delete td.dataset.old;
-  if (v === old.trim()) { td.textContent = old; return; }
-  var x = AS.rows.filter(function (r) { return String(r.row) === td.dataset.r; })[0], k = td.dataset.k;
-  td.textContent = v; td.classList.add('sv'); AS_BUSY++; $('#asSaveState').textContent = 'กำลังบันทึก…';
-  try {
-    await call('assetCellSave', { row: Number(td.dataset.r), code: td.dataset.c, key: k, value: v });
-    if (x) x[k] = v;
-    if (k === 'code') { td.dataset.c = v; td.parentNode.querySelectorAll('[data-c]').forEach(function (el) { el.dataset.c = v; }); }
-    td.classList.remove('sv'); td.classList.add('ok'); setTimeout(function () { td.classList.remove('ok'); }, 1200);
-    $('#asSaveState').textContent = 'บันทึกอัตโนมัติแล้ว ' + new Date().toLocaleTimeString('th-TH');
-  } catch (err) {
-    td.textContent = old; td.classList.remove('sv'); td.classList.add('er'); setTimeout(function () { td.classList.remove('er'); }, 1800);
-    $('#asSaveState').textContent = ''; toast(err.message, true);
-  } finally { AS_BUSY--; }
-});
-/* ----- ดึงอัตโนมัติ : รีเฟรชข้อมูลจากไฟล์ต้นทางทุก 60 วินาที และเมื่อกลับมาที่แท็บ (ไม่รีเฟรชถ้ากำลังแก้ไข/บันทึกอยู่) ----- */
-function asAutoPull() {
-  if (document.body.dataset.nav !== 'assets' || document.hidden || AS_BUSY) return;
-  if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#asBody td.ce')) return;
-  if (!$('#asModal').classList.contains('hidden')) return;
-  loadAssets(false, true);
-}
-setInterval(asAutoPull, 60000);
-document.addEventListener('visibilitychange', function () { if (!document.hidden) asAutoPull(); });
-$('#asSrcBtn').addEventListener('click', async function () {
-  var url = prompt('วางลิงก์ Google Sheet ต้นทาง (ถ้ามีหลายแผ่นงาน ให้ใช้ลิงก์ที่มี #gid=) · เว้นว่าง = เลิกใช้ไฟล์ต้นทาง', '');
-  if (url === null) return;
-  try { await call('assetSrcSet', url.trim()); toast('บันทึกลิงก์แล้ว'); await loadAssets(true); } catch (e) { toast(e.message, true); }
-});
-$('#asQ').addEventListener('input', renderAssets);
-$('#asHome').addEventListener('click', goPortal);
-$('#mAssets').addEventListener('click', openAssets);
-
-function asOpenEdit(x) {
-  AS.editRow = x ? x.row : 0;
-  $('#asTitle').textContent = x ? 'แก้ไขรายการสินทรัพย์' : 'เพิ่มรายการสินทรัพย์';
-  AS_FIELDS.forEach(function (f) { $('#af_' + f[0]).value = x ? x[f[0]] : ''; });
-  $('#asModal').classList.remove('hidden');
-  $('#af_name').focus();
-}
-$('#asAdd').addEventListener('click', function () { asOpenEdit(null); });
-$('#asCancel').addEventListener('click', function () { $('#asModal').classList.add('hidden'); });
-$('#asSave').addEventListener('click', function () {
-  var p = { row: AS.editRow };
-  AS_FIELDS.forEach(function (f) { p[f[0]] = $('#af_' + f[0]).value.trim(); });
-  if (!p.name) { toast('กรุณากรอกชื่อรายการ', true); return; }
-  busy(this, async function () {
-    await call('assetSave', p); $('#asModal').classList.add('hidden'); toast('บันทึกแล้ว'); await loadAssets();
-  });
-});
-$('#asBody').addEventListener('click', async function (e) {
-  var b = e.target.closest('button[data-a]'); if (!b) return;
-  var x = AS.rows.filter(function (r) { return String(r.row) === b.dataset.r; })[0];
-  if (b.dataset.a === 'edit') { if (x) asOpenEdit(x); }
-  else if (b.dataset.a === 'del') {
-    if (!confirm('ลบรายการ "' + (x ? x.name : '') + '" ?')) return;
-    try { await call('assetDelete', Number(b.dataset.r), b.dataset.c || ''); toast('ลบแล้ว'); await loadAssets(); }
-    catch (err) { toast(err.message, true); }
-  }
-});
-
 /* ============================ เข้าสู่ระบบ / ออกจากระบบ ============================ */
 function setNav(n) {                               // '' = ระบบบาร์เดี่ยว/แพ็ค , 'portal' = เมนูหลัก , อื่น ๆ = admin/users/sound/assets/music
   if (n) document.body.dataset.nav = n; else delete document.body.dataset.nav;
@@ -1819,7 +1639,7 @@ var CARD_DEF = [
   { k: 'price', id: 'mPrice', t: 'ตรวจสอบราคาสินค้า', u: 'https://cmu-coops.com/product/countpd.php' },
   { k: 'offline', id: 'mOffline', t: 'ระบบ CMUCOOP Offline', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php' },
   { k: 'online', id: 'mOnline', t: 'ระบบ CMUCOOP Online', u: 'https://cmu-coops.com/adEntry.php' },
-  { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์' }, { k: 'history', id: 'mHistory', t: 'ประวัติการใช้งาน' },
+  { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์', u: '' }, { k: 'history', id: 'mHistory', t: 'ประวัติการใช้งาน' },
   { k: 'users', id: 'mUsers', t: 'จัดการผู้ใช้งาน' }, { k: 'cards', id: 'mCards', t: 'จัดการการ์ด' }, { k: 'banner', id: 'mAdmin', t: 'Banner' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
@@ -1833,8 +1653,8 @@ function cardTitle(k) { return CARD_TITLES[k] || cardDef(k).t; }
 function cardLink(k) { return CARD_LINKS[k] || cardDef(k).u || ''; }
 function applyCardLinks() {
   CARD_DEF.forEach(function (d) {
-    var el = d.u && document.getElementById(d.id);
-    if (el && el.tagName === 'A') el.href = cardLink(d.k);
+    var el = d.u !== undefined && document.getElementById(d.id);
+    if (el && el.tagName === 'A') el.href = cardLink(d.k) || '#';
   });
 }
 /* ----- บันทึกการใช้งานลงประวัติ (ส่งแบบไม่รอผล ไม่หน่วงหน้าจอ) ----- */
@@ -1849,6 +1669,7 @@ function logUse(area, action, detail) {
 document.querySelector('#portal .menu').addEventListener('click', function (e) {
   var el = e.target.closest('.mcard'); if (!el) return;
   var d = CARD_DEF.filter(function (c) { return c.id === el.id; })[0];
+  if (d && d.k === 'assets' && !cardLink('assets')) { e.preventDefault(); toast('ยังไม่ได้ตั้งลิงก์รายการสินทรัพย์ — แอดมินตั้งได้ที่การ์ด "จัดการการ์ด"', true); return; }
   if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));                  // รวมการ์ดที่เป็นลิงก์ออกภายนอก
 });
 function applyCardTitles() {
@@ -1865,7 +1686,7 @@ function loadCardOrder() {
 function renderSortList() {
   $('#sortList').innerHTML = CARD_WORK.map(function (k, i) {
     var d = cardDef(k), cur = CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k), link = '';
-    if (d.u) {
+    if (d.u !== undefined) {
       var lv = CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k);
       link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div>' +
         '<input type="text" data-lk="' + esc(k) + '" value="' + esc(lv) + '" maxlength="500" placeholder="' + esc(d.u) + '" autocomplete="off" style="width:100%;font-size:13px">';
@@ -1894,7 +1715,7 @@ $('#sortList').addEventListener('click', function (e) {
 $('#sortReset').addEventListener('click', function () {
   CARD_WORK = CARD_DEF.map(function (c) { return c.k; });
   CARD_WORK_T = {}; CARD_WORK_L = {};
-  CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; if (c.u) CARD_WORK_L[c.k] = c.u; });      // คืนชื่อและลิงก์เริ่มต้นด้วย
+  CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; if (c.u !== undefined) CARD_WORK_L[c.k] = c.u; });      // คืนชื่อและลิงก์เริ่มต้นด้วย
   renderSortList();
 });
 $('#sortCancel').addEventListener('click', function () { $('#sortModal').classList.add('hidden'); });
@@ -1903,7 +1724,7 @@ $('#sortSave').addEventListener('click', function () {
   CARD_WORK.forEach(function (k) {
     var d = cardDef(k), t = (CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k)).replace(/\s+/g, ' ').trim();
     if (t && t !== d.t) titles[k] = t;
-    if (d.u) {
+    if (d.u !== undefined) {
       var u = (CARD_WORK_L[k] !== undefined ? CARD_WORK_L[k] : cardLink(k)).trim();
       if (u && !/^https?:\/\/\S+$/i.test(u)) bad = bad || cardTitle(k);
       else if (u && u !== d.u) links[k] = u;
@@ -1991,6 +1812,7 @@ async function openBarcode() {
   $('.layout').classList.add('single');                 // ไม่ใช้แถบหมวดด้านข้างแล้ว เลือกหมวดที่ช่อง "หมวด" ในฟอร์มแทน
   $('aside').classList.add('hidden');
   switchTab(admin ? 'data' : 'print');
+  if (admin) bcLoadBk();
   try {
     await refreshCats();
     if (admin) await selectCat(allCat().key);          // เปิดมาแสดงรายการทั้งหมดก่อน
