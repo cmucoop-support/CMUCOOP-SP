@@ -6,4 +6,4 @@ compatibility_date = "2026-10-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "cmucoop"
-database_id = "ใส่-DATABASE-ID-ที่ได้จากหน้า-D1-ตรงนี้"
+database_id = "4dbb2306-4c5d-4e28-95c7-dd329104fe45"
