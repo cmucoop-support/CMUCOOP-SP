@@ -9,18 +9,20 @@ const CHUNK = 900000;                // จำนวนตัวอักษร 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
 const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
-const PERM_KEYS = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history'];
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, label: true, price: true, offline: false, online: false, assets: true, history: false };
-const CARD_KEYS = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history', 'settings'];
+const PERM_KEYS = ['barcode', 'sound', 'music'];
+const PERM_DEFAULT = { barcode: true, sound: true, music: true };
+const CARD_KEYS = ['barcode', 'sound', 'music', 'settings'];
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
-const CARD_LINK_DEF = {
-  label: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php',
-  price: 'https://cmu-coops.com/product/countpd.php',
-  offline: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php',
-  online: 'https://cmu-coops.com/adEntry.php',
-  assets: ''                       // รายการสินทรัพย์ = การ์ดลิงก์ ไม่มีลิงก์เริ่มต้น (แอดมินตั้งเอง)
-};
+/* การ์ดลิงก์เดิม 5 ใบ (ทำป้ายราคา ฯลฯ) ถูกแปลงเป็นการ์ดลิงก์ทั่วไปที่ลบ/แก้ได้ (ย้ายข้อมูลอัตโนมัติครั้งเดียวใน migrateLinks) */
+const LEGACY_LINKS = [
+  { old: 'label', k: 'c_00000001', t: 'ทำป้ายราคา', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php', def: true },
+  { old: 'price', k: 'c_00000002', t: 'ตรวจสอบราคาสินค้า', u: 'https://cmu-coops.com/product/countpd.php', def: true },
+  { old: 'offline', k: 'c_00000003', t: 'ระบบ CMUCOOP Offline', u: 'http://172.16.21.103/COOPSHOP/CoopAdmin/productall.php', def: false },
+  { old: 'online', k: 'c_00000004', t: 'ระบบ CMUCOOP Online', u: 'https://cmu-coops.com/adEntry.php', def: false },
+  { old: 'assets', k: 'c_00000005', t: 'รายการสินทรัพย์', u: '', def: true }
+];
+const LEGACY_ORDER = ['barcode', 'sound', 'music', 'label', 'price', 'offline', 'online', 'assets', 'history', 'settings'];
 const ACT_GROUPS = [
   { key: 'barcode', label: 'รายการบาร์', sheets: ['บาร์สินค้า'] },
   { key: 'sound', label: 'ระบบเสียงประกาศ', sheets: ['Sound'] },
@@ -341,7 +343,33 @@ function normCardOrder(list, extra) {
   keys.forEach(k => { if (out.indexOf(k) < 0) out.push(k); });
   return out;
 }
+async function migrateLinks(C) {
+  if (await kvGet(C, 'LINK_MIGRATED', '')) return;
+  const rawL = (await kvJson(C, 'CARD_LINKS', {})) || {}, rawT = (await kvJson(C, 'CARD_TITLES', {})) || {};
+  const existing = Array.isArray(await kvJson(C, 'CUSTOM_CARDS', [])) ? await kvJson(C, 'CUSTOM_CARDS', []) : [];
+  const seeded = [], map = {};
+  LEGACY_LINKS.forEach(L => {
+    const u = str(rawL[L.old]) || L.u;
+    if (!u || !validCardLink(u)) return;                       // การ์ดที่ไม่เคยมีลิงก์ (เช่น รายการสินทรัพย์) ไม่ต้องย้าย
+    seeded.push({ k: L.k, t: (str(rawT[L.old]) || L.t).slice(0, CARD_TITLE_MAX), u });
+    map[L.old] = L;
+  });
+  const have = {}; existing.forEach(c => { have[c && c.k] = 1; });
+  const stored = await kvJson(C, 'CARD_ORDER', null);
+  const order = (Array.isArray(stored) ? stored : LEGACY_ORDER).map(k => (map[k] ? map[k].k : k));
+  const ops = [];
+  (await allUsers(C)).forEach(u => {                           // สิทธิ์เดิมของการ์ดลิงก์ → สิทธิ์ของการ์ดที่แปลงแล้ว
+    if (u.role === 'admin') return;
+    const p = Object.assign({}, u.perms || {});
+    Object.keys(map).forEach(o => { p[map[o].k] = p[o] !== undefined ? !(p[o] === false || p[o] === 'false') : map[o].def; });
+    u.perms = p; ops.push(saveUserStmt(C, u.username, u));
+  });
+  ops.push(kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(seeded.filter(c => !have[c.k]).concat(existing))),
+           kvSetStmt(C, 'CARD_ORDER', JSON.stringify(order)), kvSetStmt(C, 'LINK_MIGRATED', '1'));
+  await batch(C, ops);
+}
 async function customCards(C) {
+  await migrateLinks(C);
   const raw = await kvJson(C, 'CUSTOM_CARDS', []), out = [];
   (Array.isArray(raw) ? raw : []).forEach(c => {
     const k = str(c && c.k), t = str(c && c.t), u = str(c && c.u);
@@ -400,25 +428,6 @@ API.setCardTitles = async (C, token, titles) => {
   return out;
 };
 const validCardLink = u => /^https?:\/\/\S+$/i.test(u) && u.length <= 500;
-async function cardLinks(C) {
-  const raw = await kvJson(C, 'CARD_LINKS', {}) || {}, out = {};
-  Object.keys(CARD_LINK_DEF).forEach(k => { const u = str(raw[k]); if (u && validCardLink(u)) out[k] = u; });
-  return out;
-}
-API.getCardLinks = async (C, token) => { await auth(C, token); return cardLinks(C); };
-API.setCardLinks = async (C, token, links) => {
-  const me = await auth(C, token, true), out = {};
-  links = (links && typeof links === 'object') ? links : {};
-  Object.keys(CARD_LINK_DEF).forEach(k => {
-    const u = str(links[k]);
-    if (!u || u === CARD_LINK_DEF[k]) return;
-    if (!validCardLink(u)) throw new Error('ลิงก์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย http:// หรือ https:// และไม่มีช่องว่าง): ' + u.slice(0, 80));
-    out[k] = u;
-  });
-  await kvSet(C, 'CARD_LINKS', JSON.stringify(out));
-  await sysLog(C, me.name, 'แก้ไขลิงก์การ์ดเมนูหลัก', JSON.stringify(out));
-  return out;
-};
 function normCardSize(o) {
   if (!o || typeof o !== 'object') return null;
   const c = Math.round(Number(o.c)), f = Math.round(Number(o.f)), n = Math.round(Number(o.n === undefined ? 0 : o.n));
@@ -440,7 +449,7 @@ API.logUse = async (C, token, area, action, detail) => {
   return true;
 };
 API.getActivity = async (C, token, group, limit) => {
-  await authPerm(C, token, 'history');
+  await auth(C, token, true);
   group = str(group) || 'all'; limit = Math.min(Math.max(Number(limit) || 300, 1), 1000);
   const data = await all(C, 'SELECT ts,who,sheet,cat,action,detail FROM log WHERE ts>=? ORDER BY id DESC LIMIT 3000', now() - LOG_DAYS * 86400000);
   const counts = { all: 0 }, rows = [];
