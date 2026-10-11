@@ -6,7 +6,7 @@
 <base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#9E76B4">
+<meta name="theme-color" content="#9966FF">
 <title>ระบบรับสัญญาณเสียงประกาศ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -32,15 +32,6 @@
   .mwrap { aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; }
   .mwrap iframe { width:100%; height:100%; display:block; }
   .msub { margin-top:8px; font-size:14px; color:var(--steel); }
-
-/* ===== พื้นหลังม่วง การ์ดขาวเรียบ ===== */
-:root{--bg:#9E76B4;--head:#6f4a85;--steel:#6d5f78;--old:#6f7c8a}
-html,body{background:var(--bg)}
-.appbar{background:var(--head);border-radius:0;box-shadow:0 2px 6px rgba(43,34,52,.25);padding:calc(14px + env(safe-area-inset-top)) clamp(14px,3vw,24px) 14px;font-size:17px}
-.state,.musicbox{box-shadow:0 1px 3px rgba(43,34,52,.25)}
-.state{border-width:3px}
-.loadinfo{width:fit-content;max-width:92vw;margin:14px auto 0;padding:6px 16px;border-radius:999px;background:#fff;color:var(--steel)}
-.mwrap{border-radius:14px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 </head>

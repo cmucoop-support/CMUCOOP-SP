@@ -7,7 +7,6 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#9E76B4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
@@ -338,199 +337,6 @@ td.act{white-space:nowrap;min-width:170px}
 .asbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .asbar input[type=search]{flex:1;min-width:180px}
 .asprev{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:10px}
-
-/* ================= FLAT PURPLE : พื้นหลังม่วง การ์ดขาวเรียบ (ไม่มี liquid glass) ================= */
-:root{
-  --bg:#9E76B4; --head:#6f4a85;
-  --ink:#2b2234; --steel:#6d5f78; --line:#e6dcec;
-  --p:#6b3f8c; --p-hover:#58306f;
-  --accent:#9E76B4; --accent-text:#6b3f8c; --accent-soft:#f1e8f6;
-  --card-shadow:0 1px 3px rgba(43,34,52,.2);
-  --r:14px; --rs:10px;
-}
-html,body{background:var(--bg);color:var(--ink)}
-body{font-size:15px;line-height:1.55}
-:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.card :focus-visible,.modal :focus-visible,.logincard :focus-visible,aside :focus-visible{outline-color:var(--p)}
-.muted{color:var(--steel);font-size:13.5px}
-#portal,.loginwrap{background:transparent}
-
-/* ---------- แถบหัว ---------- */
-.top,.phead{
-  position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;
-  min-height:56px;padding:calc(8px + env(safe-area-inset-top)) clamp(12px,3vw,24px) 8px;
-  background:var(--head);border:0;border-radius:0;box-shadow:0 2px 6px rgba(43,34,52,.25);color:#fff;
-}
-.top h1,.phead h1{flex:1 1 auto;min-width:0;margin:0;font-size:17px;font-weight:700;letter-spacing:0;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.phead .btn[id$="Home"],.top #btnHome{order:-1}
-.top .btn.ghost,.phead .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.55);color:#fff}
-.top .btn.ghost:hover,.phead .btn.ghost:hover{background:rgba(255,255,255,.14)}
-.top .status,.status{flex:0 1 auto;min-width:0;background:rgba(255,255,255,.14);border:0;border-radius:999px;padding:5px 14px;font-size:13px;color:#fff}
-.status small{color:#fff;opacity:.85}
-details.acct{position:relative;flex:none}
-details.acct>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;max-width:46vw;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.55);background:transparent;font-size:14px;white-space:nowrap;color:#fff}
-details.acct>summary:hover{background:rgba(255,255,255,.14)}
-details.acct>summary::-webkit-details-marker{display:none}
-details.acct>summary::after{content:"▾";font-size:11px;opacity:.8}
-.phead details.acct .me,.top details.acct .me{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:14px;opacity:1}
-details.acct .me:empty::before{content:"บัญชี"}
-.acct-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:60;min-width:200px;display:grid;gap:2px;padding:8px;background:#fff;border-radius:var(--rs);box-shadow:0 8px 24px rgba(43,34,52,.3)}
-.acct-menu .btn{width:100%;justify-content:flex-start;background:transparent;border:0;color:var(--ink);box-shadow:none;min-height:40px;padding:8px 12px;font-weight:500}
-.acct-menu .btn:hover{background:var(--accent-soft)}
-.acct-menu .js-logout,.acct-menu #btnLogout{color:var(--bad)}
-
-/* ---------- เลย์เอาต์ ---------- */
-.pwrap{max-width:960px;gap:16px;padding:24px clamp(12px,3vw,20px) 48px}
-.layout{grid-template-columns:260px 1fr;gap:18px;max-width:1240px;padding:20px clamp(12px,3vw,24px)}
-main{gap:14px}
-aside{top:76px;max-height:calc(100vh - 96px)}
-
-/* ---------- การ์ด: ขาวเรียบ ---------- */
-aside,.card,.mcard,.logincard,.bitem,.asLive{background:#fff;border:0;border-radius:var(--r);box-shadow:var(--card-shadow);-webkit-backdrop-filter:none;backdrop-filter:none}
-.card{padding:18px 20px}
-.card h3{margin:0 0 10px;font-size:16px;font-weight:700;color:var(--ink)}
-.pwrap h2{font-size:20px;font-weight:700;color:#fff}
-.ctitle h3{font-size:18px}
-.asLive{background:var(--accent-soft);box-shadow:none}
-
-/* พับเก็บส่วนที่ใช้นาน ๆ ครั้ง */
-details.fold.card{padding:0}
-details.fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;font-size:16px;font-weight:700;border-radius:var(--r)}
-details.fold>summary::-webkit-details-marker{display:none}
-details.fold>summary::after{content:"+";font-size:22px;line-height:1;color:var(--steel)}
-details.fold[open]>summary::after{content:"–"}
-details.fold>*:not(summary){margin-left:20px;margin-right:20px}
-details.fold>*:last-child{margin-bottom:18px}
-details.fold>summary:hover{background:#faf6fd}
-.setrow{display:grid;gap:8px;padding:14px 0;border-top:1px solid var(--line)}
-.setrow:first-child{border-top:0;padding-top:0}
-.setrow .sub{margin:0;font-weight:650;color:var(--ink)}
-
-/* ---------- เมนูหลัก ---------- */
-#portal{min-height:100vh}
-#portal .pwrap{max-width:var(--portal-w,760px);padding-top:32px}
-#portal .menu{gap:12px}
-#portal .mcard{display:flex;align-items:center;justify-content:flex-start;gap:10px;text-align:left;text-decoration:none;min-height:var(--card-h,84px);padding:16px 20px;border-radius:var(--r);background:#fff}
-#portal .mcard b{flex:1;text-align:left;font-size:var(--card-fs,17px);font-weight:650;color:var(--ink)}
-#portal .mcard::after{content:"›";font-size:22px;line-height:1;color:var(--steel)}
-#portal a.mcard::after{content:"↗";font-size:16px}
-#portal .mcard:hover{transform:none;background:#faf6fd;box-shadow:0 2px 8px rgba(43,34,52,.3)}
-#portal #mHistory,#portal #mUsers,#portal #mCards,#portal #mAdmin{background:#efe6f4;box-shadow:none}
-#portal #mHistory b,#portal #mUsers b,#portal #mCards b,#portal #mAdmin b{font-weight:600;color:var(--steel)}
-
-/* ---------- รายการหมวด / แท็บ ---------- */
-.cats{gap:2px}
-.cat{border:0;background:transparent;border-radius:10px;padding:8px 10px}
-.cat:hover{background:#faf6fd}
-.cat.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--p)}
-.tabs,.cnav{width:fit-content;max-width:100%;overflow-x:auto;gap:2px;padding:4px;background:rgba(43,34,52,.24);border:0;border-radius:999px;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
-.tab,.stab,.cnav button{margin:0;padding:8px 18px;border:0;border-radius:999px;background:transparent;color:#fff;font-weight:600;white-space:nowrap;box-shadow:none}
-.tab.on,.stab.on,.cnav button.on{background:#fff;color:var(--p);box-shadow:0 1px 3px rgba(43,34,52,.25)}
-
-/* ---------- ปุ่ม ---------- */
-.btn,.kbtn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;
-  min-height:40px;padding:8px 18px;background:var(--p);color:#fff;border:1px solid transparent;border-radius:var(--rs);
-  font-weight:600;box-shadow:none;text-shadow:none;transition:background .15s,transform .1s;
-}
-.btn:hover,.kbtn:hover{background:var(--p-hover);filter:none}
-.btn.ghost{background:#fff;color:var(--p);border:1px solid #d9cce2}
-.btn.ghost:hover{background:#faf6fd}
-.btn.danger{background:#fff;color:var(--bad);border:1px solid rgba(180,35,24,.4)}
-.btn.small{min-height:34px;padding:5px 12px;font-size:14px}
-.btn[disabled]{opacity:.45;cursor:default}
-.kbtn{padding:16px 0;font-size:20px;border-radius:var(--rs)}
-
-/* ---------- ช่องกรอก ---------- */
-input[type=text],input[type=search],input[type=password],input[type=time],select{background:#fff;border:1px solid #d9cce2;border-radius:var(--rs);padding:9px 12px;box-shadow:none}
-input[type=number]{border:1px solid #d9cce2!important;border-radius:var(--rs)!important;padding:9px 12px!important;background:#fff}
-input:focus,select:focus{background:#fff;border-color:var(--p);box-shadow:0 0 0 3px rgba(107,63,140,.2)}
-input[type=checkbox]{accent-color:var(--p)}
-
-/* ---------- ตาราง ---------- */
-.tablewrap,.astwrap,.asprev{background:#fff;border:1px solid var(--line);border-radius:var(--rs);box-shadow:none}
-.dt th,.ast th{background:var(--accent-soft);color:var(--ink);font-weight:650;padding:9px 10px;border-bottom:1px solid var(--line);border-color:var(--line)}
-.dt td,.ast td{border-bottom:1px solid var(--line)}
-.dt tr:hover td,.ast tr:hover td{background:#faf6fd}
-.logt th{background:var(--accent-soft);color:var(--ink);font-weight:650}
-.logt td,.logt th{padding:9px 10px;border-bottom:1px solid var(--line)}
-
-/* ---------- รายการย่อย / สถานะ ---------- */
-.pitem{background:#fff;border:1px solid var(--line);border-radius:var(--rs)}
-.pitem:has(input:checked){background:var(--accent-soft);border-color:var(--p)}
-.shist div{background:#faf6fd;border-color:var(--line);border-left-color:var(--p)}
-.sbox{background:#fff;border:0;border-radius:var(--rs);color:var(--steel);box-shadow:var(--card-shadow)}
-.sbox.ok{background:#e3f4ea;color:#0f5b34}
-.bthumb{background:#f5eff9}
-.tag{background:#fdf0d5}
-
-/* ---------- หน้าต่างย่อย / เข้าสู่ระบบ / แจ้งเตือน ---------- */
-.modalwrap{background:rgba(43,34,52,.5);-webkit-backdrop-filter:none;backdrop-filter:none}
-.modal{background:#fff;border-radius:18px;box-shadow:0 16px 40px rgba(43,34,52,.4);padding:22px 24px;gap:14px}
-.logincard{padding:32px 28px;border-radius:20px;box-shadow:0 8px 28px rgba(43,34,52,.35)}
-.logincard h2{color:var(--p);font-size:22px}
-#toast{background:#2b2234;font-size:14px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
-#toast.err{background:var(--bad)}
-
-/* ---------- ตารางบนมือถือ: แปลงเป็นการ์ดต่อแถว (ป้ายหัวคอลัมน์ใส่โดยสคริปต์ท้ายหน้า) ---------- */
-@media (max-width:700px){
-  table.dt{min-width:0}
-  .dt thead{display:none}
-  .dt,.dt tbody,.dt tr,.dt td{display:block;width:100%}
-  .dt tr{width:auto;margin:8px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:#fff}
-  .dt td{border:0;padding:3px 0;min-width:0!important;text-align:left!important;white-space:normal!important}
-  .dt td:empty{display:none}
-  .dt td.empty{display:block;text-align:center!important}
-  .dt td[data-l]:not([data-l=""])::before{content:attr(data-l);display:inline-block;min-width:96px;color:var(--steel);font-size:12.5px;vertical-align:top}
-  .dt td.act{padding-top:8px}
-  .logt td[data-l=""]::before{content:none}
-}
-
-/* ---------- มือถือ / แท็บเล็ต ---------- */
-@media (max-width:860px){
-  .top,.phead{flex-wrap:wrap;gap:8px;padding-left:14px;padding-right:14px}
-  .top h1,.phead h1{flex:1 1 auto;font-size:16px}
-  .top .status{flex:1 1 100%;order:9}
-  .top .btn.small,.phead .btn.small{flex:0 0 auto}
-  .layout{padding:12px}
-  .pwrap{padding-top:16px}
-  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;width:auto;max-width:none;border-radius:0;overflow:visible;justify-content:space-around;gap:4px;
-        padding:6px 8px calc(6px + env(safe-area-inset-bottom));background:#fff;box-shadow:0 -2px 8px rgba(43,34,52,.25)}
-  .tabs .tab,.tabs .stab{flex:1;padding:10px 4px;font-size:13px;line-height:1.25;white-space:normal;text-align:center;border-radius:12px;color:var(--steel)}
-  .tabs .tab.on,.tabs .stab.on{background:var(--accent-soft);color:var(--p);box-shadow:none}
-  .modal{border-radius:20px 20px 0 0}
-  #portal .pwrap{padding-top:20px}
-}
-@media print{
-  html,body{background:#fff!important}
-}
-
-/* ---------- หน้าประวัติการใช้งาน ---------- */
-.hifilters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-.hifilters input[type=search]{flex:1;min-width:200px}
-.hifilters select{width:auto;min-width:150px}
-.hichk{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink);font-weight:500;white-space:nowrap}
-.hiclear{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
-.hiclear select{width:auto;padding:6px 10px;border-radius:999px}
-.hirow-time small{color:var(--steel);margin-left:4px}
-.hidet{overflow-wrap:anywhere;min-width:200px}
-.hact{display:inline-block;border-radius:999px;padding:1px 10px;font-size:13px;font-weight:600;white-space:nowrap;border:1px solid transparent}
-.hact.k-add{background:rgba(26,127,75,.16);color:#0f5b34;border-color:rgba(26,127,75,.3)}
-.hact.k-edit{background:rgba(153,102,255,.18);color:#4f2aa6;border-color:rgba(122,75,224,.3)}
-.hact.k-del{background:rgba(180,35,24,.14);color:#8f1b11;border-color:rgba(180,35,24,.3)}
-.hact.k-auth{background:rgba(37,99,235,.14);color:#1d4ed8;border-color:rgba(37,99,235,.28)}
-.hact.k-gen{background:rgba(106,95,136,.14);color:#4b4266;border-color:rgba(106,95,136,.25)}
-.hi-more{text-align:center;margin-top:10px}
-.hi-more .btn{min-width:220px}
-@media (max-width:700px){
-  .hifilters select,.hifilters input[type=search]{flex:1 1 100%;width:100%}
-  .logt thead{display:none}
-  .logt,.logt tbody,.logt tr,.logt td{display:block;width:100%}
-  .logt tr{border:1px solid var(--line);background:#faf6fd;border-radius:12px;padding:8px 12px;margin-bottom:8px}
-  .logt td{border:0;padding:2px 0}
-  .logt td[data-l]:not([data-l=""])::before{content:attr(data-l);display:inline-block;min-width:84px;color:var(--steel);font-size:12.5px;vertical-align:top}
-  .hidet{min-width:0}
-}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -563,9 +369,30 @@ input[type=checkbox]{accent-color:var(--p)}
 
     <!-- ========== แท็บข้อมูล ========== -->
     <section id="v-data" style="display:grid;gap:14px">
-      <div class="card ctitle">
+      <div class="card">
+        <div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
+        <div class="row">
+          <input type="file" id="bcImpFile" accept=".xlsx,.xls,.csv">
+          <select id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
+          <button class="btn" id="bcImpBtn" disabled>นำเข้า</button>
+        </div>
+        <div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
+      </div>
+
+      <div class="card">
         <h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
         <div class="muted" id="dStatus"></div>
+      </div>
+
+      <div class="card">
+        <h3>เพิ่มรายการ</h3>
+        <div class="grid" id="addForm"></div>
+        <div class="bchint" id="addBc" aria-live="polite"></div>
+        <div class="addbar">
+          <button class="btn" id="btnAdd" disabled>เพิ่มรายการ</button>
+          <span class="muted" id="addHint"></span>
+        </div>
+        <datalist id="dlCats"></datalist>
       </div>
 
       <div class="card">
@@ -582,28 +409,6 @@ input[type=checkbox]{accent-color:var(--p)}
         </div>
         <div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
       </div>
-
-      <details class="card fold">
-        <summary>เพิ่มรายการใหม่</summary>
-        <div class="grid" id="addForm"></div>
-        <div class="bchint" id="addBc" aria-live="polite"></div>
-        <div class="addbar">
-          <button class="btn" id="btnAdd" disabled>เพิ่มรายการ</button>
-          <span class="muted" id="addHint"></span>
-        </div>
-        <datalist id="dlCats"></datalist>
-      </details>
-
-      <details class="card fold">
-        <summary>นำเข้า / ส่งออก / สำเนาข้อมูล (Excel)</summary>
-        <div class="row" style="margin-bottom:10px"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></div>
-        <div class="row">
-          <input type="file" id="bcImpFile" accept=".xlsx,.xls,.csv">
-          <select id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
-          <button class="btn" id="bcImpBtn" disabled>นำเข้า</button>
-        </div>
-        <div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
-      </details>
     </section>
 
     <!-- ========== แท็บปริ้น ========== -->
@@ -687,8 +492,7 @@ input[type=checkbox]{accent-color:var(--p)}
     </div>
 
     <div class="card">
-      <h3>การแสดงผลบนหน้าเว็บ</h3>
-      <div class="setrow"><div class="sub">ความเร็วการหมุน Banner</div>
+      <h3>ความเร็วการหมุน Banner</h3>
       <div class="row">
         <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แต่ละรูปค้างไว้
           <input type="number" id="bSpeed" min="1" max="60" step="0.5" value="4" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
@@ -696,8 +500,10 @@ input[type=checkbox]{accent-color:var(--p)}
         <button class="btn" id="bSpeedSave">บันทึกความเร็ว</button>
       </div>
       <div class="muted" style="margin-top:6px">ตั้งได้ 1–60 วินาที · รูปใหม่และความเร็วที่เปลี่ยนจะขึ้นบนหน้าเว็บเองภายใน 1 นาที (หรือเมื่อรีเฟรช) · ถ้ามีรูปไม่เกินจำนวนที่แสดงพร้อมกัน รูปจะอยู่นิ่ง ไม่หมุน</div>
-      </div>
-      <div class="setrow"><div class="sub">จำนวนรูปต่อหน้า</div>
+    </div>
+
+    <div class="card">
+      <h3>จำนวนรูปต่อหน้า</h3>
       <div class="row">
         <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แสดงพร้อมกัน
           <input type="number" id="bPer" min="0" max="6" step="1" value="0" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
@@ -705,8 +511,10 @@ input[type=checkbox]{accent-color:var(--p)}
         <button class="btn" id="bPerSave">บันทึกจำนวนรูป</button>
       </div>
       <div class="muted" style="margin-top:6px">0 = อัตโนมัติ (ระบบเลือกจำนวนรูปให้เต็มกรอบที่ฝังเว็บมากที่สุด แนะนำ) · 1–6 = กำหนดเอง · รูปจะย่อ/ขยายพอดีกรอบเสมอ ไม่ถูกตัด</div>
-      </div>
-      <div class="setrow"><div class="sub">ความสูงการแสดงผล</div>
+    </div>
+
+    <div class="card">
+      <h3>ความสูงการแสดงผล</h3>
       <div class="row">
         <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">สูง
           <input type="number" id="bHeight" min="30" max="100" step="5" value="80" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
@@ -714,7 +522,6 @@ input[type=checkbox]{accent-color:var(--p)}
         <button class="btn" id="bHeightSave">บันทึกความสูง</button>
       </div>
       <div class="muted" style="margin-top:6px">ตั้งได้ 30–100 · ยิ่งน้อยรูปยิ่งเตี้ยลง (รูปย่อตามสัดส่วน ไม่ถูกตัด) และอยู่กึ่งกลางกรอบ · 100 = เต็มความสูงกรอบ</div>
-      </div>
     </div>
 
     <div class="card">
@@ -743,6 +550,13 @@ input[type=checkbox]{accent-color:var(--p)}
   </header>
   <div class="pwrap">
     <div class="card">
+      <h3>รหัสกู้คืนแอดมิน</h3>
+      <div class="muted" id="recInfo" style="margin-bottom:8px"></div>
+      <div class="addbar" style="margin-top:0"><button class="btn ghost" id="recIssue">ออกรหัสกู้คืนใหม่</button></div>
+      <div class="muted" style="margin-top:6px">ใช้ที่หน้าเข้าสู่ระบบ > "ลืมรหัสผ่าน" เพื่อตั้งรหัสผ่านแอดมินใหม่ · เมื่อออกรหัสใหม่ รหัสกู้คืนเดิมจะใช้ไม่ได้ทันที · ระบบแสดงรหัสให้เห็นครั้งเดียวและเก็บเฉพาะค่าแฮช กรุณาจดเก็บไว้ในที่ปลอดภัย</div>
+    </div>
+
+    <div class="card">
       <h3>ผู้ใช้งานระบบ</h3>
       <div style="overflow:auto">
         <table class="logt"><thead><tr><th>รหัสผู้ใช้</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การ์ดที่ใช้ได้</th><th></th></tr></thead>
@@ -768,13 +582,6 @@ input[type=checkbox]{accent-color:var(--p)}
         <span class="muted" id="uHint"></span>
       </div>
     </div>
-
-    <details class="card fold">
-      <summary>รหัสกู้คืนแอดมิน</summary>
-      <div class="muted" id="recInfo" style="margin-bottom:8px"></div>
-      <div class="addbar" style="margin-top:0"><button class="btn ghost" id="recIssue">ออกรหัสกู้คืนใหม่</button></div>
-      <div class="muted" style="margin-top:6px">ใช้ที่หน้าเข้าสู่ระบบ > "ลืมรหัสผ่าน" เพื่อตั้งรหัสผ่านแอดมินใหม่ · เมื่อออกรหัสใหม่ รหัสกู้คืนเดิมจะใช้ไม่ได้ทันที · ระบบแสดงรหัสให้เห็นครั้งเดียวและเก็บเฉพาะค่าแฮช กรุณาจดเก็บไว้ในที่ปลอดภัย</div>
-    </details>
   </div>
 </div>
 
@@ -850,30 +657,16 @@ input[type=checkbox]{accent-color:var(--p)}
   <div class="pwrap">
     <nav class="cnav" id="hiNav"></nav>
     <div class="card">
-      <div class="hifilters">
-        <input type="search" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off">
-        <select id="hiDays" aria-label="ช่วงเวลา">
-          <option value="1">24 ชั่วโมงล่าสุด</option><option value="7" selected>7 วันล่าสุด</option>
-          <option value="30">30 วันล่าสุด</option><option value="90">ทั้งหมดที่เก็บไว้</option>
-        </select>
-        <label class="hichk"><input type="checkbox" id="hiImp"> เฉพาะการเปลี่ยนแปลงข้อมูล</label>
-      </div>
       <div class="asbar">
+        <input type="search" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off">
         <button class="btn ghost small" id="hiReload">โหลดใหม่</button>
-        <button class="btn ghost small" id="hiExport">ดาวน์โหลด CSV</button>
-        <span class="hiclear hidden" id="hiClearBox">
-          <select id="hiClearMode" aria-label="ช่วงที่จะล้าง">
-            <option value="30">ล้างที่เก่ากว่า 30 วัน</option><option value="7">ล้างที่เก่ากว่า 7 วัน</option><option value="0">ล้างทั้งหมด</option>
-          </select>
-          <button class="btn ghost small" id="hiClear" style="color:#c0392b">🗑 ล้างประวัติ</button>
-        </span>
+        <button class="btn ghost small hidden" id="hiClear" style="color:#c0392b">🗑 ล้างประวัติ</button>
         <span class="muted" id="hiCount"></span>
       </div>
       <div style="overflow:auto"><table class="logt">
         <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
         <tbody id="hiBody"></tbody></table></div>
-      <div class="hi-more"><button class="btn ghost hidden" id="hiMore">โหลดรายการเก่ากว่านี้</button></div>
-      <div class="muted" id="hiNote" style="margin-top:6px"></div>
+      <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
     </div>
   </div>
 </div>
@@ -937,15 +730,15 @@ input[type=checkbox]{accent-color:var(--p)}
     </section>
 
     <section id="s-cfg" style="display:none;gap:14px">
-      <details class="card fold">
-        <summary>ลิงก์หน้ารับสัญญาณสำหรับ TV</summary>
+      <div class="card">
+        <h3>หน้ารับสัญญาณสำหรับ TV</h3>
         <div class="row">
           <input type="text" id="sRecv" readonly style="flex:1;min-width:260px">
           <button class="btn ghost small" id="sRecvCopy">คัดลอกลิงก์</button>
           <a class="btn small" id="sRecvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
         </div>
         <div class="muted" style="margin-top:6px">เปิดลิงก์นี้บนเครื่อง TV แล้วกดปลดล็อกลำโพง 1 ครั้ง · เสียงที่เพิ่ม/แก้ไขที่นี่จะถูกใช้บน TV เองภายใน 1 นาที</div>
-      </details>
+      </div>
       <div class="card">
         <h3>ความดังเสียงประกาศ</h3>
         <div class="row"><label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">🔔 ความดังประกาศ
@@ -1061,15 +854,14 @@ input[type=checkbox]{accent-color:var(--p)}
       </div>
       <div class="muted" id="muNote" style="margin-top:6px"></div>
     </div>
-
-    <div class="card">
-      <div class="cardrow"><h3>คิวเพลง</h3><span class="muted" id="muCount"></span></div>
-      <div style="overflow:auto"><table class="logt">
-        <thead><tr><th>#</th><th>เพลง</th><th>ผู้ขอ</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody id="muBody"></tbody></table></div>
-      <div class="muted" style="margin-top:6px">เพลงจะหยุดชั่วคราวทุกครั้งที่มีเสียงประกาศ และเล่นต่อเมื่อประกาศจบ · ถ้า YouTube เล่นโฆษณาคั่น TV จะปิดเสียงไว้จนโฆษณาจบ แล้วค่อยเปิดเสียงตอนเป็นตัวเพลง</div>
+    <div class="card hidden" id="muAdminCard">
+      <h3>ตั้งค่าสำหรับแอดมิน</h3>
+      <div class="row">
+        <label style="display:flex;gap:8px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink)">
+          <input type="checkbox" id="muAuto"> อนุมัติเพลงอัตโนมัติตลอด</label>
+        <button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
+      </div>
     </div>
-
     <div class="card">
       <h3>ความดังเพลง</h3>
       <div class="row">
@@ -1078,14 +870,12 @@ input[type=checkbox]{accent-color:var(--p)}
       </div>
       <div class="muted" style="margin-top:4px">ใครก็ปรับได้ · มีผลกับเพลงที่เล่นที่ TV เท่านั้น เสียงประกาศไม่เปลี่ยน (แอดมินตั้งความดังประกาศที่ ระบบเสียงประกาศ → ตั้งค่าเสียง) · TV ปรับตามภายในไม่กี่วินาที</div>
     </div>
-
-    <div class="card hidden" id="muAdminCard">
-      <h3>ตั้งค่าสำหรับแอดมิน</h3>
-      <div class="row">
-        <label style="display:flex;gap:8px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink)">
-          <input type="checkbox" id="muAuto"> อนุมัติเพลงอัตโนมัติตลอด</label>
-        <button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
-      </div>
+    <div class="card">
+      <div class="cardrow"><h3>คิวเพลง</h3><span class="muted" id="muCount"></span></div>
+      <div style="overflow:auto"><table class="logt">
+        <thead><tr><th>#</th><th>เพลง</th><th>ผู้ขอ</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="muBody"></tbody></table></div>
+      <div class="muted" style="margin-top:6px">เพลงจะหยุดชั่วคราวทุกครั้งที่มีเสียงประกาศ และเล่นต่อเมื่อประกาศจบ · ถ้า YouTube เล่นโฆษณาคั่น TV จะปิดเสียงไว้จนโฆษณาจบ แล้วค่อยเปิดเสียงตอนเป็นตัวเพลง</div>
     </div>
   </div>
 </div>
@@ -1872,7 +1662,7 @@ var USE_LAST = {};
 function logUse(area, action, detail) {
   if (!S.token) return;
   var k = area + '|' + action + '|' + (detail || ''), t = Date.now();
-  if (USE_LAST[k] && t - USE_LAST[k] < 30000) return;             // เหตุการณ์เดิมซ้ำภายใน 30 วินาที นับครั้งเดียว (ลดขยะในประวัติ)
+  if (USE_LAST[k] && t - USE_LAST[k] < 1500) return;              // กันกดซ้ำรัว ๆ
   USE_LAST[k] = t;
   try { google.script.run.withFailureHandler(function () {}).logUse(S.token, area, action, detail || ''); } catch (e) {}
 }
@@ -2597,99 +2387,47 @@ $('#muHome').addEventListener('click', goPortal);
 $('#mMusic').addEventListener('click', openMusic);
 
 /* ============================ ประวัติการใช้งาน ============================ */
-var HI = { cat: 'all', cats: [], rows: [], more: false, total: 0, seq: 0, ret: null }, hiTimer;
-function hiKind(a) {                                           // สีป้ายการกระทำ
-  if (/เข้าสู่ระบบ|ออกจากระบบ/.test(a)) return 'auth';
-  if (/ลบ|ล้าง/.test(a)) return 'del';
-  if (/เพิ่ม|สร้าง|นำเข้า|ออกลิงก์|ออกรหัส/.test(a)) return 'add';
-  if (/แก้ไข|เปลี่ยน|ตั้ง|จัดลำดับ|ปรับ|กู้คืน|อนุมัติ/.test(a)) return 'edit';
-  return 'gen';
-}
-function hiOpts(beforeId) {
-  return { q: $('#hiQ').value.trim(), days: Number($('#hiDays').value) || 7, imp: $('#hiImp').checked, beforeId: beforeId || 0 };
-}
+var HI = { cat: 'all', cats: [], rows: [] };
 function openHistory() {
   if (!hasPerm('history')) return;
   setNav('history');
   $('#hiMe').textContent = S.me.name + ' (' + (S.me.role === 'admin' ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
-  HI.cat = 'all'; $('#hiQ').value = ''; $('#hiDays').value = '7'; $('#hiImp').checked = false;
-  $('#hiClearBox').classList.toggle('hidden', S.me.role !== 'admin');
-  loadHistory(false);
+  HI.cat = 'all'; $('#hiQ').value = '';
+  $('#hiClear').classList.toggle('hidden', S.me.role !== 'admin');
+  loadHistory();
 }
-async function loadHistory(append) {
-  var seq = ++HI.seq, before = append && HI.rows.length ? HI.rows[HI.rows.length - 1].id : 0;
-  if (!append) $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
-  $('#hiMore').disabled = true;
+async function loadHistory() {
+  $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
   try {
-    var r = await call('getActivity', HI.cat, 100, hiOpts(before));
-    if (seq !== HI.seq) return;                                 // มีคำค้นใหม่กว่าแล้ว ทิ้งผลเก่า
-    HI.cats = r.cats; HI.more = !!r.more; HI.total = r.total; HI.ret = r.retention;
-    HI.rows = append ? HI.rows.concat(r.rows) : r.rows;
-    renderHistory();
-  } catch (e) {
-    if (seq !== HI.seq) return;
-    if (!append) $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">' + esc(e.message) + '</td></tr>';
-    toast(e.message, true);
-  } finally { if (seq === HI.seq) $('#hiMore').disabled = false; }
+    var r = await call('getActivity', HI.cat, 300);
+    HI.cats = r.cats; HI.rows = r.rows; renderHistory();
+  } catch (e) { $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">' + esc(e.message) + '</td></tr>'; toast(e.message, true); }
 }
 function renderHistory() {
   $('#hiNav').innerHTML = HI.cats.map(function (c) {
     return '<button class="' + (c.key === HI.cat ? 'on' : '') + '" data-hc="' + esc(c.key) + '">' + esc(c.label) + ' (' + c.count + ')</button>';
   }).join('');
-  $('#hiCount').textContent = 'แสดง ' + HI.rows.length + ' จาก ' + HI.total + ' รายการ';
-  $('#hiBody').innerHTML = HI.rows.map(function (r) {
-    return '<tr><td class="hirow-time" data-l="เวลา"><b>' + thDate(r.ts) + '</b> <small>' + thTime(r.ts) + ' น.</small></td>' +
-      '<td data-l="ผู้ใช้">' + esc(r.who) + '</td>' +
-      '<td data-l="หมวด">' + esc(r.g) + (r.cat ? ' / ' + esc(r.cat) : '') + '</td>' +
-      '<td data-l="การกระทำ"><span class="hact k-' + hiKind(r.action) + '">' + esc(r.action) + '</span></td>' +
-      '<td data-l="รายละเอียด" class="hidet">' + esc(r.detail) + '</td></tr>';
-  }).join('') || '<tr><td colspan="5" class="muted">ไม่พบประวัติตามเงื่อนไขที่เลือก</td></tr>';
-  $('#hiMore').classList.toggle('hidden', !HI.more);
-  if (HI.ret) $('#hiNote').textContent = 'เก็บการเปลี่ยนแปลงข้อมูลและการเข้าสู่ระบบ ' + HI.ret.days + ' วัน · กิจกรรมทั่วไป (เลือกหมวด สลับแท็บ เปิดการ์ด ประกาศตามเวลา) ' + HI.ret.routineDays + ' วัน · เก็บสูงสุด ' + HI.ret.max.toLocaleString('en-US') + ' รายการ รายการที่เกินจะถูกลบอัตโนมัติ (เก่าสุดก่อน)';
+  var q = $('#hiQ').value.trim().toLowerCase();
+  var rows = HI.rows.filter(function (r) { return !q || [r.who, r.g, r.cat, r.action, r.detail].join(' ').toLowerCase().indexOf(q) >= 0; });
+  $('#hiCount').textContent = 'แสดง ' + rows.length + (q ? ' / ' + HI.rows.length : '') + ' รายการ';
+  $('#hiBody').innerHTML = rows.map(function (r) {
+    return '<tr><td class="hirow-time">' + (r.ts ? fmt(r.ts) : '') + '</td><td>' + esc(r.who) + '</td><td>' + esc(r.g) + (r.cat ? ' / ' + esc(r.cat) : '') +
+      '</td><td>' + esc(r.action) + '</td><td>' + esc(r.detail) + '</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีประวัติ</td></tr>';
 }
-$('#hiNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-hc]'); if (b) { HI.cat = b.dataset.hc; loadHistory(false); } });
-$('#hiQ').addEventListener('input', function () { clearTimeout(hiTimer); hiTimer = setTimeout(function () { loadHistory(false); }, 300); });
-$('#hiDays').addEventListener('change', function () { loadHistory(false); });
-$('#hiImp').addEventListener('change', function () { loadHistory(false); });
-$('#hiReload').addEventListener('click', function () { loadHistory(false); });
-$('#hiMore').addEventListener('click', function () { loadHistory(true); });
-$('#hiExport').addEventListener('click', async function () {
-  var btn = this; btn.disabled = true;
-  try {
-    var rows = [], before = 0, guard = 0;
-    while (guard++ < 12) {                                       // ดึงทีละ 500 สูงสุด 5,000 รายการ ตามตัวกรองที่เลือกอยู่
-      var r = await call('getActivity', HI.cat, 500, hiOpts(before));
-      rows = rows.concat(r.rows);
-      if (!r.more || !r.rows.length || rows.length >= 5000) break;
-      before = r.rows[r.rows.length - 1].id;
-    }
-    if (!rows.length) { toast('ไม่มีรายการให้ดาวน์โหลด', true); }
-    else {
-      var cell = function (v) { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; };
-      var csv = '\ufeff' + [['เวลา', 'ผู้ใช้', 'หมวด', 'การกระทำ', 'รายละเอียด']].concat(rows.map(function (x) {
-        return [fmt(x.ts), x.who, x.g + (x.cat ? ' / ' + x.cat : ''), x.action, x.detail];
-      })).map(function (l) { return l.map(cell).join(','); }).join('\r\n');
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      a.download = 'activity-log-' + new Date().toISOString().slice(0, 10) + '.csv';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-      toast('ดาวน์โหลดแล้ว ' + rows.length + ' รายการ');
-    }
-  } catch (e) { toast(e.message, true); }
-  btn.disabled = false;
-});
+$('#hiNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-hc]'); if (b) { HI.cat = b.dataset.hc; loadHistory(); } });
+$('#hiQ').addEventListener('input', renderHistory);
+$('#hiReload').addEventListener('click', loadHistory);
 $('#hiClear').addEventListener('click', async function () {
   if (!S.me || S.me.role !== 'admin') return;
   var c = HI.cats.filter(function (x) { return x.key === HI.cat; })[0], label = c ? c.label : 'ทั้งหมด';
-  var mode = Number($('#hiClearMode').value) || 0;
-  var scope = (HI.cat === 'all' ? 'ทั้งหมด' : 'หมวด "' + label + '"') + (mode ? ' ที่เก่ากว่า ' + mode + ' วัน' : '');
-  if (!confirm('ล้างประวัติการใช้งาน ' + scope + ' ?\n\n(ลบแล้วกู้คืนไม่ได้ · แนะนำให้กด "ดาวน์โหลด CSV" เก็บไว้ก่อน)')) return;
+  var all = HI.cat === 'all';
+  if (!confirm('ล้างประวัติการใช้งาน' + (all ? 'ทั้งหมด' : 'หมวด "' + label + '"') + ' ?\n\n(ลบแล้วกู้คืนไม่ได้)')) return;
   var btn = $('#hiClear'); btn.disabled = true;
   try {
-    var r = await call('clearActivity', HI.cat, mode);
+    var r = await call('clearActivity', HI.cat);
     toast('ล้างประวัติแล้ว ' + r.removed + ' รายการ');
-    await loadHistory(false);
+    await loadHistory();
   } catch (e) { toast(e.message, true); }
   btn.disabled = false;
 });
@@ -2723,41 +2461,6 @@ function linkParams() {
     try { var me = await call('whoami'); await startApp(me); return; } catch (e) {}
   }
   showLogin('');
-})();
-</script>
-<script>
-/* รวมชื่อผู้ใช้ + เปลี่ยนรหัสผ่าน + ออกจากระบบ ไว้ในเมนูบัญชีเดียวของแถบหัว (ย้ายองค์ประกอบเดิม ไม่ซ้ำ จึงใช้ตัวจับเหตุการณ์เดิมต่อได้) */
-(function () {
-  document.querySelectorAll('.phead,.top').forEach(function (bar) {
-    var me = bar.querySelector('.me'), items = [].slice.call(bar.querySelectorAll('.js-pw,.js-logout,#btnPw,#btnLogout'));
-    if (!me || !items.length) return;
-    var d = document.createElement('details'), s = document.createElement('summary'), m = document.createElement('div');
-    d.className = 'acct'; m.className = 'acct-menu';
-    s.appendChild(me); items.forEach(function (b) { m.appendChild(b); });
-    d.appendChild(s); d.appendChild(m); bar.appendChild(d);
-  });
-  function closeAll(except) { document.querySelectorAll('details.acct[open]').forEach(function (d) { if (d !== except) d.open = false; }); }
-  document.addEventListener('click', function (e) {
-    var d = e.target.closest && e.target.closest('details.acct');
-    if (!d) return closeAll();
-    if (e.target.closest('.acct-menu .btn')) d.open = false; else closeAll(d);
-  });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
-})();
-</script>
-<script>
-/* ใส่ data-l (ชื่อคอลัมน์) ให้ทุกเซลล์ของตารางที่ระบบสร้างขึ้น เพื่อให้มือถือแสดงเป็นการ์ดต่อแถวที่อ่านง่าย */
-(function () {
-  function label(tb) {
-    var t = tb.closest('table'); if (!t || !t.tHead || !t.tHead.rows.length) return;
-    var hs = [].map.call(t.tHead.rows[t.tHead.rows.length - 1].cells, function (c) { return c.textContent.trim(); });
-    [].forEach.call(tb.rows, function (r) {
-      if (r.cells.length !== hs.length) return;
-      [].forEach.call(r.cells, function (c, i) { if (!c.hasAttribute('data-l')) c.setAttribute('data-l', hs[i]); });
-    });
-  }
-  var ob = new MutationObserver(function (ms) { ms.forEach(function (m) { var tb = m.target.closest && m.target.closest('tbody'); if (tb) label(tb); }); });
-  document.querySelectorAll('table.dt tbody,table.logt tbody,table.ast tbody').forEach(function (tb) { ob.observe(tb, { childList: true }); label(tb); });
 })();
 </script>
 </body>
