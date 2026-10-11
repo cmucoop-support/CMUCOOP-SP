@@ -1,0 +1,9 @@
+# CMUCOOP API (Cloudflare Worker + D1) — เชื่อมกับ GitHub ผ่าน Workers Builds
+name = "cmucoop-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cmucoop"
+database_id = "ใส่-DATABASE-ID-ที่ได้จากหน้า-D1-ตรงนี้"
