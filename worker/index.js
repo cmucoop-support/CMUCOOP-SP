@@ -55,7 +55,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS banners (id TEXT PRIMARY KEY, pos INTEGER, title TEXT, link TEXT, visible INTEGER, ts INTEGER, who TEXT, mime TEXT)',
   'CREATE TABLE IF NOT EXISTS sounds (rid INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, code TEXT, label TEXT, fid TEXT, fname TEXT, value TEXT, enabled INTEGER, ts INTEGER, who TEXT)',
   'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))',
-  'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT)',
+  'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT, perPack TEXT)',
   'CREATE INDEX IF NOT EXISTS bc_cat ON barcode_items(cat, pos)',
   'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
   'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
@@ -71,7 +71,9 @@ export default {
     const C = { env, ctx, request, base: url.origin };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
     try {
-      if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s))); schemaReady = true; }
+      if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)));
+        try { await env.DB.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); } catch (e) { /* มีคอลัมน์แล้ว */ }
+        schemaReady = true; }
       if (request.method === 'POST') return await rpc(C);
       if (request.method === 'GET') {
         if (url.pathname.startsWith('/file/')) return await serveFile(C, url.pathname.slice(6));
@@ -913,21 +915,23 @@ const BC_SCHEMA = {
     { k: 'no', label: 'ลำดับ', w: 5, num: true, calc: true },
     { k: 'partner', label: 'รหัสคู่ค้า', w: 9 },
     { k: 'cat', label: 'หมวด', w: 10 },
-    { k: 'name', label: 'ชื่อรายการ', w: 29 },
+    { k: 'name', label: 'ชื่อรายการ', w: 24 },
+    { k: 'perPack', label: 'จำนวนต่อแพ็ค', w: 8 },
     { k: 'packBar', label: 'เลขบาร์แพ็ค', w: 13, text: true },
+    { k: 'qtyPack', label: 'จำนวนในระบบ แพ็ค', w: 8, num: true, edit: true },
     { k: 'unitBar', label: 'เลขบาร์เดี่ยว', w: 13, text: true },
-    { k: 'qtySys', label: 'จำนวนในระบบ', w: 7, num: true, edit: true },
+    { k: 'qtyUnit', label: 'จำนวนในระบบ เดี่ยว', w: 8, num: true, edit: true },
     { k: 'spread', label: 'กระจาย', w: 7, edit: true },
     { k: 'old', label: 'ของเดิม', w: 7, edit: true }
   ],
-  groups: [{ label: 'ตรวจนับ', from: 7, to: 9 }],
-  handLines: ['ผู้ตรวจนับ ......................', 'วันที่ ......................'],
+  groups: [{ label: 'รายละเอียด', from: 1, to: 9 }, { label: 'จำนวนอัพเดต', from: 10, to: 11 }],
+  handLines: ['ชื่อ ......................', 'วันที่ ......................'],
   nameCol: 4
 };
-const BC_FIELDS = ['partner', 'cat', 'name', 'packBar', 'unitBar'];
+const BC_FIELDS = ['partner', 'cat', 'name', 'perPack', 'packBar', 'unitBar'];
 const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/\s+/g, '') : v.replace(/\s+/g, ' '); };
 function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
-const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), '', '', ''] });
+const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
 const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
 const bcLog = (C, me, cat, action, detail) => appendLog(C, me.name, BC_SHEET, cat || '', action, detail);
 
@@ -995,7 +999,7 @@ API.addItem = async (C, token, sheet, catArg, item, force) => {
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items');
   const at = ((a && a.p) || 0) + 1;                       // แทรกต่อจากรายการของคู่ค้า/หมวดเดียวกัน
   await run(C, 'UPDATE barcode_items SET pos=pos+1 WHERE pos>=?', at);
-  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name);
+  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name);
   await run(C, 'DELETE FROM barcode_cats WHERE cat=?', v.cat);
   await bcLog(C, me, v.cat, 'เพิ่มรายการ', v.name + (v.packBar ? ' · แพ็ค ' + v.packBar : '') + (v.unitBar ? ' · เดี่ยว ' + v.unitBar : ''));
   return { ok: true, cat: v.cat, row: r.meta.last_row_id };
@@ -1011,7 +1015,7 @@ API.editItem = async (C, token, sheet, row, oldName, vals, force) => {
   const changed = BC_FIELDS.filter(k => str(cur[k]) !== v[k]);
   if (!changed.length) return { ok: true, nochange: true, cat: str(cur.cat) };
   if (!force) { const d = await bcDup(C, v, cur.id); if (d) return { duplicate: true, message: d }; }
-  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name, cur.id);
+  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,perPack=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name, cur.id);
   await bcLog(C, me, v.cat, 'แก้ไขรายการ', str(oldName) + ' · ' + changed.map(k => k + ': ' + str(cur[k]) + ' → ' + v[k]).join(' | '));
   return { ok: true, cat: v.cat };
 };
@@ -1032,10 +1036,10 @@ API.getLog = async (C, token, limit) => {
 /* ---------- สำเนา (เก็บ 2 ชุดล่าสุด) ---------- */
 const bcBackups = async C => (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'barcode')).map(b => ({ id: b.id, ts: b.ts, name: b.name }));
 async function bcSnapshot(C, why) {
-  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar FROM barcode_items ORDER BY pos');
+  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar,perPack FROM barcode_items ORDER BY pos');
   const cats = (await all(C, 'SELECT cat FROM barcode_cats')).map(r => str(r.cat));
   if (rows.length || cats.length) {
-    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar)]), cats });
+    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), str(r.perPack)]), cats });
     if (data.length > 1900000) throw new Error('ข้อมูลใหญ่เกินกว่าจะทำสำเนาได้');
     const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'barcode');
     if (!last || last.hash !== hash) {
@@ -1051,9 +1055,9 @@ API.barcodeBackupData = async (C, token, id) => {
   const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
+  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว', 'จำนวนต่อแพ็ค']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
 };
-const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, now(), who);
+const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, str(r.perPack), now(), who);
 async function bcInsertAll(C, who, items, startPos) {
   for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => bcInsert(C, startPos + i + j + 1, who, r)));
 }
@@ -1061,7 +1065,7 @@ API.barcodeRestore = async (C, token, id) => {
   const me = await auth(C, token, true);
   const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้');
-  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4] }));
+  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4], perPack: a[5] || '' }));
   await bcSnapshot(C, 'ก่อนกู้คืน');
   await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c))));
   await bcInsertAll(C, me.name, items, 0);
@@ -1071,6 +1075,7 @@ API.barcodeRestore = async (C, token, id) => {
 
 /* ---------- นำเข้าจาก Excel ---------- */
 const BC_PATS = [
+  ['perPack', /ต่อแพ็ค|ต่อแพค|ต่อ\s*pack|per\s*pack/i],
   ['packBar', /แพ็ค|แพค|pack/i, /บาร์|bar|รหัส|เลข|code/i], ['unitBar', /เดี่ยว|เดียว|unit|single|ชิ้น/i, /บาร์|bar|รหัส|เลข|code/i],
   ['partner', /คู่ค้า|ซัพพลายเออร์|supplier|vendor|partner/i], ['cat', /หมวด|categor/i], ['name', /ชื่อ|name|^รายการ|description/i]];
 function parseBarGrid(grid, defCat) {
