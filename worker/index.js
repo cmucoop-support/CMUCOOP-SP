@@ -909,7 +909,7 @@ API.musicTvEnd = async (C, id, ok) => {
  * ข้อมูลทั้งหมดอยู่ใน Cloud (ตาราง barcode_items / barcode_cats) แก้ไขผ่านหน้าเว็บ · นำเข้าจาก Excel ได้ (หัวตารางอ่านจากชื่อคอลัมน์)
  * ก่อนนำเข้า/กู้คืนทุกครั้งระบบทำสำเนาไว้ให้ เก็บล่าสุดแค่ BACKUP_KEEP ชุด */
 const BC_SHEET = 'บาร์สินค้า', BACKUP_KEEP = 2, BC_DEFCAT = 'ไม่ระบุหมวด';
-const BC_COMPANY = 'ร้านสหกรณ์ มหาวิทยาลัยเชียงใหม่', BC_TITLE = 'รายการบาร์เดี่ยว/บาร์แพ็ค';
+const BC_COMPANY = 'ร้านสหกรณ์ มหาวิทยาลัยเชียงใหม่ จำกัด', BC_TITLE = 'รายการบาร์เดี่ยว/บาร์แพ็ค';
 const BC_SCHEMA = {
   cols: [
     { k: 'no', label: 'ลำดับ', w: 5, num: true, calc: true },
