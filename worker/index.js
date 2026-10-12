@@ -987,6 +987,37 @@ async function bcDup(C, v, exceptId) {
 /* ฟอนต์ตอนปริ้นรายงานบาร์ — แอดมินตั้งครั้งเดียว ใช้กับทุกคน (เฉพาะฟอนต์ในรายการนี้ ซึ่งมีน้ำหนัก 400 และ 700 ครบทั้งหมด) */
 const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit', 'Noto Sans Thai', 'Pridi', 'Taviraj', 'K2D', 'Athiti', 'Mitr', 'Krub', 'Maitree', 'TH Sarabun New', 'Tahoma'];
 const BC_FONT_DEF = 'Bai Jamjuree';
+/* ============================== ตั้งค่าหน้าจอ TV (tv.html) ============================== */
+const TV_DEF = { shop: 'ร้านสหกรณ์ มช. (CMU CO-OP)', helloMain: 'ยินดีต้อนรับ', helloSub: '"ขอให้วันนี้เป็นวันที่สดใสสำหรับคุณ"', caption: 'ร้านสหกรณ์ มช. ยินดีให้บริการ',
+  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, showClock: true, showLogo: true, showBanner: true };
+const TV_TXT = { shop: 80, helloMain: 60, helloSub: 100, caption: 120 };
+const TV_NUM = { width: [480, 1400, 'ความกว้างหน้า'], bannerH: [60, 600, 'ความสูงแบนเนอร์'], receiverH: [150, 900, 'ความสูงกรอบตัวรับเสียง'] };
+const TV_BOOL = ['showClock', 'showLogo', 'showBanner'];
+function tvNorm(o, strict) {
+  o = o && typeof o === 'object' ? o : {}; const out = {};
+  Object.keys(TV_TXT).forEach(k => {
+    if (o[k] === undefined || o[k] === null) { out[k] = TV_DEF[k]; return; }
+    const v = str(o[k]); if (v.length > TV_TXT[k]) { if (strict) throw new Error('ข้อความยาวเกิน ' + TV_TXT[k] + ' ตัวอักษร'); out[k] = v.slice(0, TV_TXT[k]); } else out[k] = v;
+  });
+  Object.keys(TV_NUM).forEach(k => {
+    const [mn, mx, nm] = TV_NUM[k]; let v = Number(o[k]);
+    if (o[k] === undefined || o[k] === null || o[k] === '' || !isFinite(v)) { if (strict && o[k] !== undefined) throw new Error(nm + 'ต้องเป็นตัวเลข'); out[k] = TV_DEF[k]; return; }
+    v = Math.round(v); if (v < mn || v > mx) { if (strict) throw new Error(nm + 'ต้องอยู่ระหว่าง ' + mn + '–' + mx + ' px'); v = Math.min(mx, Math.max(mn, v)); }
+    out[k] = v;
+  });
+  out.bg = /^#[0-9a-f]{6}$/i.test(str(o.bg)) ? str(o.bg).toLowerCase() : TV_DEF.bg;
+  TV_BOOL.forEach(k => { out[k] = o[k] === undefined || o[k] === null ? TV_DEF[k] : !(o[k] === false || o[k] === 'false'); });
+  return out;
+}
+const tvCfg = async C => tvNorm(await kvJson(C, 'TV_CFG', {}), false);
+API.getTvPublic = C => tvCfg(C);                       // tv.html เรียกโดยไม่ต้องล็อกอิน (เป็นข้อความตั้งค่าล้วน ไม่มีข้อมูลลับ)
+API.getTvConfig = async (C, token) => { await auth(C, token, true); return { cfg: await tvCfg(C), def: TV_DEF }; };
+API.setTvConfig = async (C, token, o) => {
+  const me = await auth(C, token, true), cfg = tvNorm(o, true);
+  await kvSet(C, 'TV_CFG', JSON.stringify(cfg));
+  await appendLog(C, me.name, 'TV', '', 'ตั้งค่าหน้าจอ TV', cfg.shop + ' · แบนเนอร์สูง ' + cfg.bannerH + ' · ตัวรับเสียงสูง ' + cfg.receiverH);
+  return { ok: true, cfg };
+};
 API.setPrintFont = async (C, token, font) => {
   const me = await auth(C, token, true); font = str(font);
   if (!BC_FONTS.includes(font)) throw new Error('ไม่รองรับฟอนต์นี้');
