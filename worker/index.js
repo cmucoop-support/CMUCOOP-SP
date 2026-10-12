@@ -55,7 +55,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS banners (id TEXT PRIMARY KEY, pos INTEGER, title TEXT, link TEXT, visible INTEGER, ts INTEGER, who TEXT, mime TEXT)',
   'CREATE TABLE IF NOT EXISTS sounds (rid INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, code TEXT, label TEXT, fid TEXT, fname TEXT, value TEXT, enabled INTEGER, ts INTEGER, who TEXT)',
   'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))',
-  'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT, perPack TEXT)',
+  'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT)',
   'CREATE INDEX IF NOT EXISTS bc_cat ON barcode_items(cat, pos)',
   'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
   'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
@@ -71,9 +71,7 @@ export default {
     const C = { env, ctx, request, base: url.origin };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
     try {
-      if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)));
-        try { await env.DB.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); } catch (e) { /* มีคอลัมน์แล้ว */ }
-        schemaReady = true; }
+      if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s))); schemaReady = true; }
       if (request.method === 'POST') return await rpc(C);
       if (request.method === 'GET') {
         if (url.pathname.startsWith('/file/')) return await serveFile(C, url.pathname.slice(6));
@@ -731,17 +729,14 @@ API.soundImportLegacy = async (C, token) => {
  *                                         (แยกออก: ปฏิเสธ · ยกเลิก · ลบแล้ว · ข้ามแล้ว · ผิดพลาด)
  * TV (receiver.html) เรียก musicTvTick ทุก 5 วินาที เพื่อรับว่าต้องเล่นเพลงไหน และเรียก musicTvEnd เมื่อเพลงจบ */
 const MU_LIVE = "('รออนุมัติ','รอคิว','กำลังเล่น')";
-const MU_PROG_MAX_AGE = 7000;   // ตำแหน่งเพลงที่ TV รายงานล่าสุด ใช้นับต่อเองได้ไม่เกินกี่ ms
 const MU_MAX_QUEUE = 60, MU_KEEP_DAYS = 7, MU_USER_DEF = 3, MU_TV_ONLINE_MS = 90000;
 const MU_AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|webm|flac)$/i;
 const MU_YT_HOST = /^(?:www\.|m\.|music\.)?(?:youtube\.com|youtube-nocookie\.com)$/i;
 const YT_ID = /^[A-Za-z0-9_-]{11}$/, YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
 
 async function musicState(C) {
-  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO', 'MUSIC_MAX_USER', 'MUSIC_TV_SEEN', 'MUSIC_PAUSED', 'MUSIC_PROG', 'MUSIC_CMD']);
-  let prog = null; try { prog = m.MUSIC_PROG ? JSON.parse(m.MUSIC_PROG) : null; } catch (e) {}
+  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO', 'MUSIC_MAX_USER', 'MUSIC_TV_SEEN']);
   return {
-    pausedId: m.MUSIC_PAUSED || '', prog, cmd: (() => { try { return m.MUSIC_CMD ? JSON.parse(m.MUSIC_CMD) : null; } catch (e) { return null; } })(),
     vol: numSetting(m.MUSIC_VOL, 0, 100, 70, true), avol: numSetting(m.ANN_VOL, 10, 100, 100, true), auto: m.MUSIC_AUTO === '1',
     maxUser: numSetting(m.MUSIC_MAX_USER, 1, 10, MU_USER_DEF, true), tvSeen: Number(m.MUSIC_TV_SEEN) || 0
   };
@@ -800,9 +795,7 @@ API.musicList = async (C, token) => {
   const me = await authPerm(C, token, 'music'), s = await musicState(C);
   const live = await all(C, 'SELECT * FROM music_queue WHERE status IN ' + MU_LIVE + " ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 WHEN 'รอคิว' THEN 1 ELSE 2 END, seq");
   const hist = await all(C, 'SELECT * FROM music_queue WHERE status NOT IN ' + MU_LIVE + ' ORDER BY COALESCE(t_end, ts) DESC LIMIT 40');
-  const cur = live.find(r => r.status === 'กำลังเล่น');           // หยุดเพลง/ความคืบหน้า ใช้ได้เฉพาะเพลงที่กำลังเล่นอยู่
   return {
-    paused: !!cur && s.pausedId === cur.id, prog: cur && s.prog && s.prog.id === cur.id ? s.prog : null, now: now(),
     rows: live.concat(hist).map(r => muRow(r, me)), auto: s.auto, vol: s.vol, avol: s.avol, maxUser: s.maxUser,
     tv: { online: s.tvSeen > 0 && now() - s.tvSeen < MU_TV_ONLINE_MS, seen: s.tvSeen }, max: MU_MAX_QUEUE
   };
@@ -835,31 +828,6 @@ API.musicCancel = async (C, token, id) => {
   await muMove(C, id, ['รออนุมัติ', 'รอคิว'], 'ยกเลิก');
   await appendLog(C, me.name, 'Music', '', 'ยกเลิกคำขอเพลง', r.title);
   return true;
-};
-/* หยุดเพลง/เล่นต่อ (แอดมิน) — เก็บเป็น "รหัสเพลงที่ถูกหยุด" ข้ามเพลง/จบเพลง/เปลี่ยนเพลงแล้วสถานะหยุดหายเองโดยไม่ต้องล้าง */
-API.musicPause = async (C, token, id, on) => {
-  const me = await auth(C, token, true); id = str(id); on = on === true || on === 'true';
-  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
-  if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
-  const s = await musicState(C), p = s.prog && s.prog.id === id ? s.prog : null;
-  await kvSet(C, 'MUSIC_PAUSED', on ? id : '');
-  if (p) {                                                      // ล็อกตำแหน่งตอนกดหยุด / เริ่มนับต่อตอนกดเล่นต่อ ไม่ต้องรอ TV รายงานรอบหน้า
-    const age = Math.min(Math.max(now() - p.ts, 0), MU_PROG_MAX_AGE);
-    const pos = on && p.mv ? (p.pos || 0) + age / 1000 : (p.pos || 0);
-    await kvSet(C, 'MUSIC_PROG', JSON.stringify(Object.assign({}, p, { pos: p.dur > 0 ? Math.min(pos, p.dur) : pos, mv: !on, ts: now() })));
-  }
-  await appendLog(C, me.name, 'Music', '', on ? 'หยุดเพลง' : 'เล่นเพลงต่อ', r.title);
-  return { ok: true, paused: on };
-};
-/* ข้ามเพลงถัดไปในเพลย์ลิสต์ (แอดมิน) — ต่างจาก skip ที่ข้ามทั้งรายการ: ส่งคำสั่งให้ TV เลื่อนไปเพลงถัดไปในเพลย์ลิสต์เดิม */
-API.musicNextTrack = async (C, token, id) => {
-  const me = await auth(C, token, true); id = str(id);
-  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
-  if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
-  if (r.kind !== 'ytlist') throw new Error('ใช้ได้เฉพาะเพลย์ลิสต์ YouTube');
-  await kvSet(C, 'MUSIC_CMD', JSON.stringify({ id, cmd: 'nexttrack', seq: now() }));
-  await appendLog(C, me.name, 'Music', '', 'ข้ามเพลงในเพลย์ลิสต์', r.title);
-  return { ok: true };
 };
 API.musicDecide = async (C, token, id, action) => {
   const me = await auth(C, token, true); id = str(id); action = str(action);
@@ -920,23 +888,15 @@ API.musicSetMaxUser = async (C, token, n) => {
 let tvSeenWrite = 0;
 async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { tvSeenWrite = now(); await kvSet(C, 'MUSIC_TV_SEEN', now()); } }
 API.musicTvPing = async C => { await muHeartbeat(C); return true; };     // TV เรียกระหว่างหยุดเพลงเพื่อประกาศ จะได้ไม่ถูกมองว่าออฟไลน์
-API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
+API.musicTvTick = async (C, curId) => {
   curId = str(curId); await muHeartbeat(C);
-  const p = Number(pos), d = Number(dur);
-  if (curId && pos !== undefined && pos !== null && pos !== '' && isFinite(p) && p >= 0) {     // TV รายงานว่าเพลงเล่นถึงวินาทีที่เท่าไร
-    const o = { id: curId, pos: Math.round(p * 10) / 10, dur: isFinite(d) && d > 0 ? Math.round(d) : 0, mv: mv === true || mv === 'true', ts: now() };
-    if (Number(n) > 1) { o.idx = Math.round(Number(idx)) || 0; o.n = Math.round(Number(n)); }
-    await kvSet(C, 'MUSIC_PROG', JSON.stringify(o));
-  }
   const [s, top] = await Promise.all([musicState(C),
     one(C, "SELECT id,kind,ref,title,who,status FROM music_queue WHERE status IN ('กำลังเล่น','รอคิว') ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 ELSE 1 END, seq LIMIT 1")]);
   const base = { vol: s.vol, avol: s.avol };
   if (!top) return Object.assign({ action: 'idle' }, base);
-  const cmd = s.cmd && s.cmd.id === top.id && now() - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
-  const paused = s.pausedId === top.id;                           // เพลงนี้ถูกแอดมินสั่งหยุดอยู่หรือไม่
-  if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep', paused, cmd }, base) : Object.assign({ action: 'play', item: muItem(top), paused }, base);
+  if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep' }, base) : Object.assign({ action: 'play', item: muItem(top) }, base);
   const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว'", now(), top.id);
-  return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top), paused: false }, base) : Object.assign({ action: 'keep', paused: false }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
+  return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top) }, base) : Object.assign({ action: 'keep' }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
 };
 API.musicTvEnd = async (C, id, ok) => {
   await run(C, "UPDATE music_queue SET status=?, t_end=? WHERE id=? AND status='กำลังเล่น'", (ok === true || ok === 'true') ? 'เล่นแล้ว' : 'ผิดพลาด', now(), str(id));
@@ -947,29 +907,27 @@ API.musicTvEnd = async (C, id, ok) => {
  * ข้อมูลทั้งหมดอยู่ใน Cloud (ตาราง barcode_items / barcode_cats) แก้ไขผ่านหน้าเว็บ · นำเข้าจาก Excel ได้ (หัวตารางอ่านจากชื่อคอลัมน์)
  * ก่อนนำเข้า/กู้คืนทุกครั้งระบบทำสำเนาไว้ให้ เก็บล่าสุดแค่ BACKUP_KEEP ชุด */
 const BC_SHEET = 'บาร์สินค้า', BACKUP_KEEP = 2, BC_DEFCAT = 'ไม่ระบุหมวด';
-const BC_COMPANY = 'ร้านสหกรณ์ มหาวิทยาลัยเชียงใหม่ จำกัด', BC_TITLE = 'รายการบาร์เดี่ยว/บาร์แพ็ค';
+const BC_COMPANY = 'ร้านสหกรณ์ มหาวิทยาลัยเชียงใหม่', BC_TITLE = 'รายการบาร์เดี่ยว/บาร์แพ็ค';
 const BC_SCHEMA = {
   cols: [
     { k: 'no', label: 'ลำดับ', w: 5, num: true, calc: true },
     { k: 'partner', label: 'รหัสคู่ค้า', w: 9 },
     { k: 'cat', label: 'หมวด', w: 10 },
-    { k: 'name', label: 'ชื่อรายการ', w: 24 },
-    { k: 'perPack', label: 'จำนวนต่อแพ็ค', w: 8 },
+    { k: 'name', label: 'ชื่อรายการ', w: 29 },
     { k: 'packBar', label: 'เลขบาร์แพ็ค', w: 13, text: true },
-    { k: 'qtyPack', label: 'จำนวนในระบบ แพ็ค', w: 8, num: true, edit: true },
     { k: 'unitBar', label: 'เลขบาร์เดี่ยว', w: 13, text: true },
-    { k: 'qtyUnit', label: 'จำนวนในระบบ เดี่ยว', w: 8, num: true, edit: true },
+    { k: 'qtySys', label: 'จำนวนในระบบ', w: 7, num: true, edit: true },
     { k: 'spread', label: 'กระจาย', w: 7, edit: true },
     { k: 'old', label: 'ของเดิม', w: 7, edit: true }
   ],
-  groups: [{ label: 'รายละเอียด', from: 1, to: 9 }, { label: 'จำนวนอัพเดต', from: 10, to: 11 }],
-  handLines: ['ชื่อ ......................', 'วันที่ ......................'],
+  groups: [{ label: 'ตรวจนับ', from: 7, to: 9 }],
+  handLines: ['ผู้ตรวจนับ ......................', 'วันที่ ......................'],
   nameCol: 4
 };
-const BC_FIELDS = ['partner', 'cat', 'name', 'perPack', 'packBar', 'unitBar'];
+const BC_FIELDS = ['partner', 'cat', 'name', 'packBar', 'unitBar'];
 const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/\s+/g, '') : v.replace(/\s+/g, ' '); };
 function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
-const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
+const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), '', '', ''] });
 const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
 const bcLog = (C, me, cat, action, detail) => appendLog(C, me.name, BC_SHEET, cat || '', action, detail);
 
@@ -984,50 +942,8 @@ async function bcDup(C, v, exceptId) {
   return '';
 }
 
-/* ฟอนต์ตอนปริ้นรายงานบาร์ — แอดมินตั้งครั้งเดียว ใช้กับทุกคน (เฉพาะฟอนต์ในรายการนี้ ซึ่งมีน้ำหนัก 400 และ 700 ครบทั้งหมด) */
-const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit', 'Noto Sans Thai', 'Pridi', 'Taviraj', 'K2D', 'Athiti', 'Mitr', 'Krub', 'Maitree', 'TH Sarabun New', 'Tahoma'];
-const BC_FONT_DEF = 'Bai Jamjuree';
-/* ============================== ตั้งค่าหน้าจอ TV (tv.html) ============================== */
-const TV_DEF = { shop: 'ร้านสหกรณ์ มช. (CMU CO-OP)', helloMain: 'ยินดีต้อนรับ', helloSub: '"ขอให้วันนี้เป็นวันที่สดใสสำหรับคุณ"', caption: 'ร้านสหกรณ์ มช. ยินดีให้บริการ',
-  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, showClock: true, showLogo: true, showBanner: true };
-const TV_TXT = { shop: 80, helloMain: 60, helloSub: 100, caption: 120 };
-const TV_NUM = { width: [480, 1400, 'ความกว้างหน้า'], bannerH: [60, 600, 'ความสูงแบนเนอร์'], receiverH: [150, 900, 'ความสูงกรอบตัวรับเสียง'] };
-const TV_BOOL = ['showClock', 'showLogo', 'showBanner'];
-function tvNorm(o, strict) {
-  o = o && typeof o === 'object' ? o : {}; const out = {};
-  Object.keys(TV_TXT).forEach(k => {
-    if (o[k] === undefined || o[k] === null) { out[k] = TV_DEF[k]; return; }
-    const v = str(o[k]); if (v.length > TV_TXT[k]) { if (strict) throw new Error('ข้อความยาวเกิน ' + TV_TXT[k] + ' ตัวอักษร'); out[k] = v.slice(0, TV_TXT[k]); } else out[k] = v;
-  });
-  Object.keys(TV_NUM).forEach(k => {
-    const [mn, mx, nm] = TV_NUM[k]; let v = Number(o[k]);
-    if (o[k] === undefined || o[k] === null || o[k] === '' || !isFinite(v)) { if (strict && o[k] !== undefined) throw new Error(nm + 'ต้องเป็นตัวเลข'); out[k] = TV_DEF[k]; return; }
-    v = Math.round(v); if (v < mn || v > mx) { if (strict) throw new Error(nm + 'ต้องอยู่ระหว่าง ' + mn + '–' + mx + ' px'); v = Math.min(mx, Math.max(mn, v)); }
-    out[k] = v;
-  });
-  out.bg = /^#[0-9a-f]{6}$/i.test(str(o.bg)) ? str(o.bg).toLowerCase() : TV_DEF.bg;
-  TV_BOOL.forEach(k => { out[k] = o[k] === undefined || o[k] === null ? TV_DEF[k] : !(o[k] === false || o[k] === 'false'); });
-  return out;
-}
-const tvCfg = async C => tvNorm(await kvJson(C, 'TV_CFG', {}), false);
-API.getTvPublic = C => tvCfg(C);                       // tv.html เรียกโดยไม่ต้องล็อกอิน (เป็นข้อความตั้งค่าล้วน ไม่มีข้อมูลลับ)
-API.getTvConfig = async (C, token) => { await auth(C, token, true); return { cfg: await tvCfg(C), def: TV_DEF }; };
-API.setTvConfig = async (C, token, o) => {
-  const me = await auth(C, token, true), cfg = tvNorm(o, true);
-  await kvSet(C, 'TV_CFG', JSON.stringify(cfg));
-  await appendLog(C, me.name, 'TV', '', 'ตั้งค่าหน้าจอ TV', cfg.shop + ' · แบนเนอร์สูง ' + cfg.bannerH + ' · ตัวรับเสียงสูง ' + cfg.receiverH);
-  return { ok: true, cfg };
-};
-API.setPrintFont = async (C, token, font) => {
-  const me = await auth(C, token, true); font = str(font);
-  if (!BC_FONTS.includes(font)) throw new Error('ไม่รองรับฟอนต์นี้');
-  await kvSet(C, 'BC_PRINT_FONT', font);
-  await appendLog(C, me.name, BC_SHEET, '', 'ตั้งฟอนต์ปริ้น', font);
-  return { ok: true, font };
-};
 API.getInit = async (C, token) => {
   await authPerm(C, token, 'barcode');
-  const pf = await kvGet(C, 'BC_PRINT_FONT', BC_FONT_DEF);
   const cats = await all(C, 'SELECT cat, COUNT(*) AS n, MAX(ts) AS ts, MIN(pos) AS p FROM barcode_items GROUP BY cat ORDER BY p');
   const parts = await all(C, 'SELECT cat, partner, COUNT(*) AS n FROM barcode_items GROUP BY cat, partner');
   const empties = await all(C, 'SELECT cat FROM barcode_cats ORDER BY cat');
@@ -1039,7 +955,7 @@ API.getInit = async (C, token) => {
   const lg = await one(C, 'SELECT ts,who,cat,action,detail FROM log WHERE sheet=? ORDER BY id DESC LIMIT 1', BC_SHEET);
   const mx = await one(C, 'SELECT MAX(ts) AS m FROM barcode_items'), lastTs = Math.max(lg ? lg.ts : 0, mx && mx.m || 0);
   return {
-    categories: list, printFont: BC_FONTS.includes(pf) ? pf : BC_FONT_DEF, printFonts: BC_FONTS,
+    categories: list,
     sheets: { [BC_SHEET]: { schema: 'bar', statusText: lastTs ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(lastTs) : '' } },
     schemas: { bar: BC_SCHEMA },
     overall: lg ? { ts: lg.ts, user: str(lg.who), sheet: BC_SHEET, cat: str(lg.cat), action: str(lg.action), detail: str(lg.detail) } : (lastTs ? { ts: lastTs, user: '', sheet: BC_SHEET, cat: '', action: '', detail: '' } : null),
@@ -1079,7 +995,7 @@ API.addItem = async (C, token, sheet, catArg, item, force) => {
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items');
   const at = ((a && a.p) || 0) + 1;                       // แทรกต่อจากรายการของคู่ค้า/หมวดเดียวกัน
   await run(C, 'UPDATE barcode_items SET pos=pos+1 WHERE pos>=?', at);
-  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name);
+  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name);
   await run(C, 'DELETE FROM barcode_cats WHERE cat=?', v.cat);
   await bcLog(C, me, v.cat, 'เพิ่มรายการ', v.name + (v.packBar ? ' · แพ็ค ' + v.packBar : '') + (v.unitBar ? ' · เดี่ยว ' + v.unitBar : ''));
   return { ok: true, cat: v.cat, row: r.meta.last_row_id };
@@ -1095,7 +1011,7 @@ API.editItem = async (C, token, sheet, row, oldName, vals, force) => {
   const changed = BC_FIELDS.filter(k => str(cur[k]) !== v[k]);
   if (!changed.length) return { ok: true, nochange: true, cat: str(cur.cat) };
   if (!force) { const d = await bcDup(C, v, cur.id); if (d) return { duplicate: true, message: d }; }
-  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,perPack=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name, cur.id);
+  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, now(), me.name, cur.id);
   await bcLog(C, me, v.cat, 'แก้ไขรายการ', str(oldName) + ' · ' + changed.map(k => k + ': ' + str(cur[k]) + ' → ' + v[k]).join(' | '));
   return { ok: true, cat: v.cat };
 };
@@ -1116,10 +1032,10 @@ API.getLog = async (C, token, limit) => {
 /* ---------- สำเนา (เก็บ 2 ชุดล่าสุด) ---------- */
 const bcBackups = async C => (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'barcode')).map(b => ({ id: b.id, ts: b.ts, name: b.name }));
 async function bcSnapshot(C, why) {
-  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar,perPack FROM barcode_items ORDER BY pos');
+  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar FROM barcode_items ORDER BY pos');
   const cats = (await all(C, 'SELECT cat FROM barcode_cats')).map(r => str(r.cat));
   if (rows.length || cats.length) {
-    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), str(r.perPack)]), cats });
+    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar)]), cats });
     if (data.length > 1900000) throw new Error('ข้อมูลใหญ่เกินกว่าจะทำสำเนาได้');
     const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'barcode');
     if (!last || last.hash !== hash) {
@@ -1135,9 +1051,9 @@ API.barcodeBackupData = async (C, token, id) => {
   const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว', 'จำนวนต่อแพ็ค']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
+  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
 };
-const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, str(r.perPack), now(), who);
+const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, now(), who);
 async function bcInsertAll(C, who, items, startPos) {
   for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => bcInsert(C, startPos + i + j + 1, who, r)));
 }
@@ -1145,7 +1061,7 @@ API.barcodeRestore = async (C, token, id) => {
   const me = await auth(C, token, true);
   const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้');
-  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4], perPack: a[5] || '' }));
+  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4] }));
   await bcSnapshot(C, 'ก่อนกู้คืน');
   await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c))));
   await bcInsertAll(C, me.name, items, 0);
@@ -1155,7 +1071,6 @@ API.barcodeRestore = async (C, token, id) => {
 
 /* ---------- นำเข้าจาก Excel ---------- */
 const BC_PATS = [
-  ['perPack', /ต่อแพ็ค|ต่อแพค|ต่อ\s*pack|per\s*pack/i],
   ['packBar', /แพ็ค|แพค|pack/i, /บาร์|bar|รหัส|เลข|code/i], ['unitBar', /เดี่ยว|เดียว|unit|single|ชิ้น/i, /บาร์|bar|รหัส|เลข|code/i],
   ['partner', /คู่ค้า|ซัพพลายเออร์|supplier|vendor|partner/i], ['cat', /หมวด|categor/i], ['name', /ชื่อ|name|^รายการ|description/i]];
 function parseBarGrid(grid, defCat) {
