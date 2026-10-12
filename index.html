@@ -681,7 +681,13 @@ td.act{white-space:nowrap;min-width:170px}
           <label>ความสูงกรอบตัวรับเสียง (px) 150–2000<input type="number" id="tvReceiverH" min="150" max="2000" step="10"></label>
           <label>ความกว้างแบนเนอร์ (px) 0 = เต็มหน้า<input type="number" id="tvBannerW" min="0" max="3840" step="10"></label>
           <label>ความกว้างกรอบตัวรับเสียง (px) 0 = เต็มหน้า<input type="number" id="tvReceiverW" min="0" max="3840" step="10"></label>
-          <label>ระยะห่างระหว่างส่วน (px) 0–200<input type="number" id="tvGap" min="0" max="200" step="2"></label>
+          <label>ระยะห่างรวมระหว่างส่วน (px) 0–200<input type="number" id="tvGap" min="0" max="200" step="2"></label>
+          <label>ขนาดโลโก้ (px) 20–600<input type="number" id="tvLogoSize" min="20" max="600" step="2"></label>
+          <label>ระยะห่างโลโก้กับข้อความ (px) 0–200<input type="number" id="tvHeadGap" min="0" max="200" step="2"></label>
+          <label>ห่างเหนือแบนเนอร์ (px)<input type="number" id="tvGapBanner" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
+          <label>ห่างเหนือข้อความไหล (px)<input type="number" id="tvGapCaption" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
+          <label>ห่างเหนือกรอบตัวรับเสียง (px)<input type="number" id="tvGapReceiver" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
+          <label>ห่างเหนือท้ายหน้า (px)<input type="number" id="tvGapFoot" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
           <label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label>
           <label>การเรียงแถวข้อความด้านบน<select id="tvHeadLayout"><option value="side">โลโก้ข้างซ้าย ข้อความเรียงลง</option><option value="stack">เรียงลงทั้งหมด (โลโก้บน)</option><option value="row">เรียงออกข้างทั้งหมด (โลโก้+ข้อความ)</option><option value="topRow">โลโก้บน ข้อความเรียงออกข้าง</option></select></label>
           <label>ขนาดตัวอักษรนาฬิกา (px) 10–200<input type="number" id="tvFontClock" min="10" max="200" step="1"></label>
@@ -2635,7 +2641,9 @@ var TVC = { def: null };
 function tvFill(c) {
   $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
   $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
-  $('#tvBannerW').value = c.bannerW; $('#tvReceiverW').value = c.receiverW; $('#tvGap').value = c.gap; $('#tvFont').value = c.font; $('#tvHeadLayout').value = c.headLayout;
+  $('#tvBannerW').value = c.bannerW; $('#tvReceiverW').value = c.receiverW; $('#tvGap').value = c.gap; $('#tvFont').value = c.font;
+  $('#tvLogoSize').value = c.logoSize; $('#tvHeadGap').value = c.headGap;
+  ['Banner','Caption','Receiver','Foot'].forEach(function (k) { var v = c['gap' + k]; $('#tvGap' + k).value = v === null || v === undefined ? '' : v; }); $('#tvHeadLayout').value = c.headLayout;
   $('#tvFontClock').value = c.fontClock; $('#tvFontShop').value = c.fontShop; $('#tvFontHello').value = c.fontHello; $('#tvFontCaption').value = c.fontCaption; $('#tvCapSpeed').value = c.capSpeed;
   $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
 }
@@ -2648,7 +2656,8 @@ $('#tvSave').addEventListener('click', function () {
     await call('setTvConfig', {
       shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
       bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
-      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, headLayout: $('#tvHeadLayout').value,
+      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, logoSize: $('#tvLogoSize').value, headGap: $('#tvHeadGap').value,
+      gapBanner: $('#tvGapBanner').value, gapCaption: $('#tvGapCaption').value, gapReceiver: $('#tvGapReceiver').value, gapFoot: $('#tvGapFoot').value, headLayout: $('#tvHeadLayout').value,
       fontClock: $('#tvFontClock').value, fontShop: $('#tvFontShop').value, fontHello: $('#tvFontHello').value, fontCaption: $('#tvFontCaption').value, capSpeed: $('#tvCapSpeed').value,
       showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
     });

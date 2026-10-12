@@ -11,21 +11,24 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
+  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
           --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
   html,body { margin:0; }
   body { background:var(--bg); color:#fff; font-family:var(--font),'Sarabun','Noto Sans Thai',Tahoma,sans-serif; min-height:100vh;
          padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
-  .wrap { max-width:var(--w); margin:0 auto; display:flex; flex-direction:column; gap:var(--gap); }
+  .wrap { max-width:var(--w); margin:0 auto; display:flex; flex-direction:column; gap:0; }
+  .wrap > * + * { margin-top:var(--gap); }
+  #banner { margin-top:var(--g-banner,var(--gap)); } #caption { margin-top:var(--g-caption,var(--gap)); }
+  #receiver { margin-top:var(--g-receiver,var(--gap)); } .foot { margin-top:var(--g-foot,var(--gap)); }
 
-  .head { display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; text-align:center; }
+  .head { display:flex; align-items:center; justify-content:center; gap:var(--head-gap); flex-wrap:wrap; text-align:center; }
   /* รูปแบบการเรียงแถวบน: side | stack | row | topRow */
   .head[data-layout="stack"]  { flex-direction:column; }
   .head[data-layout="row"]    { flex-wrap:nowrap; }
   .head[data-layout="row"] .txt, .head[data-layout="topRow"] .txt { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:4px 22px; }
   .head[data-layout="topRow"] { flex-direction:column; }
-  .logo { width:84px; height:84px; border-radius:50%; background:#fff; object-fit:cover; flex:none; box-shadow:0 2px 10px rgba(58,32,80,.25); }
+  .logo { width:var(--logo); height:var(--logo); border-radius:50%; background:#fff; object-fit:cover; flex:none; box-shadow:0 2px 10px rgba(58,32,80,.25); }
   .txt { display:grid; gap:2px; font-weight:700; text-shadow:0 1px 2px rgba(58,32,80,.35); }
   .clock { font-size:var(--f-clock); font-variant-numeric:tabular-nums; }
   .shop  { font-size:var(--f-shop); }
@@ -131,6 +134,11 @@ function applyCfg(c) {
   if (c.gap !== undefined && c.gap !== null) r.setProperty('--gap', c.gap + 'px');
   r.setProperty('--banner-w', Number(c.bannerW) > 0 ? c.bannerW + 'px' : '100%');
   r.setProperty('--receiver-w', Number(c.receiverW) > 0 ? c.receiverW + 'px' : '100%');
+  if (c.logoSize) r.setProperty('--logo', c.logoSize + 'px');
+  if (c.headGap !== undefined && c.headGap !== null) r.setProperty('--head-gap', c.headGap + 'px');
+  [['gapBanner','--g-banner'],['gapCaption','--g-caption'],['gapReceiver','--g-receiver'],['gapFoot','--g-foot']].forEach(function (p) {
+    var v = c[p[0]]; if (v === null || v === undefined || v === '') r.removeProperty(p[1]); else r.setProperty(p[1], v + 'px');
+  });
   useFont(c.font);
   $('head').setAttribute('data-layout', c.headLayout || 'side');
   if (c.capSpeed) capSpeed = Number(c.capSpeed) || 80;
