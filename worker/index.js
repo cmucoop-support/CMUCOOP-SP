@@ -989,11 +989,13 @@ const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit
 const BC_FONT_DEF = 'Bai Jamjuree';
 /* ============================== ตั้งค่าหน้าจอ TV (tv.html) ============================== */
 const TV_DEF = { shop: 'ร้านสหกรณ์ มช. (CMU CO-OP)', helloMain: 'ยินดีต้อนรับ', helloSub: '"ขอให้วันนี้เป็นวันที่สดใสสำหรับคุณ"', caption: 'ร้านสหกรณ์ มช. ยินดีให้บริการ',
-  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, showClock: true, showLogo: true, showBanner: true };
+  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, gap: 14, bannerW: 0, receiverW: 0, font: 'Sarabun', headLayout: 'side', showClock: true, showLogo: true, showBanner: true };
 const TV_TXT = { shop: 80, helloMain: 60, helloSub: 100, caption: 120 };
-const TV_NUM = { width: [480, 1400, 'ความกว้างหน้า'], bannerH: [60, 600, 'ความสูงแบนเนอร์'], receiverH: [150, 900, 'ความสูงกรอบตัวรับเสียง'],
+const TV_NUM = { width: [480, 3840, 'ความกว้างหน้า'], bannerH: [60, 2000, 'ความสูงแบนเนอร์'], receiverH: [150, 2000, 'ความสูงกรอบตัวรับเสียง'],
+  gap: [0, 200, 'ระยะห่างระหว่างส่วน'], bannerW: [0, 3840, 'ความกว้างแบนเนอร์ (0 = เต็มหน้า)'], receiverW: [0, 3840, 'ความกว้างกรอบตัวรับเสียง (0 = เต็มหน้า)'],
   fontClock: [10, 200, 'ขนาดตัวอักษรนาฬิกา'], fontShop: [10, 200, 'ขนาดตัวอักษรชื่อร้าน'], fontHello: [10, 200, 'ขนาดตัวอักษรข้อความต้อนรับ'],
   fontCaption: [10, 200, 'ขนาดตัวอักษรข้อความใต้แบนเนอร์'], capSpeed: [10, 400, 'ความเร็วข้อความไหล'] };
+const TV_LAYOUTS = ['side', 'stack', 'row', 'topRow'];   // โลโก้ข้างข้อความ / เรียงลงทั้งหมด / เรียงข้างทั้งหมด / โลโก้บน ข้อความเรียงข้าง
 const TV_BOOL = ['showClock', 'showLogo', 'showBanner'];
 function tvNorm(o, strict) {
   o = o && typeof o === 'object' ? o : {}; const out = {};
@@ -1007,6 +1009,8 @@ function tvNorm(o, strict) {
     v = Math.round(v); if (v < mn || v > mx) { if (strict) throw new Error(nm + 'ต้องอยู่ระหว่าง ' + mn + '–' + mx + ' px'); v = Math.min(mx, Math.max(mn, v)); }
     out[k] = v;
   });
+  out.font = BC_FONTS.includes(str(o.font)) ? str(o.font) : TV_DEF.font;
+  out.headLayout = TV_LAYOUTS.includes(str(o.headLayout)) ? str(o.headLayout) : TV_DEF.headLayout;
   out.bg = /^#[0-9a-f]{6}$/i.test(str(o.bg)) ? str(o.bg).toLowerCase() : TV_DEF.bg;
   TV_BOOL.forEach(k => { out[k] = o[k] === undefined || o[k] === null ? TV_DEF[k] : !(o[k] === false || o[k] === 'false'); });
   return out;
