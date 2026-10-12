@@ -674,11 +674,16 @@ td.act{white-space:nowrap;min-width:170px}
           <label>ชื่อร้าน<input type="text" id="tvShop" maxlength="80" autocomplete="off"></label>
           <label>ข้อความต้อนรับ<input type="text" id="tvHelloMain" maxlength="60" autocomplete="off"></label>
           <label>ข้อความต้อนรับ (บรรทัดเล็ก)<input type="text" id="tvHelloSub" maxlength="100" autocomplete="off"></label>
-          <label>ข้อความใต้แบนเนอร์ (ไหลวนข้าง)<input type="text" id="tvCaption" maxlength="120" autocomplete="off"></label>
+          <label>ข้อความใต้แบนเนอร์ (ไหลวน แสดงทีละข้อความเดียว)<input type="text" id="tvCaption" maxlength="120" autocomplete="off"></label>
           <label>สีพื้นหลัง<input type="color" id="tvBg" style="height:38px;padding:2px 4px"></label>
-          <label>ความกว้างหน้า (px) 480–1400<input type="number" id="tvWidth" min="480" max="1400" step="10"></label>
-          <label>ความสูงแบนเนอร์ (px) 60–600<input type="number" id="tvBannerH" min="60" max="600" step="10"></label>
-          <label>ความสูงกรอบตัวรับเสียง (px) 150–900<input type="number" id="tvReceiverH" min="150" max="900" step="10"></label>
+          <label>ความกว้างหน้า (px) 480–3840<input type="number" id="tvWidth" min="480" max="3840" step="10"></label>
+          <label>ความสูงแบนเนอร์ (px) 60–2000<input type="number" id="tvBannerH" min="60" max="2000" step="10"></label>
+          <label>ความสูงกรอบตัวรับเสียง (px) 150–2000<input type="number" id="tvReceiverH" min="150" max="2000" step="10"></label>
+          <label>ความกว้างแบนเนอร์ (px) 0 = เต็มหน้า<input type="number" id="tvBannerW" min="0" max="3840" step="10"></label>
+          <label>ความกว้างกรอบตัวรับเสียง (px) 0 = เต็มหน้า<input type="number" id="tvReceiverW" min="0" max="3840" step="10"></label>
+          <label>ระยะห่างระหว่างส่วน (px) 0–200<input type="number" id="tvGap" min="0" max="200" step="2"></label>
+          <label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label>
+          <label>การเรียงแถวข้อความด้านบน<select id="tvHeadLayout"><option value="side">โลโก้ข้างซ้าย ข้อความเรียงลง</option><option value="stack">เรียงลงทั้งหมด (โลโก้บน)</option><option value="row">เรียงออกข้างทั้งหมด (โลโก้+ข้อความ)</option><option value="topRow">โลโก้บน ข้อความเรียงออกข้าง</option></select></label>
           <label>ขนาดตัวอักษรนาฬิกา (px) 10–200<input type="number" id="tvFontClock" min="10" max="200" step="1"></label>
           <label>ขนาดตัวอักษรชื่อร้าน (px) 10–200<input type="number" id="tvFontShop" min="10" max="200" step="1"></label>
           <label>ขนาดตัวอักษรข้อความต้อนรับ (px) 10–200<input type="number" id="tvFontHello" min="10" max="200" step="1"></label>
@@ -2630,6 +2635,7 @@ var TVC = { def: null };
 function tvFill(c) {
   $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
   $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
+  $('#tvBannerW').value = c.bannerW; $('#tvReceiverW').value = c.receiverW; $('#tvGap').value = c.gap; $('#tvFont').value = c.font; $('#tvHeadLayout').value = c.headLayout;
   $('#tvFontClock').value = c.fontClock; $('#tvFontShop').value = c.fontShop; $('#tvFontHello').value = c.fontHello; $('#tvFontCaption').value = c.fontCaption; $('#tvCapSpeed').value = c.capSpeed;
   $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
 }
@@ -2642,6 +2648,7 @@ $('#tvSave').addEventListener('click', function () {
     await call('setTvConfig', {
       shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
       bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
+      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, headLayout: $('#tvHeadLayout').value,
       fontClock: $('#tvFontClock').value, fontShop: $('#tvFontShop').value, fontHello: $('#tvFontHello').value, fontCaption: $('#tvFontCaption').value, capSpeed: $('#tvCapSpeed').value,
       showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
     });
