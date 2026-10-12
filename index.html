@@ -2409,8 +2409,8 @@ $('#sRepSend').addEventListener('click', function () {
   var k = $('#sRepKey').value, cnt = Number($('#sRepCount').value), iv = Number($('#sRepInt').value);
   if (!k) { toast('ยังไม่มีเสียงให้เลือก', true); return; }
   var l = $('#sRepKey').options[$('#sRepKey').selectedIndex].text;
-  sndPublish(SND.TF, { mode: 'file', key: k, repeatCount: cnt, intervalMinutes: iv, withIntroOutro: false },
-             'เล่นซ้ำ ' + l + ' ' + cnt + ' รอบ (' + (iv ? 'ทุกๆ ' + iv + ' นาที' : 'ทันที') + ')');
+  sndPublish(SND.TF, { mode: 'file', key: k, repeatCount: cnt, intervalMinutes: iv, withIntroOutro: true },
+             'เล่นซ้ำ ' + l + ' ' + cnt + ' รอบ (เปิด-ปิด, ' + (iv ? 'ทุกๆ ' + iv + ' นาที' : 'ทันที') + ')');
 });
 $('#sStaffSend').addEventListener('click', function () {
   var s = $('#sStaff'), code = s.value;
