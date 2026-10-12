@@ -1579,8 +1579,6 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
   /* ท้ายหน้า */
   ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TIME, false);
   ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
-  pdfFont(ctx, PDF_TOP, false);
-  ctx.textAlign = 'right'; ctx.fillText('หน้า ' + pageNo + '/' + pageTotal, W - x0, H - PDF_M * PX - 3 * PX);
 }
 
 function canvasJpeg(cv) {
