@@ -989,10 +989,10 @@ const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit
 const BC_FONT_DEF = 'Bai Jamjuree';
 /* ============================== ตั้งค่าหน้าจอ TV (tv.html) ============================== */
 const TV_DEF = { shop: 'ร้านสหกรณ์ มช. (CMU CO-OP)', helloMain: 'ยินดีต้อนรับ', helloSub: '"ขอให้วันนี้เป็นวันที่สดใสสำหรับคุณ"', caption: 'ร้านสหกรณ์ มช. ยินดีให้บริการ',
-  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, gap: 14, logoSize: 84, headGap: 18, gapBanner: null, gapCaption: null, gapReceiver: null, gapFoot: null, bannerW: 0, receiverW: 0, font: 'Sarabun', headLayout: 'side', showClock: true, showLogo: true, showBanner: true };
+  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, gap: 14, padTop: 14, logoSize: 84, headGap: 18, gapBanner: null, gapCaption: null, gapReceiver: null, gapFoot: null, bannerW: 0, receiverW: 0, font: 'Sarabun', headLayout: 'side', showClock: true, showLogo: true, showBanner: true };
 const TV_TXT = { shop: 80, helloMain: 60, helloSub: 100, caption: 120 };
 const TV_NUM = { width: [480, 3840, 'ความกว้างหน้า'], bannerH: [60, 2000, 'ความสูงแบนเนอร์'], receiverH: [150, 2000, 'ความสูงกรอบตัวรับเสียง'],
-  gap: [0, 200, 'ระยะห่างระหว่างส่วน'], logoSize: [20, 600, 'ขนาดโลโก้'], headGap: [0, 200, 'ระยะห่างโลโก้กับข้อความ'], bannerW: [0, 3840, 'ความกว้างแบนเนอร์ (0 = เต็มหน้า)'], receiverW: [0, 3840, 'ความกว้างกรอบตัวรับเสียง (0 = เต็มหน้า)'],
+  gap: [0, 200, 'ระยะห่างระหว่างส่วน'], logoSize: [20, 600, 'ขนาดโลโก้'], padTop: [0, 600, 'ระยะห่างขอบด้านบนสุด'], headGap: [0, 200, 'ระยะห่างโลโก้กับข้อความ'], bannerW: [0, 3840, 'ความกว้างแบนเนอร์ (0 = เต็มหน้า)'], receiverW: [0, 3840, 'ความกว้างกรอบตัวรับเสียง (0 = เต็มหน้า)'],
   fontClock: [10, 200, 'ขนาดตัวอักษรนาฬิกา'], fontShop: [10, 200, 'ขนาดตัวอักษรชื่อร้าน'], fontHello: [10, 200, 'ขนาดตัวอักษรข้อความต้อนรับ'],
   fontCaption: [10, 200, 'ขนาดตัวอักษรข้อความใต้แบนเนอร์'], capSpeed: [10, 400, 'ความเร็วข้อความไหล'] };
 const TV_OPT = { gapBanner: 'ระยะห่างเหนือแบนเนอร์', gapCaption: 'ระยะห่างเหนือข้อความไหล', gapReceiver: 'ระยะห่างเหนือกรอบตัวรับเสียง', gapFoot: 'ระยะห่างเหนือท้ายหน้า' };   // เว้นว่าง = ใช้ค่าระยะห่างรวม (null)
