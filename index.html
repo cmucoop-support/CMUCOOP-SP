@@ -516,6 +516,7 @@ td.act{white-space:nowrap;min-width:170px}
       <button data-sp="banner">Banner</button>
       <button data-sp="users">ผู้ใช้งาน</button>
       <button data-sp="sound">เสียงประกาศ</button>
+      <button data-sp="tv">หน้าจอ TV</button>
       <button data-sp="history">ประวัติการใช้งาน</button>
     </nav>
 
@@ -654,6 +655,39 @@ td.act{white-space:nowrap;min-width:170px}
         <tbody id="hiBody"></tbody></table></div>
       <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
     </div>
+    </section>
+
+    <section class="stp hidden" id="st-tv" style="display:grid;gap:16px">
+      <div class="card">
+        <h3>หน้าจอหลักสำหรับ TV (แบนเนอร์ + นาฬิกา + ตัวรับเสียง)</h3>
+        <div class="row">
+          <input type="text" id="sTv" readonly style="flex:1;min-width:260px">
+          <button class="btn ghost small" id="sTvCopy">คัดลอกลิงก์</button>
+          <a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
+        </div>
+        <div class="muted" style="margin-top:6px">หน้ารวมที่ไม่ต้องใช้ Google Site · เปิดลิงก์นี้บนเครื่อง TV แล้วกดปุ่ม ON ในกรอบตัวรับเสียง 1 ครั้ง · ใช้แทนลิงก์หน้ารับสัญญาณด้านบนได้เลย (ไม่ต้องเปิดทั้งสองหน้าพร้อมกัน เสียงจะซ้อนกัน)</div>
+      </div>
+      <div class="card">
+        <h3>ตั้งค่าหน้าจอ TV</h3>
+        <div class="muted" style="margin-bottom:8px">ปรับข้อความ สี และขนาดของหน้า tv.html · เมื่อกดบันทึก เครื่อง TV จะอัปเดตเองภายใน 1 นาที ไม่ต้องรีเฟรช</div>
+        <div class="grid">
+          <label>ชื่อร้าน<input type="text" id="tvShop" maxlength="80" autocomplete="off"></label>
+          <label>ข้อความต้อนรับ<input type="text" id="tvHelloMain" maxlength="60" autocomplete="off"></label>
+          <label>ข้อความต้อนรับ (บรรทัดเล็ก)<input type="text" id="tvHelloSub" maxlength="100" autocomplete="off"></label>
+          <label>ข้อความใต้แบนเนอร์<input type="text" id="tvCaption" maxlength="120" autocomplete="off"></label>
+          <label>สีพื้นหลัง<input type="color" id="tvBg" style="height:38px;padding:2px 4px"></label>
+          <label>ความกว้างหน้า (px) 480–1400<input type="number" id="tvWidth" min="480" max="1400" step="10"></label>
+          <label>ความสูงแบนเนอร์ (px) 60–600<input type="number" id="tvBannerH" min="60" max="600" step="10"></label>
+          <label>ความสูงกรอบตัวรับเสียง (px) 150–900<input type="number" id="tvReceiverH" min="150" max="900" step="10"></label>
+        </div>
+        <div class="row" style="margin-top:10px;gap:18px">
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowLogo"> แสดงโลโก้</label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowClock"> แสดงนาฬิกา</label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowBanner"> แสดงแบนเนอร์</label>
+        </div>
+        <div class="muted" style="margin-top:6px">ช่องข้อความเว้นว่างได้ = ไม่แสดงบรรทัดนั้น · ตัวรับเสียงต้องเปิดไว้เสมอ จึงไม่มีตัวเลือกซ่อน</div>
+        <div class="addbar"><button class="btn" id="tvSave">บันทึก</button> <button class="btn ghost" id="tvReset">คืนค่าเริ่มต้น</button></div>
+      </div>
     </section>
 
     <section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
@@ -2232,7 +2266,7 @@ $('#mBarcode').addEventListener('click', openBarcode);
 $('#btnHome').addEventListener('click', goPortal);
 
 /* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
-var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'history'];
+var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'tv', 'history'];
 $('#mSettings').addEventListener('click', function () { openSettings('cards'); });
 $('#stHome').addEventListener('click', goPortal);
 function openSettings(p) {
@@ -2248,6 +2282,7 @@ function stPanel(p) {
   else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
   else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
   else if (p === 'sound') sndLoadAdmin();
+  else if (p === 'tv') tvLoad();
   else if (p === 'history') openHistory();
 }
 $('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
@@ -2585,6 +2620,29 @@ $('#sAddBtn').addEventListener('click', function () { sndOpenEdit(null, 'ปุ�
 $('#sAddTimed').addEventListener('click', function () { sndOpenEdit(null, 'เสียงตามเวลา'); });
 $('#sFilter').addEventListener('change', sndRenderAdmin);
 $('#sRecvCopy').addEventListener('click', function () { copyField('#sRecv', 'คัดลอกลิงก์แล้ว'); });
+/* ----- ตั้งค่า > หน้าจอ TV ----- */
+var TVC = { def: null };
+function tvFill(c) {
+  $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
+  $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
+  $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
+}
+async function tvLoad() {
+  var tvUrl = pageUrl('tv.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/tv.html'); $('#sTv').value = tvUrl; $('#sTvOpen').href = tvUrl;
+  try { var r = await call('getTvConfig'); TVC.def = r.def; tvFill(r.cfg); } catch (e) { toast(e.message, true); }
+}
+$('#tvSave').addEventListener('click', function () {
+  busy(this, async function () {
+    await call('setTvConfig', {
+      shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
+      bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
+      showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
+    });
+    toast('บันทึกการตั้งค่าหน้าจอ TV แล้ว');
+  });
+});
+$('#tvReset').addEventListener('click', function () { if (TVC.def) { tvFill(TVC.def); toast('คืนค่าเริ่มต้นในฟอร์มแล้ว กด "บันทึก" เพื่อใช้งาน'); } });
+$('#sTvCopy').addEventListener('click', function () { copyField('#sTv', 'คัดลอกลิงก์แล้ว'); });
 function sndRow(r) { return SND.all.filter(function (x) { return x.row === Number(r); })[0]; }
 $('#sGoCfg').addEventListener('click', function () { openSettings('sound'); });
 $('#st-sound').addEventListener('click', async function (e) {
