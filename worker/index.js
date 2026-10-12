@@ -731,14 +731,17 @@ API.soundImportLegacy = async (C, token) => {
  *                                         (แยกออก: ปฏิเสธ · ยกเลิก · ลบแล้ว · ข้ามแล้ว · ผิดพลาด)
  * TV (receiver.html) เรียก musicTvTick ทุก 5 วินาที เพื่อรับว่าต้องเล่นเพลงไหน และเรียก musicTvEnd เมื่อเพลงจบ */
 const MU_LIVE = "('รออนุมัติ','รอคิว','กำลังเล่น')";
+const MU_PROG_MAX_AGE = 7000;   // ตำแหน่งเพลงที่ TV รายงานล่าสุด ใช้นับต่อเองได้ไม่เกินกี่ ms
 const MU_MAX_QUEUE = 60, MU_KEEP_DAYS = 7, MU_USER_DEF = 3, MU_TV_ONLINE_MS = 90000;
 const MU_AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|webm|flac)$/i;
 const MU_YT_HOST = /^(?:www\.|m\.|music\.)?(?:youtube\.com|youtube-nocookie\.com)$/i;
 const YT_ID = /^[A-Za-z0-9_-]{11}$/, YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
 
 async function musicState(C) {
-  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO', 'MUSIC_MAX_USER', 'MUSIC_TV_SEEN']);
+  const m = await kvMany(C, ['MUSIC_VOL', 'ANN_VOL', 'MUSIC_AUTO', 'MUSIC_MAX_USER', 'MUSIC_TV_SEEN', 'MUSIC_PAUSED', 'MUSIC_PROG', 'MUSIC_CMD']);
+  let prog = null; try { prog = m.MUSIC_PROG ? JSON.parse(m.MUSIC_PROG) : null; } catch (e) {}
   return {
+    pausedId: m.MUSIC_PAUSED || '', prog, cmd: (() => { try { return m.MUSIC_CMD ? JSON.parse(m.MUSIC_CMD) : null; } catch (e) { return null; } })(),
     vol: numSetting(m.MUSIC_VOL, 0, 100, 70, true), avol: numSetting(m.ANN_VOL, 10, 100, 100, true), auto: m.MUSIC_AUTO === '1',
     maxUser: numSetting(m.MUSIC_MAX_USER, 1, 10, MU_USER_DEF, true), tvSeen: Number(m.MUSIC_TV_SEEN) || 0
   };
@@ -797,7 +800,9 @@ API.musicList = async (C, token) => {
   const me = await authPerm(C, token, 'music'), s = await musicState(C);
   const live = await all(C, 'SELECT * FROM music_queue WHERE status IN ' + MU_LIVE + " ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 WHEN 'รอคิว' THEN 1 ELSE 2 END, seq");
   const hist = await all(C, 'SELECT * FROM music_queue WHERE status NOT IN ' + MU_LIVE + ' ORDER BY COALESCE(t_end, ts) DESC LIMIT 40');
+  const cur = live.find(r => r.status === 'กำลังเล่น');           // หยุดเพลง/ความคืบหน้า ใช้ได้เฉพาะเพลงที่กำลังเล่นอยู่
   return {
+    paused: !!cur && s.pausedId === cur.id, prog: cur && s.prog && s.prog.id === cur.id ? s.prog : null, now: now(),
     rows: live.concat(hist).map(r => muRow(r, me)), auto: s.auto, vol: s.vol, avol: s.avol, maxUser: s.maxUser,
     tv: { online: s.tvSeen > 0 && now() - s.tvSeen < MU_TV_ONLINE_MS, seen: s.tvSeen }, max: MU_MAX_QUEUE
   };
@@ -830,6 +835,31 @@ API.musicCancel = async (C, token, id) => {
   await muMove(C, id, ['รออนุมัติ', 'รอคิว'], 'ยกเลิก');
   await appendLog(C, me.name, 'Music', '', 'ยกเลิกคำขอเพลง', r.title);
   return true;
+};
+/* หยุดเพลง/เล่นต่อ (แอดมิน) — เก็บเป็น "รหัสเพลงที่ถูกหยุด" ข้ามเพลง/จบเพลง/เปลี่ยนเพลงแล้วสถานะหยุดหายเองโดยไม่ต้องล้าง */
+API.musicPause = async (C, token, id, on) => {
+  const me = await auth(C, token, true); id = str(id); on = on === true || on === 'true';
+  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
+  if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
+  const s = await musicState(C), p = s.prog && s.prog.id === id ? s.prog : null;
+  await kvSet(C, 'MUSIC_PAUSED', on ? id : '');
+  if (p) {                                                      // ล็อกตำแหน่งตอนกดหยุด / เริ่มนับต่อตอนกดเล่นต่อ ไม่ต้องรอ TV รายงานรอบหน้า
+    const age = Math.min(Math.max(now() - p.ts, 0), MU_PROG_MAX_AGE);
+    const pos = on && p.mv ? (p.pos || 0) + age / 1000 : (p.pos || 0);
+    await kvSet(C, 'MUSIC_PROG', JSON.stringify(Object.assign({}, p, { pos: p.dur > 0 ? Math.min(pos, p.dur) : pos, mv: !on, ts: now() })));
+  }
+  await appendLog(C, me.name, 'Music', '', on ? 'หยุดเพลง' : 'เล่นเพลงต่อ', r.title);
+  return { ok: true, paused: on };
+};
+/* ข้ามเพลงถัดไปในเพลย์ลิสต์ (แอดมิน) — ต่างจาก skip ที่ข้ามทั้งรายการ: ส่งคำสั่งให้ TV เลื่อนไปเพลงถัดไปในเพลย์ลิสต์เดิม */
+API.musicNextTrack = async (C, token, id) => {
+  const me = await auth(C, token, true); id = str(id);
+  const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
+  if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
+  if (r.kind !== 'ytlist') throw new Error('ใช้ได้เฉพาะเพลย์ลิสต์ YouTube');
+  await kvSet(C, 'MUSIC_CMD', JSON.stringify({ id, cmd: 'nexttrack', seq: now() }));
+  await appendLog(C, me.name, 'Music', '', 'ข้ามเพลงในเพลย์ลิสต์', r.title);
+  return { ok: true };
 };
 API.musicDecide = async (C, token, id, action) => {
   const me = await auth(C, token, true); id = str(id); action = str(action);
@@ -890,15 +920,23 @@ API.musicSetMaxUser = async (C, token, n) => {
 let tvSeenWrite = 0;
 async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { tvSeenWrite = now(); await kvSet(C, 'MUSIC_TV_SEEN', now()); } }
 API.musicTvPing = async C => { await muHeartbeat(C); return true; };     // TV เรียกระหว่างหยุดเพลงเพื่อประกาศ จะได้ไม่ถูกมองว่าออฟไลน์
-API.musicTvTick = async (C, curId) => {
+API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
   curId = str(curId); await muHeartbeat(C);
+  const p = Number(pos), d = Number(dur);
+  if (curId && pos !== undefined && pos !== null && pos !== '' && isFinite(p) && p >= 0) {     // TV รายงานว่าเพลงเล่นถึงวินาทีที่เท่าไร
+    const o = { id: curId, pos: Math.round(p * 10) / 10, dur: isFinite(d) && d > 0 ? Math.round(d) : 0, mv: mv === true || mv === 'true', ts: now() };
+    if (Number(n) > 1) { o.idx = Math.round(Number(idx)) || 0; o.n = Math.round(Number(n)); }
+    await kvSet(C, 'MUSIC_PROG', JSON.stringify(o));
+  }
   const [s, top] = await Promise.all([musicState(C),
     one(C, "SELECT id,kind,ref,title,who,status FROM music_queue WHERE status IN ('กำลังเล่น','รอคิว') ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 ELSE 1 END, seq LIMIT 1")]);
   const base = { vol: s.vol, avol: s.avol };
   if (!top) return Object.assign({ action: 'idle' }, base);
-  if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep' }, base) : Object.assign({ action: 'play', item: muItem(top) }, base);
+  const cmd = s.cmd && s.cmd.id === top.id && now() - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
+  const paused = s.pausedId === top.id;                           // เพลงนี้ถูกแอดมินสั่งหยุดอยู่หรือไม่
+  if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep', paused, cmd }, base) : Object.assign({ action: 'play', item: muItem(top), paused }, base);
   const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว'", now(), top.id);
-  return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top) }, base) : Object.assign({ action: 'keep' }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
+  return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top), paused: false }, base) : Object.assign({ action: 'keep', paused: false }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
 };
 API.musicTvEnd = async (C, id, ok) => {
   await run(C, "UPDATE music_queue SET status=?, t_end=? WHERE id=? AND status='กำลังเล่น'", (ok === true || ok === 'true') ? 'เล่นแล้ว' : 'ผิดพลาด', now(), str(id));
