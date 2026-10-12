@@ -11,12 +11,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
+  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
           --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
   html,body { margin:0; }
   body { background:var(--bg); color:#fff; font-family:var(--font),'Sarabun','Noto Sans Thai',Tahoma,sans-serif; min-height:100vh;
-         padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
+         padding:max(var(--pad-top),env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
   .wrap { max-width:var(--w); margin:0 auto; display:flex; flex-direction:column; gap:0; }
   .wrap > * + * { margin-top:var(--gap); }
   #banner { margin-top:var(--g-banner,var(--gap)); } #caption { margin-top:var(--g-caption,var(--gap)); }
@@ -134,6 +134,7 @@ function applyCfg(c) {
   if (c.gap !== undefined && c.gap !== null) r.setProperty('--gap', c.gap + 'px');
   r.setProperty('--banner-w', Number(c.bannerW) > 0 ? c.bannerW + 'px' : '100%');
   r.setProperty('--receiver-w', Number(c.receiverW) > 0 ? c.receiverW + 'px' : '100%');
+  if (c.padTop !== undefined && c.padTop !== null) r.setProperty('--pad-top', c.padTop + 'px');
   if (c.logoSize) r.setProperty('--logo', c.logoSize + 'px');
   if (c.headGap !== undefined && c.headGap !== null) r.setProperty('--head-gap', c.headGap + 'px');
   [['gapBanner','--g-banner'],['gapCaption','--g-caption'],['gapReceiver','--g-receiver'],['gapFoot','--g-foot']].forEach(function (p) {

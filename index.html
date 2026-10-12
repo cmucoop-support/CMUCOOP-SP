@@ -682,6 +682,7 @@ td.act{white-space:nowrap;min-width:170px}
           <label>ความกว้างแบนเนอร์ (px) 0 = เต็มหน้า<input type="number" id="tvBannerW" min="0" max="3840" step="10"></label>
           <label>ความกว้างกรอบตัวรับเสียง (px) 0 = เต็มหน้า<input type="number" id="tvReceiverW" min="0" max="3840" step="10"></label>
           <label>ระยะห่างรวมระหว่างส่วน (px) 0–200<input type="number" id="tvGap" min="0" max="200" step="2"></label>
+          <label>ระยะห่างขอบด้านบนสุด (px) 0–600<input type="number" id="tvPadTop" min="0" max="600" step="2"></label>
           <label>ขนาดโลโก้ (px) 20–600<input type="number" id="tvLogoSize" min="20" max="600" step="2"></label>
           <label>ระยะห่างโลโก้กับข้อความ (px) 0–200<input type="number" id="tvHeadGap" min="0" max="200" step="2"></label>
           <label>ห่างเหนือแบนเนอร์ (px)<input type="number" id="tvGapBanner" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
@@ -2642,7 +2643,7 @@ function tvFill(c) {
   $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
   $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
   $('#tvBannerW').value = c.bannerW; $('#tvReceiverW').value = c.receiverW; $('#tvGap').value = c.gap; $('#tvFont').value = c.font;
-  $('#tvLogoSize').value = c.logoSize; $('#tvHeadGap').value = c.headGap;
+  $('#tvPadTop').value = c.padTop; $('#tvLogoSize').value = c.logoSize; $('#tvHeadGap').value = c.headGap;
   ['Banner','Caption','Receiver','Foot'].forEach(function (k) { var v = c['gap' + k]; $('#tvGap' + k).value = v === null || v === undefined ? '' : v; }); $('#tvHeadLayout').value = c.headLayout;
   $('#tvFontClock').value = c.fontClock; $('#tvFontShop').value = c.fontShop; $('#tvFontHello').value = c.fontHello; $('#tvFontCaption').value = c.fontCaption; $('#tvCapSpeed').value = c.capSpeed;
   $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
@@ -2656,7 +2657,7 @@ $('#tvSave').addEventListener('click', function () {
     await call('setTvConfig', {
       shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
       bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
-      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, logoSize: $('#tvLogoSize').value, headGap: $('#tvHeadGap').value,
+      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, padTop: $('#tvPadTop').value, logoSize: $('#tvLogoSize').value, headGap: $('#tvHeadGap').value,
       gapBanner: $('#tvGapBanner').value, gapCaption: $('#tvGapCaption').value, gapReceiver: $('#tvGapReceiver').value, gapFoot: $('#tvGapFoot').value, headLayout: $('#tvHeadLayout').value,
       fontClock: $('#tvFontClock').value, fontShop: $('#tvFontShop').value, fontHello: $('#tvFontHello').value, fontCaption: $('#tvFontCaption').value, capSpeed: $('#tvCapSpeed').value,
       showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
