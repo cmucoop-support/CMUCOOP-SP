@@ -168,23 +168,23 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
 .psec{font-family:'PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
-table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:16pt;line-height:1.15}
+table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12pt;line-height:1.15}
 .pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
 .pt th{background:#d0d0d0;font-weight:700}
-.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:16pt;padding:1mm .5mm}
+.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding:1mm .5mm}
 .ptop .co{font-size:16pt;font-weight:700;text-align:center;padding-bottom:1mm}
 .ptop .l{font-size:16pt;text-align:left;padding:.3mm 0}
 .ptop .title{font-size:16pt;font-weight:700;padding-bottom:2mm}
 .pt tbody tr:nth-child(odd) td{background:#d9d9d9}
 .pt tbody tr:nth-child(even) td{background:#fff}
 .pt td.nm{text-align:left}
-.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:16pt;padding-left:.4mm;padding-right:.4mm}
+.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding-left:.4mm;padding-right:.4mm}
 .pt tbody td{height:7.4mm}
 .pt thead{display:table-header-group}
 .pt tr{page-break-inside:avoid}
 .foot{margin-top:4mm;font-size:16pt;color:#444}
 @media print{
-  @page{size:A4 landscape;margin:8mm}
+  @page{size:A4 portrait;margin:8mm}
   html,body{background:#fff}
   body > *:not(#printArea){display:none!important}
   #printArea{display:block}
@@ -1373,7 +1373,7 @@ function printSection(d) {
     if (stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   }
   var top = '<div class="ptop">' +
-    (h.company ? '<div class="co">' + esc(h.company) + '</div>' : '') +
+    (h.company ? '<div class="co">' + esc(coName(h.company)) + '</div>' : '') +
     '<div class="l">' + sc.handLines.map(function (t) { return esc(handLbl(t)); }).join('&emsp;&emsp;') + '</div>' +
     '<div class="l">' + esc(stx) + '</div>' +
     '<div class="l title">' + esc(h.title) + (d.cat ? ' | หมวด ' + esc(d.cat) : '') + '</div></div>';
@@ -1397,8 +1397,9 @@ var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPa
 function pw(k) { return PW[k.k] || k.w; }
 var PDF_FONT = "'Mali','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
 var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
-var PDF_W = 297, PDF_H = 210, PDF_M = 8;   /* A4 แนวนอน (ตัวอักษร 16pt ทุกส่วน ต้องใช้พื้นที่กว้างให้เลขบาร์ไม่ถูกย่อ) */
-var PDF_BODY = 16;                          /* ขนาดตัวอักษรของการปริ้นทั้งหมด (pt) คงที่ ไม่ย่ออัตโนมัติ */
+var PDF_W = 210, PDF_H = 297, PDF_M = 8;   /* A4 แนวตั้ง */
+var PDF_BODY = 12;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
+var PDF_TOP = 16;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
 var _seg = null;
 function thWords(s) {
   try { if (!_seg && window.Intl && Intl.Segmenter) _seg = new Intl.Segmenter('th', { granularity: 'word' }); } catch (e) {}
@@ -1422,6 +1423,7 @@ function wrapText(ctx, text, maxW) {
   return lines.length ? lines : [''];
 }
 function pdfFont(ctx, pt, bold) { ctx.font = (bold ? '700 ' : '400 ') + Math.round(pt * PT) + 'px ' + PDF_FONT; }
+function coName(t) { t = String(t || '').trim(); return /เชียงใหม่$/.test(t) ? t + ' จำกัด' : t; }
 function handLbl(t) { return String(t).replace(/^ผู้ตรวจนับ/, 'ชื่อ'); }
 function fitPt(ctx, lines, maxW, pt, bold) {
   pdfFont(ctx, pt, bold);
@@ -1433,9 +1435,9 @@ function headSplit(t) {
   return m ? [m[1]].concat(m[2].split(/\s+/)) : [String(t)];
 }
 
-/* ความกว้างคอลัมน์ (mm) ที่ 16pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
+/* ความกว้างคอลัมน์ (mm) ที่ 12pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
 function fixedWidths(ctx, sc, rows, tw) {
-  var PADMM = 2.6, n = sc.cols.length, need = [], hmin = [], nameJ = -1;
+  var PADMM = 1.6, n = sc.cols.length, need = [], hmin = [], nameJ = -1;
   sc.cols.forEach(function (k, j) {
     if (k.k === 'name') nameJ = j;
     pdfFont(ctx, PDF_BODY, true);
@@ -1445,7 +1447,7 @@ function fixedWidths(ctx, sc, rows, tw) {
     hmin[j] = hd;
     need[j] = k.text ? Math.max(hd, bd) : Math.max(hd, Math.min(bd, 30));
   });
-  var NAME_MIN = 45, fixed = 0;
+  var NAME_MIN = 40, fixed = 0, sum;
   need.forEach(function (w, j) { if (j !== nameJ) fixed += w; });
   var nameW = nameJ >= 0 ? tw - fixed : 0;
   if (nameJ >= 0 && nameW < NAME_MIN) {                              // ไม่พอ: ลดคอลัมน์ที่ไม่ใช่เลขบาร์ลงไม่เกินความกว้างหัวตาราง
@@ -1453,11 +1455,18 @@ function fixedWidths(ctx, sc, rows, tw) {
     var cut = Math.min(slack, NAME_MIN - nameW);
     if (slack > 0) need.forEach(function (w, j) { if (j !== nameJ && !sc.cols[j].text) need[j] = w - (w - hmin[j]) / slack * cut; });
     fixed = 0; need.forEach(function (w, j) { if (j !== nameJ) fixed += w; });
-    nameW = Math.max(tw - fixed, 30);
+    nameW = tw - fixed;
   }
-  if (nameJ >= 0) need[nameJ] = nameW;
-  var sum = need.reduce(function (a, b) { return a + b; }, 0);
-  return sc.cols.map(function (k, j) { return { k: k, w: need[j] * tw / sum }; });
+  if (nameJ >= 0) need[nameJ] = Math.max(nameW, 14);
+  sum = need.reduce(function (a, b) { return a + b; }, 0);
+  if (sum > tw) {                                                    // ยังเกิน: ย่อเฉพาะคอลัมน์ที่ไม่ใช่เลขบาร์ (เลขบาร์ห้ามถูกตัด)
+    var over = sum - tw, shr = 0;
+    need.forEach(function (w, j) { if (!sc.cols[j].text) shr += w; });
+    need.forEach(function (w, j) { if (!sc.cols[j].text) need[j] = w - over * w / shr; });
+  } else if (nameJ < 0 || sum < tw) {                                // เหลือ: เฉลี่ยให้ทุกคอลัมน์
+    need = need.map(function (w) { return w * tw / sum; });
+  }
+  return sc.cols.map(function (k, j) { return { k: k, w: need[j] }; });
 }
 /* จัดหน้า: คืนรายการหน้า {sec, rows:[{cells:[lines..], h}], first} */
 function layoutSection(ctx, d) {
@@ -1467,20 +1476,20 @@ function layoutSection(ctx, d) {
   var rows = d.rows.filter(function (x) { return !(chosen.length && chosen.indexOf(String(x.v[ip]).trim()) < 0); });
   var tw = PDF_W - PDF_M * 2;
     var cols = fixedWidths(ctx, sc, rows, tw);
-  var padX = 1.2 * PX, LH = 0, MINH = 0;
+  var padX = 0.8 * PX, LH = 0, MINH = 0;
   /* หัวข้อด้านบน */
   var stx = String(h.statusText || '');
   if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts && stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   var topLines = {
-    company: h.company || '', hand: sc.handLines.map(handLbl).join('        '), status: stx,
+    company: coName(h.company), hand: sc.handLines.map(handLbl).join('        '), status: stx,
     title: String(h.title || '') + (d.cat ? ' | หมวด ' + d.cat : '')
   };
   var TOP_H = (h.company ? 9 : 0) + 8 + 8 + 10;                 /* mm */
-  var HEAD_H = 25;                                              /* mm หัวตาราง 2 แถว */
+  var HEAD_H = 22;                                              /* mm หัวตาราง 2 แถว */
   var FOOT_H = 10;
   var bodyTop1 = PDF_M + TOP_H + HEAD_H, bodyTopN = PDF_M + HEAD_H, bodyBot = PDF_H - PDF_M - FOOT_H;
   /* ฟอนต์เลขบาร์: ใช้ขนาดเดียวกันทั้งตาราง (ย่อให้พอดีกับเลขที่ยาวที่สุด ไม่ให้ชนคอลัมน์ข้างเคียง) */
-  var bpt = PDF_BODY;   /* ขนาดคงที่ 16pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
+  var bpt = PDF_BODY;   /* ขนาดคงที่ 12pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
   /* ฟอนต์หัวตาราง: ขนาดเดียวกันทุกคอลัมน์ */
   var hpt = PDF_BODY;
   LH = bpt * 0.3528 * 1.25 * PX; MINH = Math.max(7 * PX, LH + 2.4 * PX);
@@ -1512,14 +1521,14 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
   var y = PDF_M * PX;
   if (pg.first) {
     ctx.textAlign = 'center';
-    if (L.hasCo) { pdfFont(ctx, PDF_BODY, true); ctx.fillText(L.top.company, W / 2, y + 4.5 * PX); y += 9 * PX; }
-    ctx.textAlign = 'left'; pdfFont(ctx, PDF_BODY, false);
+    if (L.hasCo) { pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.company, W / 2, y + 4.5 * PX); y += 9 * PX; }
+    ctx.textAlign = 'left'; pdfFont(ctx, PDF_TOP, false);
     ctx.fillText(L.top.hand, x0, y + 4 * PX); y += 8 * PX;
     ctx.fillText(L.top.status, x0, y + 4 * PX); y += 8 * PX;
-    pdfFont(ctx, PDF_BODY, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10 * PX;
+    pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10 * PX;
   }
   /* หัวตาราง */
-  var hy = y, h1 = 9 * PX, h2 = 16 * PX, hh = h1 + h2;
+  var hy = y, h1 = 8 * PX, h2 = 14 * PX, hh = h1 + h2;
   var grp = {}; sc.groups.forEach(function (g) { for (var i = g.from; i <= g.to; i++) grp[i] = g; });
   var xs = [x0]; cols.forEach(function (c) { xs.push(xs[xs.length - 1] + c.w * PX); });
   ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.textAlign = 'center';
@@ -1561,7 +1570,7 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     });
   });
   /* ท้ายหน้า */
-  ctx.fillStyle = '#444'; pdfFont(ctx, PDF_BODY, false);
+  ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TOP, false);
   ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
   ctx.textAlign = 'right'; ctx.fillText('หน้า ' + pageNo + '/' + pageTotal, W - x0, H - PDF_M * PX - 3 * PX);
 }
