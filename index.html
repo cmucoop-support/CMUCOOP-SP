@@ -168,17 +168,17 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
 .psec{font-family:'PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
-table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12pt;line-height:1.15}
+table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.15}
 .pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
 .pt th{background:#d0d0d0;font-weight:700}
-.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding:1mm .5mm}
+.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding:1mm .5mm}
 .ptop .co{font-size:16pt;font-weight:700;text-align:center;padding-bottom:1mm}
 .ptop .l{font-size:16pt;text-align:left;padding:.3mm 0}
 .ptop .title{font-size:16pt;font-weight:700;padding-bottom:2mm}
 .pt tbody tr:nth-child(odd) td{background:#d9d9d9}
 .pt tbody tr:nth-child(even) td{background:#fff}
 .pt td.nm{text-align:left}
-.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding-left:.4mm;padding-right:.4mm}
+.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding-left:.4mm;padding-right:.4mm}
 .pt tbody td{height:7.4mm}
 .pt thead{display:table-header-group}
 .pt tr{page-break-inside:avoid}
@@ -1398,7 +1398,7 @@ function pw(k) { return PW[k.k] || k.w; }
 var PDF_FONT = "'Mali','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
 var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
 var PDF_W = 210, PDF_H = 297, PDF_M = 2;   /* A4 แนวตั้ง */
-var PDF_BODY = 12;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
+var PDF_BODY = 10;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
 var PDF_TOP = 16;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
 var _seg = null;
 function thWords(s) {
@@ -1430,15 +1430,14 @@ function fitPt(ctx, lines, maxW, pt, bold) {
   while (pt > 6 && lines.some(function (t) { return ctx.measureText(t).width > maxW; })) { pt -= 0.5; pdfFont(ctx, pt, bold); }
   return pt;
 }
-function headSplit(t) {                      /* หัวคอลัมน์ตัดเป็นหลายบรรทัดตามคำ ให้คอลัมน์แคบ เหลือที่ให้ชื่อรายการ */
+function headSplit(t) {                      /* หัวคอลัมน์ไม่เกิน 3 บรรทัด: "จำนวน / ในระบบ / แพ็ค" (คอลัมน์แคบ เหลือที่ให้ชื่อรายการ) */
   t = String(t);
   var m = /^จำนวน(ต่อ|ใน)?\s*(.+)$/.exec(t);
-  if (m) { var r = m[2].split(/\s+/); if (m[1] === 'ใน') { return ['จำนวน', 'ใน'].concat(r); } return ['จำนวน'].concat(m[1] ? [m[1]] : [], r); }
-  var W = { 'รหัสคู่ค้า': ['รหัส', 'คู่ค้า'], 'ของเดิม': ['ของ', 'เดิม'] };
-  return W[t] || [t];
+  if (m) { var r = m[2].split(/\s+/); if (m[1]) r[0] = m[1] + r[0]; return ['จำนวน'].concat(r); }
+  return t === 'รหัสคู่ค้า' ? ['รหัส', 'คู่ค้า'] : [t];
 }
 
-/* ความกว้างคอลัมน์ (mm) ที่ 12pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
+/* ความกว้างคอลัมน์ (mm) ที่ 10pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
 function fixedWidths(ctx, sc, rows, tw) {
   var PADMM = 1.5, n = sc.cols.length, need = [], hmin = [], nameJ = -1;
   sc.cols.forEach(function (k, j) {
@@ -1492,11 +1491,11 @@ function layoutSection(ctx, d) {
     title: String(h.title || '') + (d.cat ? ' | หมวด ' + d.cat : '')
   };
   var TOP_H = (h.company ? 9 : 0) + 8 + 8 + 10;                 /* mm */
-  var HEAD_H = 30;                                              /* mm หัวตาราง 2 แถว */
+  var HEAD_H = 22;                                              /* mm หัวตาราง 2 แถว */
   var FOOT_H = 10;
   var bodyTop1 = PDF_M + TOP_H + HEAD_H, bodyTopN = PDF_M + HEAD_H, bodyBot = PDF_H - PDF_M - FOOT_H;
   /* ฟอนต์เลขบาร์: ใช้ขนาดเดียวกันทั้งตาราง (ย่อให้พอดีกับเลขที่ยาวที่สุด ไม่ให้ชนคอลัมน์ข้างเคียง) */
-  var bpt = PDF_BODY;   /* ขนาดคงที่ 12pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
+  var bpt = PDF_BODY;   /* ขนาดคงที่ 10pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
   /* ฟอนต์หัวตาราง: ขนาดเดียวกันทุกคอลัมน์ */
   var hpt = PDF_BODY;
   LH = bpt * 0.3528 * 1.25 * PX; MINH = Math.max(7 * PX, LH + 2.4 * PX);
@@ -1535,7 +1534,7 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10 * PX;
   }
   /* หัวตาราง */
-  var hy = y, h1 = 8 * PX, h2 = 22 * PX, hh = h1 + h2;
+  var hy = y, h1 = 8 * PX, h2 = 14 * PX, hh = h1 + h2;
   var grp = {}; sc.groups.forEach(function (g) { for (var i = g.from; i <= g.to; i++) grp[i] = g; });
   var xs = [x0]; cols.forEach(function (c) { xs.push(xs[xs.length - 1] + c.w * PX); });
   ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.textAlign = 'center';
