@@ -167,14 +167,14 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 #printArea{display:none}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
-.psec{font-family:'PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
+.psec{font-family:'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
 table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.15}
 .pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
 .pt th{background:#d0d0d0;font-weight:700}
 .pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding:1mm .5mm}
-.ptop .co{font-size:16pt;font-weight:700;text-align:center;padding-bottom:1mm}
-.ptop .l{font-size:16pt;text-align:left;padding:.3mm 0}
-.ptop .title{font-size:16pt;font-weight:700;padding-bottom:2mm}
+.ptop .co{font-size:14pt;font-weight:700;text-align:center;padding-bottom:1mm}
+.ptop .l{font-size:14pt;text-align:left;padding:.3mm 0}
+.ptop .title{font-size:14pt;font-weight:700;padding-bottom:2mm}
 .pt tbody tr:nth-child(odd) td{background:#d9d9d9}
 .pt tbody tr:nth-child(even) td{background:#fff}
 .pt td.nm{text-align:left}
@@ -182,7 +182,7 @@ table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;l
 .pt tbody td{height:7.4mm}
 .pt thead{display:table-header-group}
 .pt tr{page-break-inside:avoid}
-.foot{margin-top:4mm;font-size:16pt;color:#444}
+.foot{margin-top:4mm;font-size:10pt;color:#444}
 @media print{
   @page{size:A4 portrait;margin:2mm}
   html,body{background:#fff}
@@ -1395,11 +1395,12 @@ $('#pdfClose').addEventListener('click', closePdf);
  * วาดแต่ละหน้า A4 ลง canvas (เบราว์เซอร์จัดวรรณยุกต์ไทยให้เอง) แล้วห่อเป็นไฟล์ PDF · หน้าตาเหมือนกันทุกเครื่อง */
 var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };   /* สัดส่วนความกว้างคอลัมน์ (%) */
 function pw(k) { return PW[k.k] || k.w; }
-var PDF_FONT = "'Mali','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PDF_FONT = "'Bai Jamjuree','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
 var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
 var PDF_W = 210, PDF_H = 297, PDF_M = 2;   /* A4 แนวตั้ง */
 var PDF_BODY = 10;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
-var PDF_TOP = 16;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
+var PDF_TOP = 14;
+var PDF_TIME = 10;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
 var _seg = null;
 function thWords(s) {
   try { if (!_seg && window.Intl && Intl.Segmenter) _seg = new Intl.Segmenter('th', { granularity: 'word' }); } catch (e) {}
@@ -1576,8 +1577,9 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     });
   });
   /* ท้ายหน้า */
-  ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TOP, false);
+  ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TIME, false);
   ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
+  pdfFont(ctx, PDF_TOP, false);
   ctx.textAlign = 'right'; ctx.fillText('หน้า ' + pageNo + '/' + pageTotal, W - x0, H - PDF_M * PX - 3 * PX);
 }
 
@@ -1611,7 +1613,7 @@ function pdfFromJpegs(jp) {
   push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
   return new Blob(parts, { type: 'application/pdf' });
 }
-/* ฟอนต์ Mali: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
+/* ฟอนต์ Bai Jamjuree: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
 function fontInstalled(name) {
   var c = document.createElement('canvas').getContext('2d'), t = 'ทดสอบกขค็้ิ๊123';
   c.font = '40px monospace'; var a = c.measureText(t).width;
@@ -1619,15 +1621,15 @@ function fontInstalled(name) {
   return c.measureText(t).width !== a;
 }
 async function ensureThaiFont() {
-  if (fontInstalled('Mali')) return;
+  if (fontInstalled('Bai Jamjuree')) return;
   try {
     if (!document.getElementById('maliCss')) {
       var l = document.createElement('link'); l.id = 'maliCss'; l.rel = 'stylesheet';
-      l.href = 'https://fonts.googleapis.com/css2?family=Mali:wght@400;700&display=swap';
+      l.href = 'https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;700&display=swap';
       document.head.appendChild(l);
     }
     await Promise.race([
-      Promise.all([document.fonts.load('400 32px Mali', 'ทดสอบ'), document.fonts.load('700 32px Mali', 'ทดสอบ')]),
+      Promise.all([document.fonts.load('400 32px "Bai Jamjuree"', 'ทดสอบ'), document.fonts.load('700 32px "Bai Jamjuree"', 'ทดสอบ')]),
       new Promise(function (r) { setTimeout(r, 5000); })
     ]);
   } catch (e) {}
