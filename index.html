@@ -178,7 +178,7 @@ table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5pt
 .pt tbody tr:nth-child(odd) td{background:#d9d9d9}
 .pt tbody tr:nth-child(even) td{background:#fff}
 .pt td.nm{text-align:left}
-.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding-left:.4mm;padding-right:.4mm}
+.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:10.5pt;padding-left:.4mm;padding-right:.4mm}
 .pt tbody td{height:7.4mm}
 .pt thead{display:table-header-group}
 .pt tr{page-break-inside:avoid}
@@ -1374,11 +1374,11 @@ function printSection(d) {
   }
   var top = '<div class="ptop">' +
     (h.company ? '<div class="co">' + esc(h.company) + '</div>' : '') +
-    '<div class="l">' + sc.handLines.map(esc).join('&emsp;&emsp;') + '</div>' +
+    '<div class="l">' + sc.handLines.map(function (t) { return esc(handLbl(t)); }).join('&emsp;&emsp;') + '</div>' +
     '<div class="l">' + esc(stx) + '</div>' +
     '<div class="l title">' + esc(h.title) + (d.cat ? ' | หมวด ' + esc(d.cat) : '') + '</div></div>';
   return '<section class="psec">' + top + '<table class="pt"><colgroup>' +
-    sc.cols.map(function (k) { return '<col style="width:' + k.w + '%">'; }).join('') + '</colgroup><thead>' +
+    sc.cols.map(function (k) { return '<col style="width:' + pw(k) + '%">'; }).join('') + '</colgroup><thead>' +
     headRows(sc) + '</thead><tbody>' + body + '</tbody></table>' +
     '<div class="foot">พิมพ์เมื่อ ' + fmt(nowMs()) + '</div></section>';
 }
@@ -1391,7 +1391,252 @@ function pdfBlob(b64) {
 }
 function closePdf() { $('#pdfModal').classList.add('hidden'); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = ''; } }
 $('#pdfClose').addEventListener('click', closePdf);
-$('#btnPrint').addEventListener('click', function () { $('#btnPrintOld').click(); });
+/* ============================ สร้าง PDF ในเบราว์เซอร์ (ไม่ต้องพึ่งเซิร์ฟเวอร์/ฟอนต์เครื่อง/ไลบรารีภายนอก) ============================
+ * วาดแต่ละหน้า A4 ลง canvas (เบราว์เซอร์จัดวรรณยุกต์ไทยให้เอง) แล้วห่อเป็นไฟล์ PDF · หน้าตาเหมือนกันทุกเครื่อง */
+var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };   /* สัดส่วนความกว้างคอลัมน์ (%) */
+function pw(k) { return PW[k.k] || k.w; }
+var PDF_FONT = "'Mali','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
+var PDF_W = 210, PDF_H = 297, PDF_M = 8;   /* A4 แนวตั้ง */
+var PDF_BODY = 16;                          /* ขนาดตัวอักษรสูงสุด (pt) ย่อลงอัตโนมัติให้เลขบาร์พอดีช่อง */
+var _seg = null;
+function thWords(s) {
+  try { if (!_seg && window.Intl && Intl.Segmenter) _seg = new Intl.Segmenter('th', { granularity: 'word' }); } catch (e) {}
+  if (_seg) return Array.from(_seg.segment(s), function (x) { return x.segment; });
+  return String(s).split(/(\s+)/);
+}
+/* ตัดบรรทัดตามความกว้าง (px) — ตัดคำไทยได้ ถ้าคำเดียวยาวเกินช่องจะตัดกลางคำ */
+function wrapText(ctx, text, maxW) {
+  text = String(text == null ? '' : text);
+  var lines = [], cur = '';
+  thWords(text).forEach(function (w) {
+    if (ctx.measureText(cur + w).width <= maxW) { cur += w; return; }
+    if (cur.trim()) { lines.push(cur.trim()); cur = ''; }
+    if (ctx.measureText(w).width <= maxW) { cur = w.replace(/^\s+/, ''); return; }
+    Array.from(w).forEach(function (ch) {
+      if (ctx.measureText(cur + ch).width > maxW && cur) { lines.push(cur); cur = ''; }
+      cur += ch;
+    });
+  });
+  if (cur.trim()) lines.push(cur.trim());
+  return lines.length ? lines : [''];
+}
+function pdfFont(ctx, pt, bold) { ctx.font = (bold ? '700 ' : '400 ') + Math.round(pt * PT) + 'px ' + PDF_FONT; }
+function handLbl(t) { return String(t).replace(/^ผู้ตรวจนับ/, 'ชื่อ'); }
+function fitPt(ctx, lines, maxW, pt, bold) {
+  pdfFont(ctx, pt, bold);
+  while (pt > 6 && lines.some(function (t) { return ctx.measureText(t).width > maxW; })) { pt -= 0.5; pdfFont(ctx, pt, bold); }
+  return pt;
+}
+function headSplit(t) {
+  var m = /^(จำนวน(?:ใน|ต่อ)?)\s*(.+)$/.exec(String(t));
+  return m ? [m[1]].concat(m[2].split(/\s+/)) : [String(t)];
+}
+
+/* จัดหน้า: คืนรายการหน้า {sec, rows:[{cells:[lines..], h}], first} */
+function layoutSection(ctx, d) {
+  var c = S.cats.filter(function (x) { return x.sheet === d.sheet && x.cat === d.cat; })[0];
+  var sc = schemaOfCat(c), h = d.header;
+  var chosen = selectedPartners(), ip = sc.cols.map(function (k) { return k.k; }).indexOf('partner');
+  var rows = d.rows.filter(function (x) { return !(chosen.length && chosen.indexOf(String(x.v[ip]).trim()) < 0); });
+  var tw = PDF_W - PDF_M * 2, tot = 0;
+  sc.cols.forEach(function (k) { tot += pw(k); });
+  var cols = sc.cols.map(function (k) { return { k: k, w: tw * pw(k) / tot }; });
+  var padX = 1.2 * PX, LH = 0, MINH = 0;
+  /* หัวข้อด้านบน */
+  var stx = String(h.statusText || '');
+  if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts && stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
+  var topLines = {
+    company: h.company || '', hand: sc.handLines.map(handLbl).join('        '), status: stx,
+    title: String(h.title || '') + (d.cat ? ' | หมวด ' + d.cat : '')
+  };
+  var TOP_H = (h.company ? 11 : 0) + 7.5 + 7.5 + 10.5;                 /* mm */
+  var HEAD_H = 21.5;                                              /* mm หัวตาราง 2 แถว */
+  var FOOT_H = 9;
+  var bodyTop1 = PDF_M + TOP_H + HEAD_H, bodyTopN = PDF_M + HEAD_H, bodyBot = PDF_H - PDF_M - FOOT_H;
+  /* ฟอนต์เลขบาร์: ใช้ขนาดเดียวกันทั้งตาราง (ย่อให้พอดีกับเลขที่ยาวที่สุด ไม่ให้ชนคอลัมน์ข้างเคียง) */
+  var bpt = PDF_BODY;
+  rows.forEach(function (x) {
+    cols.forEach(function (c, j) {
+      if (!c.k.text) return;
+      var maxW = c.w * PX - padX * 2; pdfFont(ctx, bpt, false);
+      while (ctx.measureText(String(x.v[j])).width > maxW && bpt > 6) { bpt -= 0.5; pdfFont(ctx, bpt, false); }
+    });
+  });
+  /* ฟอนต์หัวตาราง: ขนาดเดียวกันทุกคอลัมน์ */
+  var hpt = PDF_BODY;
+  cols.forEach(function (c) { hpt = Math.min(hpt, fitPt(ctx, headSplit(c.k.label), c.w * PX - 1.6 * PX, hpt, true)); });
+  LH = bpt * 0.3528 * 1.25 * PX; MINH = Math.max(7 * PX, LH + 2.4 * PX);
+  /* วัดแต่ละแถว */
+  var items = rows.map(function (x, ri) {
+    var cells = x.v.map(function (v, j) {
+      var k = cols[j].k, maxW = cols[j].w * PX - padX * 2;
+      if (k.text) return { lines: [String(v)], pt: bpt };
+      pdfFont(ctx, bpt, false);
+      return { lines: wrapText(ctx, v, maxW), pt: bpt };
+    });
+    var nl = Math.max.apply(null, cells.map(function (c) { return c.lines.length; }));
+    return { cells: cells, h: Math.max(MINH, nl * LH + 2.4 * PX), n: ri };
+  });
+  var pages = [], cur = null, y = 0;
+  function newPage(first) { cur = { first: first, rows: [] }; pages.push(cur); y = (first ? bodyTop1 : bodyTopN) * PX; }
+  newPage(true);
+  items.forEach(function (it) {
+    if (y + it.h > bodyBot * PX && cur.rows.length) newPage(false);
+    cur.rows.push({ it: it, y: y }); y += it.h;
+  });
+  return { sc: sc, cols: cols, top: topLines, hasCo: !!h.company, pages: pages, empty: !items.length, headH: HEAD_H, topH: TOP_H, hpt: hpt };
+}
+
+function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
+  var sc = L.sc, cols = L.cols, x0 = PDF_M * PX, LINE = '#6f6f6f';
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'middle'; ctx.fillStyle = '#000';
+  var y = PDF_M * PX;
+  if (pg.first) {
+    ctx.textAlign = 'center';
+    if (L.hasCo) { pdfFont(ctx, 20, true); ctx.fillText(L.top.company, W / 2, y + 5.5 * PX); y += 11 * PX; }
+    ctx.textAlign = 'left'; pdfFont(ctx, PDF_BODY, false);
+    ctx.fillText(L.top.hand, x0, y + 3.75 * PX); y += 7.5 * PX;
+    ctx.fillText(L.top.status, x0, y + 3.75 * PX); y += 7.5 * PX;
+    pdfFont(ctx, 18, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10.5 * PX;
+  }
+  /* หัวตาราง */
+  var hy = y, h1 = 7.5 * PX, h2 = 14 * PX, hh = h1 + h2;
+  var grp = {}; sc.groups.forEach(function (g) { for (var i = g.from; i <= g.to; i++) grp[i] = g; });
+  var xs = [x0]; cols.forEach(function (c) { xs.push(xs[xs.length - 1] + c.w * PX); });
+  ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.textAlign = 'center';
+  var doneG = {};
+  cols.forEach(function (c, j) {
+    var g = grp[j + 1], cx = (xs[j] + xs[j + 1]) / 2, w = xs[j + 1] - xs[j];
+    ctx.fillStyle = '#d0d0d0';
+    if (!g) {
+      ctx.fillRect(xs[j], hy, w, hh); ctx.strokeRect(xs[j], hy, w, hh);
+      ctx.fillStyle = '#000'; var ln = headSplit(c.k.label); pdfFont(ctx, L.hpt, true);
+      ln.forEach(function (t, i) { ctx.fillText(t, cx, hy + hh / 2 + (i - (ln.length - 1) / 2) * 4.6 * PX); });
+    } else {
+      if (!doneG[g.label]) {
+        doneG[g.label] = 1; var gx = xs[g.from - 1], gw = xs[g.to] - gx;
+        ctx.fillRect(gx, hy, gw, h1); ctx.strokeRect(gx, hy, gw, h1);
+        ctx.fillStyle = '#000'; fitPt(ctx, [g.label], gw - 1.6 * PX, PDF_BODY, true); ctx.fillText(g.label, gx + gw / 2, hy + h1 / 2);
+      }
+      ctx.fillStyle = '#d0d0d0'; ctx.fillRect(xs[j], hy + h1, w, h2); ctx.strokeRect(xs[j], hy + h1, w, h2);
+      ctx.fillStyle = '#000'; var l2 = headSplit(c.k.label); pdfFont(ctx, L.hpt, true);
+      l2.forEach(function (t, i) { ctx.fillText(t, cx, hy + h1 + h2 / 2 + (i - (l2.length - 1) / 2) * L.hpt * 0.3528 * 1.25 * PX); });
+    }
+  });
+  /* เนื้อหา */
+  if (L.empty) {
+    var ey = hy + hh, eh = 8 * PX; ctx.strokeRect(x0, ey, xs[xs.length - 1] - x0, eh);
+    ctx.fillStyle = '#000'; pdfFont(ctx, 11, false); ctx.fillText('ไม่มีรายการ', (x0 + xs[xs.length - 1]) / 2, ey + eh / 2);
+  }
+  pg.rows.forEach(function (r) {
+    var ty = r.y, it = r.it, odd = (it.n % 2) === 0;
+    cols.forEach(function (c, j) {
+      var w = xs[j + 1] - xs[j], cell = it.cells[j];
+      ctx.fillStyle = odd ? '#ececec' : '#fff'; ctx.fillRect(xs[j], ty, w, it.h);
+      ctx.strokeStyle = LINE; ctx.strokeRect(xs[j], ty, w, it.h);
+      ctx.fillStyle = '#000'; pdfFont(ctx, cell.pt, false);
+      var left = c.k.k === 'name';
+      ctx.textAlign = left ? 'left' : 'center';
+      var tx = left ? xs[j] + 1.2 * PX : (xs[j] + xs[j + 1]) / 2, n = cell.lines.length, LH = cell.pt * 0.3528 * 1.25 * PX;
+      cell.lines.forEach(function (t, i) { ctx.fillText(t, tx, ty + it.h / 2 + (i - (n - 1) / 2) * LH); });
+    });
+  });
+  /* ท้ายหน้า */
+  ctx.fillStyle = '#444'; pdfFont(ctx, 12, false);
+  ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
+  ctx.textAlign = 'right'; ctx.fillText('หน้า ' + pageNo + '/' + pageTotal, W - x0, H - PDF_M * PX - 3 * PX);
+}
+
+function canvasJpeg(cv) {
+  return new Promise(function (res, rej) {
+    cv.toBlob(function (b) {
+      if (!b) return rej(new Error('สร้างภาพหน้า PDF ไม่สำเร็จ'));
+      b.arrayBuffer().then(function (ab) { res(new Uint8Array(ab)); }, rej);
+    }, 'image/jpeg', 0.93);
+  });
+}
+function pdfFromJpegs(jp) {
+  var PWd = (PDF_W / 25.4 * 72).toFixed(2), PHt = (PDF_H / 25.4 * 72).toFixed(2);
+  var enc = new TextEncoder(), parts = [], offs = [], len = 0, N = jp.length;
+  function push(x) { var b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; }
+  function obj(n, fn) { offs[n] = len; push(n + ' 0 obj\n'); fn(); push('\nendobj\n'); }
+  push('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');
+  obj(1, function () { push('<< /Type /Catalog /Pages 2 0 R >>'); });
+  obj(2, function () { push('<< /Type /Pages /Count ' + N + ' /Kids [' + jp.map(function (_, i) { return (3 + 3 * i) + ' 0 R'; }).join(' ') + '] >>'); });
+  jp.forEach(function (j, i) {
+    var p = 3 + 3 * i, c = p + 1, im = p + 2, cs = 'q ' + PWd + ' 0 0 ' + PHt + ' 0 0 cm /Im0 Do Q';
+    obj(p, function () { push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PWd + ' ' + PHt + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + c + ' 0 R >>'); });
+    obj(c, function () { push('<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream'); });
+    obj(im, function () {
+      push('<< /Type /XObject /Subtype /Image /Width ' + j.w + ' /Height ' + j.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + j.bytes.length + ' >>\nstream\n');
+      push(j.bytes); push('\nendstream');
+    });
+  });
+  var xref = len, total = 3 * N + 3, x = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+  for (var n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+  push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+  return new Blob(parts, { type: 'application/pdf' });
+}
+/* ฟอนต์ Mali: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
+function fontInstalled(name) {
+  var c = document.createElement('canvas').getContext('2d'), t = 'ทดสอบกขค็้ิ๊123';
+  c.font = '40px monospace'; var a = c.measureText(t).width;
+  c.font = '40px "' + name + '", monospace';
+  return c.measureText(t).width !== a;
+}
+async function ensureThaiFont() {
+  if (fontInstalled('Mali')) return;
+  try {
+    if (!document.getElementById('maliCss')) {
+      var l = document.createElement('link'); l.id = 'maliCss'; l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Mali:wght@400;700&display=swap';
+      document.head.appendChild(l);
+    }
+    await Promise.race([
+      Promise.all([document.fonts.load('400 32px Mali', 'ทดสอบ'), document.fonts.load('700 32px Mali', 'ทดสอบ')]),
+      new Promise(function (r) { setTimeout(r, 5000); })
+    ]);
+  } catch (e) {}
+}
+async function buildPrintPdf(results) {
+  await ensureThaiFont();
+  var W = Math.round(PDF_W * PX), H = Math.round(PDF_H * PX);
+  var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  var ctx = cv.getContext('2d');
+  if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+  var layouts = results.map(function (d) { return layoutSection(ctx, d); });
+  var total = layouts.reduce(function (s, L) { return s + L.pages.length; }, 0), no = 0, jp = [], at = fmt(nowMs());
+  for (var a = 0; a < layouts.length; a++) {
+    for (var b = 0; b < layouts[a].pages.length; b++) {
+      drawPage(ctx, W, H, layouts[a], layouts[a].pages[b], ++no, total, at);
+      jp.push({ bytes: await canvasJpeg(cv), w: W, h: H });
+    }
+  }
+  return pdfFromJpegs(jp);
+}
+
+$('#btnPrint').addEventListener('click', async function () {
+  var keys = checkedCatKeys();
+  if (!keys.length) { toast('เลือกหมวดที่ต้องการปริ้นก่อน', true); return; }
+  logUse('barcode', 'สร้าง PDF เพื่อปริ้น', '');
+  var btn = this, label = btn.textContent; btn.textContent = 'กำลังสร้าง PDF…';
+  await busy(btn, async function () {
+    var results = await Promise.all(keys.map(function (k) {
+      var c = S.cats.filter(function (x) { return x.key === k; })[0];
+      return call('getCategoryData', c.sheet, c.cat);
+    }));
+    var blob = await buildPrintPdf(results);
+    if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    pdfUrl = URL.createObjectURL(blob);
+    var nm = 'รายการบาร์_' + new Date().toISOString().slice(0, 10) + '.pdf';
+    $('#pdfName').textContent = nm + ' · ' + results.length + ' หมวด · ' + Math.round(blob.size / 1024) + ' KB';
+    $('#pdfOpen').href = pdfUrl; $('#pdfDl').href = pdfUrl; $('#pdfDl').setAttribute('download', nm);
+    $('#pdfModal').classList.remove('hidden');
+  });
+  btn.textContent = label;
+});
 $('#btnPrintOld').addEventListener('click', async function () {
   logUse('barcode', 'ปริ้นจากเบราว์เซอร์', '');
   var keys = checkedCatKeys();
@@ -1469,7 +1714,7 @@ $('#bcExpBtn').addEventListener('click', function () {
   if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
   busy(this, async function () {
     var d = await call('getCategoryData', allCat().sheet, '*');
-    var aoa = [['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(d.rows.map(function (x) { return x.v.slice(0, 6); }));
+    var aoa = [['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'จำนวนต่อแพ็ค', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(d.rows.map(function (x) { return [x.v[0], x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; }));
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
     XLSX.writeFile(wb, 'รายการบาร์_' + new Date().toISOString().slice(0, 10) + '.xlsx');
   });
@@ -2164,8 +2409,8 @@ $('#sRepSend').addEventListener('click', function () {
   var k = $('#sRepKey').value, cnt = Number($('#sRepCount').value), iv = Number($('#sRepInt').value);
   if (!k) { toast('ยังไม่มีเสียงให้เลือก', true); return; }
   var l = $('#sRepKey').options[$('#sRepKey').selectedIndex].text;
-  sndPublish(SND.TF, { mode: 'file', key: k, repeatCount: cnt, intervalMinutes: iv, withIntroOutro: false },
-             'เล่นซ้ำ ' + l + ' ' + cnt + ' รอบ (' + (iv ? 'ทุกๆ ' + iv + ' นาที' : 'ทันที') + ')');
+  sndPublish(SND.TF, { mode: 'file', key: k, repeatCount: cnt, intervalMinutes: iv, withIntroOutro: true },
+             'เล่นซ้ำ ' + l + ' ' + cnt + ' รอบ (เปิด-ปิด, ' + (iv ? 'ทุกๆ ' + iv + ' นาที' : 'ทันที') + ')');
 });
 $('#sStaffSend').addEventListener('click', function () {
   var s = $('#sStaff'), code = s.value;
