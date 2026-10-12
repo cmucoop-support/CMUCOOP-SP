@@ -167,24 +167,24 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 #printArea{display:none}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
-.psec{font-family:'PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
-table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5pt;line-height:1.15}
+.psec{font-family:var(--pfont,'Bai Jamjuree'),'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
+table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.15}
 .pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
 .pt th{background:#d0d0d0;font-weight:700}
-.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:12pt;padding:1mm .5mm}
-.ptop .co{font-size:17pt;font-weight:700;text-align:center;padding-bottom:1mm}
-.ptop .l{font-size:12.5pt;text-align:left;padding:.3mm 0}
-.ptop .title{font-size:15pt;font-weight:700;padding-bottom:2mm}
+.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding:1mm .5mm}
+.ptop .co{font-size:14pt;font-weight:700;text-align:center;padding-bottom:1mm}
+.ptop .l{font-size:14pt;text-align:left;padding:.3mm 0}
+.ptop .title{font-size:14pt;font-weight:700;padding-bottom:2mm}
 .pt tbody tr:nth-child(odd) td{background:#d9d9d9}
 .pt tbody tr:nth-child(even) td{background:#fff}
 .pt td.nm{text-align:left}
-.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:10.5pt;padding-left:.4mm;padding-right:.4mm}
+.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding-left:.4mm;padding-right:.4mm}
 .pt tbody td{height:7.4mm}
 .pt thead{display:table-header-group}
 .pt tr{page-break-inside:avoid}
-.foot{margin-top:4mm;font-size:11pt;color:#444}
+.foot{margin-top:4mm;font-size:10pt;color:#444}
 @media print{
-  @page{size:A4 portrait;margin:8mm}
+  @page{size:A4 portrait;margin:2mm}
   html,body{background:#fff}
   body > *:not(#printArea){display:none!important}
   #printArea{display:block}
@@ -358,6 +358,12 @@ td.act{white-space:nowrap;min-width:170px}
 .mu-art{width:128px;aspect-ratio:16/9;border-radius:8px;background:var(--accent-soft) center/cover no-repeat;display:grid;place-items:center;font-size:26px;flex:none}
 .mu-title{font-weight:700;font-size:16.5px;line-height:1.35;overflow-wrap:anywhere}
 .mu-sub{color:var(--steel);font-size:13.5px}
+.mu-prog{margin-top:8px}
+.mu-bar{height:8px;border-radius:999px;background:#e3e7ee;overflow:hidden}
+.mu-bar i{display:block;height:100%;width:0;border-radius:999px;background:var(--accent)}
+.mu-bar.paused i{background:var(--warn)}
+.mu-bar.unk i{width:100%;background:repeating-linear-gradient(45deg,#d5dae3 0 8px,#e3e7ee 8px 16px)}
+.mu-ptime{display:flex;justify-content:space-between;color:var(--steel);font-size:12.5px;margin-top:3px;font-variant-numeric:tabular-nums}
 .mu-eq{display:inline-flex;gap:2px;align-items:flex-end;height:14px;margin-right:6px;vertical-align:-1px}
 .mu-eq b{width:3px;height:3px;background:var(--ok);border-radius:1px;animation:mueq 1s infinite ease-in-out}
 .mu-eq b:nth-child(2){animation-delay:.25s}.mu-eq b:nth-child(3){animation-delay:.5s}
@@ -463,6 +469,10 @@ td.act{white-space:nowrap;min-width:170px}
       <div class="pgroup" style="margin-top:6px">เลือกเฉพาะรหัสคู่ค้า <span class="muted" style="font-weight:400">(ไม่เลือกเลย = ปริ้นทุกรหัส)</span>
         <button type="button" class="btn ghost small" id="pPartnerClear">ล้างที่เลือก</button></div>
       <div class="plist" id="pPartners" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));max-height:30vh"></div>
+      <div class="pgroup" style="margin-top:12px;flex-wrap:wrap">ฟอนต์ตอนปริ้น
+        <select id="pFont"></select>
+        <span class="muted" style="font-weight:400" id="pFontNote"></span></div>
+      <div id="pFontSample" style="margin-top:6px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;font-size:18px;background:#fff">ตัวอย่าง: รายการบาร์เดี่ยว/บาร์แพ็ค 8851234567890 ก ข ค ฎ ฏ ญ ฐ ไก่ ป่า ผู้ ปี้</div>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="btnPrint">ปริ้นรายงาน</button>
         <button class="btn ghost hidden" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
@@ -506,6 +516,7 @@ td.act{white-space:nowrap;min-width:170px}
       <button data-sp="banner">Banner</button>
       <button data-sp="users">ผู้ใช้งาน</button>
       <button data-sp="sound">เสียงประกาศ</button>
+      <button data-sp="tv">หน้าจอ TV</button>
       <button data-sp="history">ประวัติการใช้งาน</button>
     </nav>
 
@@ -644,6 +655,44 @@ td.act{white-space:nowrap;min-width:170px}
         <tbody id="hiBody"></tbody></table></div>
       <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
     </div>
+    </section>
+
+    <section class="stp hidden" id="st-tv" style="display:grid;gap:16px">
+      <div class="card">
+        <h3>หน้าจอหลักสำหรับ TV (แบนเนอร์ + นาฬิกา + ตัวรับเสียง)</h3>
+        <div class="row">
+          <input type="text" id="sTv" readonly style="flex:1;min-width:260px">
+          <button class="btn ghost small" id="sTvCopy">คัดลอกลิงก์</button>
+          <a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
+        </div>
+        <div class="muted" style="margin-top:6px">หน้ารวมที่ไม่ต้องใช้ Google Site · เปิดลิงก์นี้บนเครื่อง TV แล้วกดปุ่ม ON ในกรอบตัวรับเสียง 1 ครั้ง · ใช้แทนลิงก์หน้ารับสัญญาณด้านบนได้เลย (ไม่ต้องเปิดทั้งสองหน้าพร้อมกัน เสียงจะซ้อนกัน)</div>
+      </div>
+      <div class="card">
+        <h3>ตั้งค่าหน้าจอ TV</h3>
+        <div class="muted" style="margin-bottom:8px">ปรับข้อความ สี และขนาดของหน้า tv.html · เมื่อกดบันทึก เครื่อง TV จะอัปเดตเองภายใน 1 นาที ไม่ต้องรีเฟรช</div>
+        <div class="grid">
+          <label>ชื่อร้าน<input type="text" id="tvShop" maxlength="80" autocomplete="off"></label>
+          <label>ข้อความต้อนรับ<input type="text" id="tvHelloMain" maxlength="60" autocomplete="off"></label>
+          <label>ข้อความต้อนรับ (บรรทัดเล็ก)<input type="text" id="tvHelloSub" maxlength="100" autocomplete="off"></label>
+          <label>ข้อความใต้แบนเนอร์ (ไหลวนข้าง)<input type="text" id="tvCaption" maxlength="120" autocomplete="off"></label>
+          <label>สีพื้นหลัง<input type="color" id="tvBg" style="height:38px;padding:2px 4px"></label>
+          <label>ความกว้างหน้า (px) 480–1400<input type="number" id="tvWidth" min="480" max="1400" step="10"></label>
+          <label>ความสูงแบนเนอร์ (px) 60–600<input type="number" id="tvBannerH" min="60" max="600" step="10"></label>
+          <label>ความสูงกรอบตัวรับเสียง (px) 150–900<input type="number" id="tvReceiverH" min="150" max="900" step="10"></label>
+          <label>ขนาดตัวอักษรนาฬิกา (px) 10–200<input type="number" id="tvFontClock" min="10" max="200" step="1"></label>
+          <label>ขนาดตัวอักษรชื่อร้าน (px) 10–200<input type="number" id="tvFontShop" min="10" max="200" step="1"></label>
+          <label>ขนาดตัวอักษรข้อความต้อนรับ (px) 10–200<input type="number" id="tvFontHello" min="10" max="200" step="1"></label>
+          <label>ขนาดตัวอักษรข้อความใต้แบนเนอร์ (px) 10–200<input type="number" id="tvFontCaption" min="10" max="200" step="1"></label>
+          <label>ความเร็วข้อความใต้แบนเนอร์ไหล (px/วินาที) 10–400<input type="number" id="tvCapSpeed" min="10" max="400" step="5"></label>
+        </div>
+        <div class="row" style="margin-top:10px;gap:18px">
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowLogo"> แสดงโลโก้</label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowClock"> แสดงนาฬิกา</label>
+          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowBanner"> แสดงแบนเนอร์</label>
+        </div>
+        <div class="muted" style="margin-top:6px">ช่องข้อความเว้นว่างได้ = ไม่แสดงบรรทัดนั้น · ตัวรับเสียงต้องเปิดไว้เสมอ จึงไม่มีตัวเลือกซ่อน</div>
+        <div class="addbar"><button class="btn" id="tvSave">บันทึก</button> <button class="btn ghost" id="tvReset">คืนค่าเริ่มต้น</button></div>
+      </div>
     </section>
 
     <section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
@@ -1085,7 +1134,7 @@ async function refreshCats() {
   var r = await call('getInit');
   S.cats = r.categories; S.sheets = r.sheets; S.schemas = r.schemas; S.overall = r.overall;
   S.offset = r.now - Date.now();
-  renderSide(); renderStatus(); renderPrintList();
+  renderSide(); renderStatus(); renderPrintList(); pfRender(r.printFont, r.printFonts);
 }
 
 /* ============================ เลือกหมวด / ตาราง ============================ */
@@ -1373,7 +1422,7 @@ function printSection(d) {
     if (stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   }
   var top = '<div class="ptop">' +
-    (h.company ? '<div class="co">' + esc(h.company) + '</div>' : '') +
+    (h.company ? '<div class="co">' + esc(coName(h.company)) + '</div>' : '') +
     '<div class="l">' + sc.handLines.map(function (t) { return esc(handLbl(t)); }).join('&emsp;&emsp;') + '</div>' +
     '<div class="l">' + esc(stx) + '</div>' +
     '<div class="l title">' + esc(h.title) + (d.cat ? ' | หมวด ' + esc(d.cat) : '') + '</div></div>';
@@ -1395,10 +1444,13 @@ $('#pdfClose').addEventListener('click', closePdf);
  * วาดแต่ละหน้า A4 ลง canvas (เบราว์เซอร์จัดวรรณยุกต์ไทยให้เอง) แล้วห่อเป็นไฟล์ PDF · หน้าตาเหมือนกันทุกเครื่อง */
 var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };   /* สัดส่วนความกว้างคอลัมน์ (%) */
 function pw(k) { return PW[k.k] || k.w; }
-var PDF_FONT = "'Mali','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PDF_FONT_TAIL = "'Bai Jamjuree','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PRINT_FONT = 'Bai Jamjuree', PDF_FONT = "'Bai Jamjuree'," + PDF_FONT_TAIL;
 var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
-var PDF_W = 210, PDF_H = 297, PDF_M = 8;   /* A4 แนวตั้ง */
-var PDF_BODY = 16;                          /* ขนาดตัวอักษรสูงสุด (pt) ย่อลงอัตโนมัติให้เลขบาร์พอดีช่อง */
+var PDF_W = 210, PDF_H = 297, PDF_M = 2;   /* A4 แนวตั้ง */
+var PDF_BODY = 10;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
+var PDF_TOP = 14;
+var PDF_TIME = 10;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
 var _seg = null;
 function thWords(s) {
   try { if (!_seg && window.Intl && Intl.Segmenter) _seg = new Intl.Segmenter('th', { granularity: 'word' }); } catch (e) {}
@@ -1422,50 +1474,81 @@ function wrapText(ctx, text, maxW) {
   return lines.length ? lines : [''];
 }
 function pdfFont(ctx, pt, bold) { ctx.font = (bold ? '700 ' : '400 ') + Math.round(pt * PT) + 'px ' + PDF_FONT; }
+function coName(t) { t = String(t || '').trim(); return /เชียงใหม่$/.test(t) ? t + ' จำกัด' : t; }
 function handLbl(t) { return String(t).replace(/^ผู้ตรวจนับ/, 'ชื่อ'); }
 function fitPt(ctx, lines, maxW, pt, bold) {
   pdfFont(ctx, pt, bold);
   while (pt > 6 && lines.some(function (t) { return ctx.measureText(t).width > maxW; })) { pt -= 0.5; pdfFont(ctx, pt, bold); }
   return pt;
 }
-function headSplit(t) {
-  var m = /^(จำนวน(?:ใน|ต่อ)?)\s*(.+)$/.exec(String(t));
-  return m ? [m[1]].concat(m[2].split(/\s+/)) : [String(t)];
+function headSplit(t) {                      /* หัวคอลัมน์ไม่เกิน 3 บรรทัด: "จำนวน / ในระบบ / แพ็ค" (คอลัมน์แคบ เหลือที่ให้ชื่อรายการ) */
+  t = String(t);
+  var m = /^จำนวน(ต่อ|ใน)?\s*(.+)$/.exec(t);
+  if (m) { var r = m[2].split(/\s+/); if (m[1]) r[0] = m[1] + r[0]; return ['จำนวน'].concat(r); }
+  return t === 'รหัสคู่ค้า' ? ['รหัส', 'คู่ค้า'] : [t];
 }
 
+/* ความกว้างคอลัมน์ (mm) ที่ 10pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
+function fixedWidths(ctx, sc, rows, tw) {
+  var PADMM = 1.5, n = sc.cols.length, need = [], hmin = [], nameJ = -1;
+  sc.cols.forEach(function (k, j) {
+    if (k.k === 'name') nameJ = j;
+    pdfFont(ctx, PDF_BODY, true);
+    var hd = Math.max.apply(null, headSplit(k.label).map(function (t) { return ctx.measureText(t).width; })) / PX + PADMM;
+    pdfFont(ctx, PDF_BODY, false);
+    var bd = 0; rows.forEach(function (x) { bd = Math.max(bd, ctx.measureText(String(x.v[j] == null ? '' : x.v[j])).width / PX + PADMM); });
+    hmin[j] = k.text ? hd : Math.max(hd, Math.min(bd, 18));   /* ห้ามย่อต่ำกว่าข้อมูลจริง (รหัสคู่ค้า/หมวดไม่ถูกตัดขึ้นบรรทัดใหม่) */
+    need[j] = k.text ? Math.max(hd, bd) : Math.max(hd, Math.min(bd, 18));
+  });
+  [['spread', 'old'], ['qtyPack', 'qtyUnit']].forEach(function (g) {   /* คอลัมน์ชุดเดียวกันกว้างเท่ากัน */
+    var js = [], mx = 0; sc.cols.forEach(function (k, j) { if (g.indexOf(k.k) >= 0) { js.push(j); mx = Math.max(mx, need[j]); hmin[j] = Math.max.apply(null, js.map(function (q) { return hmin[q]; })); } });
+    js.forEach(function (j) { need[j] = mx; });
+  });
+  var NAME_MIN = 38, fixed = 0, sum;
+  need.forEach(function (w, j) { if (j !== nameJ) fixed += w; });
+  var nameW = nameJ >= 0 ? tw - fixed : 0;
+  if (nameJ >= 0 && nameW < NAME_MIN) {                              // ไม่พอ: ลดคอลัมน์ที่ไม่ใช่เลขบาร์ลงไม่เกินความกว้างหัวตาราง
+    var slack = 0; need.forEach(function (w, j) { if (j !== nameJ && !sc.cols[j].text) slack += w - hmin[j]; });
+    var cut = Math.min(slack, NAME_MIN - nameW);
+    if (slack > 0) need.forEach(function (w, j) { if (j !== nameJ && !sc.cols[j].text) need[j] = w - (w - hmin[j]) / slack * cut; });
+    fixed = 0; need.forEach(function (w, j) { if (j !== nameJ) fixed += w; });
+    nameW = tw - fixed;
+  }
+  if (nameJ >= 0) need[nameJ] = Math.max(nameW, 14);
+  sum = need.reduce(function (a, b) { return a + b; }, 0);
+  if (sum > tw) {                                                    // ยังเกิน: ย่อเฉพาะคอลัมน์ที่ไม่ใช่เลขบาร์ (เลขบาร์ห้ามถูกตัด)
+    var over = sum - tw, shr = 0;
+    need.forEach(function (w, j) { if (!sc.cols[j].text) shr += w; });
+    need.forEach(function (w, j) { if (!sc.cols[j].text) need[j] = w - over * w / shr; });
+  } else if (nameJ < 0 || sum < tw) {                                // เหลือ: เฉลี่ยให้ทุกคอลัมน์
+    need = need.map(function (w) { return w * tw / sum; });
+  }
+  return sc.cols.map(function (k, j) { return { k: k, w: need[j] }; });
+}
 /* จัดหน้า: คืนรายการหน้า {sec, rows:[{cells:[lines..], h}], first} */
 function layoutSection(ctx, d) {
   var c = S.cats.filter(function (x) { return x.sheet === d.sheet && x.cat === d.cat; })[0];
   var sc = schemaOfCat(c), h = d.header;
   var chosen = selectedPartners(), ip = sc.cols.map(function (k) { return k.k; }).indexOf('partner');
   var rows = d.rows.filter(function (x) { return !(chosen.length && chosen.indexOf(String(x.v[ip]).trim()) < 0); });
-  var tw = PDF_W - PDF_M * 2, tot = 0;
-  sc.cols.forEach(function (k) { tot += pw(k); });
-  var cols = sc.cols.map(function (k) { return { k: k, w: tw * pw(k) / tot }; });
-  var padX = 1.2 * PX, LH = 0, MINH = 0;
+  var tw = PDF_W - PDF_M * 2;
+    var cols = fixedWidths(ctx, sc, rows, tw);
+  var padX = 0.7 * PX, LH = 0, MINH = 0;
   /* หัวข้อด้านบน */
   var stx = String(h.statusText || '');
   if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts && stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   var topLines = {
-    company: h.company || '', hand: sc.handLines.map(handLbl).join('        '), status: stx,
+    company: coName(h.company), hand: sc.handLines.map(handLbl).join('        '), status: stx,
     title: String(h.title || '') + (d.cat ? ' | หมวด ' + d.cat : '')
   };
-  var TOP_H = (h.company ? 11 : 0) + 7.5 + 7.5 + 10.5;                 /* mm */
-  var HEAD_H = 21.5;                                              /* mm หัวตาราง 2 แถว */
-  var FOOT_H = 9;
+  var TOP_H = (h.company ? 9 : 0) + 8 + 8 + 10;                 /* mm */
+  var HEAD_H = 22;                                              /* mm หัวตาราง 2 แถว */
+  var FOOT_H = 10;
   var bodyTop1 = PDF_M + TOP_H + HEAD_H, bodyTopN = PDF_M + HEAD_H, bodyBot = PDF_H - PDF_M - FOOT_H;
   /* ฟอนต์เลขบาร์: ใช้ขนาดเดียวกันทั้งตาราง (ย่อให้พอดีกับเลขที่ยาวที่สุด ไม่ให้ชนคอลัมน์ข้างเคียง) */
-  var bpt = PDF_BODY;
-  rows.forEach(function (x) {
-    cols.forEach(function (c, j) {
-      if (!c.k.text) return;
-      var maxW = c.w * PX - padX * 2; pdfFont(ctx, bpt, false);
-      while (ctx.measureText(String(x.v[j])).width > maxW && bpt > 6) { bpt -= 0.5; pdfFont(ctx, bpt, false); }
-    });
-  });
+  var bpt = PDF_BODY;   /* ขนาดคงที่ 10pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
   /* ฟอนต์หัวตาราง: ขนาดเดียวกันทุกคอลัมน์ */
   var hpt = PDF_BODY;
-  cols.forEach(function (c) { hpt = Math.min(hpt, fitPt(ctx, headSplit(c.k.label), c.w * PX - 1.6 * PX, hpt, true)); });
   LH = bpt * 0.3528 * 1.25 * PX; MINH = Math.max(7 * PX, LH + 2.4 * PX);
   /* วัดแต่ละแถว */
   var items = rows.map(function (x, ri) {
@@ -1495,14 +1578,14 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
   var y = PDF_M * PX;
   if (pg.first) {
     ctx.textAlign = 'center';
-    if (L.hasCo) { pdfFont(ctx, 20, true); ctx.fillText(L.top.company, W / 2, y + 5.5 * PX); y += 11 * PX; }
-    ctx.textAlign = 'left'; pdfFont(ctx, PDF_BODY, false);
-    ctx.fillText(L.top.hand, x0, y + 3.75 * PX); y += 7.5 * PX;
-    ctx.fillText(L.top.status, x0, y + 3.75 * PX); y += 7.5 * PX;
-    pdfFont(ctx, 18, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10.5 * PX;
+    if (L.hasCo) { pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.company, W / 2, y + 4.5 * PX); y += 9 * PX; }
+    ctx.textAlign = 'left'; pdfFont(ctx, PDF_TOP, false);
+    ctx.fillText(L.top.hand, x0, y + 4 * PX); y += 8 * PX;
+    ctx.fillText(L.top.status, x0, y + 4 * PX); y += 8 * PX;
+    pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10 * PX;
   }
   /* หัวตาราง */
-  var hy = y, h1 = 7.5 * PX, h2 = 14 * PX, hh = h1 + h2;
+  var hy = y, h1 = 8 * PX, h2 = 14 * PX, hh = h1 + h2;
   var grp = {}; sc.groups.forEach(function (g) { for (var i = g.from; i <= g.to; i++) grp[i] = g; });
   var xs = [x0]; cols.forEach(function (c) { xs.push(xs[xs.length - 1] + c.w * PX); });
   ctx.lineWidth = 2; ctx.strokeStyle = LINE; ctx.textAlign = 'center';
@@ -1513,12 +1596,12 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     if (!g) {
       ctx.fillRect(xs[j], hy, w, hh); ctx.strokeRect(xs[j], hy, w, hh);
       ctx.fillStyle = '#000'; var ln = headSplit(c.k.label); pdfFont(ctx, L.hpt, true);
-      ln.forEach(function (t, i) { ctx.fillText(t, cx, hy + hh / 2 + (i - (ln.length - 1) / 2) * 4.6 * PX); });
+      ln.forEach(function (t, i) { ctx.fillText(t, cx, hy + hh / 2 + (i - (ln.length - 1) / 2) * L.hpt * 0.3528 * 1.25 * PX); });
     } else {
       if (!doneG[g.label]) {
         doneG[g.label] = 1; var gx = xs[g.from - 1], gw = xs[g.to] - gx;
         ctx.fillRect(gx, hy, gw, h1); ctx.strokeRect(gx, hy, gw, h1);
-        ctx.fillStyle = '#000'; fitPt(ctx, [g.label], gw - 1.6 * PX, PDF_BODY, true); ctx.fillText(g.label, gx + gw / 2, hy + h1 / 2);
+        ctx.fillStyle = '#000'; pdfFont(ctx, PDF_BODY, true); ctx.fillText(g.label, gx + gw / 2, hy + h1 / 2);
       }
       ctx.fillStyle = '#d0d0d0'; ctx.fillRect(xs[j], hy + h1, w, h2); ctx.strokeRect(xs[j], hy + h1, w, h2);
       ctx.fillStyle = '#000'; var l2 = headSplit(c.k.label); pdfFont(ctx, L.hpt, true);
@@ -1527,8 +1610,8 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
   });
   /* เนื้อหา */
   if (L.empty) {
-    var ey = hy + hh, eh = 8 * PX; ctx.strokeRect(x0, ey, xs[xs.length - 1] - x0, eh);
-    ctx.fillStyle = '#000'; pdfFont(ctx, 11, false); ctx.fillText('ไม่มีรายการ', (x0 + xs[xs.length - 1]) / 2, ey + eh / 2);
+    var ey = hy + hh, eh = 10 * PX; ctx.strokeRect(x0, ey, xs[xs.length - 1] - x0, eh);
+    ctx.fillStyle = '#000'; pdfFont(ctx, PDF_BODY, false); ctx.fillText('ไม่มีรายการ', (x0 + xs[xs.length - 1]) / 2, ey + eh / 2);
   }
   pg.rows.forEach(function (r) {
     var ty = r.y, it = r.it, odd = (it.n % 2) === 0;
@@ -1544,9 +1627,8 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     });
   });
   /* ท้ายหน้า */
-  ctx.fillStyle = '#444'; pdfFont(ctx, 12, false);
+  ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TIME, false);
   ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
-  ctx.textAlign = 'right'; ctx.fillText('หน้า ' + pageNo + '/' + pageTotal, W - x0, H - PDF_M * PX - 3 * PX);
 }
 
 function canvasJpeg(cv) {
@@ -1579,26 +1661,46 @@ function pdfFromJpegs(jp) {
   push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
   return new Blob(parts, { type: 'application/pdf' });
 }
-/* ฟอนต์ Mali: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
+/* ฟอนต์ Bai Jamjuree: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
 function fontInstalled(name) {
   var c = document.createElement('canvas').getContext('2d'), t = 'ทดสอบกขค็้ิ๊123';
   c.font = '40px monospace'; var a = c.measureText(t).width;
   c.font = '40px "' + name + '", monospace';
   return c.measureText(t).width !== a;
 }
+var PF_LOCAL = { 'TH Sarabun New': 1, 'Tahoma': 1 };   /* ฟอนต์ในเครื่อง ไม่โหลดจาก Google Fonts */
+function applyPrintFont(name) {                          /* ตั้งฟอนต์ปริ้นทั้งแบบ PDF (canvas) และแบบปริ้นจากเบราว์เซอร์ */
+  name = String(name || 'Bai Jamjuree').replace(/['"\\;{}<>]/g, '');
+  PRINT_FONT = name;
+  PDF_FONT = "'" + name + "'," + PDF_FONT_TAIL;
+  document.documentElement.style.setProperty('--pfont', "'" + name + "'");
+}
 async function ensureThaiFont() {
-  if (fontInstalled('Mali')) return;
+  var name = PRINT_FONT;
+  if (PF_LOCAL[name] || fontInstalled(name)) return;
   try {
-    if (!document.getElementById('maliCss')) {
-      var l = document.createElement('link'); l.id = 'maliCss'; l.rel = 'stylesheet';
-      l.href = 'https://fonts.googleapis.com/css2?family=Mali:wght@400;700&display=swap';
+    var id = 'pfCss-' + name.replace(/\s+/g, '-');
+    if (!document.getElementById(id)) {
+      var l = document.createElement('link'); l.id = id; l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;700&display=swap';
       document.head.appendChild(l);
     }
     await Promise.race([
-      Promise.all([document.fonts.load('400 32px Mali', 'ทดสอบ'), document.fonts.load('700 32px Mali', 'ทดสอบ')]),
+      Promise.all([document.fonts.load('400 32px "' + name + '"', 'ทดสอบ'), document.fonts.load('700 32px "' + name + '"', 'ทดสอบ')]),
       new Promise(function (r) { setTimeout(r, 5000); })
     ]);
   } catch (e) {}
+}
+async function pfRender(font, list) {                    /* แถวเลือกฟอนต์ในแท็บปริ้น: แอดมินเปลี่ยนได้ ผู้ใช้อื่นเห็นเฉพาะที่ตั้งไว้ */
+  var sel = $('#pFont'); if (!sel) return;
+  if (list && !sel.options.length) sel.innerHTML = list.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('');
+  applyPrintFont(font); sel.value = PRINT_FONT;
+  var admin = S.me && S.me.role === 'admin';
+  sel.disabled = !admin;
+  $('#pFontNote').textContent = admin ? 'แอดมินตั้งได้ · ใช้กับทุกคนที่ปริ้นรายงาน' : 'ตั้งโดยแอดมิน (เฉพาะแอดมินเปลี่ยนได้)';
+  $('#pFontSample').style.fontFamily = PDF_FONT;
+  await ensureThaiFont();
+  $('#pFontSample').style.fontFamily = PDF_FONT;
 }
 async function buildPrintPdf(results) {
   await ensureThaiFont();
@@ -1637,6 +1739,11 @@ $('#btnPrint').addEventListener('click', async function () {
   });
   btn.textContent = label;
 });
+$('#pFont').addEventListener('change', async function () {
+  var sel = this, prev = PRINT_FONT, v = sel.value;
+  try { var r = await call('setPrintFont', v); pfRender(r.font); toast('ตั้งฟอนต์ปริ้นเป็น ' + r.font + ' แล้ว'); }
+  catch (err) { toast(err.message, true); sel.value = prev; }
+});
 $('#btnPrintOld').addEventListener('click', async function () {
   logUse('barcode', 'ปริ้นจากเบราว์เซอร์', '');
   var keys = checkedCatKeys();
@@ -1647,6 +1754,7 @@ $('#btnPrintOld').addEventListener('click', async function () {
       var c = S.cats.filter(function (x) { return x.key === k; })[0];
       return call('getCategoryData', c.sheet, c.cat);
     }));
+    await ensureThaiFont();
     $('#printArea').innerHTML = results.map(printSection).join('');
     setTimeout(function () { window.print(); }, 150);
   });
@@ -2163,7 +2271,7 @@ $('#mBarcode').addEventListener('click', openBarcode);
 $('#btnHome').addEventListener('click', goPortal);
 
 /* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
-var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'history'];
+var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'tv', 'history'];
 $('#mSettings').addEventListener('click', function () { openSettings('cards'); });
 $('#stHome').addEventListener('click', goPortal);
 function openSettings(p) {
@@ -2179,6 +2287,7 @@ function stPanel(p) {
   else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
   else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
   else if (p === 'sound') sndLoadAdmin();
+  else if (p === 'tv') tvLoad();
   else if (p === 'history') openHistory();
 }
 $('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
@@ -2516,6 +2625,31 @@ $('#sAddBtn').addEventListener('click', function () { sndOpenEdit(null, 'ปุ�
 $('#sAddTimed').addEventListener('click', function () { sndOpenEdit(null, 'เสียงตามเวลา'); });
 $('#sFilter').addEventListener('change', sndRenderAdmin);
 $('#sRecvCopy').addEventListener('click', function () { copyField('#sRecv', 'คัดลอกลิงก์แล้ว'); });
+/* ----- ตั้งค่า > หน้าจอ TV ----- */
+var TVC = { def: null };
+function tvFill(c) {
+  $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
+  $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
+  $('#tvFontClock').value = c.fontClock; $('#tvFontShop').value = c.fontShop; $('#tvFontHello').value = c.fontHello; $('#tvFontCaption').value = c.fontCaption; $('#tvCapSpeed').value = c.capSpeed;
+  $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
+}
+async function tvLoad() {
+  var tvUrl = pageUrl('tv.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/tv.html'); $('#sTv').value = tvUrl; $('#sTvOpen').href = tvUrl;
+  try { var r = await call('getTvConfig'); TVC.def = r.def; tvFill(r.cfg); } catch (e) { toast(e.message, true); }
+}
+$('#tvSave').addEventListener('click', function () {
+  busy(this, async function () {
+    await call('setTvConfig', {
+      shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
+      bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
+      fontClock: $('#tvFontClock').value, fontShop: $('#tvFontShop').value, fontHello: $('#tvFontHello').value, fontCaption: $('#tvFontCaption').value, capSpeed: $('#tvCapSpeed').value,
+      showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
+    });
+    toast('บันทึกการตั้งค่าหน้าจอ TV แล้ว');
+  });
+});
+$('#tvReset').addEventListener('click', function () { if (TVC.def) { tvFill(TVC.def); toast('คืนค่าเริ่มต้นในฟอร์มแล้ว กด "บันทึก" เพื่อใช้งาน'); } });
+$('#sTvCopy').addEventListener('click', function () { copyField('#sTv', 'คัดลอกลิงก์แล้ว'); });
 function sndRow(r) { return SND.all.filter(function (x) { return x.row === Number(r); })[0]; }
 $('#sGoCfg').addEventListener('click', function () { openSettings('sound'); });
 $('#st-sound').addEventListener('click', async function (e) {
@@ -2606,11 +2740,35 @@ function openMusic() {
     if (document.body.dataset.nav !== 'music') { clearInterval(MU.timer); return; }
     if (!document.hidden) muLoad();
   }, 5000);
+  clearInterval(MU.timer2);
+  MU.timer2 = setInterval(function () {                    // ขยับแถบความคืบหน้าทุกวินาที (ระหว่างรอข้อมูลรอบใหม่จาก TV)
+    if (document.body.dataset.nav !== 'music') { clearInterval(MU.timer2); return; }
+    muBar();
+  }, 1000);
+}
+function muFmt(s) {
+  s = Math.max(0, Math.floor(s)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return (h ? h + ':' + pad2(m) : m) + ':' + pad2(s % 60);
+}
+function muBar() {                                         // คำนวณตำแหน่งเพลงตอนนี้จากที่ TV รายงานล่าสุด + เวลาที่ผ่านไป
+  var fill = $('#muBarFill'); if (!fill) return;
+  var p = MU.prog, bar = fill.parentNode, pos = $('#muPosT'), dur = $('#muDurT');
+  bar.classList.toggle('paused', !!MU.paused);
+  if (!p) { bar.classList.add('unk'); pos.textContent = '--:--'; dur.textContent = ''; return; }
+  bar.classList.remove('unk');
+  var age = Math.max(0, Math.min(Date.now() + (MU.skew || 0) - p.ts, 7000));
+  var cur = (p.pos || 0) + (p.mv && !MU.paused ? age / 1000 : 0);
+  if (p.dur > 0) cur = Math.min(cur, p.dur);
+  pos.textContent = muFmt(cur);
+  var trk = p.n ? 'เพลงที่ ' + p.idx + '/' + p.n : '';
+  dur.textContent = p.dur > 0 ? muFmt(p.dur) + (trk ? ' · ' + trk : '') : trk;
+  fill.style.width = p.dur > 0 ? (cur / p.dur * 100).toFixed(1) + '%' : '0%';
 }
 async function muLoad() {
   try {
     var r = await call('musicList');
     MU.rows = r.rows; MU.auto = r.auto; MU.tv = r.tv; MU.maxUser = r.maxUser; MU.fails = 0;
+    MU.paused = !!r.paused; MU.prog = r.prog || null; MU.skew = (r.now || Date.now()) - Date.now();   // skew = นาฬิกาเซิร์ฟเวอร์ − นาฬิกาเครื่องนี้
     if (!MU.volDrag) MU.vol = r.vol; if (!MU.avDrag) MU.avol = r.avol;
     muRender();
   } catch (e) { if (++MU.fails >= 2) $('#muCount').textContent = '⚠ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กำลังลองใหม่…'; }
@@ -2666,8 +2824,10 @@ function muRender() {
   /* กำลังเล่น */
   if (playing) {
     $('#muNow').innerHTML = muArt(playing) + '<div class="mu-nowinfo"><div class="mu-title"><span class="mu-eq"><b></b><b></b><b></b></span>' + esc(playing.title) + '</div>' +
-      '<div class="mu-sub">ขอโดย ' + esc(playing.by) + (playing.start ? ' · เริ่มเล่น ' + muTime(playing.start) : '') + '</div></div>' +
-      (admin ? '<div class="mu-act">' + muBtn('skip', '⏭ ข้ามเพลง', playing.id) + '</div>' : '');
+      '<div class="mu-sub">ขอโดย ' + esc(playing.by) + (playing.start ? ' · เริ่มเล่น ' + muTime(playing.start) : '') + (MU.paused ? ' <span class="mu-chip warn"><i></i>หยุดอยู่</span>' : '') + '</div>' +
+      '<div class="mu-prog"><div class="mu-bar"><i id="muBarFill"></i></div><div class="mu-ptime"><span id="muPosT">--:--</span><span id="muDurT"></span></div></div></div>' +
+      (admin ? '<div class="mu-act">' + (MU.paused ? muBtn('resume', '▶ เล่นต่อ', playing.id, 'solid') : muBtn('pause', '⏸ หยุดเพลง', playing.id)) + (playing.kind === 'ytlist' ? muBtn('nexttrack', '⏭ ข้ามเพลงนี้ในเพลย์ลิสต์', playing.id) : '') + muBtn('skip', '⏭ ข้ามเพลง', playing.id) + '</div>' : '');
+    muBar();
   } else {
     var hint = waiting.length ? (tv.online ? 'เพลงถัดไปกำลังจะเริ่มที่ TV ภายในไม่กี่วินาที' : 'มีเพลงรอคิว แต่ไม่พบ TV — ต้องเปิดหน้ารับสัญญาณ (receiver.html) ค้างไว้ที่ TV')
       : pending.length ? 'มีเพลงรออนุมัติ ' + pending.length + ' เพลง' : 'ขอเพลงได้จากช่องด้านล่างเลย';
@@ -2737,7 +2897,10 @@ $('#musicPage').addEventListener('click', async function (e) {
   if (a === 'skip' && !confirm('ข้ามเพลงที่กำลังเล่นอยู่?')) return;
   b.disabled = true;
   try {
-    if (a === 'cancel') await call('musicCancel', b.dataset.i); else await call('musicDecide', b.dataset.i, a);
+    if (a === 'cancel') await call('musicCancel', b.dataset.i);
+    else if (a === 'nexttrack') { await call('musicNextTrack', b.dataset.i); toast('สั่งข้ามไปเพลงถัดไปในเพลย์ลิสต์แล้ว'); }
+    else if (a === 'pause' || a === 'resume') { await call('musicPause', b.dataset.i, a === 'pause'); toast(a === 'pause' ? 'สั่งหยุดเพลงแล้ว' : 'สั่งเล่นเพลงต่อแล้ว'); }
+    else await call('musicDecide', b.dataset.i, a);
     muNotify(); await muLoad();
   } catch (err) { toast(err.message, true); b.disabled = false; muLoad(); }
 });

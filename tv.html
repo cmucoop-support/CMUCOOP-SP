@@ -11,7 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; }
+  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px;
+          --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
   html,body { margin:0; }
   body { background:var(--bg); color:#fff; font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif; min-height:100vh;
@@ -21,15 +22,21 @@
   .head { display:flex; align-items:center; justify-content:center; gap:18px; flex-wrap:wrap; text-align:center; }
   .logo { width:84px; height:84px; border-radius:50%; background:#fff; object-fit:cover; flex:none; box-shadow:0 2px 10px rgba(58,32,80,.25); }
   .txt { display:grid; gap:2px; font-weight:700; text-shadow:0 1px 2px rgba(58,32,80,.35); }
-  .clock { font-size:clamp(17px,3.4vw,22px); font-variant-numeric:tabular-nums; }
-  .shop  { font-size:clamp(17px,3.4vw,22px); }
-  .hello { font-size:clamp(17px,3.4vw,22px); }
+  .clock { font-size:var(--f-clock); font-variant-numeric:tabular-nums; }
+  .shop  { font-size:var(--f-shop); }
+  .hello { font-size:var(--f-hello); }
   .hello small { font-size:.62em; font-weight:600; opacity:.95; }
 
   .frame { width:100%; border:0; display:block; border-radius:14px; background:#fff; }
   #banner { height:var(--banner-h); background:transparent; }
   #receiver { height:var(--receiver-h); border-radius:16px; }
-  .caption { text-align:center; font-size:13px; font-weight:600; opacity:.95; }
+  /* ข้อความใต้แบนเนอร์: ไหลจากขวาไปซ้ายวนต่อเนื่อง */
+  .caption { overflow:hidden; white-space:nowrap; font-size:var(--f-caption); font-weight:700; line-height:1.5; opacity:.97;
+             text-shadow:0 1px 2px rgba(58,32,80,.35); }
+  .caption .track { display:inline-flex; will-change:transform; animation:marq linear infinite; animation-duration:var(--dur,20s); }
+  .caption .grp { display:inline-flex; flex:none; }
+  .caption .grp span { padding-right:3em; }
+  @keyframes marq { from { transform:translateX(0); } to { transform:translateX(-50%); } }
 
   .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; opacity:.9; }
   .foot button { font:inherit; color:#fff; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45);
@@ -72,18 +79,50 @@ var TEXT = {
   caption:  'ร้านสหกรณ์ มช. ยินดีให้บริการ'
 };
 var $ = function (id) { return document.getElementById(id); };
+/* ข้อความไหลวน: ทำสำเนาข้อความให้ยาวเกินความกว้างกรอบ แล้วเลื่อน -50% วนซ้ำแบบไม่มีรอยต่อ */
+var capText = '', capSpeed = 80;
+function setCaption(t) {
+  t = t || '';
+  var el = $('caption'); el.style.display = t ? '' : 'none';
+  if (t === capText && el.firstChild) return;
+  capText = t; layoutCaption(true);
+}
+function layoutCaption(force) {
+  var el = $('caption'); if (!capText) { el.textContent = ''; return; }
+  var track = el.firstChild, first = track && track.firstChild && track.firstChild.firstChild;
+  if (force || !track) {
+    el.textContent = '';
+    track = document.createElement('div'); track.className = 'track';
+    var g = document.createElement('div'); g.className = 'grp'; var sp = document.createElement('span'); sp.textContent = capText; g.appendChild(sp);
+    track.appendChild(g); el.appendChild(track);
+  }
+  var g1 = track.firstChild, one = g1.firstChild.getBoundingClientRect().width || 1, cw = el.clientWidth || 760;
+  var n = Math.max(1, Math.ceil(cw / one));                 // จำนวนสำเนาต่อกลุ่ม ให้กลุ่มกว้างกว่ากรอบ
+  while (g1.childNodes.length < n) { var c = g1.firstChild.cloneNode(true); g1.appendChild(c); }
+  while (g1.childNodes.length > n) g1.removeChild(g1.lastChild);
+  while (track.childNodes.length > 1) track.removeChild(track.lastChild);
+  track.appendChild(g1.cloneNode(true));                    // กลุ่มที่สองเหมือนกลุ่มแรก
+  track.style.setProperty('--dur', (g1.getBoundingClientRect().width / Math.max(10, capSpeed)).toFixed(2) + 's');
+}
+window.addEventListener('resize', function () { layoutCaption(); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { layoutCaption(); });
 function applyCfg(c) {
   c = c || {};
   var T = function (k) { return c[k] === undefined || c[k] === null ? TEXT[k] : c[k]; };
   $('shopName').textContent = T('shop'); $('shopName').style.display = T('shop') ? '' : 'none';
   $('helloMain').textContent = T('helloMain'); $('helloSub').textContent = T('helloSub');
   $('helloMain').parentNode.style.display = (T('helloMain') || T('helloSub')) ? '' : 'none';
-  $('caption').textContent = T('caption'); $('caption').style.display = T('caption') ? '' : 'none';
+  setCaption(T('caption'));
   var r = document.documentElement.style;
   if (c.bg) r.setProperty('--bg', c.bg);
   if (c.width) r.setProperty('--w', c.width + 'px');
   if (c.bannerH) r.setProperty('--banner-h', c.bannerH + 'px');
   if (c.receiverH) r.setProperty('--receiver-h', c.receiverH + 'px');
+  [['fontClock','--f-clock'],['fontShop','--f-shop'],['fontHello','--f-hello'],['fontCaption','--f-caption']].forEach(function (p) {
+    if (c[p[0]]) r.setProperty(p[1], c[p[0]] + 'px');
+  });
+  if (c.capSpeed) capSpeed = Number(c.capSpeed) || 80;
+  layoutCaption();
   $('logo').style.display = c.showLogo === false ? 'none' : '';
   $('clock').style.display = c.showClock === false ? 'none' : '';
   $('banner').style.display = c.showBanner === false ? 'none' : '';
