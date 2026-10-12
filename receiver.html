@@ -138,7 +138,7 @@ function idOf(list, code) {
 
 /* ---------- ระบบเพลงจากคิว ---------- */
 var ANN_VOL = 100;                                           // ความดังเสียงประกาศ (ตั้งจากหน้าขอเพลง แยกจากเพลง)
-var MUS = { cmdSeq: 0, userPaused: false, vol: 70, cur: null, yt: null, ytReady: false, ytWant: null, au: null, held: 0, next: null, calling: false, adMuted: false, adSince: 0 };
+var MUS = { vol: 70, cur: null, yt: null, ytReady: false, ytWant: null, au: null, held: 0, next: null, calling: false, adMuted: false, adSince: 0 };
 window.onYouTubeIframeAPIReady = function () {
   MUS.ytReady = true;
   if (MUS.ytWant) { var w = MUS.ytWant; MUS.ytWant = null; musicStart(w); }
@@ -213,7 +213,7 @@ function musicStart(item) {
       musicApplyVol(); return;
     }
     var pv = { autoplay: 1, playsinline: 1, rel: 0 }, cfg = { width: '100%', height: '100%', playerVars: pv, events: {
-      onReady: function (e) { musicApplyVol(); if (MUS.held || MUS.userPaused) e.target.pauseVideo(); else e.target.playVideo(); },
+      onReady: function (e) { musicApplyVol(); if (MUS.held) e.target.pauseVideo(); else e.target.playVideo(); },
       onStateChange: function (e) {
         if (e.data === 0) { if (musicYtLast()) musicEnd(true); }
         else if (e.data === 1) { adCheck(); if (!MUS.held && !MUS.adMuted) $('#musicSub').textContent = musicSubText(); }
@@ -227,7 +227,6 @@ function musicStart(item) {
     var a = new Audio(item.ref); MUS.au = a; a.volume = MUS.vol / 100;
     a.onended = function () { musicEnd(true); };
     a.onerror = function () { musicEnd(false); };
-    if (MUS.userPaused) return;                              // แอดมินสั่งหยุดไว้ก่อนเพลงเริ่ม: รอสั่งเล่นต่อ
     a.play().catch(function (err) {
       if (err && err.name === 'NotAllowedError') {          // เบราว์เซอร์ยังไม่ให้เล่นเอง: รอแตะจอ 1 ครั้ง
         $('#musicSub').textContent = 'แตะหน้าจอ 1 ครั้งเพื่อเริ่มเล่นเพลง';
@@ -238,7 +237,7 @@ function musicStart(item) {
 }
 function musicEnd(ok) {
   var c = MUS.cur; if (!c) return;
-  MUS.cur = null; MUS.userPaused = false; musicStopMedia();
+  MUS.cur = null; musicStopMedia();
   google.script.run.withSuccessHandler(musicTick).withFailureHandler(musicTick).musicTvEnd(c.id, !!ok);
 }
 /* หยุดเพลงระหว่างมีประกาศ (นับซ้อนได้) และเล่นต่อเมื่อประกาศจบ */
@@ -254,60 +253,21 @@ function musicRelease() {
   if (MUS.held) return;
   if (MUS.next) { var n = MUS.next; MUS.next = null; musicStart(n); return; }
   if (!MUS.cur) return;
-  if (MUS.userPaused) { $('#musicSub').textContent = '⏸ หยุดเพลงโดยผู้ดูแล'; return; }   // ประกาศจบแล้วแต่แอดมินสั่งหยุดอยู่ → ไม่เล่นต่อเอง
   $('#musicSub').textContent = musicSubText();
   if (MUS.au) MUS.au.play().catch(function () {});
   if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) MUS.yt.playVideo();
-}
-/* หยุด/เล่นต่อตามที่แอดมินสั่งจากหน้าขอเพลง (ซ้อนกับการหยุดระหว่างประกาศได้: เล่นต่อเมื่อไม่มีทั้งสองอย่าง) */
-function musicApplyPause(p) {
-  p = !!p; if (p === MUS.userPaused) return;
-  MUS.userPaused = p;
-  if (!MUS.cur) return;
-  if (p) {
-    if (MUS.au) MUS.au.pause();
-    if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.pauseVideo) { try { MUS.yt.pauseVideo(); } catch (e) {} }
-    if (!MUS.held) $('#musicSub').textContent = '⏸ หยุดเพลงโดยผู้ดูแล';
-  } else if (!MUS.held) {
-    $('#musicSub').textContent = musicSubText();
-    if (MUS.au) MUS.au.play().catch(function () {});
-    if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) { try { MUS.yt.playVideo(); } catch (e) {} }
-  }
-}
-/* ตำแหน่งที่เพลงเล่นถึง ส่งขึ้นเซิร์ฟเวอร์พร้อมการเช็กคิวทุก 5 วินาที เพื่อให้หน้าขอเพลงแสดงแถบความคืบหน้า */
-function musicProg() {
-  var c = MUS.cur; if (!c) return {};
-  try {
-    if (MUS.au) return { pos: MUS.au.currentTime || 0, dur: isFinite(MUS.au.duration) ? MUS.au.duration : 0, mv: !MUS.au.paused && !MUS.au.ended };
-    if (/^yt/.test(c.kind) && MUS.yt && MUS.yt.getCurrentTime) {
-      if (MUS.adMuted) return {};                           // กำลังเล่นโฆษณา: เวลาของโฆษณาไม่ใช่เวลาของเพลง ไม่รายงาน
-      var o = { pos: MUS.yt.getCurrentTime() || 0, dur: MUS.yt.getDuration() || 0, mv: MUS.yt.getPlayerState() === 1 };
-      if (c.kind === 'ytlist') { var l = MUS.yt.getPlaylist() || []; if (l.length > 1) { o.idx = MUS.yt.getPlaylistIndex() + 1; o.n = l.length; } }
-      return o;
-    }
-  } catch (e) {}
-  return {};
-}
-/* ข้ามไปเพลงถัดไปในเพลย์ลิสต์ (ถ้าเป็นเพลงสุดท้ายก็จบรายการนั้นเลย) */
-function musicNextTrack() {
-  if (!MUS.cur || MUS.cur.kind !== 'ytlist' || !MUS.yt) return;
-  if (musicYtLast()) { musicEnd(true); return; }
-  try { MUS.adMuted = true; MUS.adSince = Date.now(); musicApplyVol(); MUS.yt.nextVideo(); } catch (e) { musicEnd(false); return; }   // ปิดเสียงไว้ก่อนจนยืนยันว่าเป็นตัวเพลง เหมือนตอนเริ่มเพลง
-  if (MUS.userPaused || MUS.held) setTimeout(function () { try { MUS.yt.pauseVideo(); } catch (e) {} }, 400);
 }
 function musicApply(r) {
   if (r && r.avol != null) ANN_VOL = Math.max(10, Math.min(100, Number(r.avol) || 100));
   if (r && r.vol != null && Number(r.vol) !== MUS.vol) { MUS.vol = Math.max(0, Math.min(100, Number(r.vol))); musicApplyVol(); }
   if (!r || r.action === 'keep') return;
   if (r.action === 'idle') {
-    MUS.next = null; MUS.userPaused = false;
+    MUS.next = null;
     if (MUS.cur) { MUS.cur = null; musicStopMedia(); }
     $('#musicBox').classList.add('hidden');
     return;
   }
-  if (r.action === 'play') { MUS.userPaused = !!r.paused; if (MUS.held > 0) MUS.next = r.item; else musicStart(r.item); return; }
-  if (r.cmd && r.cmd.cmd === 'nexttrack' && r.cmd.seq > MUS.cmdSeq) { MUS.cmdSeq = r.cmd.seq; musicNextTrack(); return; }
-  musicApplyPause(r.paused);                               // keep: ซิงก์สถานะหยุด/เล่นต่อ
+  if (r.action === 'play') { if (MUS.held > 0) MUS.next = r.item; else musicStart(r.item); }
 }
 var lastPing = 0;
 function musicTick() {
@@ -317,11 +277,10 @@ function musicTick() {
   }
   if (MUS.calling) return;
   MUS.calling = true;
-  var pg = musicProg();
   google.script.run
     .withSuccessHandler(function (r) { MUS.calling = false; musicApply(r); })
     .withFailureHandler(function () { MUS.calling = false; })
-    .musicTvTick(MUS.cur ? MUS.cur.id : '', pg.pos, pg.dur, pg.mv, pg.idx, pg.n);
+    .musicTvTick(MUS.cur ? MUS.cur.id : '');
 }
 setInterval(musicTick, 5000); musicTick();
 
