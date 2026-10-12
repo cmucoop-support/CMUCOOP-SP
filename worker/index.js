@@ -984,8 +984,19 @@ async function bcDup(C, v, exceptId) {
   return '';
 }
 
+/* ฟอนต์ตอนปริ้นรายงานบาร์ — แอดมินตั้งครั้งเดียว ใช้กับทุกคน (เฉพาะฟอนต์ในรายการนี้ ซึ่งมีน้ำหนัก 400 และ 700 ครบทั้งหมด) */
+const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit', 'Noto Sans Thai', 'Pridi', 'Taviraj', 'K2D', 'Athiti', 'Mitr', 'Krub', 'Maitree', 'TH Sarabun New', 'Tahoma'];
+const BC_FONT_DEF = 'Bai Jamjuree';
+API.setPrintFont = async (C, token, font) => {
+  const me = await auth(C, token, true); font = str(font);
+  if (!BC_FONTS.includes(font)) throw new Error('ไม่รองรับฟอนต์นี้');
+  await kvSet(C, 'BC_PRINT_FONT', font);
+  await appendLog(C, me.name, BC_SHEET, '', 'ตั้งฟอนต์ปริ้น', font);
+  return { ok: true, font };
+};
 API.getInit = async (C, token) => {
   await authPerm(C, token, 'barcode');
+  const pf = await kvGet(C, 'BC_PRINT_FONT', BC_FONT_DEF);
   const cats = await all(C, 'SELECT cat, COUNT(*) AS n, MAX(ts) AS ts, MIN(pos) AS p FROM barcode_items GROUP BY cat ORDER BY p');
   const parts = await all(C, 'SELECT cat, partner, COUNT(*) AS n FROM barcode_items GROUP BY cat, partner');
   const empties = await all(C, 'SELECT cat FROM barcode_cats ORDER BY cat');
@@ -997,7 +1008,7 @@ API.getInit = async (C, token) => {
   const lg = await one(C, 'SELECT ts,who,cat,action,detail FROM log WHERE sheet=? ORDER BY id DESC LIMIT 1', BC_SHEET);
   const mx = await one(C, 'SELECT MAX(ts) AS m FROM barcode_items'), lastTs = Math.max(lg ? lg.ts : 0, mx && mx.m || 0);
   return {
-    categories: list,
+    categories: list, printFont: BC_FONTS.includes(pf) ? pf : BC_FONT_DEF, printFonts: BC_FONTS,
     sheets: { [BC_SHEET]: { schema: 'bar', statusText: lastTs ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(lastTs) : '' } },
     schemas: { bar: BC_SCHEMA },
     overall: lg ? { ts: lg.ts, user: str(lg.who), sheet: BC_SHEET, cat: str(lg.cat), action: str(lg.action), detail: str(lg.detail) } : (lastTs ? { ts: lastTs, user: '', sheet: BC_SHEET, cat: '', action: '', detail: '' } : null),
