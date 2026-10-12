@@ -167,7 +167,7 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 #printArea{display:none}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
-.psec{font-family:'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
+.psec{font-family:var(--pfont,'Bai Jamjuree'),'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
 table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.15}
 .pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
 .pt th{background:#d0d0d0;font-weight:700}
@@ -469,6 +469,10 @@ td.act{white-space:nowrap;min-width:170px}
       <div class="pgroup" style="margin-top:6px">เลือกเฉพาะรหัสคู่ค้า <span class="muted" style="font-weight:400">(ไม่เลือกเลย = ปริ้นทุกรหัส)</span>
         <button type="button" class="btn ghost small" id="pPartnerClear">ล้างที่เลือก</button></div>
       <div class="plist" id="pPartners" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));max-height:30vh"></div>
+      <div class="pgroup" style="margin-top:12px;flex-wrap:wrap">ฟอนต์ตอนปริ้น
+        <select id="pFont"></select>
+        <span class="muted" style="font-weight:400" id="pFontNote"></span></div>
+      <div id="pFontSample" style="margin-top:6px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;font-size:18px;background:#fff">ตัวอย่าง: รายการบาร์เดี่ยว/บาร์แพ็ค 8851234567890 ก ข ค ฎ ฏ ญ ฐ ไก่ ป่า ผู้ ปี้</div>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="btnPrint">ปริ้นรายงาน</button>
         <button class="btn ghost hidden" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
@@ -1091,7 +1095,7 @@ async function refreshCats() {
   var r = await call('getInit');
   S.cats = r.categories; S.sheets = r.sheets; S.schemas = r.schemas; S.overall = r.overall;
   S.offset = r.now - Date.now();
-  renderSide(); renderStatus(); renderPrintList();
+  renderSide(); renderStatus(); renderPrintList(); pfRender(r.printFont, r.printFonts);
 }
 
 /* ============================ เลือกหมวด / ตาราง ============================ */
@@ -1401,7 +1405,8 @@ $('#pdfClose').addEventListener('click', closePdf);
  * วาดแต่ละหน้า A4 ลง canvas (เบราว์เซอร์จัดวรรณยุกต์ไทยให้เอง) แล้วห่อเป็นไฟล์ PDF · หน้าตาเหมือนกันทุกเครื่อง */
 var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };   /* สัดส่วนความกว้างคอลัมน์ (%) */
 function pw(k) { return PW[k.k] || k.w; }
-var PDF_FONT = "'Bai Jamjuree','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PDF_FONT_TAIL = "'Bai Jamjuree','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
+var PRINT_FONT = 'Bai Jamjuree', PDF_FONT = "'Bai Jamjuree'," + PDF_FONT_TAIL;
 var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
 var PDF_W = 210, PDF_H = 297, PDF_M = 2;   /* A4 แนวตั้ง */
 var PDF_BODY = 10;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
@@ -1624,19 +1629,39 @@ function fontInstalled(name) {
   c.font = '40px "' + name + '", monospace';
   return c.measureText(t).width !== a;
 }
+var PF_LOCAL = { 'TH Sarabun New': 1, 'Tahoma': 1 };   /* ฟอนต์ในเครื่อง ไม่โหลดจาก Google Fonts */
+function applyPrintFont(name) {                          /* ตั้งฟอนต์ปริ้นทั้งแบบ PDF (canvas) และแบบปริ้นจากเบราว์เซอร์ */
+  name = String(name || 'Bai Jamjuree').replace(/['"\\;{}<>]/g, '');
+  PRINT_FONT = name;
+  PDF_FONT = "'" + name + "'," + PDF_FONT_TAIL;
+  document.documentElement.style.setProperty('--pfont', "'" + name + "'");
+}
 async function ensureThaiFont() {
-  if (fontInstalled('Bai Jamjuree')) return;
+  var name = PRINT_FONT;
+  if (PF_LOCAL[name] || fontInstalled(name)) return;
   try {
-    if (!document.getElementById('maliCss')) {
-      var l = document.createElement('link'); l.id = 'maliCss'; l.rel = 'stylesheet';
-      l.href = 'https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@400;700&display=swap';
+    var id = 'pfCss-' + name.replace(/\s+/g, '-');
+    if (!document.getElementById(id)) {
+      var l = document.createElement('link'); l.id = id; l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(name).replace(/%20/g, '+') + ':wght@400;700&display=swap';
       document.head.appendChild(l);
     }
     await Promise.race([
-      Promise.all([document.fonts.load('400 32px "Bai Jamjuree"', 'ทดสอบ'), document.fonts.load('700 32px "Bai Jamjuree"', 'ทดสอบ')]),
+      Promise.all([document.fonts.load('400 32px "' + name + '"', 'ทดสอบ'), document.fonts.load('700 32px "' + name + '"', 'ทดสอบ')]),
       new Promise(function (r) { setTimeout(r, 5000); })
     ]);
   } catch (e) {}
+}
+async function pfRender(font, list) {                    /* แถวเลือกฟอนต์ในแท็บปริ้น: แอดมินเปลี่ยนได้ ผู้ใช้อื่นเห็นเฉพาะที่ตั้งไว้ */
+  var sel = $('#pFont'); if (!sel) return;
+  if (list && !sel.options.length) sel.innerHTML = list.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('');
+  applyPrintFont(font); sel.value = PRINT_FONT;
+  var admin = S.me && S.me.role === 'admin';
+  sel.disabled = !admin;
+  $('#pFontNote').textContent = admin ? 'แอดมินตั้งได้ · ใช้กับทุกคนที่ปริ้นรายงาน' : 'ตั้งโดยแอดมิน (เฉพาะแอดมินเปลี่ยนได้)';
+  $('#pFontSample').style.fontFamily = PDF_FONT;
+  await ensureThaiFont();
+  $('#pFontSample').style.fontFamily = PDF_FONT;
 }
 async function buildPrintPdf(results) {
   await ensureThaiFont();
@@ -1675,6 +1700,11 @@ $('#btnPrint').addEventListener('click', async function () {
   });
   btn.textContent = label;
 });
+$('#pFont').addEventListener('change', async function () {
+  var sel = this, prev = PRINT_FONT, v = sel.value;
+  try { var r = await call('setPrintFont', v); pfRender(r.font); toast('ตั้งฟอนต์ปริ้นเป็น ' + r.font + ' แล้ว'); }
+  catch (err) { toast(err.message, true); sel.value = prev; }
+});
 $('#btnPrintOld').addEventListener('click', async function () {
   logUse('barcode', 'ปริ้นจากเบราว์เซอร์', '');
   var keys = checkedCatKeys();
@@ -1685,6 +1715,7 @@ $('#btnPrintOld').addEventListener('click', async function () {
       var c = S.cats.filter(function (x) { return x.key === k; })[0];
       return call('getCategoryData', c.sheet, c.cat);
     }));
+    await ensureThaiFont();
     $('#printArea').innerHTML = results.map(printSection).join('');
     setTimeout(function () { window.print(); }, 150);
   });
