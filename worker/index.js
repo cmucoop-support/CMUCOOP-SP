@@ -9,8 +9,8 @@ const CHUNK = 900000;                // จำนวนตัวอักษร 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
 const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
-const PERM_KEYS = ['barcode', 'sound', 'music', 'stock'];
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
+const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
 const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'settings'];
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
@@ -159,12 +159,14 @@ function userPerms(u) {
   const out = {}, p = u.perms || {};
   PERM_KEYS.forEach(k => { out[k] = u.role === 'admin' ? true : (p[k] !== undefined ? !!p[k] : PERM_DEFAULT[k]); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = u.role === 'admin' ? true : p[k] !== false; });   // การ์ดกำหนดเอง: ไม่ได้ตั้ง = เห็นได้
+  if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   return out;
 }
 function cleanPerms(p, role) {
   const out = {}; p = p || {};
   PERM_KEYS.forEach(k => { out[k] = role === 'admin' ? true : (p[k] === undefined ? PERM_DEFAULT[k] : !(p[k] === false || p[k] === 'false')); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = role === 'admin' ? true : !(p[k] === false || p[k] === 'false'); });
+  if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   return out;
 }
 async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
@@ -1318,14 +1320,14 @@ API.stockGet = async (C, token, ver) => {
   const me = await authPerm(C, token, 'stock'), v = ver === 'prev' ? 1 : 0;
   const state = await stockState(C);
   const [rows, history, names] = await Promise.all([stockLoadRows(C, v), kvJson(C, 'STOCK_HISTORY', []), stockNames(C)]);
-  return { me: { name: me.name, role: me.role }, ver: v ? 'prev' : 'cur', groups: state, rows, history: Array.isArray(history) ? history : [], names };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows, history: Array.isArray(history) ? history : [], names };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
  * ฉบับปัจจุบันของหมวดนั้น (ทุกสาขา) ถูกย้ายไปเป็น "ฉบับก่อนหน้า" (ทับฉบับก่อนหน้าเดิม) · ถ้าข้อมูลเหมือนฉบับปัจจุบันทุกอย่างจะข้าม ไม่ดันฉบับเก่าทิ้ง
  * meta ของหมวดมี br = { สาขา: { count, rep, ts, who, file } } ไว้บอกว่าแต่ละสาขาอัปเดตล่าสุดเมื่อไร */
 API.stockSave = async (C, token, payload) => {
-  const me = await auth(C, token, true);
+  const me = await stockEditAuth(C, token);
   payload = payload || {};
   if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
   const branch = str(payload.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
@@ -1372,7 +1374,7 @@ API.stockSave = async (C, token, payload) => {
 };
 /* สลับฉบับปัจจุบันกับฉบับก่อนหน้าของหมวดนั้น (กดซ้ำ = สลับกลับ) */
 API.stockRestore = async (C, token, g) => {
-  const me = await auth(C, token, true);
+  const me = await stockEditAuth(C, token);
   g = str(g).toUpperCase();
   const state = await stockState(C), s = state[g];
   if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
@@ -1384,8 +1386,79 @@ API.stockRestore = async (C, token, g) => {
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
   return { ok: true, groups: state };
 };
+/* แก้ไขข้อมูลสินค้าค้างสต็อกได้: แอดมิน หรือผู้ใช้ที่แอดมินติ๊ก "แก้ไขได้" ให้ · ผู้ใช้ที่มีสิทธิ์ดูอย่างเดียวจะเห็นข้อมูลแต่แก้ไม่ได้ */
+async function stockEditAuth(C, token) {
+  const me = await auth(C, token);
+  if (!me.perms.stock) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
+  if (me.role !== 'admin' && !me.perms.stock_edit) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
+  return me;
+}
+/* ยืนยันรหัสผ่านของแอดมินที่กำลังใช้งาน (หรือรหัสกู้คืนแอดมิน สำหรับบัญชีที่เข้าทางลิงก์) · ใส่ผิดนับรวมกับการล็อกอิน (5 ครั้ง = รอ 5 นาที) */
+async function stockVerifyPw(C, me, password) {
+  password = passArg(password);
+  if (!password) throw new Error('กรุณาใส่รหัสผ่านเพื่อยืนยัน');
+  const lockKey = 'fail:' + me.user, fails = await failCount(C, lockKey);
+  if (fails >= MAX_FAIL) throw new Error('ใส่รหัสผิดหลายครั้ง กรุณารอ 5 นาทีแล้วลองใหม่');
+  const u = await getUser(C, me.user);
+  if (!u) throw new Error('SESSION_EXPIRED');
+  if (u.hash !== await hashPw(u.salt, password) && !(await checkRecovery(C, password))) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผ่านไม่ถูกต้อง'); }
+  await failClear(C, lockKey);
+}
+/* ล้างข้อมูล (แอดมิน + ต้องใส่รหัส) scope = { mode:'all' } | { mode:'branch', branch } | { mode:'group', g }
+ * branch/group: ฉบับที่ล้างเก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้ · all: ลบทุกอย่างรวมฉบับก่อนหน้าและประวัติแนวโน้ม (ย้อนกลับไม่ได้ · ชื่อหมวดคงไว้) */
+API.stockClear = async (C, token, password, scope) => {
+  const me = await auth(C, token, true);
+  await stockVerifyPw(C, me, password);
+  scope = scope || {};
+  const mode = str(scope.mode), state = await stockState(C), ts = now(), ops = [], changed = [];
+  const shiftGroup = (g, rows, clearedBr) => {
+    const old = state[g], oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    if (clearedBr && !br[clearedBr]) br[clearedBr] = { count: 0, rep: '' };
+    Object.keys(br).forEach(k => {
+      const src = k === clearedBr ? { ts, who: me.name, file: 'ล้างข้อมูล' } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file: 'ล้างข้อมูล' }));
+      br[k].ts = src.ts; br[k].who = src.who; br[k].file = src.file;
+    });
+    const reps = rows.map(r => r[14]).filter(Boolean).sort();
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, JSON.stringify(rows)));
+    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.length, sum: stockSummary(rows), br }, prev: oc || null };
+    changed.push(g);
+  };
+  let desc;
+  if (mode === 'all') {
+    Object.keys(state).forEach(g => changed.push(g));
+    await batch(C, [stmt(C, 'DELETE FROM stock_grp'), kvSetStmt(C, 'STOCK_GROUPS', '{}'), kvSetStmt(C, 'STOCK_HISTORY', '[]')]);
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', 'ล้างข้อมูลทั้งหมด (' + changed.length + ' หมวด) · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย');
+    return { ok: true, changed };
+  }
+  if (mode === 'group') {
+    const g = str(scope.g).toUpperCase();
+    if (!state[g]) throw new Error('ไม่พบหมวด ' + g);
+    if (!(state[g].cur && state[g].cur.count === 0)) shiftGroup(g, []);
+    desc = 'ล้างทั้งหมวด ' + g;
+  } else if (mode === 'branch') {
+    const branch = str(scope.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
+    if (!branch) throw new Error('กรุณาเลือกสาขาที่จะล้าง');
+    const bk = stockBrKey(branch);
+    for (const g of Object.keys(state)) {
+      if (!state[g] || !state[g].cur) continue;
+      let rows = []; try { rows = JSON.parse((await stockGroupJson(C, g, 0)) || '[]'); } catch (e) { rows = []; }
+      if (!Array.isArray(rows)) rows = [];
+      const keep = rows.filter(r => stockBrKey(r[3]) !== bk);
+      if (keep.length !== rows.length) shiftGroup(g, keep, branch);
+    }
+    desc = 'ล้างทั้งสาขา ' + branch;
+  } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
+  if (!changed.length) return { ok: true, changed };
+  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
+  hist.push({ ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state) });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', desc + ' · ' + changed.length + ' หมวด (' + changed.join(',') + ') · เก็บเป็นฉบับก่อนหน้า');
+  return { ok: true, changed };
+};
 API.stockSetNames = async (C, token, names) => {
-  const me = await auth(C, token, true), out = {};
+  const me = await stockEditAuth(C, token), out = {};
   names = (names && typeof names === 'object') ? names : {};
   Object.keys(names).forEach(k => {
     const code = str(k).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ');
