@@ -834,10 +834,10 @@ function xlSheet(sh, ctx, idx) {
   row(4, XL_HEAD.map(function (h, c) { return S(xlCol(c) + '4', XL_S.head, h); }), 54);
   // ข้อมูล
   items.forEach(function (x, i) {
-    var r = 5 + i, c = XL_S.c, code = String(x.code == null ? '' : x.code), cells = [];
+    var r = 5 + i, c = XL_S.c, code = String(x.code == null ? '' : x.code).replace(/^[Pp](?=\d)/, ''), cells = [];   // ส่งออก: ตัด P นำหน้ารหัส (เฉพาะตามด้วยตัวเลข) ไม่แตะข้อมูลที่เก็บไว้
     var d = function (col, iso) { var v = xlSerial(iso); return v === null ? E(col + r, XL_S.date) : N(col + r, XL_S.date, v); };
     cells.push(N('A' + r, c, i + 1), T('B' + r, c, x.g));
-    cells.push(/^\d{1,15}$/.test(code) ? N('C' + r, XL_S.code, Number(code)) : T('C' + r, c, code));
+    cells.push(/^(0|[1-9]\d{0,14})$/.test(code) ? N('C' + r, XL_S.code, Number(code)) : T('C' + r, c, code));
     cells.push(T('D' + r, XL_S.left, x.name), T('E' + r, c, x.br), N('F' + r, c, x.qty), N('G' + r, c, x.sold), N('H' + r, c, x.avg), d('I', x.recv), d('J', x.last),
       N('K' + r, c, x.days), T('L' + r, c, x.st), N('M' + r, c, x.cost), N('N' + r, c, x.price), T('O' + r, c, x.below), N('P' + r, c, x.profit), N('Q' + r, c, x.pct),
       N('R' + r, c, x.sales), N('S' + r, c, x.net), T('T' + r, c, x.note));
