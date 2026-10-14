@@ -495,8 +495,15 @@ function fmtTs(ts) { return new Date(ts).toLocaleString('th-TH', { timeZone: 'As
 function gl(g) { return D.names[g] ? g + ' · ' + D.names[g] : g; }
 function glShort(g) { var n = D.names[g]; return n ? g + ' ' + (n.length > 16 ? n.slice(0, 15) + '…' : n) : g; }
 
+/* ค้าง (วัน) = จำนวนวันตั้งแต่ "ขายล่าสุด" ถึงวันนี้ (เวลาไทย) — คำนวณใหม่ทุกครั้งที่เปิดหน้า · ไม่มีวันที่ขายล่าสุด → ใช้ค่าเดิมจากไฟล์ */
+var TODAY_MS = (function () { var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); })();
+function daysSince(iso, fallback) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return fallback;
+  return Math.max(0, Math.round((TODAY_MS - Date.UTC(+m[1], +m[2] - 1, +m[3])) / 86400000));
+}
 function toItem(a) {
-  return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], sold: a[5], avg: a[6], recv: a[7], last: a[8], days: a[9], st: a[10], sk: a[10] || 'NA',
+  return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], sold: a[5], avg: a[6], recv: a[7], last: a[8], days: daysSince(a[8], a[9]), st: a[10], sk: a[10] || 'NA',
     cost: a[11], price: a[12], note: a[13], rep: a[14], below: a[15], profit: a[16], pct: a[17], sales: a[18], net: a[19],
     vc: a[4] * a[11], vp: a[4] * a[12], hay: (a[1] + ' ' + a[2] + ' ' + a[13]).toLowerCase() };
 }
