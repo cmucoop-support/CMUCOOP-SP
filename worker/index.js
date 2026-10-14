@@ -1236,7 +1236,7 @@ const STOCK_LOST_MAX = 5000;
 /* ของหาย / สินค้าหมดอายุ: เก็บ "จำนวน" เท่านั้น (ไม่ตัดทั้งบาร์) แล้วหักออกจากคงเหลือของแถวที่มีรหัสตรงกัน
  * kv STOCK_LOST / STOCK_EXPIRED = { <codeKey>[@<สาขา>]: { code, name, g, br, qty, note, ts, who } } — แยกจากข้อมูลสต็อก อัปโหลดใหม่ไม่แตะ
  * br ว่าง = หักจากทุกสาขาตามลำดับแถวที่พบ · br มีค่า = หักเฉพาะสาขานั้น · qty ว่าง (ข้อมูลเก่าก่อนมีจำนวน) = หักทั้งบาร์ */
-const STOCK_ADJ_KV = { lost: 'STOCK_LOST', exp: 'STOCK_EXPIRED', pend: 'STOCK_PENDING' }, STOCK_ADJ_LABEL = { lost: 'ของหาย', exp: 'สินค้าหมดอายุ', pend: 'รอปรับข้อมูล' };
+const STOCK_ADJ_KV = { lost: 'STOCK_LOST', exp: 'STOCK_EXPIRED', pend: 'STOCK_PENDING', waste: 'STOCK_WASTE' }, STOCK_ADJ_LABEL = { lost: 'ของหาย', exp: 'สินค้าหมดอายุ', pend: 'รอปรับข้อมูล', waste: 'ของเสีย' };
 const stockAdjKey = (code, br) => stockCodeKey(code) + (stockBrKey(br) ? '@' + stockBrKey(br) : '');
 async function stockAdjLoad(C) {
   const out = {};
@@ -1250,7 +1250,7 @@ async function stockAdjLoad(C) {
 /* หักจำนวนของหาย/หมดอายุออกจากแถว → { rows: แถวที่ยังเหลือ (คงเหลือ > 0 · แถวที่ถูกหักจะเป็นสำเนา ไม่แก้ของเดิม), hit: { lost|exp: { key: [{ g, br, qty, cost, name }] } } }
  * จำนวนสต็อกมากกว่าที่หัก → แถวยังอยู่ด้วยจำนวนที่เหลือ · หักหมดหรือเกิน → แถวหายไป · รายการที่ระบุสาขาหักก่อน แล้วค่อยหักแบบทุกสาขา */
 function stockApply(rows, adj) {
-  const hit = { lost: {}, exp: {}, pend: {} }, by = new Map();
+  const hit = { lost: {}, exp: {}, pend: {}, waste: {} }, by = new Map();
   if (adj) Object.keys(hit).forEach(kind => Object.keys(adj[kind] || {}).forEach(k => {
     const e = adj[kind][k], ck = stockCodeKey(e.code);
     if (!ck) return;
@@ -1369,7 +1369,7 @@ API.stockGet = async (C, token, ver) => {
   const ap = stockApply(rows0, lost);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h.slice(0, 30) }; }).sort((a, b) => b.ts - a.ts);
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend') };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste') };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
@@ -1602,10 +1602,12 @@ function stockAdjApi(kind) {
     }
   };
 }
-const stockLostApi = stockAdjApi('lost'), stockExpApi = stockAdjApi('exp'), stockPendApi = stockAdjApi('pend');
+const stockLostApi = stockAdjApi('lost'), stockExpApi = stockAdjApi('exp'), stockPendApi = stockAdjApi('pend'), stockWasteApi = stockAdjApi('waste');
 API.stockLostAdd = stockLostApi.add;
 API.stockLostRemove = stockLostApi.remove;
 API.stockExpiredAdd = stockExpApi.add;
 API.stockExpiredRemove = stockExpApi.remove;
 API.stockPendingAdd = stockPendApi.add;
 API.stockPendingRemove = stockPendApi.remove;
+API.stockWasteAdd = stockWasteApi.add;
+API.stockWasteRemove = stockWasteApi.remove;
