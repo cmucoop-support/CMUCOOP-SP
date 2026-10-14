@@ -151,6 +151,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9
     <button class="btn onDark small hidden" id="bClear">ล้างข้อมูล</button>
     <button class="btn onDark small" id="bLost">ของหาย</button>
     <button class="btn onDark small" id="bExp">สินค้าหมดอายุ</button>
+    <button class="btn onDark small" id="bPend">รอปรับข้อมูล</button>
     <button class="btn onDark small" id="bXlsx">ส่งออก Excel</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -223,7 +224,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9
 <div class="overlay hidden" id="upDlg">
   <div class="dlg wide">
     <h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
-    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · จำนวนที่บันทึกไว้ใน "ของหาย" และ "สินค้าหมดอายุ" ยังถูกหักออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
+    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · จำนวนที่บันทึกไว้ใน "ของหาย" "สินค้าหมดอายุ" และ "รอปรับข้อมูล" ยังถูกหักออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
     <div class="brpick">
       <label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
       <label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input type="text" id="upBrNew" maxlength="20" autocomplete="off"></label>
@@ -478,7 +479,7 @@ $('#lgBtn').addEventListener('click', function () {
 ['#lgUser', '#lgPass'].forEach(function (s) { $(s).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#lgBtn').click(); }); });
 
 /* ---------- ข้อมูล / สถานะหน้า ---------- */
-var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], groups: [], branches: [], lost: [], exp: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
+var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], groups: [], branches: [], lost: [], exp: [], pend: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
 var F = { st: { DS: true }, g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
@@ -503,7 +504,7 @@ function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.c
 function applyData(r) {
   D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = r.history || [];
   D.items = (r.rows || []).map(toItem);
-  D.lost = r.lost || []; D.exp = r.expired || [];          // ของหาย/หมดอายุ: ฝั่งหลังบ้านหักจำนวนออกจาก rows แล้ว (แถวที่หักหมดไม่ถูกส่งมา)
+  D.lost = r.lost || []; D.exp = r.expired || []; D.pend = r.pending || [];          // ของหาย/หมดอายุ: ฝั่งหลังบ้านหักจำนวนออกจาก rows แล้ว (แถวที่หักหมดไม่ถูกส่งมา)
   D.items.forEach(function (x, i) { x.i = i; });                       // ลำดับเดิมในไฟล์ ใช้ตอนส่งออก
   var gs = {}, bs = {};
   D.items.forEach(function (x) { gs[x.g] = 1; bs[x.br] = 1; });
@@ -765,10 +766,10 @@ function renderTable(S) {
   var pages = Math.max(1, Math.ceil(LAST_S.length / PAGE)); if (F.page >= pages) F.page = pages - 1;
   var from = F.page * PAGE, part = LAST_S.slice(from, from + PAGE);
   $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ';
-  var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'หาย / หมดอายุ', nosort: 1 }]) : DT_COLS;
+  var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'หาย / หมดอายุ / รอปรับ', nosort: 1 }]) : DT_COLS;
   $('#dt').innerHTML = thead(cols, F.ds) + '<tbody>' + (part.length ? part.map(function (x) {
     return '<tr><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.br) + '</td><td class="num">' + qtyF(x.qty) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
-      '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + (canLost ? '<td style="white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small" data-adj="lost" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หายออกจากค้างสต็อก">หาย</button> <button type="button" class="btn ghost small" data-adj="exp" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หมดอายุออกจากค้างสต็อก">หมดอายุ</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>' : '') + '</tr>';
+      '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + (canLost ? '<td style="white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small" data-adj="lost" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หายออกจากค้างสต็อก">หาย</button> <button type="button" class="btn ghost small" data-adj="exp" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หมดอายุออกจากค้างสต็อก">หมดอายุ</button> <button type="button" class="btn ghost small" data-adj="pend" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่รอปรับข้อมูลออกจากค้างสต็อก">รอปรับ</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>' : '') + '</tr>';
   }).join('') : '<tr><td colspan="' + cols.length + '" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
   $('#pgInfo').textContent = LAST_S.length ? 'แสดง ' + nf0.format(from + 1) + '–' + nf0.format(from + part.length) + ' จาก ' + nf0.format(LAST_S.length) + ' · หน้า ' + (F.page + 1) + '/' + pages : '';
   $('#pgPrev').disabled = F.page <= 0; $('#pgNext').disabled = F.page >= pages - 1;
@@ -1115,7 +1116,7 @@ async function readFiles(list) {
 /* ประมาณการหักของหาย/หมดอายุกับแถวในไฟล์ที่กำลังอัปโหลด (ยอดจริงคำนวณที่หลังบ้านรวมทุกสาขาตอนบันทึก) → [[แถว, จำนวนที่เหลือ]] + จำนวนแถวที่ถูกหัก */
 function adjPreview(rows, branch) {
   var by = {}, bk = codeKey(branch), out = [], nAdj = 0;
-  ['lost', 'exp'].forEach(function (kind) {
+  ['lost', 'exp', 'pend'].forEach(function (kind) {
     (D[kind] || []).forEach(function (x) {
       var ck = codeKey(x.code), eb = codeKey(x.br); if (!ck || (eb && eb !== bk)) return;
       (by[ck] || (by[ck] = [])).push({ bk: eb, left: x.qty == null ? Infinity : x.qty });
@@ -1139,7 +1140,7 @@ function pvSummary() {
   $('#pvK').innerHTML = '<div><b>' + sel.length + '/' + Object.keys(UP.groups).length + '</b><span>หมวดที่จะบันทึก</span></div><div><b>' + nf0.format(n) + '</b><span>รายการที่มีสต็อก</span></div><div><b>' + nf0.format(dn) + '</b><span>ค้างเกิน 60 วัน (DS)</span></div><div><b>' + money(dc) + '</b><span>มูลค่าทุน DS (บาท)</span></div><div><b>' + money(c) + '</b><span>มูลค่าทุนรวม (บาท)</span></div>';
   var b = $('#upSave'); b.textContent = 'บันทึก ' + sel.length + ' หมวด · สาขา ' + UP.branch; b.disabled = !sel.length;
   var hasPrev = sel.filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length;
-  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') + (nl ? ' · หักของหาย/สินค้าหมดอายุตามจำนวนที่บันทึกไว้ ' + nf0.format(nl) + ' แถว ออกจากตัวเลขด้านบน (ประมาณการ — ยอดจริงคำนวณรวมทุกสาขาตอนบันทึก · ยังหักต่อไปจนกว่าจะยกเลิก)' : '') : '';
+  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') + (nl ? ' · หักของหาย/หมดอายุ/รอปรับข้อมูลตามจำนวนที่บันทึกไว้ ' + nf0.format(nl) + ' แถว ออกจากตัวเลขด้านบน (ประมาณการ — ยอดจริงคำนวณรวมทุกสาขาตอนบันทึก · ยังหักต่อไปจนกว่าจะยกเลิก)' : '') : '';
   var all = $('#pvAll'); if (all) all.checked = sel.length === Object.keys(UP.groups).length;
 }
 function showPreview() {
@@ -1247,17 +1248,18 @@ function codeKey(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLo
 var AK = 'lost';            // รายการที่เปิดอยู่ในหน้าต่าง: 'lost' = ของหาย · 'exp' = สินค้าหมดอายุ
 var AKI = {
   lost: { btn: 'ของหาย', verb: 'หาย', add: 'stockLostAdd', rm: 'stockLostRemove', bid: '#bLost' },
-  exp: { btn: 'สินค้าหมดอายุ', verb: 'หมดอายุ', add: 'stockExpiredAdd', rm: 'stockExpiredRemove', bid: '#bExp' }
+  exp: { btn: 'สินค้าหมดอายุ', verb: 'หมดอายุ', add: 'stockExpiredAdd', rm: 'stockExpiredRemove', bid: '#bExp' },
+  pend: { btn: 'รอปรับข้อมูล', verb: 'รอปรับข้อมูล', add: 'stockPendingAdd', rm: 'stockPendingRemove', bid: '#bPend' }
 };
 function adjPcs(list) { var p = 0; (list || []).forEach(function (x) { (x.hit || []).forEach(function (h) { p += h.qty; }); }); return p; }
 function renderLostBtn() {
   var parts = [];
-  ['lost', 'exp'].forEach(function (k) {
+  ['lost', 'exp', 'pend'].forEach(function (k) {
     var n = (D[k] || []).length;
     $(AKI[k].bid).textContent = AKI[k].btn + (n ? ' (' + nf0.format(n) + ')' : '');
     if (n) parts.push('หัก' + AKI[k].btn + ' ' + qtyF(adjPcs(D[k])) + ' ชิ้น');
   });
-  $('#lostNote').innerHTML = parts.length ? '<b style="color:var(--bad)">' + parts.join(' · ') + ' ออกจากยอดค้างสต็อกแล้ว</b> — กดปุ่ม "ของหาย" / "สินค้าหมดอายุ" ด้านบนเพื่อดู/ยกเลิก' : '';
+  $('#lostNote').innerHTML = parts.length ? '<b style="color:var(--bad)">' + parts.join(' · ') + ' ออกจากยอดค้างสต็อกแล้ว</b> — กดปุ่ม "ของหาย" / "สินค้าหมดอายุ" / "รอปรับข้อมูล" ด้านบนเพื่อดู/ยกเลิก' : '';
 }
 function fillLsBr() {
   var set = {}, old = $('#lsBr').value;
@@ -1291,6 +1293,7 @@ function openAdj(k) {
 }
 $('#bLost').addEventListener('click', function () { openAdj('lost'); });
 $('#bExp').addEventListener('click', function () { openAdj('exp'); });
+$('#bPend').addEventListener('click', function () { openAdj('pend'); });
 $('#lsClose').addEventListener('click', function () { closeDlg('#lostDlg'); });
 $('#lsQ').addEventListener('input', renderLost);
 $('#lsIn').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#lsAdd').click(); } });     // สแกนบาร์แล้ว Enter = เพิ่มทันที
