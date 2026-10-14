@@ -172,6 +172,10 @@ textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9
       <div class="muted" id="verNote" style="padding:8px 0 10px"></div>
       <div class="muted lostnote" id="lostNote"></div>
     </section>
+    <section class="card" id="repCard" hidden>
+      <div class="cardhead"><h3>วันที่ข้อมูลรายหมวด <small id="repNote"></small></h3></div>
+      <div class="tscroll" style="max-height:320px"><table class="pvt" id="repTb"></table></div>
+    </section>
     <section class="card filters">
       <div class="frow">
         <label>หมวดสินค้า<select id="fG"></select></label>
@@ -530,12 +534,23 @@ function applyData(r) {
   $('#bUpload').classList.toggle('hidden', !edit);
   $('#bNames').classList.toggle('hidden', !edit || !D.items.length);
   $('#bClear').classList.toggle('hidden', !admin || !Object.keys(D.gm).length);
-  renderInfo(); renderVerTabs(); fillSelects(); renderLostBtn();
+  renderInfo(); renderRepCard(); renderVerTabs(); fillSelects(); renderLostBtn();
   var has = D.items.length > 0 || D.ver === 'prev';
   $('#empty').classList.toggle('hidden', has); $('#main').hidden = !has;
   if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลด Excel" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินหรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
   render();
   if (!$('#lostDlg').classList.contains('hidden')) renderLost();
+}
+function renderRepCard() {                                              // วันที่ข้อมูล/วันที่อัปเดตของแต่ละหมวด (ฉบับที่กำลังดู) แยกเป็นตารางต่างหาก ไม่ขึ้นกับตัวกรอง
+  var gs = Object.keys(D.gm).filter(function (g) { var v = gView(g); return v && v.count > 0; }).sort();
+  $('#repCard').hidden = !gs.length; if (!gs.length) return;
+  $('#repNote').textContent = gs.length + ' หมวด' + (D.ver === 'prev' ? ' · ตามฉบับก่อนหน้า' : '');
+  var cur = D.ver === 'cur';
+  $('#repTb').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">ข้อมูลรายงานวันที่</th><th class="nosort">อัปเดตเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายสาขา (ข้อมูลรายงานวันที่ · อัปเดตเมื่อ)</th></tr></thead><tbody>' + gs.map(function (g) {
+    var v = gView(g), d = Math.floor((Date.now() - v.ts) / 86400000), bs = v.br ? Object.keys(v.br).sort() : [];
+    var brTxt = bs.map(function (k) { var b = v.br[k] || {}; return '<b>' + esc(k) + '</b> ' + esc(fmtDate(b.rep)) + (b.ts ? ' · ' + esc(fmtTs(b.ts)) : ''); }).join('<br>');
+    return '<tr><td>' + esc(gl(g)) + '</td><td><b>' + esc(fmtDate(v.rep)) + '</b></td><td>' + esc(fmtTs(v.ts)) + (cur && d >= 30 ? ' <b style="color:var(--bad)">(' + d + ' วัน)</b>' : '') + '</td><td>' + esc(v.who || '') + '</td><td>' + (brTxt || '<span class="muted">–</span>') + '</td></tr>';
+  }).join('') + '</tbody>';
 }
 function nPrev() { return Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length; }
 function renderVerTabs() {
@@ -741,11 +756,6 @@ function dsDelta(g) {                                                  // มู
   var m = D.gm[g]; if (!m || !m.cur || !m.prev || !m.cur.sum || !m.prev.sum) return null;
   return m.cur.sum.st.DS.cost - m.prev.sum.st.DS.cost;
 }
-function repByBr(r) {                                                   // รายงานรายสาขาของหมวดนี้ (แสดงเมื่อมีมากกว่า 1 สาขา)
-  var ks = r.brs ? Object.keys(r.brs).filter(function (k) { return r.brs[k] && r.brs[k].rep; }).sort() : [];
-  if (ks.length < 2) return '';
-  return ks.map(function (k) { return '<br><span class="muted">' + esc(k) + ' ' + esc(fmtDate(r.brs[k].rep)) + '</span>'; }).join('');
-}
 function renderGroupTable(G) {
   var m = {}; G.forEach(function (x) { (m[x.g] || (m[x.g] = [])).push(x); });
   var admin = D.me && D.me.edit, prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
@@ -760,7 +770,7 @@ function renderGroupTable(G) {
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
     var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้าวันที่ ' + esc(fmtDate(D.gm[r.g].prev.rep)) + '">' + (r.dds > 0 ? '▲ +' : (r.dds < 0 ? '▼ ' : '')) + money(r.dds) + '</span>';
     return '<tr class="click' + (F.g === r.g ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
-      '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td><td>' + fmtDate(r.rep) + repByBr(r) + '</td>' +
+      '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td><td>' + fmtDate(r.rep) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + (prevMode && admin ? '<td><button type="button" class="btn ghost small" data-restore="' + esc(r.g) + '">ใช้ฉบับนี้เป็นปัจจุบัน</button></td>' : '') + '</tr>';
   }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (cols.length > 8 ? '<td></td>' : '') + '</tr></tfoot>';
 }
