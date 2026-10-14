@@ -108,6 +108,9 @@ tr.click{cursor:pointer}
 .err{color:var(--bad);min-height:20px;font-size:14px;margin-top:6px}
 .drop{border:2px dashed var(--accent);border-radius:12px;background:var(--accent-soft);padding:26px 14px;text-align:center;margin-top:12px;cursor:pointer}
 .drop.over{background:#e4d5ff}
+.drop.off{opacity:.55;cursor:not-allowed;border-color:var(--line);background:#f3f3f3}
+.brpick{display:grid;gap:8px;margin-top:12px}
+.brpick label{font-weight:600;font-size:14px}
 .drop b{display:block;font-size:16px}
 .pv{display:grid;gap:10px;margin-top:12px}
 .pvk{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
@@ -214,8 +217,12 @@ tr.click{cursor:pointer}
 <div class="overlay hidden" id="upDlg">
   <div class="dlg wide">
     <h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
-    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) อัปทีละหมวด หรือหลายหมวด/หลายไฟล์พร้อมกันก็ได้ · ระบบแทนที่เฉพาะหมวดที่เลือกไว้ หมวดอื่นไม่ถูกแตะ · ฉบับเดิมของหมวดที่ถูกแทนที่จะถูกเก็บไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ</div>
-    <div class="drop" id="drop" tabindex="0"><b>ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></div>
+    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ</div>
+    <div class="brpick">
+      <label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
+      <label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input type="text" id="upBrNew" maxlength="20" autocomplete="off"></label>
+    </div>
+    <div class="drop off" id="drop" tabindex="0"><b>ขั้นที่ 2 · ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></div>
     <input type="file" id="upFile" accept=".xlsx,.xls,.csv" class="hidden" multiple>
     <div class="err" id="upErr"></div>
     <div class="pv hidden" id="pv"></div>
@@ -266,6 +273,7 @@ var COLS = {
   recv: ['รับเข้า'], last: ['ขายล่าสุด'], days: ['ค้าง(วัน)', 'ค้างวัน', 'ค้าง(วัน.)'], st: ['สถานะ'], cost: ['ต้นทุน'], price: ['ราคา'], note: ['หมายเหตุ'],
   below: ['ต่ำกว่าทุน'], profit: ['กำไร฿', 'กำไร'], pct: ['กำไร%'], sales: ['ยอดขาย'], net: ['กำไรสุทธิV', 'กำไรสุทธิ(V)']
 };
+function brKey(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }   // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
 function normH(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }
 function pad(n) { n = Number(n); return (n < 10 ? '0' : '') + n; }
 function isoDate(v) {
@@ -324,8 +332,8 @@ function dedupeRows(rows) {                       // กลุ่ม+รหั�
 }
 /* sheets = [{name, grid}]  →  { groups:{ G01:{ g, rep, title, rows:[…แถวที่ยังมีสต็อก…] } }, info:{ sheets:[…], read, kept, dup, mismatch } }
  * หมวดที่มีแถวสินค้าในไฟล์แต่ไม่มีของค้างเลย ก็นับเป็นหมวด (rows ว่าง) เพื่อให้ล้างของเก่าของหมวดนั้นได้ · หมวดนับตามคอลัมน์ "กลุ่ม" ของแต่ละแถว ไม่ใช่ชื่อชีต */
-function parseSheets(sheets) {
-  var rows = [], info = { sheets: [], read: 0, kept: 0, dup: 0, mismatch: 0 }, meta = {};
+function parseSheets(sheets, branch) {                // branch (ไม่บังคับ) = เอาเฉพาะแถวของสาขานี้ · แถวสาขาอื่นข้าม · ไฟล์ที่ไม่มีคอลัมน์สาขา/ช่องสาขาว่าง นับเป็นสาขานี้
+  var rows = [], info = { sheets: [], read: 0, kept: 0, dup: 0, mismatch: 0, other: 0, brs: {} }, meta = {};
   (sheets || []).forEach(function (sh) {
     var grid = sh.grid || [], h = findHeader(grid), nm = String(sh.name || '');
     if (!h) { info.sheets.push({ name: nm, note: 'ไม่พบหัวตาราง (ข้าม)', read: 0, kept: 0 }); return; }
@@ -336,13 +344,19 @@ function parseSheets(sheets) {
       if (!name) continue;                                            // แถวว่าง / แถวสรุปท้ายชีต
       var g = (I.g !== undefined && r[I.g] != null ? String(r[I.g]).trim().toUpperCase() : '') || sheetG;
       if (!g) continue;
+      var br = I.br !== undefined && r[I.br] != null ? String(r[I.br]).trim() : '';
+      if (branch) {
+        if (br) info.brs[br] = (info.brs[br] || 0) + 1;
+        if (br && brKey(br) !== brKey(branch)) { info.other++; continue; }
+        br = branch;
+      }
       read++; note(g);
       if (sheetG && g !== sheetG) info.mismatch++;
       var qty = toNum(r[I.qty]);                                      // เก็บทุกแถวก่อน ตัดซ้ำตามรายงานที่ใหม่กว่า แล้วค่อยทิ้งแถวที่ไม่มีของ (กันของเก่าจากรายงานเก่าโผล่กลับมา)
       var daysRaw = I.days !== undefined ? r[I.days] : null, days = (daysRaw === null || daysRaw === undefined || daysRaw === '') ? null : Math.round(Number(daysRaw));
       var st = String(I.st !== undefined && r[I.st] != null ? r[I.st] : '').trim().toUpperCase();
       var bw = String(I.below !== undefined && r[I.below] != null ? r[I.below] : '').trim().toUpperCase();
-      rows.push([g, I.code !== undefined && r[I.code] != null ? String(r[I.code]).trim() : '', name, I.br !== undefined && r[I.br] != null ? String(r[I.br]).trim() : '',
+      rows.push([g, I.code !== undefined && r[I.code] != null ? String(r[I.code]).trim() : '', name, br,
         qty, toNum(I.sold !== undefined ? r[I.sold] : 0), toNum(I.avg !== undefined ? r[I.avg] : 0),
         isoDate(I.recv !== undefined ? r[I.recv] : ''), isoDate(I.last !== undefined ? r[I.last] : ''),
         days !== null && isFinite(days) ? days : null, ['DS', 'T3', 'T2', 'T1'].indexOf(st) >= 0 ? st : '',
@@ -481,7 +495,14 @@ function renderInfo() {
   var days = Math.floor((Date.now() - m.ts) / 86400000);
   var dates = m.from ? (m.from === m.to ? 'ข้อมูลรายงานวันที่ ' + fmtDate(m.to) : 'ข้อมูลรายงานวันที่ ' + fmtDate(m.from) + ' – ' + fmtDate(m.to) + ' (แต่ละหมวดดึงรายงานคนละวัน)') : '';
   el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffd27a">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
-    '<br>' + esc(dates) + (m.file ? ' · ไฟล์ ' + esc(m.file) : '');
+    '<br>' + esc(dates) + (m.file ? ' · ไฟล์ ' + esc(m.file) : '') + brStatus();
+}
+function brStatus() {                                // อัปเดตล่าสุดรายสาขา (จากเมตาที่เก็บไว้ต่อหมวด) · เกิน 30 วันขึ้นเตือน
+  var bl = {};
+  Object.keys(D.gm).forEach(function (g) { var v = gView(g); if (v && v.br) Object.keys(v.br).forEach(function (k) { var b = v.br[k]; if (b && b.ts && (!bl[k] || b.ts > bl[k].ts)) bl[k] = b; }); });
+  var ks = Object.keys(bl).sort();
+  if (!ks.length) return '';
+  return '<br>รายสาขา: ' + ks.map(function (k) { var d = Math.floor((Date.now() - bl[k].ts) / 86400000); return esc(k) + ' ' + esc(fmtTs(bl[k].ts)) + (D.ver === 'cur' && d >= 30 ? ' <b style="color:#ffd27a">(' + d + ' วัน)</b>' : ''); }).join(' · ');
 }
 function fillSelects() {
   var g = $('#fG'), b = $('#fBr');
@@ -920,7 +941,8 @@ $('#exGo').addEventListener('click', function () {
 });
 
 /* ---------- อัปโหลด Excel (แอดมิน) — แทนที่เฉพาะหมวดที่เลือก ---------- */
-var UP = null;          // { groups:{G01:{g,rep,title,rows,file}}, files:[…], pick:{G01:true}, skipped:[…], dup, mismatch, read, sheets, conflicts:[…] }
+var UPFILES = null;     // ไฟล์ที่เลือกไว้ล่าสุด (อ่านซ้ำเมื่อเปลี่ยนสาขา)
+var UP = null;          // { branch:'…',  groups:{G01:{g,rep,title,rows,file}}, files:[…], pick:{G01:true}, skipped:[…], dup, mismatch, read, sheets, conflicts:[…] }
 function loadXlsx() {
   if (typeof XLSX !== 'undefined') return Promise.resolve();
   return new Promise(function (res, rej) {
@@ -928,27 +950,60 @@ function loadXlsx() {
     s.onload = res; s.onerror = function () { rej(new Error('โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่')); }; document.head.appendChild(s);
   });
 }
+function upBranch() { var s = $('#upBr').value; return s === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim().slice(0, 20) : s; }
+function setDropState() { $('#drop').classList.toggle('off', !upBranch()); }
+function fillUpBr() {                                // สาขาที่รู้จัก = สาขาในข้อมูลที่โหลดอยู่ + สาขาที่บันทึกไว้ในเมตาของแต่ละหมวด
+  var set = {};
+  D.branches.forEach(function (k) { if (k) set[k] = 1; });
+  Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k) set[k] = 1; }); });
+  $('#upBr').innerHTML = '<option value="">— เลือกสาขา —</option>' + Object.keys(set).sort().map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '<option value="__new__">+ เพิ่มสาขาใหม่…</option>';
+  $('#upBr').value = ''; $('#upBrNew').value = ''; $('#upBrNewW').classList.add('hidden');
+}
+function clearPreview() { UP = null; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); }
+function onBranchChange() {                          // เปลี่ยนสาขา → อ่านไฟล์เดิมใหม่ตามสาขานั้น (ถ้ามีไฟล์แล้ว)
+  setDropState(); $('#upErr').textContent = '';
+  if (UPFILES && upBranch()) readFiles(UPFILES); else clearPreview();
+}
+function needBranch() { if (upBranch()) return false; $('#upErr').textContent = 'กรุณาเลือกสาขาก่อนเลือกไฟล์'; (($('#upBr').value === '__new__') ? $('#upBrNew') : $('#upBr')).focus(); return true; }
+$('#upBr').addEventListener('change', function () {
+  $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__');
+  if (this.value === '__new__') $('#upBrNew').focus();
+  onBranchChange();
+});
+$('#upBrNew').addEventListener('change', onBranchChange);
+$('#upBrNew').addEventListener('input', setDropState);
+function brMeta(g, br) {                              // ข้อมูลที่มีในระบบของสาขานี้ในหมวดนั้น { count, rep } หรือ null ถ้ายังไม่มี
+  var m = D.gm[g] && D.gm[g].cur; if (!m) return null;
+  var k = brKey(br);
+  if (m.br) { var key = Object.keys(m.br).filter(function (x) { return brKey(x) === k; })[0]; return key ? m.br[key] : null; }
+  if (D.ver !== 'cur') return null;                  // ข้อมูลเดิมก่อนมีเมตารายสาขา → นับจากแถวที่โหลดอยู่
+  var rows = D.items.filter(function (x) { return x.g === g && brKey(x.br) === k; });
+  return rows.length ? { count: rows.length, rep: rows.reduce(function (a, x) { return x.rep > a ? x.rep : a; }, '') } : null;
+}
 function openUpload() {
-  UP = null; $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); $('#upFile').value = '';
+  UP = null; UPFILES = null; $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); $('#upFile').value = '';
+  fillUpBr(); setDropState();
   $('#upDlg').classList.remove('hidden');
 }
 function closeDlg(id) { $(id).classList.add('hidden'); }
 $('#bUpload').addEventListener('click', openUpload);
 $('#upCancel').addEventListener('click', function () { closeDlg('#upDlg'); });
-$('#drop').addEventListener('click', function () { $('#upFile').click(); });
-$('#drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#upFile').click(); } });
+$('#drop').addEventListener('click', function () { if (!needBranch()) $('#upFile').click(); });
+$('#drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!needBranch()) $('#upFile').click(); } });
 ['dragenter', 'dragover'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('over'); }); });
 ['dragleave', 'drop'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.remove('over'); }); });
-$('#drop').addEventListener('drop', function (e) { var fs = e.dataTransfer && e.dataTransfer.files; if (fs && fs.length) readFiles(fs); });
+$('#drop').addEventListener('drop', function (e) { var fs = e.dataTransfer && e.dataTransfer.files; if (fs && fs.length) { if (needBranch()) return; readFiles(fs); } });
 $('#upFile').addEventListener('change', function () { if (this.files.length) readFiles(this.files); });
 async function readFiles(list) {
-  var files = Array.prototype.slice.call(list), lab = $('#drop').firstElementChild, labOld = lab.textContent;
+  var files = Array.prototype.slice.call(list), lab = $('#drop').firstElementChild, labOld = lab.textContent, branch = upBranch();
   $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); UP = null;
+  if (!branch) { $('#upErr').textContent = 'กรุณาเลือกสาขาก่อนเลือกไฟล์'; return; }
+  UPFILES = files;
   var big = files.filter(function (f) { return f.size > 25 * 1024 * 1024; })[0];
   if (big) { $('#upErr').textContent = 'ไฟล์ ' + big.name + ' ใหญ่เกิน 25 MB'; return; }
   try {
     await loadXlsx();
-    var U = { groups: {}, files: [], skipped: [], dup: 0, mismatch: 0, read: 0, sheets: 0, conflicts: [], pick: {} };
+    var U = { branch: branch, groups: {}, files: [], skipped: [], dup: 0, mismatch: 0, other: 0, brs: {}, read: 0, sheets: 0, conflicts: [], pick: {} };
     for (var k = 0; k < files.length; k++) {
       var f = files[k];
       lab.textContent = 'กำลังอ่านไฟล์ ' + f.name + ' …';
@@ -956,8 +1011,9 @@ async function readFiles(list) {
       await new Promise(function (r) { setTimeout(r, 30); });                 // ให้หน้าจอแสดงข้อความก่อนเริ่มอ่าน
       var wb = XLSX.read(buf, { type: 'array' });
       var sheets = wb.SheetNames.map(function (n) { return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) }; });
-      var r = parseSheets(sheets);
-      U.files.push(f.name); U.read += r.info.read; U.dup += r.info.dup; U.mismatch += r.info.mismatch;
+      var r = parseSheets(sheets, branch);
+      U.files.push(f.name); U.read += r.info.read; U.dup += r.info.dup; U.mismatch += r.info.mismatch; U.other += r.info.other;
+      Object.keys(r.info.brs).forEach(function (b) { U.brs[b] = (U.brs[b] || 0) + r.info.brs[b]; });
       U.sheets += r.info.sheets.filter(function (s) { return !s.note; }).length;
       r.info.sheets.forEach(function (s) { if (s.note && s.name) U.skipped.push(files.length > 1 ? f.name + ' / ' + s.name : s.name); });
       Object.keys(r.groups).forEach(function (g) {
@@ -965,9 +1021,13 @@ async function readFiles(list) {
         if (o) { U.conflicts.push(g); if (n.rep >= o.rep) U.groups[g] = n; } else U.groups[g] = n;      // หมวดเดียวกันอยู่หลายไฟล์ → ใช้อันที่วันที่รายงานใหม่กว่า
       });
     }
-    if (!Object.keys(U.groups).length) throw new Error('ไม่พบข้อมูลสินค้าในไฟล์ — ตรวจว่าไฟล์มีหัวคอลัมน์ "ชื่อสินค้า", "คงเหลือ", "ต้นทุน"');
-    Object.keys(U.groups).forEach(function (g) {                              // ค่าเริ่มต้น: ติ๊กทุกหมวด ยกเว้นหมวดที่รายงานเก่ากว่าที่มีในระบบ
-      var cur = D.gm[g] && D.gm[g].cur, n = U.groups[g];
+    if (!Object.keys(U.groups).length) {
+      var found = Object.keys(U.brs);
+      if (found.length) throw new Error('ไม่พบข้อมูลของสาขา "' + branch + '" ในไฟล์ (จะไม่แตะข้อมูลของสาขานี้) — สาขาที่พบในไฟล์: ' + found.map(function (b) { return b + ' (' + nf0.format(U.brs[b]) + ' แถว)'; }).join(', ') + ' · ตรวจว่าเลือกสาขาถูกต้อง');
+      throw new Error('ไม่พบข้อมูลสินค้าในไฟล์ — ตรวจว่าไฟล์มีหัวคอลัมน์ "ชื่อสินค้า", "คงเหลือ", "ต้นทุน"');
+    }
+    Object.keys(U.groups).forEach(function (g) {                              // ค่าเริ่มต้น: ติ๊กทุกหมวด ยกเว้นหมวดที่รายงานเก่ากว่าที่มีในระบบ (ของสาขานี้)
+      var cur = brMeta(g, branch), n = U.groups[g];
       U.pick[g] = !(cur && cur.rep && n.rep && n.rep < cur.rep);
     });
     UP = U; showPreview();
@@ -978,29 +1038,30 @@ function pvSummary() {
   var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; }), n = 0, dn = 0, dc = 0, c = 0;
   sel.forEach(function (g) { UP.groups[g].rows.forEach(function (r) { var v = r[4] * r[11]; n++; c += v; if (r[10] === 'DS') { dn++; dc += v; } }); });
   $('#pvK').innerHTML = '<div><b>' + sel.length + '/' + Object.keys(UP.groups).length + '</b><span>หมวดที่จะบันทึก</span></div><div><b>' + nf0.format(n) + '</b><span>รายการที่มีสต็อก</span></div><div><b>' + nf0.format(dn) + '</b><span>ค้างเกิน 60 วัน (DS)</span></div><div><b>' + money(dc) + '</b><span>มูลค่าทุน DS (บาท)</span></div><div><b>' + money(c) + '</b><span>มูลค่าทุนรวม (บาท)</span></div>';
-  var b = $('#upSave'); b.textContent = 'บันทึก ' + sel.length + ' หมวดที่เลือก'; b.disabled = !sel.length;
+  var b = $('#upSave'); b.textContent = 'บันทึก ' + sel.length + ' หมวด · สาขา ' + UP.branch; b.disabled = !sel.length;
   var hasPrev = sel.filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length;
-  $('#pvPrev').textContent = sel.length ? 'ฉบับปัจจุบันของ ' + sel.filter(function (g) { return D.gm[g] && D.gm[g].cur; }).length + ' หมวดที่มีข้อมูลเดิม จะถูกเก็บเป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') + ' · หมวดที่ไม่ได้ติ๊กและหมวดที่ไม่อยู่ในไฟล์ไม่ถูกแตะ' : '';
+  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') : '';
   var all = $('#pvAll'); if (all) all.checked = sel.length === Object.keys(UP.groups).length;
 }
 function showPreview() {
   var gs = Object.keys(UP.groups).sort(), warns = [];
+  if (UP.other) warns.push('ข้ามแถวของสาขาอื่น ' + nf0.format(UP.other) + ' แถว (ไม่ใช่สาขา ' + UP.branch + ') — จะไม่ถูกบันทึกและไม่ไปแตะข้อมูลสาขาเหล่านั้น');
   if (UP.skipped.length) warns.push('ข้ามชีตที่ไม่พบหัวตาราง: ' + UP.skipped.join(', '));
   if (UP.mismatch) warns.push('พบ ' + nf0.format(UP.mismatch) + ' แถวที่รหัสหมวดไม่ตรงกับชื่อชีต — ระบบใช้รหัสในคอลัมน์ "กลุ่ม"');
   if (UP.dup) warns.push('ตัดแถวซ้ำ ' + nf0.format(UP.dup) + ' แถว (สินค้า+สาขาเดียวกันอยู่หลายชีต) โดยใช้ข้อมูลจากรายงานที่วันที่ใหม่กว่า');
   if (UP.conflicts.length) warns.push('หมวด ' + UP.conflicts.join(', ') + ' อยู่ในหลายไฟล์ — ใช้ไฟล์ที่วันที่รายงานใหม่กว่า');
-  var older = gs.filter(function (g) { var c = D.gm[g] && D.gm[g].cur; return c && c.rep && UP.groups[g].rep && UP.groups[g].rep < c.rep; });
+  var older = gs.filter(function (g) { var c = brMeta(g, UP.branch); return c && c.rep && UP.groups[g].rep && UP.groups[g].rep < c.rep; });
   if (older.length) warns.push('หมวด ' + older.join(', ') + ' เป็นรายงานเก่ากว่าที่มีในระบบ จึงไม่ได้ติ๊กไว้ให้ — ติ๊กเองถ้าต้องการใช้จริง');
   var body = gs.map(function (g) {
-    var n = UP.groups[g], cur = D.gm[g] && D.gm[g].cur, dn = 0, dc = 0;
+    var n = UP.groups[g], cur = brMeta(g, UP.branch), dn = 0, dc = 0;
     n.rows.forEach(function (r) { if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
     var tag = !cur ? '<span class="tag new">หมวดใหม่</span>' : (cur.rep && n.rep && n.rep < cur.rep ? '<span class="tag old">เก่ากว่าที่มี</span>' : '<span class="tag">แทนที่</span>');
     return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(n.rows.length) + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
       '<td>' + (cur ? nf0.format(cur.count) + ' รายการ · ' + fmtDate(cur.rep) : '–') + '</td><td>' + tag + '</td></tr>';
   }).join('');
-  $('#pv').innerHTML = '<div><b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
+  $('#pv').innerHTML = '<div>สาขา <b>' + esc(UP.branch) + '</b> · <b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
     '<div class="pvk" id="pvK"></div>' + warns.map(function (w) { return '<div class="warnbox">' + esc(w) + '</div>'; }).join('') +
-    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort"><input type="checkbox" id="pvAll" aria-label="เลือกทุกหมวด"></th><th class="nosort">หมวด</th><th class="nosort">รายการมีสต็อก (ใหม่)</th><th class="nosort">DS (รายการ)</th><th class="nosort">DS มูลค่าทุน</th><th class="nosort">ข้อมูล ณ วันที่ (ใหม่)</th><th class="nosort">ที่มีในระบบตอนนี้</th><th class="nosort">ผล</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort"><input type="checkbox" id="pvAll" aria-label="เลือกทุกหมวด"></th><th class="nosort">หมวด</th><th class="nosort">รายการมีสต็อก (ใหม่)</th><th class="nosort">DS (รายการ)</th><th class="nosort">DS มูลค่าทุน</th><th class="nosort">ข้อมูล ณ วันที่ (ใหม่)</th><th class="nosort">สาขา ' + esc(UP.branch) + ' ที่มีในระบบตอนนี้</th><th class="nosort">ผล</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
     '<div class="muted" id="pvPrev"></div>';
   $('#pv').classList.remove('hidden'); $('#upSave').classList.remove('hidden'); pvSummary();
 }
@@ -1014,9 +1075,9 @@ $('#upSave').addEventListener('click', function () {
   var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; });
   if (!sel.length) return;
   busy(this, async function () {
-    var r = await call('stockSave', { fileName: UP.files.join(', ').slice(0, 120), groups: sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; }) });
-    closeDlg('#upDlg'); UP = null;
-    toast(r.changed.length ? 'บันทึกแล้ว · แทนที่ ' + r.changed.length + ' หมวด' + (r.same.length ? ' · ' + r.same.length + ' หมวดข้อมูลเหมือนเดิม (ไม่เปลี่ยน)' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน');
+    var br = UP.branch, r = await call('stockSave', { fileName: UP.files.join(', ').slice(0, 120), branch: br, groups: sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; }) });
+    closeDlg('#upDlg'); UP = null; UPFILES = null;
+    toast(r.changed.length ? 'บันทึกแล้ว · สาขา ' + br + ' · แทนที่ ' + r.changed.length + ' หมวด' + (r.same.length ? ' · ' + r.same.length + ' หมวดข้อมูลเหมือนเดิม (ไม่เปลี่ยน)' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน');
     VIEW = 'cur'; await load('cur');
   });
 });
