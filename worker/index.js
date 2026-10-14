@@ -1259,7 +1259,7 @@ function stockApply(rows, adj) {
     by.get(ck).push({ h, bk: stockBrKey(e.br), left: (e.qty === null || e.qty === undefined) ? Infinity : Math.max(0, Number(e.qty) || 0) });
   }));
   by.forEach(l => l.sort((a, b) => (b.bk ? 1 : 0) - (a.bk ? 1 : 0)));
-  const out = [], zero = [];
+  const out = [], zero = [], cut = [];
   rows.forEach(r => {
     if (!(r[4] > 0)) { zero.push(r); return; }                    // คงเหลือ 0 = ไม่เอาไปคำนวณ แยกเป็นรายการต่างหาก
     const l = by.get(stockCodeKey(r[1]));
@@ -1272,10 +1272,10 @@ function stockApply(rows, adj) {
       en.h.push({ g: r[0], br: r[3], qty: stockNum(t, 2), cost: r[11], name: r[2] });
     });
     q = stockNum(q, 2);
-    if (q <= 0) return;
-    if (q === r[4]) out.push(r); else { const c = r.slice(); c[4] = q; out.push(c); }
+    if (q <= 0) { const c = r.slice(); c[4] = 0; c[20] = r[4]; cut.push(c); return; }
+    if (q === r[4]) out.push(r); else { const c = r.slice(); c[4] = q; c[20] = r[4]; out.push(c); }
   });
-  return { rows: out, hit, zero };
+  return { rows: out, hit, zero, cut };
 }
 const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
 const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
@@ -1371,6 +1371,27 @@ async function stockState(C) {
   return state;
 }
 const stockNames = async C => { const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {}; Object.keys(raw).forEach(k => { const t = str(raw[k]); if (/^[A-Z0-9_-]{1,12}$/.test(k) && t) out[k] = t.slice(0, 40); }); return out; };
+function stockDayKey(ts) {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts || Date.now())); }
+  catch (e) { return new Date((ts || Date.now()) + 7 * 3600000).toISOString().slice(0, 10); }
+}
+function stockDailyHistory(hist) {
+  if (!Array.isArray(hist)) return [];
+  const byDay = new Map();
+  hist.forEach(x => {
+    if (!x || !x.ts) return;
+    const dk = stockDayKey(x.ts), prev = byDay.get(dk);
+    if (!prev || x.ts >= prev.ts) {
+      const merged = Object.assign({}, x);
+      if (prev && prev.gs && !merged.gs) merged.gs = prev.gs;
+      byDay.set(dk, merged);
+    }
+  });
+  return Array.from(byDay.values()).sort((a, b) => a.ts - b.ts);
+}
+function stockPushHistory(hist, entry) {
+  return stockDailyHistory([...(Array.isArray(hist) ? hist : []), entry]).slice(-STOCK_HISTORY_MAX);
+}
 API.stockGet = async (C, token, ver) => {
   const me = await authPerm(C, token, 'stock'), v = ver === 'prev' ? 1 : 0;
   const state = await stockState(C);
@@ -1378,7 +1399,7 @@ API.stockGet = async (C, token, ver) => {
   const ap = stockApply(rows0, lost);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h.slice(0, 30) }; }).sort((a, b) => b.ts - a.ts);
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
@@ -1436,9 +1457,8 @@ API.stockSave = async (C, token, payload) => {
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
-  const hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
-  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
+  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · อัปเดต ' + changed.length + ' หมวด (' + changed.join(',') + ') · เพิ่ม ' + tot.add + ' เปลี่ยน ' + tot.chg + ' ลบ ' + tot.del + ' เหมือนเดิม ' + tot.same + ' แถว' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
   return { ok: true, changed, same, diff, tot };
@@ -1450,10 +1470,10 @@ API.stockRestore = async (C, token, g) => {
   const state = await stockState(C), s = state[g];
   if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
   state[g] = { cur: s.prev, prev: s.cur };
-  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
-    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX)))]);
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))]);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
   return { ok: true, groups: state };
 };
@@ -1521,9 +1541,9 @@ API.stockClear = async (C, token, password, scope) => {
     desc = 'ล้างทั้งสาขา ' + branch;
   } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
   if (!changed.length) return { ok: true, changed };
-  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
-  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
+  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', desc + ' · ' + changed.length + ' หมวด (' + changed.join(',') + ') · เก็บเป็นฉบับก่อนหน้า');
   return { ok: true, changed };
@@ -1538,6 +1558,42 @@ API.stockSetNames = async (C, token, names) => {
   await kvSet(C, 'STOCK_NAMES', JSON.stringify(out));
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งชื่อหมวด', Object.keys(out).length + ' หมวด');
   return out;
+};
+API.stockGroupAdd = async (C, token, g, name) => {
+  const me = await stockEditAuth(C, token);
+  const code = str(g).trim().toUpperCase();
+  if (!STOCK_GROUP_RE.test(code)) throw new Error('รหัสหมวดต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลข 1–12 ตัว (เช่น G01)');
+  const [state, names] = await Promise.all([stockState(C), stockNames(C)]);
+  const label = str(name).replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (label) names[code] = label;
+  const ops = [kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names))];
+  if (!state[code]) {
+    state[code] = { cur: { ts: now(), who: me.name, file: 'เพิ่มหมวดใหม่', rep: '', title: '', count: 0, sum: stockSummary([]), br: {} }, prev: null };
+    ops.push(...stockInsertOps(C, code, 0, '[]'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+  }
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่มหมวดสินค้า', code + (label ? ' · ' + label : ''));
+  return { ok: true, g: code, names, groups: state };
+};
+API.stockGroupDelete = async (C, token, g) => {
+  const me = await stockEditAuth(C, token);
+  const code = str(g).trim().toUpperCase();
+  if (!code) throw new Error('กรุณาระบุหมวดที่จะลบ');
+  const [state, names] = await Promise.all([stockState(C), stockNames(C)]);
+  const hadState = !!state[code], hadName = !!names[code];
+  if (!hadState && !hadName) throw new Error('ไม่พบหมวด ' + code);
+  delete state[code];
+  delete names[code];
+  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  await batch(C, [
+    stmt(C, 'DELETE FROM stock_grp WHERE g=?', code),
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)),
+    kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names)),
+    kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))
+  ]);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบหมวดสินค้า', code);
+  return { ok: true, g: code, names, groups: state };
 };
 
 /* ============================== แท็ก "สินค้าขายยาก" ==============================
