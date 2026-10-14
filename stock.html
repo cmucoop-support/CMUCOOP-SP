@@ -411,15 +411,22 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   </div>
 </div>
 
-<!-- ตั้งค่าหมวด (เพิ่มหมวด / ตั้งชื่อ / ลบรายหมวด) -->
+<!-- ตั้งค่าหมวด (เพิ่มสาขา / เลือกสาขา / เพิ่มหมวด-ลบหมวด-ตั้งชื่อหมวดอิงตามสาขา) -->
 <div class="overlay hidden" id="nmDlg">
   <div class="dlg wide">
     <h2>ตั้งค่าหมวด</h2>
-    <div class="muted">เพิ่มหมวดใหม่ ตั้งชื่อหมวด หรือลบแยกเฉพาะหมวดที่ไม่ต้องการได้ · ชื่อหมวดจะคงอยู่แม้อัปโหลดไฟล์ใหม่ · เว้นว่างไว้ = แสดงเป็นรหัสอย่างเดียว</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+    <div class="muted">เพิ่มสาขาและจัดการหมวดสินค้าโดยอิงตามสาขาที่เลือก · แต่ละสาขาสามารถมีหมวดและชื่อหมวดของตัวเองได้</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#f3ecff;border:1px solid #d9c8ff;border-radius:12px">
+      <label style="font-size:13px;font-weight:600;color:var(--ink);flex:1 1 180px">สาขาที่กำลังตั้งค่าหมวด<select id="nmBr"></select></label>
+      <button type="button" class="btn ghost small" id="nmDelBrBtn" style="color:var(--bad)" title="ลบสาขาที่เลือก">ลบสาขานี้</button>
+      <label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 180px">เพิ่มสาขาใหม่<input type="text" id="nmNewBr" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก"></label>
+      <button type="button" class="btn small" id="nmAddBrBtn">+ เพิ่มสาขา</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+      <div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)" id="nmBrTitle">หมวดสินค้าของสาขา</div>
       <label style="font-size:13px;font-weight:600;color:var(--steel);flex:0 0 140px">รหัสหมวดใหม่<input type="text" id="nmNewCode" maxlength="12" placeholder="เช่น G25"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 200px">ชื่อหมวดใหม่<input type="text" id="nmNewName" maxlength="40" placeholder="เช่น เครื่องดื่ม / ของใช้"></label>
-      <button type="button" class="btn small" id="nmAddBtn">+ เพิ่มหมวด</button>
+      <button type="button" class="btn small" id="nmAddBtn">+ เพิ่มหมวดในสาขานี้</button>
     </div>
     <div class="namegrid" id="nmGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
     <div class="err" id="nmErr"></div>
@@ -669,8 +676,63 @@ var ST_NAME = { DS: 'DS ค้างเกิน 60 วัน', T3: 'T3 30–60 
 
 function fmtDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? (+m[3]) + '/' + (+m[2]) + '/' + (+m[1] + 543) : '–'; }
 function fmtTs(ts) { return new Date(ts).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', calendar: 'buddhist' }); }
-function gl(g) { return D.names[g] ? g + ' · ' + D.names[g] : g; }
-function glShort(g) { var n = D.names[g]; return n ? g + ' ' + (n.length > 16 ? n.slice(0, 15) + '…' : n) : g; }
+var BR_CFG = (function () {
+  try { return JSON.parse(localStorage.getItem('cmucoop_br_cfg') || '{"branches":[],"brGroups":{},"delBranches":{},"delBrGroups":{}}'); }
+  catch (e) { return { branches: [], brGroups: {}, delBranches: {}, delBrGroups: {} }; }
+})();
+function normBrCfg(c) {
+  c = c && typeof c === 'object' ? c : {};
+  if (!Array.isArray(c.branches)) c.branches = [];
+  if (!c.brGroups || typeof c.brGroups !== 'object') c.brGroups = {};
+  if (!c.delBranches || typeof c.delBranches !== 'object') c.delBranches = {};
+  if (!c.delBrGroups || typeof c.delBrGroups !== 'object') c.delBrGroups = {};
+  return c;
+}
+BR_CFG = normBrCfg(BR_CFG);
+function saveBrCfgLocal() {
+  try { localStorage.setItem('cmucoop_br_cfg', JSON.stringify(BR_CFG)); } catch (e) {}
+}
+function getGrpName(g, brOpt) {
+  var b = brOpt !== undefined ? brOpt : F.br;
+  if (b) {
+    var bk = brKey(b);
+    if (D.names && D.names[bk + ':' + g]) return D.names[bk + ':' + g];
+  }
+  if (D.names && D.names[g]) return D.names[g];
+  if (D.names) {
+    var ks = Object.keys(D.names);
+    for (var i = 0; i < ks.length; i++) {
+      if (ks[i].slice(-1 - g.length) === ':' + g && D.names[ks[i]]) return D.names[ks[i]];
+    }
+  }
+  return '';
+}
+function gl(g, brOpt) { var n = getGrpName(g, brOpt); return n ? g + ' · ' + n : g; }
+function glShort(g, brOpt) { var n = getGrpName(g, brOpt); return n ? g + ' ' + (n.length > 16 ? n.slice(0, 15) + '…' : n) : g; }
+function groupsForBranch(br) {                                          // หมวดจะอิงจากสาขาที่เลือก (ถ้าไม่เลือกสาขา = รวมทุกสาขา)
+  if (!br) return (D.allGroups || D.groups || []).slice();
+  var bk = brKey(br), set = {};
+  var delG = (BR_CFG.delBrGroups && BR_CFG.delBrGroups[bk]) || {};
+  D.items.concat(D.zero || [], D.cut || []).forEach(function (x) {
+    if (x.g && brKey(x.br) === bk && !DELETED_GROUPS[x.g] && !delG[x.g]) set[x.g] = 1;
+  });
+  Object.keys(D.gm || {}).forEach(function (g) {
+    if (DELETED_GROUPS[g] || delG[g]) return;
+    var v = gView(g);
+    if (v && v.br && Object.keys(v.br).some(function (k) { return brKey(k) === bk; })) set[g] = 1;
+  });
+  var cfgG = (BR_CFG.brGroups && BR_CFG.brGroups[bk]) || {};
+  Object.keys(cfgG).forEach(function (g) {
+    if (!DELETED_GROUPS[g] && !delG[g]) set[g] = 1;
+  });
+  Object.keys(D.names || {}).forEach(function (k) {
+    if (k.indexOf(bk + ':') === 0) {
+      var g = k.slice(bk.length + 1);
+      if (g && !DELETED_GROUPS[g] && !delG[g]) set[g] = 1;
+    }
+  });
+  return Object.keys(set).sort();
+}
 function dayKey(ts) {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts)); }
   catch (e) { return new Date((ts || 0) + 7 * 3600000).toISOString().slice(0, 10); }
@@ -798,11 +860,39 @@ function applyData(r) {
   D.items.forEach(function (x, i) { x.i = i; });
   D.zero.forEach(function (x, i) { x.i = 100000 + i; });
   D.cut.forEach(function (x, i) { x.i = 200000 + i; });
+  if (D.names && D.names.__BR_CFG__) {
+    try {
+      var srvCfg = normBrCfg(JSON.parse(D.names.__BR_CFG__));
+      srvCfg.branches.forEach(function (b) { if (b && BR_CFG.branches.indexOf(b) < 0 && !BR_CFG.delBranches[brKey(b)]) BR_CFG.branches.push(b); });
+      Object.keys(srvCfg.brGroups).forEach(function (bk) {
+        BR_CFG.brGroups[bk] = Object.assign({}, srvCfg.brGroups[bk], BR_CFG.brGroups[bk] || {});
+      });
+      saveBrCfgLocal();
+    } catch (e) {}
+  }
   var gs = {}, bs = {};
-  D.items.concat(D.zero, D.cut).forEach(function (x) { if (x.g) gs[x.g] = 1; if (x.br) bs[x.br] = 1; });
-  Object.keys(D.gm).forEach(function (g) { if (!DELETED_GROUPS[g]) gs[g] = 1; });
-  Object.keys(D.names).forEach(function (g) { if (!DELETED_GROUPS[g]) gs[g] = 1; });
-  D.groups = Object.keys(gs).sort(); D.branches = Object.keys(bs).sort();
+  D.items.concat(D.zero, D.cut).forEach(function (x) {
+    if (x.g && !DELETED_GROUPS[x.g]) gs[x.g] = 1;
+    if (x.br && !BR_CFG.delBranches[brKey(x.br)]) bs[x.br] = 1;
+  });
+  Object.keys(D.gm).forEach(function (g) {
+    if (!DELETED_GROUPS[g]) gs[g] = 1;
+    var c = D.gm[g] && D.gm[g].cur;
+    if (c && c.br) Object.keys(c.br).forEach(function (b) { if (b && !BR_CFG.delBranches[brKey(b)]) bs[b] = 1; });
+  });
+  Object.keys(D.names).forEach(function (k) {
+    if (k === '__BR_CFG__') return;
+    var p = k.split(':'), g = p.length === 2 ? p[1] : p[0];
+    if (g && !DELETED_GROUPS[g]) gs[g] = 1;
+  });
+  (BR_CFG.branches || []).forEach(function (b) { if (b && !BR_CFG.delBranches[brKey(b)]) bs[b] = 1; });
+  Object.keys(BR_CFG.brGroups || {}).forEach(function (bk) {
+    Object.keys(BR_CFG.brGroups[bk] || {}).forEach(function (g) { if (!DELETED_GROUPS[g]) gs[g] = 1; });
+  });
+  D.allGroups = Object.keys(gs).sort();
+  D.branches = Object.keys(bs).sort();
+  if (F.br && !bs[F.br]) F.br = '';
+  D.groups = groupsForBranch(F.br);
   var ms = Object.keys(D.gm).map(function (g) { return gView(g); }).filter(Boolean), meta = null;
   if (ms.length) {
     var last = ms.reduce(function (a, b) { return b.ts > a.ts ? b : a; }), reps = ms.map(function (m) { return m.rep; }).filter(Boolean).sort();
@@ -904,6 +994,9 @@ function allPool(includeZero) {                                          // ก�
   return base;
 }
 function render() {
+  D.groups = groupsForBranch(F.br);
+  var allowedG = {}; D.groups.forEach(function (g) { allowedG[g] = 1; });
+  Object.keys(F.gm).forEach(function (g) { if (!allowedG[g]) delete F.gm[g]; });
   var q = F.q.trim().toLowerCase();
   var A = D.items.filter(function (x) {
     return (!F.br || x.br === F.br) && tagOn(x) && (!q || x.hay.indexOf(q) >= 0);
@@ -1359,60 +1452,80 @@ document.addEventListener('click', function (e) {
 });
 window.addEventListener('scroll', function () { if (DOT_CTX) closeDotPop(); }, true);
 
-/* ---------- เพิ่มหมวด / ลบแยกรายหมวด ---------- */
-async function addCategoryFlow(codeRaw, nameRaw, btn) {
+/* ---------- เพิ่มสาขา / เพิ่มหมวด / ลบแยกรายหมวด (หมวดอิงจากสาขา) ---------- */
+async function syncNamesAndCfg(nextNames) {
+  var payload = Object.assign({}, nextNames || D.names || {});
+  payload.__BR_CFG__ = JSON.stringify(BR_CFG);
+  try {
+    D.names = await call('stockSetNames', payload);
+  } catch (e) {
+    D.names = payload;
+  }
+}
+async function addCategoryFlow(codeRaw, nameRaw, brRaw, btn) {
   var code = String(codeRaw || '').trim().toUpperCase();
   var name = String(nameRaw || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-  if (!/^[A-Z0-9_-]{1,12}$/.test(code)) {
-    toast('รหัสหมวดต้องเป็นภาษาอังกฤษหรือตัวเลข 1–12 ตัว (เช่น G01, G25)', true);
+  var br = String(brRaw || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  if (!br) {
+    toast('กรุณาเลือกสาขา หรือเพิ่มสาขาใหม่ก่อนเพิ่มหมวด', true);
     return false;
   }
+  if (!/^[A-Z0-9_-]{1,12}$/.test(code)) {
+    toast('รหัสหมวดต้องเป็นภาษาอังกฤษหรือตัวเลข 1–12 ตัว เช่น G01, G25', true);
+    return false;
+  }
+  var bk = brKey(br);
   await busy(btn || $('#nmAddBtn'), async function () {
     delete DELETED_GROUPS[code];
-    try {
-      await call('stockGroupAdd', code, name);
-    } catch (e) {
-      // กรณีหลังบ้านยังไม่ได้อัปเดต API stockGroupAdd ให้บันทึกผ่าน stockSetNames แทน
-      var nextNames = Object.assign({}, D.names);
-      nextNames[code] = name || code;
-      D.names = await call('stockSetNames', nextNames);
+    if (BR_CFG.delBrGroups[bk]) delete BR_CFG.delBrGroups[bk][code];
+    if (!BR_CFG.brGroups[bk]) BR_CFG.brGroups[bk] = {};
+    BR_CFG.brGroups[bk][code] = 1;
+    if (BR_CFG.branches.indexOf(br) < 0) BR_CFG.branches.push(br);
+    saveBrCfgLocal();
+
+    var nextNames = Object.assign({}, D.names);
+    if (name) {
+      nextNames[bk + ':' + code] = name;
+      if (!nextNames[code]) nextNames[code] = name;
     }
-    if (!D.gm[code]) D.gm[code] = { cur: { ts: Date.now(), who: (D.me && D.me.name) || '', file: 'เพิ่มหมวดใหม่', rep: '', title: '', count: 0, sum: { items: 0, pcs: 0, cost: 0, st: {} }, br: {} }, prev: null };
-    if (name) D.names[code] = name;
-    toast('เพิ่มหมวด ' + gl(code) + ' แล้ว');
+    try {
+      await call('stockGroupAdd', code, name, br);
+    } catch (e) {}
+    await syncNamesAndCfg(nextNames);
+    toast('เพิ่มหมวด ' + gl(code, br) + ' ในสาขา ' + br + ' แล้ว');
     await load(VIEW);
-    F.gm = {}; F.gm[code] = true; render();
   });
   return true;
 }
-async function deleteCategoryFlow(g, btn) {
+async function deleteCategoryFlow(g, brRaw, btn) {
   g = String(g || '').trim().toUpperCase();
+  var br = String(brRaw || '').replace(/\s+/g, ' ').trim().slice(0, 20), bk = brKey(br);
   if (!g) { toast('กรุณาเลือกหมวดที่ต้องการลบก่อน', true); return; }
-  var cnt = D.items.filter(function (x) { return x.g === g; }).length;
-  if (!confirm('ยืนยันลบหมวด "' + gl(g) + '"' + (cnt ? ' (มีสินค้า ' + nf0.format(cnt) + ' รายการ)' : '') + ' ?\nระบบจะลบเฉพาะหมวดนี้ออกจากรายการ ไม่กระทบหมวดอื่น')) return;
+  var cnt = D.items.filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
+  var scopeTxt = br ? 'ของสาขา ' + br : 'ทุกสาขา';
+  if (!confirm('ยืนยันลบหมวด "' + gl(g, br) + '" ' + scopeTxt + (cnt ? ' · มีสินค้า ' + nf0.format(cnt) + ' รายการ' : '') + ' ?')) return;
   await busy(btn || $('#nmSave'), async function () {
-    var done = false;
-    try {
-      await call('stockGroupDelete', g);
-      done = true;
-    } catch (e) {
-      if (/SESSION_EXPIRED/.test(e.message)) throw e;
-      // Fallback กรณีหลังบ้านยังเป็นเวอร์ชันเดิม: ลบชื่อหมวด + ถ้ามีข้อมูลสต็อกให้ล้างเฉพาะหมวดนี้
-      var nextNames = Object.assign({}, D.names);
-      delete nextNames[g];
-      try { D.names = await call('stockSetNames', nextNames); } catch (er) {}
-      if (D.gm[g] && D.gm[g].cur && D.gm[g].cur.count > 0 && D.me && D.me.role === 'admin') {
-        var pw = prompt('ยืนยันรหัสผ่านแอดมินเพื่อล้างข้อมูลสต็อกในหมวด ' + gl(g) + ':');
-        if (pw) await call('stockClear', pw, { mode: 'group', g: g });
-      }
+    if (bk) {
+      if (!BR_CFG.delBrGroups[bk]) BR_CFG.delBrGroups[bk] = {};
+      BR_CFG.delBrGroups[bk][g] = 1;
+      if (BR_CFG.brGroups[bk]) delete BR_CFG.brGroups[bk][g];
+    } else {
       DELETED_GROUPS[g] = true;
-      done = true;
     }
-    if (done) {
-      delete F.gm[g];
-      toast('ลบหมวด ' + g + ' เรียบร้อยแล้ว');
-      await load(VIEW);
+    saveBrCfgLocal();
+    var nextNames = Object.assign({}, D.names);
+    if (bk) delete nextNames[bk + ':' + g];
+    else {
+      delete nextNames[g];
+      Object.keys(nextNames).forEach(function (k) { if (k.slice(-1 - g.length) === ':' + g) delete nextNames[k]; });
     }
+    try {
+      await call('stockGroupDelete', g, br);
+    } catch (e) {}
+    await syncNamesAndCfg(nextNames);
+    delete F.gm[g];
+    toast('ลบหมวด ' + g + ' ' + scopeTxt + ' เรียบร้อยแล้ว');
+    await load(VIEW);
   });
 }
 
@@ -2004,40 +2117,129 @@ $('#clGo').addEventListener('click', function () {
   });
 });
 
-/* ---------- ตั้งชื่อหมวด / เพิ่มหมวด / ลบแยกรายหมวด ---------- */
+/* ---------- ตั้งค่าหมวด (เพิ่มสาขา / เลือกสาขา / หมวดอิงตามสาขา) ---------- */
+var NM_BR = '';
+function fillNmBr(preferBr) {
+  var bs = D.branches.slice();
+  if (preferBr && bs.indexOf(preferBr) >= 0) NM_BR = preferBr;
+  else if (F.br && bs.indexOf(F.br) >= 0) NM_BR = F.br;
+  else if (!NM_BR || bs.indexOf(NM_BR) < 0) NM_BR = bs[0] || '';
+  var sel = $('#nmBr');
+  if (sel) {
+    sel.innerHTML = bs.length
+      ? bs.map(function (b) { return '<option value="' + esc(b) + '"' + (b === NM_BR ? ' selected' : '') + '>สาขา ' + esc(b) + '</option>'; }).join('')
+      : '<option value="">ยังไม่มีสาขา — เพิ่มสาขาใหม่ด้านขวา</option>';
+    sel.value = NM_BR;
+  }
+  if ($('#nmDelBrBtn')) $('#nmDelBrBtn').disabled = !NM_BR;
+  if ($('#nmBrTitle')) $('#nmBrTitle').textContent = NM_BR ? 'หมวดสินค้าของสาขา ' + NM_BR : 'กรุณาเพิ่มหรือเลือกสาขาก่อนจัดการหมวดสินค้า';
+}
 function renderNmGrid() {
-  var cnt = {}; allPool().forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
-  $('#nmGrid').innerHTML = D.groups.map(function (g) {
+  var br = $('#nmBr') ? $('#nmBr').value : NM_BR;
+  NM_BR = br;
+  if ($('#nmBrTitle')) $('#nmBrTitle').textContent = br ? 'หมวดสินค้าของสาขา ' + br : 'กรุณาเพิ่มหรือเลือกสาขาก่อนจัดการหมวดสินค้า';
+  if ($('#nmDelBrBtn')) $('#nmDelBrBtn').disabled = !br;
+  if (!br) {
+    $('#nmGrid').innerHTML = '<div class="muted">ยังไม่ได้เลือกสาขา — กรุณาเพิ่มสาขาใหม่ด้านบนก่อน</div>';
+    return;
+  }
+  var bk = brKey(br), cnt = {};
+  allPool(true).forEach(function (x) { if (brKey(x.br) === bk) cnt[x.g] = (cnt[x.g] || 0) + 1; });
+  var gs = groupsForBranch(br);
+  $('#nmGrid').innerHTML = gs.map(function (g) {
+    var val = (D.names && D.names[bk + ':' + g]) || (D.names && D.names[g]) || '';
     return '<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:#fff">' +
       '<b style="min-width:48px">' + esc(g) + '</b>' +
-      '<input type="text" data-g="' + esc(g) + '" maxlength="40" value="' + esc(D.names[g] || '') + '" placeholder="ชื่อหมวด (' + nf0.format(cnt[g] || 0) + ' รายการ)" style="flex:1">' +
-      '<button type="button" class="btn ghost small" style="color:var(--bad);padding:4px 10px" data-nmdel="' + esc(g) + '" title="ลบหมวด ' + esc(g) + '">ลบ</button>' +
+      '<input type="text" data-g="' + esc(g) + '" maxlength="40" value="' + esc(val) + '" placeholder="ชื่อหมวด · ' + nf0.format(cnt[g] || 0) + ' รายการ" style="flex:1">' +
+      '<button type="button" class="btn ghost small" style="color:var(--bad);padding:4px 10px" data-nmdel="' + esc(g) + '" title="ลบหมวด ' + esc(g) + ' ออกจากสาขา ' + esc(br) + '">ลบ</button>' +
     '</div>';
-  }).join('') || '<div class="muted">ยังไม่มีหมวดสินค้า — เพิ่มหมวดใหม่ด้านบนได้เลย</div>';
+  }).join('') || '<div class="muted">สาขา ' + esc(br) + ' ยังไม่มีหมวดสินค้า — เพิ่มหมวดใหม่ด้านบนได้เลย</div>';
 }
 $('#bNames').addEventListener('click', function () {
-  $('#nmErr').textContent = ''; $('#nmNewCode').value = ''; $('#nmNewName').value = '';
+  $('#nmErr').textContent = ''; $('#nmNewCode').value = ''; $('#nmNewName').value = ''; $('#nmNewBr').value = '';
+  fillNmBr(F.br);
   renderNmGrid();
   $('#nmDlg').classList.remove('hidden');
 });
-$('#nmAddBtn').addEventListener('click', async function () {
-  var code = $('#nmNewCode').value.trim().toUpperCase(), name = $('#nmNewName').value.trim();
-  if (!code) { $('#nmErr').textContent = 'กรุณากรอกรหัสหมวดใหม่ (เช่น G25)'; $('#nmNewCode').focus(); return; }
+$('#nmBr').addEventListener('change', function () {
+  NM_BR = this.value;
   $('#nmErr').textContent = '';
-  var ok = await addCategoryFlow(code, name, this);
-  if (ok) { $('#nmNewCode').value = ''; $('#nmNewName').value = ''; renderNmGrid(); }
+  renderNmGrid();
+});
+$('#nmAddBrBtn').addEventListener('click', async function () {
+  var b = $('#nmNewBr').value.replace(/\s+/g, ' ').trim().slice(0, 20);
+  if (!b) { $('#nmErr').textContent = 'กรุณากรอกชื่อสาขาใหม่'; $('#nmNewBr').focus(); return; }
+  $('#nmErr').textContent = '';
+  var bk = brKey(b);
+  delete BR_CFG.delBranches[bk];
+  if (!BR_CFG.branches.some(function (x) { return brKey(x) === bk; })) BR_CFG.branches.push(b);
+  if (!BR_CFG.brGroups[bk]) BR_CFG.brGroups[bk] = {};
+  saveBrCfgLocal();
+  await busy(this, async function () {
+    await syncNamesAndCfg(D.names);
+    if (D.branches.indexOf(b) < 0) { D.branches.push(b); D.branches.sort(); }
+    $('#nmNewBr').value = '';
+    F.br = b;
+    fillSelects();
+    fillNmBr(b);
+    renderNmGrid();
+    render();
+    toast('เพิ่มสาขา ' + b + ' แล้ว');
+  });
+});
+$('#nmDelBrBtn').addEventListener('click', async function () {
+  var b = $('#nmBr').value;
+  if (!b) return;
+  if (!confirm('ยืนยันลบสาขา "' + b + '" ออกจากรายการตั้งค่า ?')) return;
+  var bk = brKey(b);
+  BR_CFG.delBranches[bk] = 1;
+  BR_CFG.branches = (BR_CFG.branches || []).filter(function (x) { return brKey(x) !== bk; });
+  delete BR_CFG.brGroups[bk];
+  saveBrCfgLocal();
+  await busy(this, async function () {
+    var nextNames = Object.assign({}, D.names);
+    Object.keys(nextNames).forEach(function (k) { if (k.indexOf(bk + ':') === 0) delete nextNames[k]; });
+    await syncNamesAndCfg(nextNames);
+    D.branches = D.branches.filter(function (x) { return brKey(x) !== bk; });
+    if (brKey(F.br) === bk) F.br = '';
+    fillSelects();
+    fillNmBr('');
+    renderNmGrid();
+    render();
+    toast('ลบสาขา ' + b + ' แล้ว');
+  });
+});
+$('#nmAddBtn').addEventListener('click', async function () {
+  var br = $('#nmBr').value, code = $('#nmNewCode').value.trim().toUpperCase(), name = $('#nmNewName').value.trim();
+  if (!br) { $('#nmErr').textContent = 'กรุณาเพิ่มหรือเลือกสาขาก่อนเพิ่มหมวด'; $('#nmNewBr').focus(); return; }
+  if (!code) { $('#nmErr').textContent = 'กรุณากรอกรหัสหมวดใหม่ เช่น G25'; $('#nmNewCode').focus(); return; }
+  $('#nmErr').textContent = '';
+  var ok = await addCategoryFlow(code, name, br, this);
+  if (ok) { $('#nmNewCode').value = ''; $('#nmNewName').value = ''; fillNmBr(br); renderNmGrid(); }
 });
 $('#nmGrid').addEventListener('click', async function (e) {
   var db = e.target.closest('[data-nmdel]'); if (!db) return;
-  await deleteCategoryFlow(db.dataset.nmdel, db);
+  var br = $('#nmBr').value;
+  await deleteCategoryFlow(db.dataset.nmdel, br, db);
+  fillNmBr(br);
   renderNmGrid();
 });
 $('#nmCancel').addEventListener('click', function () { closeDlg('#nmDlg'); });
 $('#nmSave').addEventListener('click', function () {
-  var names = {}; document.querySelectorAll('#nmGrid input[data-g]').forEach(function (i) { if (i.value.trim()) names[i.dataset.g] = i.value.trim(); });
+  var br = $('#nmBr').value, bk = brKey(br);
+  var nextNames = Object.assign({}, D.names);
+  document.querySelectorAll('#nmGrid input[data-g]').forEach(function (i) {
+    var g = i.dataset.g, v = i.value.trim();
+    if (bk) {
+      if (v) { nextNames[bk + ':' + g] = v; if (!nextNames[g]) nextNames[g] = v; }
+      else delete nextNames[bk + ':' + g];
+    } else {
+      if (v) nextNames[g] = v; else delete nextNames[g];
+    }
+  });
   busy(this, async function () {
-    D.names = await call('stockSetNames', names);
-    closeDlg('#nmDlg'); fillSelects(); render(); toast('บันทึกชื่อหมวดแล้ว');
+    await syncNamesAndCfg(nextNames);
+    closeDlg('#nmDlg'); fillSelects(); render(); toast('บันทึกตั้งค่าหมวดแล้ว');
   });
 });
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDotPop(); closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); closeDlg('#clDlg'); closeDlg('#lostDlg'); closeDlg('#histDlg'); } });
