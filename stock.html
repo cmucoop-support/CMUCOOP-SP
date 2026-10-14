@@ -186,8 +186,18 @@ tfoot td{background:var(--accent-soft)}
 .chk-pill:hover{border-color:var(--accent)}
 .chk-pill:has(input:checked){border-color:var(--accent-text);background:var(--accent-soft);color:var(--accent-text);font-weight:600}
 .chk-pill input[type=checkbox]{width:16px;height:16px;margin:0;cursor:pointer}
-.grp-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.grp-bar select{flex:1 1 260px;max-width:460px}
+.grp-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative}
+.mgrp-wrap{position:relative;flex:1 1 260px;max-width:480px}
+.mgrp-btn{width:100%;border-radius:12px;padding:10px 14px;border:1.5px solid var(--line);background:#fbf9ff;color:var(--ink);text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:500;min-height:42px}
+.mgrp-btn:hover,.mgrp-btn.open{border-color:var(--accent);background:#fff}
+.mgrp-btn .arr{font-size:12px;color:var(--steel);transition:transform .15s}
+.mgrp-btn.open .arr{transform:rotate(180deg)}
+.mgrp-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:80;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(42,31,71,.2);padding:8px;max-height:320px;overflow:auto;display:grid;gap:2px}
+.mgrp-top{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;flex-wrap:wrap}
+.mgrp-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;user-select:none}
+.mgrp-item:hover{background:#f8f4ff}
+.mgrp-item.on{background:var(--accent-soft);font-weight:600}
+.mgrp-item label{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;color:var(--ink);font-weight:inherit}
 .dot-btn{min-width:34px;min-height:30px;padding:2px 10px!important;font-size:18px;line-height:1;font-weight:700;border-radius:8px!important}
 .dot-pop{position:fixed;z-index:120;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(42,31,71,.22);padding:10px 12px;min-width:250px;max-width:320px;display:grid;gap:6px}
 .dot-pop-hd{font-size:12.5px;color:var(--steel);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:2px;font-weight:600}
@@ -220,10 +230,6 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     <button class="btn onDark small hidden" id="bUpload">อัปโหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งชื่อหมวด</button>
     <button class="btn onDark small hidden" id="bClear">ล้างข้อมูล</button>
-    <button class="btn onDark small" id="bLost">ของหาย</button>
-    <button class="btn onDark small" id="bExp">สินค้าหมดอายุ</button>
-    <button class="btn onDark small" id="bPend">รอปรับข้อมูล</button>
-    <button class="btn onDark small" id="bWaste">ของเสีย</button>
     <button class="btn onDark small" id="bXlsx">ส่งออก Excel</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -245,13 +251,18 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     <section class="card filters">
       <div class="frow">
         <label>สาขา<select id="fBr"></select></label>
-        <label style="flex:1.4 1 240px">หมวดสินค้า (ลูกศรลงเพื่อเลือกหมวด)
+        <div style="flex:1.4 1 260px;display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500">
+          <span>หมวดสินค้า (คลิกเลือกได้หลายหมวด)</span>
           <div class="grp-bar">
-            <select id="fGrp"></select>
+            <div class="mgrp-wrap" id="fGrpWrap">
+              <button type="button" class="mgrp-btn" id="fGrpBtn"><span id="fGrpLabel">ทุกหมวด</span><span class="arr">&#9662;</span></button>
+              <div class="mgrp-menu hidden" id="fGrpMenu"></div>
+            </div>
+            <select id="fGrp" class="hidden"></select>
             <button type="button" class="btn ghost small hidden" id="bAddGrp" title="เพิ่มหมวดสินค้าใหม่">+ เพิ่มหมวด</button>
             <button type="button" class="btn ghost small hidden" id="bDelGrp" style="color:var(--bad)" title="ลบหมวดที่เลือก">ลบหมวด</button>
           </div>
-        </label>
+        </div>
         <label class="grow">ค้นหา (ชื่อ / รหัส / หมายเหตุ)<input type="search" id="fQ" placeholder="พิมพ์เพื่อค้นหา" autocomplete="off"></label>
       </div>
       <div id="gpill" class="hidden"></div>
@@ -610,7 +621,7 @@ function tagOn(x) {
   if (!ks.length) return true;
   return ks.some(function (k) { return hasTag(x, k); });
 }
-var F = { st: {}, tag: '', tags: {}, gm: {}, br: '', q: '', showCut: true, showZero: true, deductTab: 'all', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
+var F = { st: {}, tag: '', tags: {}, gm: {}, br: '', q: '', showCut: true, showZero: true, deductTab: 'waste', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
 var ST_DEF = [
   { k: 'DS', t: 'ค้างเกิน 60 วัน (DS)' }, { k: 'T3', t: '30–60 วัน (T3)' }, { k: 'T2', t: '15–30 วัน (T2)' },
@@ -900,22 +911,31 @@ function renderTagSel() {                                               // แ�
   }
 }
 function isAdjTag() { return false; }
-function renderGSelect() {                                              // รายการหมวดปรับเป็นลูกศรลงเพื่อเลือก (Dropdown)
+function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง คลิกเลือกได้หลายหมวด
   var cnt = {}, pool = allPool();
   pool.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
-  var sel = gSel(), el = $('#fGrp'); if (!el) return;
-  var opts = '<option value="">ทุกหมวด (ทั้งหมด ' + D.groups.length + ' หมวด · ' + nf0.format(pool.length) + ' รายการ)</option>';
-  if (sel.length > 1) {
-    opts += '<option value="__multi__" selected>เลือกไว้ ' + sel.length + ' หมวด (' + esc(sel.join(', ')) + ')</option>';
+  var sel = gSel(), lbl = $('#fGrpLabel'), menu = $('#fGrpMenu'), edit = !!(D.me && D.me.edit);
+  if (lbl) {
+    if (!sel.length) lbl.textContent = 'ทุกหมวด (ทั้งหมด ' + D.groups.length + ' หมวด · ' + nf0.format(pool.length) + ' รายการ)';
+    else if (sel.length === 1) lbl.textContent = gl(sel[0]) + ' (' + nf0.format(cnt[sel[0]] || 0) + ' รายการ)';
+    else lbl.textContent = 'เลือกแล้ว ' + sel.length + ' หมวด (' + sel.join(', ') + ')';
   }
-  opts += D.groups.map(function (k) {
-    var on = sel.length === 1 && sel[0] === k;
-    return '<option value="' + esc(k) + '"' + (on ? ' selected' : '') + '>' + esc(gl(k)) + ' (' + nf0.format(cnt[k] || 0) + ' รายการ)</option>';
-  }).join('');
-  el.innerHTML = opts;
-  if (!sel.length) el.value = '';
-  else if (sel.length === 1) el.value = sel[0];
-  else el.value = '__multi__';
+  if (menu) {
+    var topHtml = '<div class="mgrp-top">' +
+      '<span class="muted" style="font-size:12.5px">' + (sel.length ? 'เลือกอยู่ ' + sel.length + ' หมวด' : 'แสดงทุกหมวด') + '</span>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button type="button" class="btn ghost small" data-gact="all" style="padding:2px 8px;min-height:26px;font-size:12px">เลือกทั้งหมด</button>' +
+        (sel.length ? '<button type="button" class="btn ghost small" data-gact="clear" style="padding:2px 8px;min-height:26px;font-size:12px">ล้างที่เลือก</button>' : '') +
+      '</div></div>';
+    var itemsHtml = D.groups.length ? D.groups.map(function (k) {
+      var on = !!F.gm[k];
+      return '<div class="mgrp-item' + (on ? ' on' : '') + '" data-gitem="' + esc(k) + '">' +
+        '<label><input type="checkbox" data-gchk="' + esc(k) + '"' + (on ? ' checked' : '') + '><span>' + esc(gl(k)) + ' <span class="muted">(' + nf0.format(cnt[k] || 0) + ')</span></span></label>' +
+        (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-gdel="' + esc(k) + '" title="ลบหมวด ' + esc(k) + '">ลบ</button>' : '') +
+      '</div>';
+    }).join('') : '<div class="muted" style="padding:8px;text-align:center">ยังไม่มีหมวดสินค้า</div>';
+    menu.innerHTML = topHtml + itemsHtml;
+  }
   var delBtn = $('#bDelGrp');
   if (delBtn) delBtn.disabled = !D.groups.length;
 }
@@ -1107,28 +1127,20 @@ function renderGroupTable(G) {
   var m = {};
   D.groups.forEach(function (g) { m[g] = []; });
   G.forEach(function (x) { (m[x.g] || (m[x.g] = [])).push(x); });
-  var admin = D.me && D.me.edit, prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
-  if (admin) cols = cols.concat([{ k: '_act', t: 'จัดการ', nosort: 1 }]);
+  var prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
   var tot = agg(G), rows = Object.keys(m).map(function (g) {
     var a = agg(m[g]), gv = gView(g), rep = (gv && gv.rep) || ''; if (!rep) m[g].forEach(function (x) { if (x.rep > rep) rep = x.rep; });
     return { g: g, n: a.n, pcs: a.pcs, vc: a.vc, vp: a.vp, share: tot.vc ? a.vc / tot.vc : 0, avg: a.dn ? a.dsum / a.dn : null, rep: rep, brs: (gv && gv.br) || null, dds: prevMode ? null : dsDelta(g) };
   });
   sortBy(rows, F.gs.k, F.gs.d, function (r, k) { return r[k]; });
   var maxShare = rows.reduce(function (s, r) { return Math.max(s, r.share); }, 0.0001);
-  $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือกหมวดและดูประวัติข้อมูลล่าสุด';
+  $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือก/ยกเลิกได้หลายหมวด';
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
-    var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้าวันที่ ' + esc(fmtDate(D.gm[r.g] && D.gm[r.g].prev ? D.gm[r.g].prev.rep : '')) + '">' + (r.dds > 0 ? '▲ +' : (r.dds < 0 ? '▼ ' : '')) + money(r.dds) + '</span>';
-    var actBtns = '';
-    if (admin) {
-      actBtns = '<td style="white-space:nowrap">' +
-        (prevMode && D.gm[r.g] && D.gm[r.g].prev ? '<button type="button" class="btn ghost small" data-restore="' + esc(r.g) + '">ใช้ฉบับนี้เป็นปัจจุบัน</button> ' : '') +
-        '<button type="button" class="btn ghost small" style="color:var(--bad)" data-delgrp="' + esc(r.g) + '" title="ลบหมวด ' + esc(gl(r.g)) + '">ลบหมวด</button>' +
-        '</td>';
-    }
+    var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้าวันที่ ' + esc(fmtDate(D.gm[r.g] && D.gm[r.g].prev ? D.gm[r.g].prev.rep : '')) + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
     return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
       '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td><td>' + fmtDate(r.rep) + '</td>' +
-      (prevMode ? '' : '<td class="num">' + dd + '</td>') + actBtns + '</tr>';
-  }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + (admin ? '<td></td>' : '') + '</tr></tfoot>';
+      (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
+  }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
 }
 var DT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'code', t: 'รหัส' }, { k: 'name', t: 'ชื่อสินค้า' }, { k: 'br', t: 'สาขา' }, { k: 'qty', t: 'คงเหลือ', num: 1 }, { k: 'cost', t: 'ต้นทุน/หน่วย', num: 1 }, { k: 'vc', t: 'มูลค่าทุน', num: 1 },
   { k: 'price', t: 'ราคาขาย', num: 1 }, { k: 'recv', t: 'รับเข้า' }, { k: 'last', t: 'ขายล่าสุด' }, { k: 'days', t: 'ค้าง (วัน)', num: 1 }, { k: 'sk', t: 'อายุ' }, { k: 'note', t: 'หมายเหตุ' }];
@@ -1209,7 +1221,7 @@ function openDotPop(btn, code, br, g) {
       if (checked && o.k !== 'hard') {
         extraBtn = '<button type="button" class="mini-act" data-dotadd="' + o.k + '" title="เพิ่มจำนวนหรือแก้หมายเหตุ">+เพิ่ม/แก้</button>';
       } else if (checked && o.k === 'hard') {
-        extraBtn = '<button type="button" class="mini-act" data-dothardnote="1" title="แก้หมายเหตุขายยาก">✎ หมายเหตุ</button>';
+        extraBtn = '<button type="button" class="mini-act" data-dothardnote="1" title="แก้หมายเหตุขายยาก">หมายเหตุ</button>';
       }
       return '<div class="dot-opt">' +
         '<label><input type="checkbox" data-dottag="' + o.k + '"' + (checked ? ' checked' : '') + '><span>' + esc(o.label) + qTxt + '</span></label>' +
@@ -1362,12 +1374,44 @@ async function deleteCategoryFlow(g, btn) {
 }
 
 /* ---------- เหตุการณ์ของตัวกรอง/ตาราง ---------- */
-$('#fGrp').addEventListener('change', function () {
-  var v = this.value;
-  if (v === '__multi__') return;
-  F.gm = {};
-  if (v) F.gm[v] = true;
+function closeGrpMenu() {
+  var m = $('#fGrpMenu'), b = $('#fGrpBtn');
+  if (m) m.classList.add('hidden');
+  if (b) b.classList.remove('open');
+}
+$('#fGrpBtn').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var m = $('#fGrpMenu'); if (!m) return;
+  var open = m.classList.contains('hidden');
+  m.classList.toggle('hidden', !open);
+  this.classList.toggle('open', open);
+});
+$('#fGrpMenu').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var del = e.target.closest('[data-gdel]');
+  if (del) { deleteCategoryFlow(del.dataset.gdel, del); return; }
+  var act = e.target.closest('[data-gact]');
+  if (act) {
+    if (act.dataset.gact === 'all') { F.gm = {}; D.groups.forEach(function (g) { F.gm[g] = true; }); }
+    else { F.gm = {}; }
+    F.page = 0; render();
+    return;
+  }
+  var item = e.target.closest('[data-gitem]');
+  if (item && e.target.tagName !== 'INPUT') {
+    gToggle(item.dataset.gitem);
+    render();
+  }
+});
+$('#fGrpMenu').addEventListener('change', function (e) {
+  var chk = e.target.closest('input[data-gchk]');
+  if (!chk) return;
+  var g = chk.dataset.gchk;
+  if (chk.checked) F.gm[g] = true; else delete F.gm[g];
   F.page = 0; render();
+});
+document.addEventListener('click', function (e) {
+  if (!e.target.closest('#fGrpWrap')) closeGrpMenu();
 });
 $('#bAddGrp').addEventListener('click', function () {
   var code = prompt('เพิ่มหมวดสินค้าใหม่\nกรอกรหัสหมวด (ภาษาอังกฤษ/ตัวเลข เช่น G25):', '');
@@ -1415,15 +1459,10 @@ $('#gpill').addEventListener('click', function (e) {
   if (e.target.closest('#gClear')) { F.gm = {}; F.page = 0; render(); }
 });
 $('#gt').addEventListener('click', function (e) {
-  var rb = e.target.closest('[data-restore]');
-  if (rb) { restoreGroup(rb.dataset.restore, rb); return; }
-  var db = e.target.closest('[data-delgrp]');
-  if (db) { deleteCategoryFlow(db.dataset.delgrp, db); return; }
   var th = e.target.closest('th');
   if (th) { var k = th.dataset.k; if (k === '_act') return; F.gs = { k: k, d: F.gs.k === k ? -F.gs.d : (k === 'g' ? 1 : -1) }; render(); return; }
   var tr = e.target.closest('tr[data-g]'); if (!tr) return;
   gToggle(tr.dataset.g); render();
-  document.getElementById('dt').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('#dt').addEventListener('click', function (e) {
   var dot = e.target.closest('[data-dot]');
@@ -2020,33 +2059,30 @@ function buildDeductSubTable(kind, edit) {
   var pcs = 0, val = 0;
   raw.forEach(function (x) { (x.hit || []).forEach(function (h) { pcs += h.qty; val += h.qty * h.cost; }); });
   var headColor = { waste: '#455a64', lost: '#b3261e', exp: '#6a1b9a', pend: '#0b5394' }[kind] || 'var(--ink)';
-  return '<div class="deduct-sub">' +
-    '<h4><span style="color:' + headColor + '">● ' + esc(K.btn) + ' (' + nf0.format(raw.length) + ' รายการ · หัก ' + qtyF(pcs) + ' ชิ้น · ' + money(val) + ' บาท)</span>' +
+  return '<div class="deduct-sub" style="margin-top:10px">' +
+    '<h4><span style="color:' + headColor + '">' + esc(K.btn) + ' (' + nf0.format(raw.length) + ' รายการ · หัก ' + qtyF(pcs) + ' ชิ้น · ' + money(val) + ' บาท)</span>' +
     '<button type="button" class="btn ghost small" data-openadj="' + kind + '">จัดการ / เพิ่มรายการ</button></h4>' +
-    (raw.length ? '<div class="tscroll" style="max-height:260px"><table class="pvt"><thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวนบันทึก</th><th class="nosort">หักจริง</th><th class="nosort">มูลค่าทุน</th><th class="nosort">หมายเหตุ</th>' + (edit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead><tbody>' +
+    (raw.length ? '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวนบันทึก</th><th class="nosort">หักจริง</th><th class="nosort">มูลค่าทุน</th><th class="nosort">หมายเหตุ</th>' + (edit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead><tbody>' +
       raw.map(function (x) {
         var h = x.hit || [], got = h.reduce(function (s, y) { return s + y.qty; }, 0), v = h.reduce(function (s, y) { return s + y.qty * y.cost; }, 0);
         var gTxt = (h[0] && h[0].g) || x.g || '–';
         var brTxt = x.br ? esc(x.br) : (h.length ? esc(h.map(function (y) { return y.br; }).join(', ')) : '<span class="muted">ทุกสาขา</span>');
         return '<tr><td>' + esc(gTxt) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name || '–') + '</td><td>' + brTxt + '</td><td class="num">' + (x.qty == null ? 'ทั้งหมด' : qtyF(x.qty)) + '</td><td class="num">' + (h.length ? qtyF(got) : '<span class="tag old">ไม่พบ</span>') + '</td><td class="num">' + (h.length ? money(v) : '–') + '</td><td>' + esc(x.note || '') + '</td>' +
-          (edit ? '<td style="white-space:nowrap"><button type="button" class="btn ghost small" data-dednote="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">✎</button> <button type="button" class="btn ghost small" style="color:var(--bad)" data-dedrm="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">ยกเลิก</button></td>' : '') + '</tr>';
+          (edit ? '<td style="white-space:nowrap"><button type="button" class="btn ghost small" data-dednote="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">แก้หมายเหตุ</button> <button type="button" class="btn ghost small" style="color:var(--bad)" data-dedrm="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">ยกเลิก</button></td>' : '') + '</tr>';
       }).join('') + '</tbody></table></div>' : '<div class="muted" style="padding:8px 0">ไม่มีรายการ' + esc(K.btn) + 'ตามตัวกรองปัจจุบัน</div>') +
   '</div>';
 }
 function renderLostBtn() {
-  ['lost', 'exp', 'pend', 'waste'].forEach(function (k) {
-    var n = (D[k] || []).length;
-    if ($(AKI[k].bid)) $(AKI[k].bid).textContent = AKI[k].btn + (n ? ' (' + nf0.format(n) + ')' : '');
-  });
   var S = { waste: adjSumOf(D.waste), lost: adjSumOf(D.lost), exp: adjSumOf(D.exp), pend: adjSumOf(D.pend) };
   var add = function (x, y) { return { n: x.n + y.n, pcs: Math.round((x.pcs + y.pcs) * 100) / 100, val: Math.round((x.val + y.val) * 100) / 100 }; };
   S.oth = add(add(S.lost, S.exp), S.pend); S.all = add(S.oth, S.waste);
   var cnt = function (k) { return (D[k] || []).length; };
   var totalEntries = cnt('waste') + cnt('lost') + cnt('exp') + cnt('pend');
-  $('#deductNote').textContent = totalEntries ? 'รวม ' + nf0.format(totalEntries) + ' รายการบันทึก · แยกแสดงข้อมูลแต่ละประเภทชัดเจน ไม่ปนกัน' : 'ยังไม่มีรายการที่หักออก';
-  var tabMode = F.deductTab || 'all';
+  $('#deductNote').textContent = totalEntries ? 'รวม ' + nf0.format(totalEntries) + ' รายการบันทึก · เลือกประเภทเพื่อดูรายละเอียดแยกตามหมวดหมู่ของการตัดออก' : 'ยังไม่มีรายการที่หักออก';
+  var validTabs = ['waste', 'lost', 'exp', 'pend'];
+  var tabMode = validTabs.indexOf(F.deductTab) >= 0 ? F.deductTab : 'waste';
+  F.deductTab = tabMode;
   var tabs = [
-    { k: 'all', t: 'แยกดูครบทุกประเภท (' + nf0.format(totalEntries) + ')' },
     { k: 'waste', t: 'ของเสีย (' + nf0.format(cnt('waste')) + ')' },
     { k: 'lost', t: 'ของหาย (' + nf0.format(cnt('lost')) + ')' },
     { k: 'exp', t: 'สินค้าหมดอายุ (' + nf0.format(cnt('exp')) + ')' },
@@ -2063,11 +2099,8 @@ function renderLostBtn() {
     tr('1. ของเสีย', S.waste) + tr('2. ของหาย', S.lost) + tr('3. สินค้าหมดอายุ', S.exp) + tr('4. รอปรับข้อมูล', S.pend) +
     tr('รวมที่หักออกจากค้างสต็อกทั้งหมด', S.all, 1) + '</tbody></table></div>';
   var edit = !!(D.me && D.me.edit);
-  var kinds = tabMode === 'all' ? ['waste', 'lost', 'exp', 'pend'] : [tabMode];
   if ($('#deductDetailBox')) {
-    $('#deductDetailBox').innerHTML = '<div class="deduct-grid"' + (kinds.length === 1 ? ' style="grid-template-columns:1fr"' : '') + '>' +
-      kinds.map(function (k) { return buildDeductSubTable(k, edit); }).join('') +
-      '</div>';
+    $('#deductDetailBox').innerHTML = buildDeductSubTable(tabMode, edit);
   }
 }
 $('#deductCard').addEventListener('click', function (e) {
@@ -2113,8 +2146,8 @@ function renderAnalysis(S, N, G) {
     var curT3 = (last.sum && last.sum.st && last.sum.st.T3 && last.sum.st.T3.cost) || 0;
     var prvT3 = (prev.sum && prev.sum.st && prev.sum.st.T3 && prev.sum.st.T3.cost) || 0;
     var diffT3 = curT3 - prvT3, pctT3 = prvT3 > 0 ? (diffT3 / prvT3 * 100) : 0;
-    var dBadge = diffDS > 0 ? '<span class="an-badge up">▲ เพิ่มขึ้น +' + money(diffDS) + ' บาท (+' + nf2.format(pctDS) + '%)</span>' : (diffDS < 0 ? '<span class="an-badge down">▼ ลดลง ' + money(diffDS) + ' บาท (' + nf2.format(pctDS) + '%)</span>' : '<span class="an-badge flat">ทรงตัว (ไม่เปลี่ยนแปลง)</span>');
-    var t3Badge = diffT3 > 0 ? '<span class="an-badge up">▲ เพิ่มขึ้น +' + money(diffT3) + ' บาท (+' + nf2.format(pctT3) + '%)</span>' : (diffT3 < 0 ? '<span class="an-badge down">▼ ลดลง ' + money(diffT3) + ' บาท (' + nf2.format(pctT3) + '%)</span>' : '<span class="an-badge flat">ทรงตัว</span>');
+    var dBadge = diffDS > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffDS) + ' บาท (+' + nf2.format(pctDS) + '%)</span>' : (diffDS < 0 ? '<span class="an-badge down">ลดลง ' + money(diffDS) + ' บาท (' + nf2.format(pctDS) + '%)</span>' : '<span class="an-badge flat">ทรงตัว (ไม่เปลี่ยนแปลง)</span>');
+    var t3Badge = diffT3 > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffT3) + ' บาท (+' + nf2.format(pctT3) + '%)</span>' : (diffT3 < 0 ? '<span class="an-badge down">ลดลง ' + money(diffT3) + ' บาท (' + nf2.format(pctT3) + '%)</span>' : '<span class="an-badge flat">ทรงตัว</span>');
     trendLines.push('เทียบวันอัปโหลดล่าสุด (<b>' + fmtDate(last.dayKey) + '</b>) กับวันก่อนหน้า (<b>' + fmtDate(prev.dayKey) + '</b>): มูลค่าค้างเกิน 60 วัน (DS) ' + dBadge);
     trendLines.push('สินค้ากลุ่มเฝ้าระวัง 30–60 วัน (T3) ล่าสุดอยู่ที่ <b>' + money(curT3) + ' บาท</b> ' + t3Badge + (diffT3 > 0 ? ' — มีโอกาสไหลเข้าสู่ DS ในรอบถัดไปมากขึ้น' : ' — แนวโน้มสินค้าใหม่ที่จะไหลเข้า DS ชะลอตัวลง'));
     if (h.length >= 3) {
@@ -2140,7 +2173,7 @@ function renderAnalysis(S, N, G) {
   deltaUp.sort(function (a, b) { return b.d - a.d; });
   deltaDown.sort(function (a, b) { return a.d - b.d; });
   if (hasDelta) {
-    trendLines.push('เทียบกับ <b>ฉบับก่อนหน้า</b> ของหมวดที่มีข้อมูล (' + hasDelta + ' หมวด): มูลค่า DS สุทธิ ' + (netDelta > 0 ? '<b style="color:var(--bad)">▲ เพิ่มขึ้น +' + money(netDelta) + ' บาท</b>' : (netDelta < 0 ? '<b style="color:var(--ok)">▼ ลดลง ' + money(netDelta) + ' บาท</b>' : '<b>ไม่เปลี่ยนแปลง</b>')));
+    trendLines.push('เทียบกับ <b>ฉบับก่อนหน้า</b> ของหมวดที่มีข้อมูล (' + hasDelta + ' หมวด): มูลค่า DS สุทธิ ' + (netDelta > 0 ? '<b style="color:var(--bad)">เพิ่มขึ้น +' + money(netDelta) + ' บาท</b>' : (netDelta < 0 ? '<b style="color:var(--ok)">ลดลง ' + money(netDelta) + ' บาท</b>' : '<b>ไม่เปลี่ยนแปลง</b>')));
     if (deltaUp.length) trendLines.push('หมวดที่ DS เพิ่มขึ้นสูงสุด: <b>' + esc(gl(deltaUp[0].g)) + '</b> (+' + money(deltaUp[0].d) + ' บาท)' + (deltaUp[1] ? ', <b>' + esc(gl(deltaUp[1].g)) + '</b> (+' + money(deltaUp[1].d) + ' บาท)' : ''));
     if (deltaDown.length) trendLines.push('หมวดที่ระบาย DS ลดลงได้ดีที่สุด: <b>' + esc(gl(deltaDown[0].g)) + '</b> (' + money(deltaDown[0].d) + ' บาท)' + (deltaDown[1] ? ', <b>' + esc(gl(deltaDown[1].g)) + '</b> (' + money(deltaDown[1].d) + ' บาท)' : ''));
   }
@@ -2191,10 +2224,10 @@ function renderAnalysis(S, N, G) {
   if (!recLines.length) recLines.push('ข้อมูลสต็อกอยู่ในเกณฑ์ปกติ แนะนำให้อัปโหลดรายงานอย่างสม่ำเสมอเพื่อติดตามแนวโน้มรายวัน');
 
   body.innerHTML = '<div class="an-grid">' +
-    '<div class="an-box"><h4>📈 1. แนวโน้มมูลค่าทุนรายวันและเทียบฉบับก่อนหน้า</h4><ul>' + trendLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>📦 2. การกระจุกตัวแยกตามหมวดและสาขา</h4><ul>' + concLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>⚠️ 3. โครงสร้างอายุสินค้าและความเสี่ยง</h4><ul>' + riskLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>💡 4. ข้อเสนอแนะเชิงปฏิบัติการจากข้อมูล</h4><ul>' + recLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
+    '<div class="an-box"><h4>1. แนวโน้มมูลค่าทุนรายวันและเทียบฉบับก่อนหน้า</h4><ul>' + trendLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
+    '<div class="an-box"><h4>2. การกระจุกตัวแยกตามหมวดและสาขา</h4><ul>' + concLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
+    '<div class="an-box"><h4>3. โครงสร้างอายุสินค้าและความเสี่ยง</h4><ul>' + riskLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
+    '<div class="an-box"><h4>4. ข้อเสนอแนะเชิงปฏิบัติการจากข้อมูล</h4><ul>' + recLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
   '</div>';
 }
 function fillLsBr() {
@@ -2228,10 +2261,10 @@ function openAdj(k) {
   AK = k; $('#lsErr').textContent = ''; $('#lsQ').value = ''; fillLsBr(); renderLost(); $('#lostDlg').classList.remove('hidden');
   if (D.me.edit) setTimeout(function () { $('#lsIn').focus(); }, 50);
 }
-$('#bLost').addEventListener('click', function () { openAdj('lost'); });
-$('#bExp').addEventListener('click', function () { openAdj('exp'); });
-$('#bPend').addEventListener('click', function () { openAdj('pend'); });
-$('#bWaste').addEventListener('click', function () { openAdj('waste'); });
+if ($('#bLost')) $('#bLost').addEventListener('click', function () { openAdj('lost'); });
+if ($('#bExp')) $('#bExp').addEventListener('click', function () { openAdj('exp'); });
+if ($('#bPend')) $('#bPend').addEventListener('click', function () { openAdj('pend'); });
+if ($('#bWaste')) $('#bWaste').addEventListener('click', function () { openAdj('waste'); });
 $('#lsClose').addEventListener('click', function () { closeDlg('#lostDlg'); });
 $('#lsCancelAll').addEventListener('click', function () {
   var K = AKI[AK], all = D[AK] || []; if (!all.length) return;
