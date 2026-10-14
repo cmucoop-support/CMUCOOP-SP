@@ -1545,22 +1545,22 @@ API.stockSetNames = async (C, token, names) => {
  * อัปโหลดไฟล์ใหม่/ล้างข้อมูล/สลับฉบับ ไม่แตะแท็ก → ติดอยู่จนกว่าจะยกเลิก (ดูอย่างเดียวก็เห็นแท็กได้ · แก้ไขต้องมีสิทธิ์ stock_edit) */
 async function stockHardLoad(C) {
   const raw = (await kvJson(C, 'STOCK_HARD', {})) || {}, out = {};
-  Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who) }; });
+  Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who), note: str(e.note).slice(0, 100) }; });
   return out;
 }
 /* codes = รหัส/บาร์ 1 ตัว หรือรายการ · on = true ติดแท็ก, false ยกเลิก */
-API.stockHardSet = async (C, token, codes, on) => {
+API.stockHardSet = async (C, token, codes, on, note) => {
   const me = await stockEditAuth(C, token), list = (Array.isArray(codes) ? codes : [codes]).map(x => str(x).trim().slice(0, 40)).filter(Boolean).slice(0, 500);
   if (!list.length) throw new Error('ไม่พบรหัสสินค้า');
-  const hard = await stockHardLoad(C), ts = now();
+  const hard = await stockHardLoad(C), ts = now(), nt = str(note).replace(/\s+/g, ' ').slice(0, 100);
   let n = 0;
   list.forEach(code => {
     const k = stockCodeKey(code); if (!k) return;
-    if (on) { if (!hard[k]) n++; hard[k] = { code, ts, who: me.name }; }
+    if (on) { if (!hard[k] || hard[k].note !== nt) n++; hard[k] = { code, ts, who: me.name, note: nt }; }
     else if (hard[k]) { delete hard[k]; n++; }
   });
   await kvSet(C, 'STOCK_HARD', JSON.stringify(hard));
-  if (n) await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', on ? 'ติดแท็กสินค้าขายยาก' : 'ยกเลิกแท็กสินค้าขายยาก', n + ' รายการ (' + list.slice(0, 10).join(',') + (list.length > 10 ? ',…' : '') + ')');
+  if (n) await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', on ? 'ติดแท็กสินค้าขายยาก' : 'ยกเลิกแท็กสินค้าขายยาก', n + ' รายการ (' + list.slice(0, 10).join(',') + (list.length > 10 ? ',…' : '') + ')' + (nt ? ' · ' + nt : ''));
   return hard;
 };
 
