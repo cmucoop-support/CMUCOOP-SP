@@ -135,6 +135,8 @@ tr.click{cursor:pointer}
 .opt input{margin-top:6px}
 .opt:has(input:checked){border-color:var(--accent-text);background:var(--accent-soft)}
 .pvt td,.pvt th{vertical-align:middle}
+textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink);font:inherit;resize:vertical}
+.lostnote{padding:0 0 10px}
 @media print{.top .acts,.filters,.pager,.btn{display:none!important}.tscroll{max-height:none}}
 </style>
 </head>
@@ -147,6 +149,7 @@ tr.click{cursor:pointer}
     <button class="btn onDark small hidden" id="bUpload">อัปโหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งชื่อหมวด</button>
     <button class="btn onDark small hidden" id="bClear">ล้างข้อมูล</button>
+    <button class="btn onDark small" id="bLost">ของหาย</button>
     <button class="btn onDark small" id="bXlsx">ส่งออก Excel</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -164,6 +167,7 @@ tr.click{cursor:pointer}
     <section class="card" style="padding-bottom:0">
       <div class="tabs" id="verTabs" role="tablist"></div>
       <div class="muted" id="verNote" style="padding:8px 0 10px"></div>
+      <div class="muted lostnote" id="lostNote"></div>
     </section>
     <section class="card filters">
       <div class="frow">
@@ -218,7 +222,7 @@ tr.click{cursor:pointer}
 <div class="overlay hidden" id="upDlg">
   <div class="dlg wide">
     <h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
-    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ</div>
+    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · บาร์ที่อยู่ในรายการ "ของหาย" ยังถูกตัดออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
     <div class="brpick">
       <label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
       <label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input type="text" id="upBrNew" maxlength="20" autocomplete="off"></label>
@@ -241,6 +245,26 @@ tr.click{cursor:pointer}
     <label class="opt"><input type="radio" name="exMode" value="branch"><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
     <div class="err" id="exErr"></div>
     <div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
+  </div>
+</div>
+
+<!-- ของหาย -->
+<div class="overlay hidden" id="lostDlg">
+  <div class="dlg wide">
+    <h2>รายการของหาย</h2>
+    <div class="muted">บาร์ที่อยู่ในรายการนี้จะ<b>ไม่ถูกนับ</b>ในสินค้าค้างสต็อก (จำนวนรายการ · มูลค่า · กราฟ · ส่งออก Excel) และ<b>ยังคงเป็นของหายทุกครั้งที่อัปโหลดข้อมูลใหม่</b> จนกว่าจะกด "ยกเลิก" · ใช้ค่าเดียวกับคอลัมน์ "รหัส" ในไฟล์รายงาน (มีผลทุกสาขา)</div>
+    <div class="brpick" id="lsAddBox">
+      <label>กรอกบาร์ของหาย <span class="muted" style="font-weight:400">(สแกนแล้วกด Enter เพิ่มได้เลย · วางหลายบาร์ได้ คั่นด้วยบรรทัดใหม่ เว้นวรรค หรือจุลภาค · Shift+Enter = ขึ้นบรรทัดใหม่)</span><textarea id="lsIn" rows="2" autocomplete="off"></textarea></label>
+      <label>หมายเหตุ (ไม่บังคับ)<input type="text" id="lsNote" maxlength="100" autocomplete="off"></label>
+      <div class="row" style="margin-top:0"><button class="btn" id="lsAdd">เพิ่มเป็นของหาย</button></div>
+    </div>
+    <div class="err" id="lsErr"></div>
+    <div class="cardhead" style="margin-top:10px"><div class="muted" id="lsSum"></div><input type="search" id="lsQ" placeholder="ค้นหา บาร์ / ชื่อ / หมายเหตุ" autocomplete="off" style="max-width:260px"></div>
+    <div class="tscroll" style="max-height:360px"><table class="pvt">
+      <thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">ที่พบในสต็อก (หมวด · สาขา · คงเหลือ)</th><th class="nosort">มูลค่าทุนที่ตัดออก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" id="lsThAct"></th></tr></thead>
+      <tbody id="lsTb"></tbody>
+    </table></div>
+    <div class="row"><button class="btn ghost" id="lsClose">ปิด</button></div>
   </div>
 </div>
 
@@ -449,7 +473,8 @@ $('#lgBtn').addEventListener('click', function () {
 ['#lgUser', '#lgPass'].forEach(function (s) { $(s).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#lgBtn').click(); }); });
 
 /* ---------- ข้อมูล / สถานะหน้า ---------- */
-var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], groups: [], branches: [] };
+var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], groups: [], branches: [], lost: [] };
+var LOSTK = {};          // บาร์ของหาย (codeKey → true) ใช้ตัดออกจากตัวเลขในหน้าตัวอย่างอัปโหลด
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
 var F = { st: { DS: true }, g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
@@ -474,6 +499,7 @@ function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.c
 function applyData(r) {
   D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = r.history || [];
   D.items = (r.rows || []).map(toItem);
+  D.lost = r.lost || []; LOSTK = {}; D.lost.forEach(function (x) { LOSTK[x.k] = true; });          // ของหาย: ฝั่งหลังบ้านตัดแถวออกจาก rows แล้ว
   D.items.forEach(function (x, i) { x.i = i; });                       // ลำดับเดิมในไฟล์ ใช้ตอนส่งออก
   var gs = {}, bs = {};
   D.items.forEach(function (x) { gs[x.g] = 1; bs[x.br] = 1; });
@@ -491,11 +517,12 @@ function applyData(r) {
   $('#bUpload').classList.toggle('hidden', !edit);
   $('#bNames').classList.toggle('hidden', !edit || !D.items.length);
   $('#bClear').classList.toggle('hidden', !admin || !Object.keys(D.gm).length);
-  renderInfo(); renderVerTabs(); fillSelects();
+  renderInfo(); renderVerTabs(); fillSelects(); renderLostBtn();
   var has = D.items.length > 0 || D.ver === 'prev';
   $('#empty').classList.toggle('hidden', has); $('#main').hidden = !has;
   if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลด Excel" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินหรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
   render();
+  if (!$('#lostDlg').classList.contains('hidden')) renderLost();
 }
 function nPrev() { return Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length; }
 function renderVerTabs() {
@@ -1065,12 +1092,12 @@ async function readFiles(list) {
   lab.textContent = labOld;
 }
 function pvSummary() {
-  var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; }), n = 0, dn = 0, dc = 0, c = 0;
-  sel.forEach(function (g) { UP.groups[g].rows.forEach(function (r) { var v = r[4] * r[11]; n++; c += v; if (r[10] === 'DS') { dn++; dc += v; } }); });
+  var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; }), n = 0, dn = 0, dc = 0, c = 0, nl = 0;
+  sel.forEach(function (g) { UP.groups[g].rows.forEach(function (r) { if (LOSTK[codeKey(r[1])]) { nl++; return; } var v = r[4] * r[11]; n++; c += v; if (r[10] === 'DS') { dn++; dc += v; } }); });
   $('#pvK').innerHTML = '<div><b>' + sel.length + '/' + Object.keys(UP.groups).length + '</b><span>หมวดที่จะบันทึก</span></div><div><b>' + nf0.format(n) + '</b><span>รายการที่มีสต็อก</span></div><div><b>' + nf0.format(dn) + '</b><span>ค้างเกิน 60 วัน (DS)</span></div><div><b>' + money(dc) + '</b><span>มูลค่าทุน DS (บาท)</span></div><div><b>' + money(c) + '</b><span>มูลค่าทุนรวม (บาท)</span></div>';
   var b = $('#upSave'); b.textContent = 'บันทึก ' + sel.length + ' หมวด · สาขา ' + UP.branch; b.disabled = !sel.length;
   var hasPrev = sel.filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length;
-  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') : '';
+  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') + (nl ? ' · ตัดรายการของหาย ' + nf0.format(nl) + ' แถวออกจากตัวเลขด้านบน (ยังเป็นของหายต่อไปจนกว่าจะยกเลิก)' : '') : '';
   var all = $('#pvAll'); if (all) all.checked = sel.length === Object.keys(UP.groups).length;
 }
 function showPreview() {
@@ -1107,7 +1134,8 @@ $('#upSave').addEventListener('click', function () {
   busy(this, async function () {
     var br = UP.branch, r = await call('stockSave', { fileName: UP.files.join(', ').slice(0, 120), branch: br, groups: sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; }) });
     closeDlg('#upDlg'); UP = null; UPFILES = null;
-    toast(r.changed.length ? 'บันทึกแล้ว · สาขา ' + br + ' · แทนที่ ' + r.changed.length + ' หมวด' + (r.same.length ? ' · ' + r.same.length + ' หมวดข้อมูลเหมือนเดิม (ไม่เปลี่ยน)' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน');
+    var t = r.tot || { add: 0, chg: 0, del: 0, same: 0 };
+    toast(r.changed.length ? 'บันทึกแล้ว · สาขา ' + br + ' · อัปเดต ' + r.changed.length + ' หมวด (เพิ่ม ' + nf0.format(t.add) + ' · เปลี่ยน ' + nf0.format(t.chg) + ' · ลบ ' + nf0.format(t.del) + ' · เหมือนเดิมไม่แตะ ' + nf0.format(t.same) + ' รายการ)' + (r.same.length ? ' · ' + r.same.length + ' หมวดไม่มีอะไรเปลี่ยน' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน');
     VIEW = 'cur'; await load('cur');
   });
 });
@@ -1170,7 +1198,57 @@ $('#nmSave').addEventListener('click', function () {
     closeDlg('#nmDlg'); fillSelects(); render(); toast('บันทึกชื่อหมวดแล้ว');
   });
 });
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); closeDlg('#clDlg'); } });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); closeDlg('#clDlg'); closeDlg('#lostDlg'); } });
+
+/* ---------- ของหาย (ไม่นับเป็นค้างสต็อก · คงสถานะทุกครั้งที่อัปโหลดจนกว่าจะยกเลิก) ---------- */
+function codeKey(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); }     // ต้องตรงกับ stockCodeKey ของหลังบ้าน
+function renderLostBtn() {
+  var n = (D.lost || []).length;
+  $('#bLost').textContent = 'ของหาย' + (n ? ' (' + nf0.format(n) + ')' : '');
+  $('#lostNote').innerHTML = n ? '<b style="color:var(--bad)">ตัดของหาย ' + nf0.format(n) + ' บาร์ ออกจากยอดค้างสต็อกแล้ว</b> — กดปุ่ม "ของหาย" ด้านบนเพื่อดู/ยกเลิก' : '';
+}
+function renderLost() {
+  var edit = !!(D.me && D.me.edit), q = ($('#lsQ').value || '').trim().toLowerCase(), all = D.lost || [];
+  $('#lsAddBox').classList.toggle('hidden', !edit); $('#lsThAct').classList.toggle('hidden', !edit);
+  var list = all.filter(function (x) { return !q || (x.code + ' ' + x.name + ' ' + x.note).toLowerCase().indexOf(q) >= 0; });
+  var pcs = 0, val = 0; all.forEach(function (x) { (x.hit || []).forEach(function (h) { pcs += h.qty; val += h.qty * h.cost; }); });
+  $('#lsSum').textContent = all.length ? nf0.format(all.length) + ' บาร์ · ตัดออกจากยอด ' + qtyF(pcs) + ' ชิ้น · มูลค่าทุน ' + money(val) + ' บาท' + (D.ver === 'prev' ? ' (ตามฉบับก่อนหน้าที่กำลังดู)' : '') : 'ยังไม่มีรายการของหาย';
+  $('#lsTb').innerHTML = list.length ? list.map(function (x) {
+    var h = x.hit || [], v = h.reduce(function (s, y) { return s + y.qty * y.cost; }, 0);
+    var where = h.length ? h.map(function (y) { return esc(y.g) + ' · ' + esc(y.br) + ' · ' + qtyF(y.qty) + ' ชิ้น'; }).join('<br>') : '<span class="tag old" title="ยังไม่มีบาร์นี้ในข้อมูลสต็อก — ระบบจำไว้ และจะตัดออกให้เมื่อมีในไฟล์ที่อัปโหลด">ไม่พบในข้อมูลปัจจุบัน</span>';
+    return '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name || '–') + '</td><td>' + where + '</td><td class="num">' + (h.length ? money(v) : '–') + '</td><td>' + esc(x.note) + '</td><td>' + esc(fmtTs(x.ts)) + '<br><span class="muted">' + esc(x.who) + '</span></td>' +
+      (edit ? '<td><button type="button" class="btn ghost small" data-lcancel="' + esc(x.k) + '">ยกเลิก</button></td>' : '') + '</tr>';
+  }).join('') : '<tr><td colspan="' + (edit ? 7 : 6) + '" class="muted" style="text-align:center;padding:20px">' + (all.length ? 'ไม่พบรายการตามคำค้น' : 'ยังไม่มีรายการของหาย') + '</td></tr>';
+}
+$('#bLost').addEventListener('click', function () {
+  if (!D.me) return;
+  $('#lsErr').textContent = ''; $('#lsQ').value = ''; renderLost(); $('#lostDlg').classList.remove('hidden');
+  if (D.me.edit) setTimeout(function () { $('#lsIn').focus(); }, 50);
+});
+$('#lsClose').addEventListener('click', function () { closeDlg('#lostDlg'); });
+$('#lsQ').addEventListener('input', renderLost);
+$('#lsIn').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#lsAdd').click(); } });     // สแกนบาร์แล้ว Enter = เพิ่มทันที
+$('#lsAdd').addEventListener('click', function () {
+  var v = $('#lsIn').value;
+  if (!v.trim()) { $('#lsErr').textContent = 'กรุณากรอกบาร์โค้ดของหาย'; return; }
+  busy(this, async function () {
+    $('#lsErr').textContent = '';
+    var r;
+    try { r = await call('stockLostAdd', v, $('#lsNote').value); }
+    catch (e) { if (e.message === 'SESSION_EXPIRED') throw e; $('#lsErr').textContent = e.message; return; }
+    $('#lsIn').value = '';
+    var nf = r.notFound ? r.notFound.length : 0;
+    toast(r.added ? 'เพิ่มของหาย ' + r.added + ' บาร์ — ตัดออกจากค้างสต็อกแล้ว' + (r.dup ? ' · ซ้ำเดิม ' + r.dup : '') + (nf ? ' · ' + nf + ' บาร์ยังไม่พบในข้อมูลสต็อก (จำไว้ จะตัดออกเมื่อมีในไฟล์)' : '') : 'บาร์เหล่านี้อยู่ในรายการของหายแล้ว (' + r.dup + ')');
+    await load(VIEW);
+    $('#lsIn').focus();
+  });
+});
+$('#lsTb').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-lcancel]'); if (!b) return;
+  var x = (D.lost || []).filter(function (y) { return y.k === b.dataset.lcancel; })[0]; if (!x) return;
+  if (!confirm('ยกเลิกของหาย บาร์ ' + x.code + (x.name ? ' (' + x.name + ')' : '') + ' ?\nสินค้านี้จะกลับมานับรวมในค้างสต็อก (ถ้ายังมีในข้อมูล)')) return;
+  busy(b, async function () { await call('stockLostRemove', [x.code]); toast('ยกเลิกของหายแล้ว · ' + x.code); await load(VIEW); });
+});
 
 /* ---------- เริ่มทำงาน ---------- */
 initToken();
