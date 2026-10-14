@@ -232,7 +232,7 @@ tfoot td{background:var(--accent-soft)}
     <section class="kpis" id="kpis"></section>
 
     <section class="charts">
-      <div class="card"><h3>มูลค่าทุนที่ค้าง แยกตามหมวด <small>คลิกแท่งเพื่อกรองหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
+      <div class="card"><h3>มูลค่าทุนที่ค้าง แยกตามหมวด <small>แสดงตามหมวดที่เลือก · คลิกแท่งเพื่อเลือก/ยกเลิกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
       <div class="card"><h3>สัดส่วนมูลค่าทุนตามอายุสินค้า <small>ทุกช่วงอายุ (ตามตัวกรองหมวด/สาขา/ค้นหา)</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
       <div class="card"><h3>ช่วงอายุที่ค้าง (วัน) <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
       <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
@@ -672,7 +672,7 @@ function render() {
   var S = G.filter(function (x) { return gOn(x.g); });                                                   // กรองครบ
   renderChips(N); renderGChips(); renderPill(); renderTagSel(); renderKpis(S, N);
   var adjT = isAdjTag(); $('#kpis').style.display = adjT ? 'none' : ''; document.querySelector('.charts').style.display = adjT ? 'none' : '';
-  renderGroupChart(G); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
+  renderGroupChart(S); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
   renderGroupTable(G); if (isAdjTag()) renderTagList(); else renderTable(S); renderZero();
 }
 function zeroFiltered() {                                              // รายการคงเหลือ 0 ตามตัวกรอง หมวด/สาขา/ค้นหา (ไม่สนอายุสินค้า)
