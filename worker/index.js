@@ -1315,6 +1315,14 @@ function stockSummary(rows, lost) {                                // lost (ไ�
   Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
   return out;
 }
+function stockGroupSums(state) {                                  // ยอด DS/T3 รายหมวด (ฉบับปัจจุบัน) เก็บคู่กับประวัติแต่ละรอบ → กราฟแนวโน้มแยกหมวด · { G01: { DS: [รายการ, มูลค่าทุน], T3: [..] } }
+  const out = {};
+  Object.keys(state).forEach(g => {
+    const m = state[g] && state[g].cur, st = m && m.sum && m.sum.st; if (!st) return;
+    out[g] = { DS: [st.DS ? st.DS.n : 0, st.DS ? Math.round(st.DS.cost) : 0], T3: [st.T3 ? st.T3.n : 0, st.T3 ? Math.round(st.T3.cost) : 0] };
+  });
+  return out;
+}
 function stockTotal(state) {                                      // ผลรวมทั้งร้านจากฉบับปัจจุบันของทุกหมวด
   const out = { items: 0, pcs: 0, cost: 0, st: {} };
   STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
@@ -1429,7 +1437,7 @@ API.stockSave = async (C, token, payload) => {
   if (!changed.length) return { ok: true, changed, same, diff, tot };
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum });
+  hist.push({ ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · อัปเดต ' + changed.length + ' หมวด (' + changed.join(',') + ') · เพิ่ม ' + tot.add + ' เปลี่ยน ' + tot.chg + ' ลบ ' + tot.del + ' เหมือนเดิม ' + tot.same + ' แถว' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
@@ -1443,7 +1451,7 @@ API.stockRestore = async (C, token, g) => {
   if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
   state[g] = { cur: s.prev, prev: s.cur };
   const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state) });
+  hist.push({ ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
     kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX)))]);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
@@ -1514,7 +1522,7 @@ API.stockClear = async (C, token, password, scope) => {
   } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
   if (!changed.length) return { ok: true, changed };
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state) });
+  hist.push({ ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', desc + ' · ' + changed.length + ' หมวด (' + changed.join(',') + ') · เก็บเป็นฉบับก่อนหน้า');
