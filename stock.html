@@ -138,6 +138,38 @@ tr.click{cursor:pointer}
 textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink);font:inherit;resize:vertical}
 .lostnote{padding:0 0 10px}
 @media print{.top .acts,.filters,.pager,.btn{display:none!important}.tscroll{max-height:none}}
+
+/* ================= ธีมม่วงเดียวกับเว็บหลัก (index.html) ================= */
+:root{--grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff);--shadow:0 4px 16px rgba(106,63,209,.12);--r:16px}
+html,body{-webkit-tap-highlight-color:transparent}
+.top{background:var(--grad);padding:calc(12px + env(safe-area-inset-top)) 18px 12px;border-radius:0 0 22px 22px;box-shadow:0 6px 20px rgba(106,63,209,.3)}
+.top h1{letter-spacing:.2px}
+.card,.kpi{border-radius:var(--r);border-color:transparent;box-shadow:var(--shadow);background:#fff}
+.card h3{color:var(--ink)}
+.btn{border-radius:999px;padding:9px 18px;min-height:40px;transition:transform .1s,filter .15s;box-shadow:0 2px 8px rgba(153,102,255,.3)}
+.btn:active{transform:scale(.97)}
+.btn.ghost{box-shadow:none}
+.btn.small{min-height:32px;padding:5px 13px}
+.btn.onDark{border-color:rgba(255,255,255,.6);color:#fff;background:rgba(255,255,255,.12);box-shadow:none}
+input[type=text],input[type=search],input[type=password],input[type=number],select,textarea{border-radius:12px;padding:10px 12px;border:1.5px solid var(--line);background:#fbf9ff}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(153,102,255,.2)}
+:focus-visible{outline-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}
+.tabs{border-bottom:0;background:#fff;padding:5px;border-radius:999px;box-shadow:var(--shadow);width:fit-content;max-width:100%;overflow-x:auto}
+.tab{border:0;border-radius:999px;margin:0;padding:9px 18px;white-space:nowrap}
+.tab.on{background:var(--grad);color:#fff;border:0}
+.tscroll{border:0;border-radius:var(--r);box-shadow:var(--shadow)}
+th{background:#4b3a8c}
+td{border-bottom-color:#efe9fa}
+tbody tr:hover td{background:#f8f4ff}
+tfoot td{background:var(--accent-soft)}
+.chip{border-radius:999px}
+.tag{border-radius:999px}
+.dlg{border-radius:22px;box-shadow:0 20px 50px rgba(42,31,71,.35)}
+.overlay{backdrop-filter:blur(3px)}
+.err{font-weight:600}
+.toast{border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+@media print{.top{background:#fff;color:#000;box-shadow:none}}
 </style>
 </head>
 <body>
@@ -546,10 +578,10 @@ function renderRepCard() {                                              // ว�
   $('#repCard').hidden = !gs.length; if (!gs.length) return;
   $('#repNote').textContent = gs.length + ' หมวด' + (D.ver === 'prev' ? ' · ตามฉบับก่อนหน้า' : '');
   var cur = D.ver === 'cur';
-  $('#repTb').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">ข้อมูลรายงานวันที่</th><th class="nosort">อัปเดตเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายสาขา (ข้อมูลรายงานวันที่ · อัปเดตเมื่อ)</th></tr></thead><tbody>' + gs.map(function (g) {
+  $('#repTb').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">อัปเดตเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายสาขา (อัปเดตเมื่อ)</th></tr></thead><tbody>' + gs.map(function (g) {
     var v = gView(g), d = Math.floor((Date.now() - v.ts) / 86400000), bs = v.br ? Object.keys(v.br).sort() : [];
-    var brTxt = bs.map(function (k) { var b = v.br[k] || {}; return '<b>' + esc(k) + '</b> ' + esc(fmtDate(b.rep)) + (b.ts ? ' · ' + esc(fmtTs(b.ts)) : ''); }).join('<br>');
-    return '<tr><td>' + esc(gl(g)) + '</td><td><b>' + esc(fmtDate(v.rep)) + '</b></td><td>' + esc(fmtTs(v.ts)) + (cur && d >= 30 ? ' <b style="color:var(--bad)">(' + d + ' วัน)</b>' : '') + '</td><td>' + esc(v.who || '') + '</td><td>' + (brTxt || '<span class="muted">–</span>') + '</td></tr>';
+    var brTxt = bs.map(function (k) { var b = v.br[k] || {}; return '<b>' + esc(k) + '</b> ' + (b.ts ? esc(fmtTs(b.ts)) : '–'); }).join('<br>');
+    return '<tr><td>' + esc(gl(g)) + '</td><td>' + esc(fmtTs(v.ts)) + (cur && d >= 30 ? ' <b style="color:var(--bad)">(' + d + ' วัน)</b>' : '') + '</td><td>' + esc(v.who || '') + '</td><td>' + (brTxt || '<span class="muted">–</span>') + '</td></tr>';
   }).join('') + '</tbody>';
 }
 function nPrev() { return Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length; }
@@ -579,7 +611,7 @@ function brStatus() {                                // อัปเดตล่
 }
 function fillSelects() {
   var g = $('#fG'), b = $('#fBr');
-  g.innerHTML = '<option value="">ทุกหมวด (' + D.groups.length + ')</option>' + D.groups.map(function (k) { var v = gView(k); return '<option value="' + esc(k) + '">' + esc(gl(k)) + (v && v.rep ? ' · รายงาน ' + esc(fmtDate(v.rep)) : '') + '</option>'; }).join('');
+  g.innerHTML = '<option value="">ทุกหมวด (' + D.groups.length + ')</option>' + D.groups.map(function (k) { return '<option value="' + esc(k) + '">' + esc(gl(k)) + '</option>'; }).join('');
   b.innerHTML = '<option value="">ทุกสาขา</option>' + D.branches.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
   g.value = F.g; b.value = F.br;
 }
