@@ -756,10 +756,11 @@ function renderTable(S) {
   var pages = Math.max(1, Math.ceil(LAST_S.length / PAGE)); if (F.page >= pages) F.page = pages - 1;
   var from = F.page * PAGE, part = LAST_S.slice(from, from + PAGE);
   $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ';
-  $('#dt').innerHTML = thead(DT_COLS, F.ds) + '<tbody>' + (part.length ? part.map(function (x) {
+  var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'ของหาย', nosort: 1 }]) : DT_COLS;
+  $('#dt').innerHTML = thead(cols, F.ds) + '<tbody>' + (part.length ? part.map(function (x) {
     return '<tr><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.br) + '</td><td class="num">' + qtyF(x.qty) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
-      '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td></tr>';
-  }).join('') : '<tr><td colspan="12" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
+      '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + (canLost ? '<td>' + (x.code ? '<button type="button" class="btn ghost small" data-lost="' + esc(x.code) + '" title="ไม่นับเป็นค้างสต็อก จนกว่าจะยกเลิก">หาย</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>' : '') + '</tr>';
+  }).join('') : '<tr><td colspan="' + cols.length + '" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
   $('#pgInfo').textContent = LAST_S.length ? 'แสดง ' + nf0.format(from + 1) + '–' + nf0.format(from + part.length) + ' จาก ' + nf0.format(LAST_S.length) + ' · หน้า ' + (F.page + 1) + '/' + pages : '';
   $('#pgPrev').disabled = F.page <= 0; $('#pgNext').disabled = F.page >= pages - 1;
 }
@@ -785,8 +786,15 @@ $('#gt').addEventListener('click', function (e) {
   document.getElementById('dt').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('#dt').addEventListener('click', function (e) {
+  var lb = e.target.closest('[data-lost]');
+  if (lb) {                                                          // ปุ่ม "หาย" หลังรายการสินค้า
+    var code = lb.dataset.lost, it = D.items.filter(function (x) { return x.code === code; })[0];
+    if (!confirm('ทำเครื่องหมาย "ของหาย" ?\n' + code + (it ? ' · ' + it.name : '') + '\nจะไม่นับเป็นค้างสต็อก (ทุกสาขา) และคงสถานะนี้แม้อัปโหลดข้อมูลใหม่ จนกว่าจะยกเลิกในปุ่ม "ของหาย" ด้านบน')) return;
+    busy(lb, async function () { await call('stockLostAdd', code, ''); toast('ทำเครื่องหมายของหายแล้ว · ' + code); await load(VIEW); });
+    return;
+  }
   var th = e.target.closest('th'); if (!th) return;
-  var k = th.dataset.k; F.ds = { k: k, d: F.ds.k === k ? -F.ds.d : ((k === 'qty' || k === 'vc' || k === 'cost' || k === 'price' || k === 'days' || k === 'last') ? -1 : 1) }; F.page = 0; render();
+  var k = th.dataset.k; if (k === '_act') return; F.ds = { k: k, d: F.ds.k === k ? -F.ds.d : ((k === 'qty' || k === 'vc' || k === 'cost' || k === 'price' || k === 'days' || k === 'last') ? -1 : 1) }; F.page = 0; render();
 });
 $('#pgPrev').addEventListener('click', function () { F.page--; render(); $('#dt').scrollIntoView({ block: 'start' }); });
 $('#pgNext').addEventListener('click', function () { F.page++; render(); $('#dt').scrollIntoView({ block: 'start' }); });
