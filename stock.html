@@ -228,7 +228,8 @@ tfoot td{background:var(--accent-soft)}
       <div class="card"><h3>สัดส่วนมูลค่าทุนตามอายุสินค้า <small>ทุกช่วงอายุ (ตามตัวกรองหมวด/สาขา/ค้นหา)</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
       <div class="card"><h3>ช่วงอายุที่ค้าง (วัน) <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
       <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
-      <div class="card" style="grid-column:1/-1"><h3>แนวโน้มมูลค่าทุนตามรอบที่อัปโหลด <small>เฉพาะ "ค้างเกิน 60 วัน (DS)" และ "30–60 วัน (T3)" ของทั้งร้าน</small></h3>
+      <div class="card" style="grid-column:1/-1"><div class="cardhead"><h3>แนวโน้มมูลค่าทุนตามรอบที่อัปโหลด <small id="trNote"></small></h3>
+        <select id="trMode" style="max-width:340px"><option value="total">รวมทั้งร้าน (DS + T3)</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน (DS)</option><option value="gT3">แยกตามหมวด — 30–60 วัน (T3)</option></select></div>
         <div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
     </section>
 
@@ -776,24 +777,43 @@ function renderTopChart(S) {
     }
   });
 }
+var TR_PAL = ['#c0392b', '#2e6fd8', '#1a7f4b', '#d99a1f', '#7a4fd1', '#0e9aa7', '#d6457f', '#6b7a1c', '#e0703a', '#4b5fa8', '#8a5a2b', '#3d8f6e'];
+var TR_MODE = 'total';
 function renderTrend() {
-  var h = D.history || [];
-  if (h.length < 2) { noData('boxTrend', 'chTrend', 'กราฟแนวโน้มจะแสดงเมื่อมีการอัปโหลดอย่างน้อย 2 รอบ<br>(ตอนนี้มี ' + h.length + ' รอบ)'); return; }
-  ensureCanvas('boxTrend', 'chTrend');
+  var h = D.history || [], mode = TR_MODE, box = $('#boxTrend');
+  $('#trMode').value = mode;
+  box.style.height = mode === 'total' ? '' : '380px';
+  if (h.length < 2) { $('#trNote').textContent = ''; noData('boxTrend', 'chTrend', 'กราฟแนวโน้มจะแสดงเมื่อมีการอัปโหลดอย่างน้อย 2 รอบ<br>(ตอนนี้มี ' + h.length + ' รอบ)'); return; }
   var lab = h.map(function (x) { return new Date(x.ts).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', calendar: 'buddhist' }); });
-  chart('chTrend', {
-    type: 'line',
-    data: { labels: lab, datasets: [
+  var opt = function (tip) {
+    return { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: tip } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return nf0.format(v); } } } } };
+  };
+  if (mode === 'total') {
+    $('#trNote').textContent = 'รวมทั้งร้าน — "ค้างเกิน 60 วัน (DS)" และ "30–60 วัน (T3)"';
+    ensureCanvas('boxTrend', 'chTrend');
+    chart('chTrend', { type: 'line', data: { labels: lab, datasets: [
       { label: 'ค้างเกิน 60 วัน (DS)', data: h.map(function (x) { return Math.round(x.sum.st.DS.cost); }), borderColor: ST_COLOR.DS, backgroundColor: ST_COLOR.DS, tension: .25 },
       { label: '30–60 วัน (T3)', data: h.map(function (x) { return Math.round(x.sum.st.T3.cost); }), borderColor: ST_COLOR.T3, backgroundColor: ST_COLOR.T3, tension: .25 }
-    ] },
-    options: {
-      maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (c) { var x = h[c.dataIndex].sum.st[c.datasetIndex ? 'T3' : 'DS']; return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท · ' + x.n + ' รายการ'; } } } },
-      scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return nf0.format(v); } } } }
-    }
-  });
+    ] }, options: opt(function (c) { var x = h[c.dataIndex].sum.st[c.datasetIndex ? 'T3' : 'DS']; return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท · ' + x.n + ' รายการ'; }) });
+    return;
+  }
+  var key = mode === 'gDS' ? 'DS' : 'T3', withGs = h.filter(function (x) { return x.gs; }).length, set = {};
+  h.forEach(function (x) { if (x.gs) Object.keys(x.gs).forEach(function (g) { set[g] = 1; }); });
+  if (withGs < 2) { $('#trNote').textContent = ''; noData('boxTrend', 'chTrend', 'ข้อมูลแยกตามหมวดเริ่มเก็บตั้งแต่การอัปโหลดครั้งล่าสุด (รอบเก่าไม่มีข้อมูลแยกหมวด)<br>ตอนนี้มี ' + withGs + ' รอบ — อัปโหลดอีกครั้งเพื่อให้กราฟแสดงได้'); return; }
+  var gs = Object.keys(set), val = function (x, g) { var o = x.gs && x.gs[g] && x.gs[g][key]; return o ? o[1] : (x.gs ? 0 : null); };
+  gs.sort(function (a, b) { return (val(h[h.length - 1], b) || 0) - (val(h[h.length - 1], a) || 0); });
+  gs = gs.filter(function (g) { return h.some(function (x) { return (val(x, g) || 0) > 0; }); });
+  $('#trNote').textContent = 'แยกตามหมวด — ' + (key === 'DS' ? 'ค้างเกิน 60 วัน (DS)' : '30–60 วัน (T3)') + ' · ' + gs.length + ' หมวด · รอบเก่าที่ยังไม่มีข้อมูลแยกหมวดจะเว้นว่าง';
+  if (!gs.length) { noData('boxTrend', 'chTrend', 'ไม่มีมูลค่าในช่วงอายุนี้'); return; }
+  ensureCanvas('boxTrend', 'chTrend');
+  chart('chTrend', { type: 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
+    var c = TR_PAL[i % TR_PAL.length];
+    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, tension: .25, borderWidth: F.g === g ? 4 : 2, pointRadius: 3 };
+  }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) });
 }
+$('#trMode').addEventListener('change', function () { TR_MODE = this.value; renderTrend(); });
 
 /* ----- ตาราง ----- */
 function sortBy(list, key, dir, get) {
