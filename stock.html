@@ -242,6 +242,12 @@ tfoot td{background:var(--accent-soft)}
       <div class="tscroll"><table id="dt"></table></div>
       <div class="pager"><span class="muted" id="pgInfo"></span><button class="btn ghost small" id="pgPrev">ก่อนหน้า</button><button class="btn ghost small" id="pgNext">ถัดไป</button></div>
     </section>
+
+    <section class="card" id="zeroCard" hidden>
+      <div class="cardhead"><h3>สินค้าคงเหลือ 0 <small id="zeroNote"></small></h3></div>
+      <div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
+      <div class="muted" id="zeroMore" style="margin-top:6px"></div>
+    </section>
   </div>
 </div>
 
@@ -454,8 +460,8 @@ function parseSheets(sheets, branch) {                // branch (ไม่บั
   var before = rows.length;
   rows = dedupeRows(rows);
   info.dup = before - rows.length;
-  rows = rows.filter(function (r) { return r[4] > 0; });                // ไม่มีของในสต็อก = ไม่ใช่ของค้าง
-  info.kept = rows.length;
+  rows = rows.filter(function (r) { return r[4] >= 0; });               // เก็บทุกแถว รวมคงเหลือ 0 (ไม่นับรวมในยอด แสดง/ส่งออกแยกเป็นอีกรายการ)
+  info.kept = rows.length; info.zero = rows.filter(function (r) { return !(r[4] > 0); }).length;
   var groups = {};
   Object.keys(meta).forEach(function (g) { groups[g] = { g: g, rep: meta[g].rep, title: meta[g].title, rows: [] }; });
   rows.forEach(function (r) { var o = groups[r[0]]; o.rows.push(r); if (r[14] > o.rep) o.rep = r[14]; });
@@ -516,7 +522,7 @@ $('#lgBtn').addEventListener('click', function () {
 ['#lgUser', '#lgPass'].forEach(function (s) { $(s).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#lgBtn').click(); }); });
 
 /* ---------- ข้อมูล / สถานะหน้า ---------- */
-var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
+var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], zero: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
 var F = { st: { DS: true }, g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
@@ -552,9 +558,10 @@ function toItem(a) {
 function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.cur) || null : null; }   // เมตาของหมวดตามฉบับที่กำลังดู
 function applyData(r) {
   D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = r.history || [];
-  D.items = (r.rows || []).map(toItem);
+  D.items = (r.rows || []).filter(function (a) { return a[4] > 0; }).map(toItem);
+  D.zero = (r.zero || []).map(toItem);                                  // คงเหลือ 0 — เก็บไว้ แต่ไม่นับรวมในยอด/กราฟ
   D.lost = r.lost || []; D.exp = r.expired || []; D.pend = r.pending || []; D.waste = r.waste || [];          // ของหาย/หมดอายุ: ฝั่งหลังบ้านหักจำนวนออกจาก rows แล้ว (แถวที่หักหมดไม่ถูกส่งมา)
-  D.items.forEach(function (x, i) { x.i = i; });                       // ลำดับเดิมในไฟล์ ใช้ตอนส่งออก
+  D.items.forEach(function (x, i) { x.i = i; }); D.zero.forEach(function (x, i) { x.i = i; });                       // ลำดับเดิมในไฟล์ ใช้ตอนส่งออก
   var gs = {}, bs = {};
   D.items.forEach(function (x) { gs[x.g] = 1; bs[x.br] = 1; });
   D.groups = Object.keys(gs).sort(); D.branches = Object.keys(bs).sort();
@@ -646,7 +653,23 @@ function render() {
   var S = G.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองครบ
   renderChips(N); renderPill(); renderKpis(S, N);
   renderGroupChart(G); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
-  renderGroupTable(G); renderTable(S);
+  renderGroupTable(G); renderTable(S); renderZero();
+}
+function zeroFiltered() {                                              // รายการคงเหลือ 0 ตามตัวกรอง หมวด/สาขา/ค้นหา (ไม่สนอายุสินค้า)
+  var q = F.q.trim().toLowerCase();
+  return (D.zero || []).filter(function (x) { return (!F.g || x.g === F.g) && (!F.br || x.br === F.br) && (!q || x.hay.indexOf(q) >= 0); });
+}
+var ZERO_MAX = 300;
+function renderZero() {
+  var all = D.zero || [], l = zeroFiltered(), sec = $('#zeroCard');
+  sec.hidden = !all.length; if (!all.length) return;
+  $('#zeroNote').textContent = nf0.format(l.length) + ' รายการ' + (l.length !== all.length ? ' (จากทั้งหมด ' + nf0.format(all.length) + ')' : '') + ' · ไม่นับรวมในยอด/กราฟ/สรุปด้านบน';
+  var rows = l.slice(0, ZERO_MAX);
+  $('#zeroTb').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">รวมขาย</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง(วัน)</th><th class="nosort">ต้นทุน</th><th class="nosort">ราคา</th><th class="nosort">หมายเหตุ</th></tr></thead><tbody>' +
+    (rows.length ? rows.map(function (x) {
+      return '<tr><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + '</td><td>' + esc(x.br) + '</td><td class="num">' + qtyF(x.sold) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td class="num">' + money(x.cost) + '</td><td class="num">' + money(x.price) + '</td><td>' + esc(x.note) + '</td></tr>';
+    }).join('') : '<tr><td colspan="10" class="muted" style="text-align:center;padding:16px">ไม่พบรายการตามตัวกรอง</td></tr>') + '</tbody>';
+  $('#zeroMore').textContent = l.length > ZERO_MAX ? 'แสดง ' + nf0.format(ZERO_MAX) + ' รายการแรก — กรองหมวด/สาขา/ค้นหาเพื่อดูส่วนที่เหลือ หรือส่งออก Excel เพื่อดูครบ' : '';
 }
 function renderChips(N) {
   var cnt = {}; N.forEach(function (x) { cnt[x.sk] = (cnt[x.sk] || 0) + 1; });
@@ -953,6 +976,8 @@ function xlSheet(sh, ctx, idx) {
     var v = xlVis(x.name), lines = v > 64 ? 3 : (v > 32 ? 2 : 1);
     row(r, cells, lines > 1 ? 27 * lines : 0);
   });
+  var z = last, lastRow = last;
+  if (!sh.zero) {
   // สรุปท้ายชีต: ค้างเกิน 60 วัน (DS) แยกสาขา
   var br = [], bc = {};
   items.forEach(function (x) { if (x.st === 'DS') { if (bc[x.br] === undefined) { bc[x.br] = 0; br.push(x.br); } bc[x.br]++; } });
@@ -974,7 +999,7 @@ function xlSheet(sh, ctx, idx) {
     br.length ? '<c r="S' + z + '" s="' + XL_S.bCv + '"><f>SUM(S' + a + ':S' + (z - 1) + ')</f><v>' + dsN + '</v></c>' : N('S' + z, XL_S.bCv, 0), S('T' + z, XL_S.b, 'รายการ'));
   row(z, tc, br.length ? 0 : 54); merges.push('Q' + z + ':R' + z); merges.push('M' + a + ':P' + z);
   // สรุปรายการที่หักออกจากค้างสต็อก: แยก "ของเสีย" ออกจาก "อื่นๆ" (ของหาย · สินค้าหมดอายุ · รอปรับข้อมูล)
-  var lastRow = z;
+  lastRow = z;
   if (sh.adj) {
     var q = z + 2, A = sh.adj, hd = function (r, a, b2, c, d) { return blank(r).concat([S('M' + r, XL_S.bL, a), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), S('Q' + r, XL_S.bCw, b2), S('R' + r, XL_S.bCw, c), S('S' + r, XL_S.bCw, d), E('T' + r, XL_S.bCv)]); };
     var ln = function (r, label, o, bold) { return blank(r).concat([S('M' + r, bold ? XL_S.bL : XL_S.bL, label), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), N('Q' + r, XL_S.bCv, o.n), N('R' + r, XL_S.bCv, o.pcs), N('S' + r, XL_S.bCv, o.val), S('T' + r, XL_S.bW, 'บาท')]); };
@@ -985,6 +1010,7 @@ function xlSheet(sh, ctx, idx) {
     var lines = [['ของเสีย', A.waste], ['ของหาย', A.lost], ['สินค้าหมดอายุ', A.exp], ['รอปรับข้อมูล', A.pend], ['รวมที่หักทั้งหมด', A.all]];
     lines.forEach(function (l, i) { var r = q + 2 + i; row(r, ln(r, l[0], l[1], i >= 3), 27); merges.push('M' + r + ':P' + r); });
     lastRow = q + 1 + lines.length;
+  }
   }
   var cols = XL_WIDTH.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('');
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:T' + lastRow + '"/>' +
@@ -1085,10 +1111,12 @@ $('#exGo').addEventListener('click', function () {
       if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
       return { name: g, title: m.title || synthTitle(rep), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
     });
+    var zl = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === brKey(brName); }) : zeroFiltered());
+    if (zl.length) sheets.push({ name: 'คงเหลือ 0', title: 'สินค้าคงเหลือ 0 (ไม่นับรวมในยอดค้างสต็อก)', rep: '', at: Date.now(), zero: true, items: zl.slice().sort(function (a, b) { return a.g === b.g ? a.i - b.i : (a.g < b.g ? -1 : 1); }) });
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ');
+    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (zl.length ? ' + คงเหลือ 0 อีก ' + nf0.format(zl.length) + ' รายการ (ชีตแยก)' : ''));
   });
 });
 
@@ -1227,9 +1255,9 @@ function showPreview() {
   if (older.length) warns.push('หมวด ' + older.join(', ') + ' เป็นรายงานเก่ากว่าที่มีในระบบ จึงไม่ได้ติ๊กไว้ให้ — ติ๊กเองถ้าต้องการใช้จริง');
   var body = gs.map(function (g) {
     var n = UP.groups[g], cur = brMeta(g, UP.branch), dn = 0, dc = 0;
-    n.rows.forEach(function (r) { if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
+    var pos = 0, zr = 0; n.rows.forEach(function (r) { if (!(r[4] > 0)) { zr++; return; } pos++; if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
     var tag = !cur ? '<span class="tag new">หมวดใหม่</span>' : (cur.rep && n.rep && n.rep < cur.rep ? '<span class="tag old">เก่ากว่าที่มี</span>' : '<span class="tag">แทนที่</span>');
-    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(n.rows.length) + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
+    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
       '<td>' + (cur ? nf0.format(cur.count) + ' รายการ · ' + fmtDate(cur.rep) : '–') + '</td><td>' + tag + '</td></tr>';
   }).join('');
   $('#pv').innerHTML = '<div>สาขา <b>' + esc(UP.branch) + '</b> · <b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
