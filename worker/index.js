@@ -1595,6 +1595,49 @@ API.stockGroupDelete = async (C, token, g) => {
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบหมวดสินค้า', code);
   return { ok: true, g: code, names, groups: state };
 };
+API.stockHistoryDelete = async (C, token, payload) => {
+  const me = await stockEditAuth(C, token);
+  payload = payload || {};
+  const mode = str(payload.mode);
+  if (mode === 'all_hist') {
+    await kvSet(C, 'STOCK_HISTORY', '[]');
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบประวัติสถิติแนวโน้ม', 'ล้างประวัติสถิติแนวโน้มทั้งหมด');
+    return { ok: true };
+  }
+  if (mode === 'hist_item') {
+    const day = str(payload.dayKey), ts = Number(payload.ts) || 0;
+    const raw = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
+    const next = raw.filter(x => {
+      if (!x) return false;
+      if (day && stockDayKey(x.ts) === day) return false;
+      if (ts && Number(x.ts) === ts) return false;
+      return true;
+    });
+    await kvSet(C, 'STOCK_HISTORY', JSON.stringify(next));
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบประวัติสถิติแนวโน้ม', 'ลบข้อมูลวันที่ ' + (day || ts));
+    return { ok: true, count: next.length };
+  }
+  if (mode === 'prev_group') {
+    const gs = Array.isArray(payload.groups) ? payload.groups.map(g => str(g).trim().toUpperCase()).filter(Boolean) : [];
+    const state = await stockState(C), ops = [];
+    const targets = gs.length ? gs : Object.keys(state);
+    let n = 0;
+    targets.forEach(g => {
+      if (state[g] && state[g].prev) {
+        state[g].prev = null;
+        ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g));
+        n++;
+      }
+    });
+    if (ops.length) {
+      ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+      await batch(C, ops);
+      await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบข้อมูลย้อนหลังฉบับก่อนหน้า', n + ' หมวด (' + targets.slice(0, 10).join(',') + ')');
+    }
+    return { ok: true, removed: n };
+  }
+  throw new Error('คำสั่งลบประวัติไม่ถูกต้อง');
+};
 
 /* ============================== แท็ก "สินค้าขายยาก" ==============================
  * ผูกกับรหัสสินค้า/บาร์ (ทุกสาขา) เก็บใน KV 'STOCK_HARD' = { stockCodeKey: { code, ts, who } }
