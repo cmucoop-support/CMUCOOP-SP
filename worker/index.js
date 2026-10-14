@@ -1259,8 +1259,9 @@ function stockApply(rows, adj) {
     by.get(ck).push({ h, bk: stockBrKey(e.br), left: (e.qty === null || e.qty === undefined) ? Infinity : Math.max(0, Number(e.qty) || 0) });
   }));
   by.forEach(l => l.sort((a, b) => (b.bk ? 1 : 0) - (a.bk ? 1 : 0)));
-  const out = [];
+  const out = [], zero = [];
   rows.forEach(r => {
+    if (!(r[4] > 0)) { zero.push(r); return; }                    // คงเหลือ 0 = ไม่เอาไปคำนวณ แยกเป็นรายการต่างหาก
     const l = by.get(stockCodeKey(r[1]));
     if (!l) { out.push(r); return; }
     const rb = stockBrKey(r[3]); let q = r[4];
@@ -1274,7 +1275,7 @@ function stockApply(rows, adj) {
     if (q <= 0) return;
     if (q === r[4]) out.push(r); else { const c = r.slice(); c[4] = q; out.push(c); }
   });
-  return { rows: out, hit };
+  return { rows: out, hit, zero };
 }
 const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
 const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
@@ -1285,7 +1286,7 @@ function stockCleanRow(r) {
   const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
   if (!g || !name) return null;
   const qty = stockNum(r[4], 2);
-  if (!(qty > 0)) return null;                                   // เก็บเฉพาะที่ยังมีของในสต็อก
+  if (!(qty >= 0)) return null;                                  // เก็บทุกแถว รวมคงเหลือ 0 (แถวคงเหลือ 0 ไม่นับรวมในยอด/สรุป — แสดงแยกเป็นอีกรายการ)
   const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
   const sold = stockNum(r[5], 2), cost = stockNum(r[11], 4), price = stockNum(r[12], 2);
   let profit = stockOpt(r[16], 4); if (profit === null) profit = stockNum(price - cost, 4);                   // คอลัมน์ท้ายตามไฟล์ต้นฉบับ: ไม่มีในไฟล์ → คำนวณเอง
@@ -1303,7 +1304,7 @@ function stockDedupe(rows) {                                     // กลุ่
   return Array.from(m.values());
 }
 function stockSummary(rows, lost) {                                // lost (ไม่บังคับ) = { lost, exp } จาก stockAdjLoad → หักจำนวนของหาย/หมดอายุก่อนสรุป
-  if (lost) rows = stockApply(rows, lost).rows;
+  rows = lost ? stockApply(rows, lost).rows : rows.filter(r => r[4] > 0);       // คงเหลือ 0 ไม่นับในสรุป
   const out = { items: rows.length, pcs: 0, cost: 0, st: {} };
   STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
   rows.forEach(r => {
@@ -1354,7 +1355,7 @@ async function stockState(C) {
     Object.keys(by).forEach(g => {
       const rows = by[g], reps = rows.map(r => r[14]).filter(Boolean).sort();
       ops.push(...stockInsertOps(C, g, 0, JSON.stringify(rows)));
-      state[g] = { cur: { ts: meta.ts || now(), who: str(meta.who), file: str(meta.file), rep: reps[reps.length - 1] || '', title: '', count: rows.length, sum: stockSummary(rows) }, prev: null };
+      state[g] = { cur: { ts: meta.ts || now(), who: str(meta.who), file: str(meta.file), rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows) }, prev: null };
     });
     ops.push(stmt(C, 'DELETE FROM stock_data'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
     await batch(C, ops);
@@ -1369,7 +1370,7 @@ API.stockGet = async (C, token, ver) => {
   const ap = stockApply(rows0, lost);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h.slice(0, 30) }; }).sort((a, b) => b.ts - a.ts);
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste') };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste') };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
@@ -1415,14 +1416,14 @@ API.stockSave = async (C, token, payload) => {
     tot.add += df.add; tot.chg += df.chg; tot.del += df.del; tot.same += df.same;
     // meta รายสาขา: สาขาที่อัปโหลดครั้งนี้ใช้เวลา/ผู้อัป/ไฟล์ใหม่ สาขาอื่นคงของเดิมไว้
     const oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
-    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); if (r[4] > 0) b.count++; if (r[14] > b.rep) b.rep = r[14]; });
     if (!br[branch]) br[branch] = { count: 0, rep: stockDate(it.rep) };
     Object.keys(br).forEach(k => {
       const src = k === branch ? { ts, who: me.name, file } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file }));
       br[k].ts = src.ts; br[k].who = src.who; br[k].file = src.file;
     });
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, json));
-    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.length, sum: stockSummary(rows, lost), br }, prev: old && old.cur ? old.cur : null };
+    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: old && old.cur ? old.cur : null };
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
@@ -1475,7 +1476,7 @@ API.stockClear = async (C, token, password, scope) => {
   const mode = str(scope.mode), state = await stockState(C), ts = now(), ops = [], changed = [], lost = await stockAdjLoad(C);
   const shiftGroup = (g, rows, clearedBr) => {
     const old = state[g], oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
-    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); if (r[4] > 0) b.count++; if (r[14] > b.rep) b.rep = r[14]; });
     if (clearedBr && !br[clearedBr]) br[clearedBr] = { count: 0, rep: '' };
     Object.keys(br).forEach(k => {
       const src = k === clearedBr ? { ts, who: me.name, file: 'ล้างข้อมูล' } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file: 'ล้างข้อมูล' }));
@@ -1483,7 +1484,7 @@ API.stockClear = async (C, token, password, scope) => {
     });
     const reps = rows.map(r => r[14]).filter(Boolean).sort();
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, JSON.stringify(rows)));
-    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.length, sum: stockSummary(rows, lost), br }, prev: oc || null };
+    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: oc || null };
     changed.push(g);
   };
   let desc;
