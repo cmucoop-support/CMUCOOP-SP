@@ -62,7 +62,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
   'CREATE INDEX IF NOT EXISTS mq_status ON music_queue(status, seq)',
   'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)',
-  'CREATE TABLE IF NOT EXISTS stock_data (n INTEGER PRIMARY KEY, data TEXT)'   // สินค้าค้างสต็อก: JSON ของรายการทั้งหมด แบ่งก้อน
+  'CREATE TABLE IF NOT EXISTS stock_data (n INTEGER PRIMARY KEY, data TEXT)',   // สินค้าค้างสต็อก (ระบบเก่า: รวมทุกหมวด) — ใช้เฉพาะย้ายข้อมูลเข้า stock_grp
+  'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))'   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
 ];
 let schemaReady = false;
 
@@ -1221,12 +1222,16 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
 
 /* ============================== สินค้าค้างสต็อก ==============================
  * หน้า stock.html อ่านไฟล์ Excel (รายงานวิเคราะห์การขาย 1 ชีต = 1 กลุ่มสินค้า) ในเบราว์เซอร์ แล้วส่งเฉพาะรายการที่ยังมีสต็อกมาเก็บที่นี่
- * แถว = [กลุ่ม, รหัส, ชื่อ, สาขา, คงเหลือ, รวมขาย, เฉลี่ยขาย, รับเข้า, ขายล่าสุด, ค้าง(วัน), สถานะ, ต้นทุน, ราคา, หมายเหตุ, วันที่ของรายงาน]
- * เก็บใน D1 (ตาราง stock_data) เป็น JSON แบ่งก้อน + kv: STOCK_META / STOCK_HISTORY / STOCK_NAMES */
+ * แถว = [กลุ่ม, รหัส, ชื่อ, สาขา, คงเหลือ, รวมขาย, เฉลี่ยขาย, รับเข้า, ขายล่าสุด, ค้าง(วัน), สถานะ, ต้นทุน, ราคา, หมายเหตุ, วันที่ของรายงาน,
+ *        ต่ำกว่าทุน('-'/'B'), กำไร฿, กำไร%, ยอดขาย, กำไรสุทธิ V]
+ * เก็บแยกรายหมวดใน D1 (ตาราง stock_grp: g, ver, n, data) — ver 0 = ฉบับปัจจุบัน, ver 1 = ฉบับก่อนหน้า (เก็บไว้ 1 ฉบับต่อหมวด)
+ * kv: STOCK_GROUPS = { G01: { cur: meta, prev: meta|null } }, STOCK_HISTORY (ผลรวมทั้งร้านแต่ละรอบ ใช้วาดกราฟแนวโน้ม), STOCK_NAMES */
 const STOCK_CHUNK = 400000;        // ตัวอักษรต่อก้อน (ภาษาไทย 3 ไบต์/ตัว → ไม่เกิน ~1.2 MB ต่อแถว ต่ำกว่าเพดาน 2 MB ของ D1)
 const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
+const STOCK_GROUP_RE = /^[A-Z0-9_-]{1,12}$/;
 const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
 const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
+const stockOpt = (v, dp) => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : stockNum(v, dp);
 function stockCleanRow(r) {
   if (!Array.isArray(r)) return null;
   const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
@@ -1234,8 +1239,15 @@ function stockCleanRow(r) {
   const qty = stockNum(r[4], 2);
   if (!(qty > 0)) return null;                                   // เก็บเฉพาะที่ยังมีของในสต็อก
   const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
-  return [g, str(r[1]).slice(0, 30), name, str(r[3]).slice(0, 20), qty, stockNum(r[5], 2), stockNum(r[6], 2), stockDate(r[7]), stockDate(r[8]),
-    days !== null && isFinite(days) ? days : null, STOCK_ST.indexOf(st) >= 0 ? st : '', stockNum(r[11], 4), stockNum(r[12], 2), str(r[13]).slice(0, 60), stockDate(r[14])];
+  const sold = stockNum(r[5], 2), cost = stockNum(r[11], 4), price = stockNum(r[12], 2);
+  let profit = stockOpt(r[16], 4); if (profit === null) profit = stockNum(price - cost, 4);                   // คอลัมน์ท้ายตามไฟล์ต้นฉบับ: ไม่มีในไฟล์ → คำนวณเอง
+  let pct = stockOpt(r[17], 2); if (pct === null) pct = cost > 0 ? stockNum(profit / cost * 100, 2) : 0;
+  let sales = stockOpt(r[18], 2); if (sales === null) sales = stockNum(sold * price, 2);
+  let net = stockOpt(r[19], 2); if (net === null) net = stockNum(sold * profit / 1.07, 2);
+  const bw = str(r[15]).toUpperCase(), below = bw ? (bw === 'B' ? 'B' : '-') : (price < cost ? 'B' : '-');
+  return [g, str(r[1]).slice(0, 30), name, str(r[3]).slice(0, 20), qty, sold, stockNum(r[6], 2), stockDate(r[7]), stockDate(r[8]),
+    days !== null && isFinite(days) ? days : null, STOCK_ST.indexOf(st) >= 0 ? st : '', cost, price, str(r[13]).slice(0, 60), stockDate(r[14]),
+    below, profit, pct, sales, net];
 }
 function stockDedupe(rows) {                                     // กลุ่ม+รหัส+ชื่อ+สาขา ซ้ำกัน → เก็บแถวจากรายงานที่ใหม่กว่า
   const m = new Map();
@@ -1253,36 +1265,104 @@ function stockSummary(rows) {
   Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
   return out;
 }
-async function stockLoadRows(C) {
-  const parts = await all(C, 'SELECT data FROM stock_data ORDER BY n');
-  if (!parts.length) return [];
-  try { const v = JSON.parse(parts.map(p => p.data).join('')); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+function stockTotal(state) {                                      // ผลรวมทั้งร้านจากฉบับปัจจุบันของทุกหมวด
+  const out = { items: 0, pcs: 0, cost: 0, st: {} };
+  STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
+  Object.keys(state).forEach(g => {
+    const s = state[g] && state[g].cur && state[g].cur.sum; if (!s) return;
+    out.items += s.items; out.pcs += s.pcs; out.cost += s.cost;
+    Object.keys(out.st).forEach(k => { const a = s.st && s.st[k]; if (a) { out.st[k].n += a.n; out.st[k].pcs += a.pcs; out.st[k].cost += a.cost; } });
+  });
+  out.pcs = Math.round(out.pcs * 100) / 100; out.cost = Math.round(out.cost * 100) / 100;
+  Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
+  return out;
+}
+function stockInsertOps(C, g, ver, json) {
+  const ops = [];
+  for (let i = 0, n = 0; i < json.length; i += STOCK_CHUNK, n++) ops.push(stmt(C, 'INSERT OR REPLACE INTO stock_grp(g,ver,n,data) VALUES(?,?,?,?)', g, ver, n, json.slice(i, i + STOCK_CHUNK)));
+  return ops;
+}
+async function stockLoadRows(C, ver) {                            // แถวของทุกหมวดตามฉบับที่ขอ (0 = ปัจจุบัน, 1 = ก่อนหน้า) เรียงตามรหัสหมวด
+  const parts = await all(C, 'SELECT g,data FROM stock_grp WHERE ver=? ORDER BY g,n', ver), by = {}, out = [];
+  parts.forEach(p => { by[p.g] = (by[p.g] || '') + p.data; });
+  Object.keys(by).sort().forEach(g => { try { const v = JSON.parse(by[g]); if (Array.isArray(v)) v.forEach(r => out.push(r)); } catch (e) { /* ข้ามหมวดที่ข้อมูลเสีย */ } });
+  return out;
+}
+async function stockGroupJson(C, g, ver) {
+  const parts = await all(C, 'SELECT data FROM stock_grp WHERE g=? AND ver=? ORDER BY n', g, ver);
+  return parts.length ? parts.map(p => p.data).join('') : null;
+}
+/* สถานะรายหมวด — ถ้ายังไม่เคยมี (ระบบเดิมเก็บทุกหมวดรวมกันใน stock_data) ย้ายข้อมูลเดิมเข้ามาเป็นฉบับปัจจุบันของแต่ละหมวดหนึ่งครั้ง */
+async function stockState(C) {
+  const cur = await kvJson(C, 'STOCK_GROUPS', null);
+  if (cur && typeof cur === 'object') return cur;
+  const parts = await all(C, 'SELECT data FROM stock_data ORDER BY n'), state = {};
+  let legacy = [];
+  if (parts.length) { try { const v = JSON.parse(parts.map(p => p.data).join('')); if (Array.isArray(v)) legacy = v; } catch (e) { legacy = []; } }
+  if (legacy.length) {
+    const meta = (await kvJson(C, 'STOCK_META', null)) || {}, by = {}, ops = [];
+    legacy.map(stockCleanRow).filter(Boolean).forEach(r => { (by[r[0]] || (by[r[0]] = [])).push(r); });
+    Object.keys(by).forEach(g => {
+      const rows = by[g], reps = rows.map(r => r[14]).filter(Boolean).sort();
+      ops.push(...stockInsertOps(C, g, 0, JSON.stringify(rows)));
+      state[g] = { cur: { ts: meta.ts || now(), who: str(meta.who), file: str(meta.file), rep: reps[reps.length - 1] || '', title: '', count: rows.length, sum: stockSummary(rows) }, prev: null };
+    });
+    ops.push(stmt(C, 'DELETE FROM stock_data'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+    await batch(C, ops);
+  } else await kvSet(C, 'STOCK_GROUPS', '{}');
+  return state;
 }
 const stockNames = async C => { const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {}; Object.keys(raw).forEach(k => { const t = str(raw[k]); if (/^[A-Z0-9_-]{1,12}$/.test(k) && t) out[k] = t.slice(0, 40); }); return out; };
-API.stockGet = async (C, token) => {
-  const me = await authPerm(C, token, 'stock');
-  const [rows, meta, history, names] = await Promise.all([stockLoadRows(C), kvJson(C, 'STOCK_META', null), kvJson(C, 'STOCK_HISTORY', []), stockNames(C)]);
-  return { me: { name: me.name, role: me.role }, meta, rows, history: Array.isArray(history) ? history : [], names };
+API.stockGet = async (C, token, ver) => {
+  const me = await authPerm(C, token, 'stock'), v = ver === 'prev' ? 1 : 0;
+  const state = await stockState(C);
+  const [rows, history, names] = await Promise.all([stockLoadRows(C, v), kvJson(C, 'STOCK_HISTORY', []), stockNames(C)]);
+  return { me: { name: me.name, role: me.role }, ver: v ? 'prev' : 'cur', groups: state, rows, history: Array.isArray(history) ? history : [], names };
 };
+/* payload = { fileName, groups: [{ g, rep, title, rows }] } — แทนที่เฉพาะหมวดที่ส่งมา หมวดอื่นไม่แตะ
+ * ฉบับปัจจุบันของหมวดนั้นถูกย้ายไปเป็น "ฉบับก่อนหน้า" (ทับฉบับก่อนหน้าเดิม) · ถ้าข้อมูลเหมือนฉบับปัจจุบันทุกอย่างจะข้าม ไม่ดันฉบับเก่าทิ้ง */
 API.stockSave = async (C, token, payload) => {
   const me = await auth(C, token, true);
   payload = payload || {};
-  if (!Array.isArray(payload.rows)) throw new Error('ไม่พบข้อมูลในไฟล์');
-  if (payload.rows.length > STOCK_MAX_ROWS * 3) throw new Error('ไฟล์มีแถวมากเกินไป');
-  const rows = stockDedupe(payload.rows.map(stockCleanRow).filter(Boolean));
-  if (!rows.length) throw new Error('ไม่พบรายการที่มีสต็อกคงเหลือในไฟล์');
-  if (rows.length > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
-  rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  const json = JSON.stringify(rows), ops = [stmt(C, 'DELETE FROM stock_data')];
-  for (let i = 0, n = 0; i < json.length; i += STOCK_CHUNK, n++) ops.push(stmt(C, 'INSERT INTO stock_data(n,data) VALUES(?,?)', n, json.slice(i, i + STOCK_CHUNK)));
-  const dates = rows.map(r => r[14]).filter(Boolean).sort(), sum = stockSummary(rows), ts = now();
-  const meta = { ts, who: me.name, file: str(payload.fileName).slice(0, 120), count: rows.length, from: dates[0] || '', to: dates[dates.length - 1] || '', sum };
+  if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
+  const state = await stockState(C), ts = now(), file = str(payload.fileName).slice(0, 120), ops = [], changed = [], same = [], seen = {};
+  let total = 0;
+  for (const it of payload.groups) {
+    const g = str(it && it.g).toUpperCase();
+    if (!STOCK_GROUP_RE.test(g) || seen[g]) continue;
+    seen[g] = 1;
+    const rows = stockDedupe((Array.isArray(it.rows) ? it.rows : []).map(stockCleanRow).filter(r => r && r[0] === g));
+    total += rows.length;
+    if (total > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
+    const reps = rows.map(r => r[14]).filter(Boolean).sort(), rep = stockDate(it.rep) || reps[reps.length - 1] || '';
+    const json = JSON.stringify(rows), old = state[g];
+    if (old && old.cur && old.cur.rep === rep && (await stockGroupJson(C, g, 0)) === json) { same.push(g); continue; }
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, json));
+    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.length, sum: stockSummary(rows) }, prev: old && old.cur ? old.cur : null };
+    changed.push(g);
+  }
+  if (!changed.length) return { ok: true, changed, same };
+  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file: meta.file, to: meta.to, sum });
-  ops.push(kvSetStmt(C, 'STOCK_META', JSON.stringify(meta)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
+  hist.push({ ts, who: me.name, file, to: dates[dates.length - 1] || '', sum });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
   await batch(C, ops);
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (meta.file || '(ไม่ระบุชื่อ)') + ' · ' + rows.length + ' รายการ · ค้างเกิน 60 วัน ' + sum.st.DS.n + ' รายการ');
-  return { ok: true, meta };
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · แทนที่ ' + changed.length + ' หมวด (' + changed.join(',') + ')' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
+  return { ok: true, changed, same };
+};
+/* สลับฉบับปัจจุบันกับฉบับก่อนหน้าของหมวดนั้น (กดซ้ำ = สลับกลับ) */
+API.stockRestore = async (C, token, g) => {
+  const me = await auth(C, token, true);
+  g = str(g).toUpperCase();
+  const state = await stockState(C), s = state[g];
+  if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
+  state[g] = { cur: s.prev, prev: s.cur };
+  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort(), hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
+  hist.push({ ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state) });
+  await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX)))]);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
+  return { ok: true, groups: state };
 };
 API.stockSetNames = async (C, token, names) => {
   const me = await auth(C, token, true), out = {};
