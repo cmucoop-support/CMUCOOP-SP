@@ -661,13 +661,14 @@ function agg(list) {
 }
 function render() {
   var q = F.q.trim().toLowerCase();
-  var A = D.items.filter(function (x) { return (!F.br || x.br === F.br) && (!F.tag || hasTag(x, F.tag)) && (!q || x.hay.indexOf(q) >= 0); });      // ยังไม่กรองหมวด/อายุ
+  var A = D.items.filter(function (x) { return (!F.br || x.br === F.br) && (F.tag !== 'hard' || x.hard) && (!q || x.hay.indexOf(q) >= 0); });      // ยังไม่กรองหมวด/อายุ
   var N = A.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองหมวดแล้ว ทุกอายุ
   var G = A.filter(function (x) { return F.st[x.sk]; });                                                            // กรองอายุแล้ว ทุกหมวด
   var S = G.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองครบ
   renderChips(N); renderPill(); renderTagSel(); renderKpis(S, N);
+  var adjT = isAdjTag(); $('#kpis').style.display = adjT ? 'none' : ''; document.querySelector('.charts').style.display = adjT ? 'none' : '';
   renderGroupChart(G); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
-  renderGroupTable(G); renderTable(S); renderZero();
+  renderGroupTable(G); if (isAdjTag()) renderTagList(); else renderTable(S); renderZero();
 }
 function zeroFiltered() {                                              // รายการคงเหลือ 0 ตามตัวกรอง หมวด/สาขา/ค้นหา (ไม่สนอายุสินค้า)
   var q = F.q.trim().toLowerCase();
@@ -691,10 +692,29 @@ function renderChips(N) {
     return '<button type="button" class="chip' + (F.st[s.k] ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (F.st[s.k] ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '"></i>' + esc(s.t) + ' <b>' + (cnt[s.k] || 0) + '</b></button>';
   }).join('');
 }
-function renderTagSel() {                                               // ตัวเลือกแท็ก + จำนวนรหัสสินค้าที่มีแท็กนั้นในฉบับที่กำลังดู
-  var cnt = {}; Object.keys(TAGS).forEach(function (k) { cnt[k] = {}; });
-  D.items.forEach(function (x) { Object.keys(TAGS).forEach(function (k) { if (hasTag(x, k)) cnt[k][codeKey(x.code)] = 1; }); });
-  $('#fTag').innerHTML = '<option value="">ทั้งหมด</option>' + Object.keys(TAGS).map(function (k) { return '<option value="' + k + '"' + (F.tag === k ? ' selected' : '') + '>' + esc(TAGS[k].t) + ' (' + nf0.format(Object.keys(cnt[k]).length) + ' รหัส)</option>'; }).join('');
+function renderTagSel() {                                               // ตัวเลือกแท็ก — ของหาย/หมดอายุ/รอปรับ/ของเสีย นับตามรายการเดียวกับปุ่มด้านบน
+  var hk = {}; D.items.forEach(function (x) { if (x.hard) hk[codeKey(x.code)] = 1; });
+  var cnt = { hard: Object.keys(hk).length, lost: (D.lost || []).length, exp: (D.exp || []).length, pend: (D.pend || []).length, waste: (D.waste || []).length };
+  $('#fTag').innerHTML = '<option value="">ทั้งหมด</option>' + Object.keys(TAGS).map(function (k) { return '<option value="' + k + '"' + (F.tag === k ? ' selected' : '') + '>' + esc(TAGS[k].t) + ' (' + nf0.format(cnt[k]) + ' รายการ)</option>'; }).join('');
+}
+function isAdjTag() { return F.tag === 'lost' || F.tag === 'exp' || F.tag === 'pend' || F.tag === 'waste'; }
+function renderTagList() {                                              // เลือกแท็กหาย/หมดอายุ/รอปรับ/เสีย → ตารางแสดงรายการของแท็กนั้นล้วน ๆ (เหมือนในปุ่มด้านบน) ไม่ปนกับรายการค้างสต็อก
+  var k = F.tag, q = F.q.trim().toLowerCase(), bk = brKey(F.br);
+  var rows = (D[k] || []).map(function (e) {
+    var h = e.hit || [], hq = 0, hv = 0; h.forEach(function (y) { hq += y.qty; hv += y.qty * y.cost; });
+    var brs = e.br || h.map(function (y) { return y.br; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
+    return { e: e, g: h[0] ? h[0].g : '', name: e.name || '', br: brs, qty: h.length ? hq : e.qty, val: hv, hasHit: h.length > 0 };
+  }).filter(function (r) {
+    return (!F.g || r.g === F.g) && (!bk || !r.e.br || brKey(r.e.br) === bk || (r.e.hit || []).some(function (y) { return brKey(y.br) === bk; })) &&
+      (!q || (r.e.code + ' ' + r.name + ' ' + (r.e.note || '')).toLowerCase().indexOf(q) >= 0);
+  });
+  var tp = 0, tv = 0; rows.forEach(function (r) { tp += r.qty || 0; tv += r.val; });
+  $('#dtNote').textContent = TAGS[k].t + ' · ' + nf0.format(rows.length) + ' รายการ · ' + qtyF(tp) + ' ชิ้น · มูลค่าทุน ' + money(tv) + ' บาท';
+  $('#dt').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวน (ชิ้น)</th><th class="nosort">มูลค่าทุน</th><th class="nosort">หมายเหตุ</th><th class="nosort">ผู้บันทึก</th><th class="nosort">เมื่อ</th></tr></thead><tbody>' +
+    (rows.length ? rows.map(function (r) {
+      return '<tr><td>' + esc(r.g || '–') + '</td><td>' + esc(r.e.code) + '</td><td>' + esc(r.name || '–') + (r.hasHit ? '' : ' <span class="tag old" title="ยังไม่พบบาร์นี้ในข้อมูลสต็อกปัจจุบัน">ไม่พบในข้อมูล</span>') + '</td><td>' + (r.br ? esc(r.br) : '<span class="muted">ทุกสาขา</span>') + '</td><td class="num">' + (r.qty == null ? 'ทั้งหมด' : qtyF(r.qty)) + '</td><td class="num">' + (r.hasHit ? money(r.val) : '–') + '</td><td>' + esc(r.e.note || '') + '</td><td>' + esc(r.e.who || '') + '</td><td>' + (r.e.ts ? fmtTs(r.e.ts) : '–') + '</td></tr>';
+    }).join('') : '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
+  $('#pgInfo').textContent = ''; $('#pgPrev').disabled = true; $('#pgNext').disabled = true;
 }
 function renderPill() {
   var el = $('#gpill');
