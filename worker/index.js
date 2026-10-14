@@ -9,9 +9,9 @@ const CHUNK = 900000;                // จำนวนตัวอักษร 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
 const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
-const PERM_KEYS = ['barcode', 'sound', 'music'];
-const PERM_DEFAULT = { barcode: true, sound: true, music: true };
-const CARD_KEYS = ['barcode', 'sound', 'music', 'settings'];
+const PERM_KEYS = ['barcode', 'sound', 'music', 'stock'];
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
+const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'settings'];
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
 /* การ์ดลิงก์เดิม 5 ใบ (ทำป้ายราคา ฯลฯ) ถูกแปลงเป็นการ์ดลิงก์ทั่วไปที่ลบ/แก้ได้ (ย้ายข้อมูลอัตโนมัติครั้งเดียวใน migrateLinks) */
@@ -28,10 +28,11 @@ const ACT_GROUPS = [
   { key: 'sound', label: 'ระบบเสียงประกาศ', sheets: ['Sound'] },
   { key: 'music', label: 'ขอเพลง/คิวเพลง', sheets: ['Music'] },
   { key: 'assets', label: 'รายการสินทรัพย์', sheets: ['รายการสินทรัพย์'] },
+  { key: 'stock', label: 'สินค้าค้างสต็อก', sheets: ['สินค้าค้างสต็อก'] },
   { key: 'banner', label: 'Banner', sheets: ['Banner'] },
   { key: 'system', label: 'ผู้ใช้งาน/ระบบ', sheets: ['ระบบ'] }
 ];
-const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner' };
+const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner', stock: 'สินค้าค้างสต็อก' };
 const BANNER_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const BANNER_DEF = { speed: 4, per: 0, perMax: 6, h: 80 };
 const SOUND_TYPES = ['ปุ่ม', 'เสียงตามเวลา', 'ระบบ', 'พนักงาน', 'สถานที่', 'แคชเชียร์', 'ประเภทงดรับ', 'เวลา', 'ตั้งค่า'];
@@ -60,7 +61,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
   'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
   'CREATE INDEX IF NOT EXISTS mq_status ON music_queue(status, seq)',
-  'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)'
+  'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)',
+  'CREATE TABLE IF NOT EXISTS stock_data (n INTEGER PRIMARY KEY, data TEXT)'   // สินค้าค้างสต็อก: JSON ของรายการทั้งหมด แบ่งก้อน
 ];
 let schemaReady = false;
 
@@ -1215,4 +1217,81 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
   await bcInsertAll(C, me.name, add, start);
   await bcLog(C, me, '', 'นำเข้าจาก Excel', (replace ? 'แทนที่ทั้งหมด' : 'เพิ่มต่อท้าย') + ' · ' + add.length + ' รายการ' + (dup ? ' · ข้ามซ้ำ ' + dup : ''));
   return { ok: true, count: add.length, duplicates: dup, notes, backups: await bcBackups(C) };
+};
+
+/* ============================== สินค้าค้างสต็อก ==============================
+ * หน้า stock.html อ่านไฟล์ Excel (รายงานวิเคราะห์การขาย 1 ชีต = 1 กลุ่มสินค้า) ในเบราว์เซอร์ แล้วส่งเฉพาะรายการที่ยังมีสต็อกมาเก็บที่นี่
+ * แถว = [กลุ่ม, รหัส, ชื่อ, สาขา, คงเหลือ, รวมขาย, เฉลี่ยขาย, รับเข้า, ขายล่าสุด, ค้าง(วัน), สถานะ, ต้นทุน, ราคา, หมายเหตุ, วันที่ของรายงาน]
+ * เก็บใน D1 (ตาราง stock_data) เป็น JSON แบ่งก้อน + kv: STOCK_META / STOCK_HISTORY / STOCK_NAMES */
+const STOCK_CHUNK = 400000;        // ตัวอักษรต่อก้อน (ภาษาไทย 3 ไบต์/ตัว → ไม่เกิน ~1.2 MB ต่อแถว ต่ำกว่าเพดาน 2 MB ของ D1)
+const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
+const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
+const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
+function stockCleanRow(r) {
+  if (!Array.isArray(r)) return null;
+  const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
+  if (!g || !name) return null;
+  const qty = stockNum(r[4], 2);
+  if (!(qty > 0)) return null;                                   // เก็บเฉพาะที่ยังมีของในสต็อก
+  const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
+  return [g, str(r[1]).slice(0, 30), name, str(r[3]).slice(0, 20), qty, stockNum(r[5], 2), stockNum(r[6], 2), stockDate(r[7]), stockDate(r[8]),
+    days !== null && isFinite(days) ? days : null, STOCK_ST.indexOf(st) >= 0 ? st : '', stockNum(r[11], 4), stockNum(r[12], 2), str(r[13]).slice(0, 60), stockDate(r[14])];
+}
+function stockDedupe(rows) {                                     // กลุ่ม+รหัส+ชื่อ+สาขา ซ้ำกัน → เก็บแถวจากรายงานที่ใหม่กว่า
+  const m = new Map();
+  rows.forEach(r => { const k = [r[0], r[1], r[2], r[3]].join('\u0001'), o = m.get(k); if (!o || r[14] >= o[14]) m.set(k, r); });
+  return Array.from(m.values());
+}
+function stockSummary(rows) {
+  const out = { items: rows.length, pcs: 0, cost: 0, st: {} };
+  STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
+  rows.forEach(r => {
+    const v = r[4] * r[11], b = out.st[r[10] || 'NA'];
+    out.pcs += r[4]; out.cost += v; b.n++; b.pcs += r[4]; b.cost += v;
+  });
+  out.pcs = Math.round(out.pcs * 100) / 100; out.cost = Math.round(out.cost * 100) / 100;
+  Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
+  return out;
+}
+async function stockLoadRows(C) {
+  const parts = await all(C, 'SELECT data FROM stock_data ORDER BY n');
+  if (!parts.length) return [];
+  try { const v = JSON.parse(parts.map(p => p.data).join('')); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+const stockNames = async C => { const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {}; Object.keys(raw).forEach(k => { const t = str(raw[k]); if (/^[A-Z0-9_-]{1,12}$/.test(k) && t) out[k] = t.slice(0, 40); }); return out; };
+API.stockGet = async (C, token) => {
+  const me = await authPerm(C, token, 'stock');
+  const [rows, meta, history, names] = await Promise.all([stockLoadRows(C), kvJson(C, 'STOCK_META', null), kvJson(C, 'STOCK_HISTORY', []), stockNames(C)]);
+  return { me: { name: me.name, role: me.role }, meta, rows, history: Array.isArray(history) ? history : [], names };
+};
+API.stockSave = async (C, token, payload) => {
+  const me = await auth(C, token, true);
+  payload = payload || {};
+  if (!Array.isArray(payload.rows)) throw new Error('ไม่พบข้อมูลในไฟล์');
+  if (payload.rows.length > STOCK_MAX_ROWS * 3) throw new Error('ไฟล์มีแถวมากเกินไป');
+  const rows = stockDedupe(payload.rows.map(stockCleanRow).filter(Boolean));
+  if (!rows.length) throw new Error('ไม่พบรายการที่มีสต็อกคงเหลือในไฟล์');
+  if (rows.length > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
+  rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const json = JSON.stringify(rows), ops = [stmt(C, 'DELETE FROM stock_data')];
+  for (let i = 0, n = 0; i < json.length; i += STOCK_CHUNK, n++) ops.push(stmt(C, 'INSERT INTO stock_data(n,data) VALUES(?,?)', n, json.slice(i, i + STOCK_CHUNK)));
+  const dates = rows.map(r => r[14]).filter(Boolean).sort(), sum = stockSummary(rows), ts = now();
+  const meta = { ts, who: me.name, file: str(payload.fileName).slice(0, 120), count: rows.length, from: dates[0] || '', to: dates[dates.length - 1] || '', sum };
+  const hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
+  hist.push({ ts, who: me.name, file: meta.file, to: meta.to, sum });
+  ops.push(kvSetStmt(C, 'STOCK_META', JSON.stringify(meta)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (meta.file || '(ไม่ระบุชื่อ)') + ' · ' + rows.length + ' รายการ · ค้างเกิน 60 วัน ' + sum.st.DS.n + ' รายการ');
+  return { ok: true, meta };
+};
+API.stockSetNames = async (C, token, names) => {
+  const me = await auth(C, token, true), out = {};
+  names = (names && typeof names === 'object') ? names : {};
+  Object.keys(names).forEach(k => {
+    const code = str(k).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ');
+    if (/^[A-Z0-9_-]{1,12}$/.test(code) && t) out[code] = t.slice(0, 40);
+  });
+  await kvSet(C, 'STOCK_NAMES', JSON.stringify(out));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งชื่อหมวด', Object.keys(out).length + ' หมวด');
+  return out;
 };
