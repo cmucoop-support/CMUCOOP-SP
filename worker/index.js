@@ -1370,7 +1370,16 @@ async function stockState(C) {
   } else await kvSet(C, 'STOCK_GROUPS', '{}');
   return state;
 }
-const stockNames = async C => { const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {}; Object.keys(raw).forEach(k => { const t = str(raw[k]); if (/^[A-Z0-9_-]{1,12}$/.test(k) && t) out[k] = t.slice(0, 40); }); return out; };
+const stockNames = async C => {
+  const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {};
+  Object.keys(raw).forEach(k => {
+    const t = str(raw[k]);
+    if (!t) return;
+    if (k === '__BR_CFG__') { out[k] = t.slice(0, 20000); return; }
+    if (/^[A-Z0-9_-]{1,12}$/.test(k) || /^[^:\s]{1,25}:[A-Z0-9_-]{1,12}$/.test(k)) out[k] = t.slice(0, 40);
+  });
+  return out;
+};
 function stockDayKey(ts) {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts || Date.now())); }
   catch (e) { return new Date((ts || Date.now()) + 7 * 3600000).toISOString().slice(0, 10); }
@@ -1552,47 +1561,83 @@ API.stockSetNames = async (C, token, names) => {
   const me = await stockEditAuth(C, token), out = {};
   names = (names && typeof names === 'object') ? names : {};
   Object.keys(names).forEach(k => {
-    const code = str(k).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ');
+    if (k === '__BR_CFG__') { out[k] = str(names[k]).slice(0, 20000); return; }
+    const parts = str(k).split(':');
+    if (parts.length === 2) {
+      const bk = stockBrKey(parts[0]), code = str(parts[1]).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ').trim();
+      if (bk && /^[A-Z0-9_-]{1,12}$/.test(code) && t) out[bk + ':' + code] = t.slice(0, 40);
+      return;
+    }
+    const code = str(k).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ').trim();
     if (/^[A-Z0-9_-]{1,12}$/.test(code) && t) out[code] = t.slice(0, 40);
   });
   await kvSet(C, 'STOCK_NAMES', JSON.stringify(out));
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งชื่อหมวด', Object.keys(out).length + ' หมวด');
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งค่าหมวดและสาขา', Object.keys(out).length + ' รายการ');
   return out;
 };
-API.stockGroupAdd = async (C, token, g, name) => {
+API.stockGroupAdd = async (C, token, g, name, branch) => {
   const me = await stockEditAuth(C, token);
-  const code = str(g).trim().toUpperCase();
-  if (!STOCK_GROUP_RE.test(code)) throw new Error('รหัสหมวดต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลข 1–12 ตัว (เช่น G01)');
+  const code = str(g).trim().toUpperCase(), br = str(branch).replace(/\s+/g, ' ').trim().slice(0, 20), bk = stockBrKey(br);
+  if (!STOCK_GROUP_RE.test(code)) throw new Error('รหัสหมวดต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลข 1–12 ตัว เช่น G01');
   const [state, names] = await Promise.all([stockState(C), stockNames(C)]);
   const label = str(name).replace(/\s+/g, ' ').trim().slice(0, 40);
-  if (label) names[code] = label;
-  const ops = [kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names))];
+  if (label) {
+    if (bk) names[bk + ':' + code] = label;
+    if (!names[code]) names[code] = label;
+  }
+  const ts = now(), ops = [kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names))];
   if (!state[code]) {
-    state[code] = { cur: { ts: now(), who: me.name, file: 'เพิ่มหมวดใหม่', rep: '', title: '', count: 0, sum: stockSummary([]), br: {} }, prev: null };
+    const brMap = {};
+    if (br) brMap[br] = { count: 0, rep: '', ts, who: me.name, file: 'ตั้งค่าหมวด' };
+    state[code] = { cur: { ts, who: me.name, file: 'เพิ่มหมวดใหม่', rep: '', title: '', count: 0, sum: stockSummary([]), br: brMap }, prev: null };
     ops.push(...stockInsertOps(C, code, 0, '[]'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+  } else if (br && state[code].cur) {
+    if (!state[code].cur.br) state[code].cur.br = {};
+    if (!state[code].cur.br[br]) state[code].cur.br[br] = { count: 0, rep: '', ts, who: me.name, file: 'ตั้งค่าหมวด' };
+    ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
   }
   await batch(C, ops);
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่มหมวดสินค้า', code + (label ? ' · ' + label : ''));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่มหมวดสินค้า', code + (br ? ' · สาขา ' + br : '') + (label ? ' · ' + label : ''));
   return { ok: true, g: code, names, groups: state };
 };
-API.stockGroupDelete = async (C, token, g) => {
+API.stockGroupDelete = async (C, token, g, branch) => {
   const me = await stockEditAuth(C, token);
-  const code = str(g).trim().toUpperCase();
+  const code = str(g).trim().toUpperCase(), br = str(branch).replace(/\s+/g, ' ').trim().slice(0, 20), bk = stockBrKey(br);
   if (!code) throw new Error('กรุณาระบุหมวดที่จะลบ');
-  const [state, names] = await Promise.all([stockState(C), stockNames(C)]);
-  const hadState = !!state[code], hadName = !!names[code];
-  if (!hadState && !hadName) throw new Error('ไม่พบหมวด ' + code);
-  delete state[code];
-  delete names[code];
-  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
-  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
-  await batch(C, [
-    stmt(C, 'DELETE FROM stock_grp WHERE g=?', code),
+  const [state, names, lost] = await Promise.all([stockState(C), stockNames(C), stockAdjLoad(C)]);
+  const ts = now(), ops = [];
+  if (bk && state[code] && state[code].cur) {
+    let rows = []; try { rows = JSON.parse((await stockGroupJson(C, code, 0)) || '[]'); } catch (e) { rows = []; }
+    const keep = Array.isArray(rows) ? rows.filter(r => stockBrKey(r[3]) !== bk) : [];
+    if (state[code].cur.br) {
+      Object.keys(state[code].cur.br).forEach(k => { if (stockBrKey(k) === bk) delete state[code].cur.br[k]; });
+    }
+    delete names[bk + ':' + code];
+    const remBrs = state[code].cur.br ? Object.keys(state[code].cur.br) : [];
+    if (!keep.length && !remBrs.length) {
+      delete state[code];
+      delete names[code];
+      ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
+    } else {
+      state[code].cur.count = keep.filter(r => r[4] > 0).length;
+      state[code].cur.sum = stockSummary(keep, lost);
+      ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=0', code), ...stockInsertOps(C, code, 0, JSON.stringify(keep)));
+    }
+  } else {
+    delete state[code];
+    delete names[code];
+    Object.keys(names).forEach(k => { if (k.endsWith(':' + code)) delete names[k]; });
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
+  }
+  const dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code + (br ? ' สาขา ' + br : ''), to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  ops.push(
     kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)),
     kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names)),
     kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))
-  ]);
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบหมวดสินค้า', code);
+  );
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบหมวดสินค้า', code + (br ? ' · สาขา ' + br : ''));
   return { ok: true, g: code, names, groups: state };
 };
 API.stockHistoryDelete = async (C, token, payload) => {
