@@ -1644,3 +1644,14 @@ API.stockPendingAdd = stockPendApi.add;
 API.stockPendingRemove = stockPendApi.remove;
 API.stockWasteAdd = stockWasteApi.add;
 API.stockWasteRemove = stockWasteApi.remove;
+/* แก้หมายเหตุของรายการ ของหาย/หมดอายุ/รอปรับ/ของเสีย (ไม่แตะจำนวน) · kind = lost|exp|pend|waste · key = k จาก stockGet */
+API.stockAdjNote = async (C, token, kind, key, note) => {
+  const me = await stockEditAuth(C, token);
+  if (!STOCK_ADJ_KV[kind]) throw new Error('ประเภทไม่ถูกต้อง');
+  const adj = await stockAdjLoad(C), cur = adj[kind], k = str(key), e = cur[k];
+  if (!e) throw new Error('ไม่พบรายการนี้ (อาจถูกยกเลิกไปแล้ว) กรุณารีเฟรช');
+  e.note = str(note).replace(/\s+/g, ' ').slice(0, 100);
+  await kvSet(C, STOCK_ADJ_KV[kind], JSON.stringify(cur));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'แก้หมายเหตุ' + STOCK_ADJ_LABEL[kind], str(e.code) + (e.br ? '@' + e.br : '') + ' · ' + (e.note || '(ลบหมายเหตุ)'));
+  return { ok: true };
+};
