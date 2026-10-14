@@ -307,7 +307,7 @@ tfoot td{background:var(--accent-soft)}
       <thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">สาขา</th><th class="nosort">หักจากสต็อก (หมวด · สาขา · ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" id="lsThAct"></th></tr></thead>
       <tbody id="lsTb"></tbody>
     </table></div>
-    <div class="row"><button class="btn ghost" id="lsClose">ปิด</button></div>
+    <div class="row"><button class="btn ghost hidden" id="lsCancelAll" style="color:var(--bad)">ยกเลิกทั้งหมด</button><button class="btn ghost" id="lsClose">ปิด</button></div>
   </div>
 </div>
 
@@ -882,6 +882,11 @@ function xlEsc(s) { return String(s == null ? '' : s).replace(/[\u0000-\u0008\u0
 function xlCol(i) { return String.fromCharCode(65 + i); }                         // 0 → A … 19 → T
 function xlSerial(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 + 25569 : null; }
 function xlVis(s) { return String(s || '').replace(/[ัิ-ฺ็-๎]/g, '').length; }   // ไม่นับสระบน/ล่าง/วรรณยุกต์
+function xlAtTxt(ts) {                                                      // 'ณ วันที่ 14/10/2026\nเวลา 14:16 น.' (เขตเวลา Asia/Bangkok)
+  var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date(ts || Date.now())).forEach(function (x) { p[x.type] = x.value; });
+  return 'ณ วันที่ ' + p.day + '/' + p.month + '/' + p.year + '\nเวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
+}
 function xlNum(v) { return (typeof v === 'number' && isFinite(v)) ? String(v) : null; }
 
 function xlStyles() {
@@ -951,20 +956,33 @@ function xlSheet(sh, ctx, idx) {
   f1[0] = n ? '<c r="A' + fr + '" s="' + XL_S.plain + '"><f>SUBTOTAL(103,A5:A' + last + ')</f><v>' + n + '</v></c>' : N('A' + fr, XL_S.plain, 0);
   f1.push(S('M' + fr, XL_S.bL, XL_DSLABEL)); for (var c = 13; c < 20; c++) f1.push(E(xlCol(c) + fr, XL_S.bL));
   row(fr, f1, 27); merges.push('M' + fr + ':T' + fr);
-  var rep = /^(\d{4})-(\d{2})-(\d{2})$/.exec(sh.rep || ''), dateTxt = 'ณ วันที่ ' + (rep ? rep[3] + '/' + rep[2] + '/' + rep[1] : '-');
+  var dateTxt = xlAtTxt(sh.at);                                              // ณ วันที่ dd/mm/yyyy + เวลา (เวลาไทย) ตอนส่งออก
   var a = fr + 1, z = fr + Math.max(br.length, 0) + 1;                      // แถวสาขา a..z-1, แถว Total = z
   br.forEach(function (b, i) {
     var r = a + i, cells = blank(r);
-    cells.push(i === 0 ? S('M' + r, XL_S.bCv, dateTxt) : E('M' + r, XL_S.bCv), E('N' + r, XL_S.bCv), E('O' + r, XL_S.bCv), E('P' + r, XL_S.bCv),
+    cells.push(i === 0 ? S('M' + r, XL_S.bCw, dateTxt) : E('M' + r, XL_S.bCw), E('N' + r, XL_S.bCv), E('O' + r, XL_S.bCv), E('P' + r, XL_S.bCv),
       S('Q' + r, XL_S.bC, b), E('R' + r, XL_S.bC), N('S' + r, XL_S.bCv, bc[b]), S('T' + r, XL_S.bW, 'รายการ'));
     row(r, cells, 27); merges.push('Q' + r + ':R' + r);
   });
   var tc = blank(z);
-  tc.push(br.length ? E('M' + z, XL_S.bCv) : S('M' + z, XL_S.bCv, dateTxt), E('N' + z, XL_S.bCv), E('O' + z, XL_S.bCv), E('P' + z, XL_S.bCv), S('Q' + z, XL_S.bCn, 'Total'), E('R' + z, XL_S.bCn),
+  tc.push(br.length ? E('M' + z, XL_S.bCw) : S('M' + z, XL_S.bCw, dateTxt), E('N' + z, XL_S.bCv), E('O' + z, XL_S.bCv), E('P' + z, XL_S.bCv), S('Q' + z, XL_S.bCn, 'Total'), E('R' + z, XL_S.bCn),
     br.length ? '<c r="S' + z + '" s="' + XL_S.bCv + '"><f>SUM(S' + a + ':S' + (z - 1) + ')</f><v>' + dsN + '</v></c>' : N('S' + z, XL_S.bCv, 0), S('T' + z, XL_S.b, 'รายการ'));
-  row(z, tc, br.length ? 0 : 27); merges.push('Q' + z + ':R' + z); merges.push('M' + a + ':P' + z);
+  row(z, tc, br.length ? 0 : 54); merges.push('Q' + z + ':R' + z); merges.push('M' + a + ':P' + z);
+  // สรุปรายการที่หักออกจากค้างสต็อก: แยก "ของเสีย" ออกจาก "อื่นๆ" (ของหาย · สินค้าหมดอายุ · รอปรับข้อมูล)
+  var lastRow = z;
+  if (sh.adj) {
+    var q = z + 2, A = sh.adj, hd = function (r, a, b2, c, d) { return blank(r).concat([S('M' + r, XL_S.bL, a), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), S('Q' + r, XL_S.bCw, b2), S('R' + r, XL_S.bCw, c), S('S' + r, XL_S.bCw, d), E('T' + r, XL_S.bCv)]); };
+    var ln = function (r, label, o, bold) { return blank(r).concat([S('M' + r, bold ? XL_S.bL : XL_S.bL, label), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), N('Q' + r, XL_S.bCv, o.n), N('R' + r, XL_S.bCv, o.pcs), N('S' + r, XL_S.bCv, o.val), S('T' + r, XL_S.bW, 'บาท')]); };
+    var tt = blank(q); tt.push(S('M' + q, XL_S.bL, 'สรุปรายการที่หักออกจากค้างสต็อก'));
+    for (var cc = 13; cc < 20; cc++) tt.push(E(xlCol(cc) + q, XL_S.bL));
+    row(q, tt, 27); merges.push('M' + q + ':T' + q);
+    row(q + 1, hd(q + 1, 'ประเภท', 'รายการ', 'ชิ้น', 'มูลค่าทุน'), 27); merges.push('M' + (q + 1) + ':P' + (q + 1));
+    var lines = [['ของเสีย', A.waste], ['อื่นๆ : ของหาย', A.lost], ['อื่นๆ : สินค้าหมดอายุ', A.exp], ['อื่นๆ : รอปรับข้อมูล', A.pend], ['รวมอื่นๆ (ไม่รวมของเสีย)', A.others], ['รวมที่หักทั้งหมด', A.all]];
+    lines.forEach(function (l, i) { var r = q + 2 + i; row(r, ln(r, l[0], l[1], i >= 4), 27); merges.push('M' + r + ':P' + r); });
+    lastRow = q + 1 + lines.length;
+  }
   var cols = XL_WIDTH.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('');
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:T' + z + '"/>' +
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:T' + lastRow + '"/>' +
     '<sheetViews><sheetView' + (idx === 0 ? ' tabSelected="1"' : '') + ' zoomScale="85" zoomScaleNormal="85" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="27"/><cols>' + cols + '</cols><sheetData>' + rows.join('') + '</sheetData>' +
     '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
     '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup paperSize="9" fitToHeight="0" orientation="landscape"/>' + (n ? '<tableParts count="1"><tablePart r:id="rId1"/></tableParts>' : '') + '</worksheet>';
@@ -1060,7 +1078,7 @@ $('#exGo').addEventListener('click', function () {
     var sheets = Object.keys(by).sort().map(function (g) {
       var items = by[g].slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
       if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
-      return { name: g, title: m.title || synthTitle(rep), rep: rep, items: items };
+      return { name: g, title: m.title || synthTitle(rep), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
     });
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
@@ -1303,14 +1321,36 @@ var AKI = {
   waste: { btn: 'ของเสีย', verb: 'เสีย', add: 'stockWasteAdd', rm: 'stockWasteRemove', bid: '#bWaste' }
 };
 function adjPcs(list) { var p = 0; (list || []).forEach(function (x) { (x.hit || []).forEach(function (h) { p += h.qty; }); }); return p; }
+function adjSumOf(list, g, br) {                                       // รวมจำนวน/มูลค่าที่หักจริงของรายการ (กรองหมวด g · สาขา br ถ้าระบุ)
+  var o = { n: 0, pcs: 0, val: 0 };
+  (list || []).forEach(function (x) {
+    var hit = (x.hit || []).filter(function (y) { return (!g || y.g === g) && (!br || brKey(y.br) === brKey(br)); });
+    if (!hit.length) return;
+    o.n++; hit.forEach(function (y) { o.pcs += y.qty; o.val += y.qty * y.cost; });
+  });
+  o.pcs = Math.round(o.pcs * 100) / 100; o.val = Math.round(o.val * 100) / 100; return o;
+}
+function adjSummary(g, br) {                                           // null = ไม่มีรายการหักเลย (ไม่ต้องใส่บล็อกสรุปในไฟล์)
+  var A = { waste: adjSumOf(D.waste, g, br), lost: adjSumOf(D.lost, g, br), exp: adjSumOf(D.exp, g, br), pend: adjSumOf(D.pend, g, br) };
+  var add = function (a, b) { return { n: a.n + b.n, pcs: Math.round((a.pcs + b.pcs) * 100) / 100, val: Math.round((a.val + b.val) * 100) / 100 }; };
+  A.others = add(add(A.lost, A.exp), A.pend); A.all = add(A.others, A.waste);
+  return A.all.n ? A : null;
+}
 function renderLostBtn() {
-  var parts = [];
   ['lost', 'exp', 'pend', 'waste'].forEach(function (k) {
     var n = (D[k] || []).length;
     $(AKI[k].bid).textContent = AKI[k].btn + (n ? ' (' + nf0.format(n) + ')' : '');
-    if (n) parts.push('หัก' + AKI[k].btn + ' ' + qtyF(adjPcs(D[k])) + ' ชิ้น');
   });
-  $('#lostNote').innerHTML = parts.length ? '<b style="color:var(--bad)">' + parts.join(' · ') + ' ออกจากยอดค้างสต็อกแล้ว</b> — กดปุ่ม "ของหาย" / "สินค้าหมดอายุ" / "รอปรับข้อมูล" / "ของเสีย" ด้านบนเพื่อดู/ยกเลิก' : '';
+  var S = { waste: adjSumOf(D.waste), lost: adjSumOf(D.lost), exp: adjSumOf(D.exp), pend: adjSumOf(D.pend) };
+  var add = function (x, y) { return { n: x.n + y.n, pcs: Math.round((x.pcs + y.pcs) * 100) / 100, val: Math.round((x.val + y.val) * 100) / 100 }; };
+  S.oth = add(add(S.lost, S.exp), S.pend); S.all = add(S.oth, S.waste);
+  var cnt = function (k) { return (D[k] || []).length; };
+  if (!cnt('waste') && !cnt('lost') && !cnt('exp') && !cnt('pend')) { $('#lostNote').innerHTML = ''; return; }
+  var tr = function (label, o, cls) { return '<tr' + (cls ? ' style="font-weight:700"' : '') + '><td>' + label + '</td><td class="num">' + nf0.format(o.n) + '</td><td class="num">' + qtyF(o.pcs) + '</td><td class="num">' + money(o.val) + '</td></tr>'; };
+  $('#lostNote').innerHTML = '<div style="font-weight:700;margin:4px 0"><span style="color:var(--bad)">สรุปรายการที่หักออกจากค้างสต็อก</span> <span class="muted" style="font-weight:400">— กดปุ่ม "ของหาย" / "สินค้าหมดอายุ" / "รอปรับข้อมูล" / "ของเสีย" ด้านบนเพื่อดู/ยกเลิก</span></div>' +
+    '<div class="tscroll"><table class="pvt"><thead><tr><th class="nosort">ประเภท</th><th class="nosort">รายการ</th><th class="nosort">ชิ้น</th><th class="nosort">มูลค่าทุน (บาท)</th></tr></thead><tbody>' +
+    tr('ของเสีย', S.waste, 1) + tr('อื่นๆ : ของหาย', S.lost) + tr('อื่นๆ : สินค้าหมดอายุ', S.exp) + tr('อื่นๆ : รอปรับข้อมูล', S.pend) +
+    tr('รวมอื่นๆ (ไม่รวมของเสีย)', S.oth, 1) + tr('รวมที่หักทั้งหมด', S.all, 1) + '</tbody></table></div>';
 }
 function fillLsBr() {
   var set = {}, old = $('#lsBr').value;
@@ -1325,6 +1365,7 @@ function renderLost() {
   $('#lsDesc').innerHTML = 'บันทึกบาร์ + จำนวนที่' + K.verb + ' ระบบจะ<b>จำเฉพาะจำนวน</b> แล้ว<b>หักออกจากคงเหลือ</b>ของรายการนั้น (จำนวนรายการ · มูลค่า · กราฟ · ส่งออก Excel) · ถ้าในสต็อกมีมากกว่าจำนวนที่หัก จะ<b>ยังแสดงรายการตามปกติ</b>ด้วยจำนวนที่เหลือ · หักหมดจึงจะไม่แสดง · <b>หักต่อทุกครั้งที่อัปโหลดข้อมูลใหม่</b> จนกว่าจะกด "ยกเลิก" · ใช้ค่าเดียวกับคอลัมน์ "รหัส" ในไฟล์รายงาน · เลือกสาขาเพื่อหักเฉพาะสาขานั้น (ถ้าเลือก "ทุกสาขา" จะหักตามลำดับแถวที่พบ)';
   $('#lsInLab').textContent = 'กรอกบาร์ที่' + K.verb + ' + จำนวน'; $('#lsAdd').textContent = 'เพิ่มเป็น' + K.btn;
   $('#lsAddBox').classList.toggle('hidden', !edit); $('#lsThAct').classList.toggle('hidden', !edit);
+  $('#lsCancelAll').classList.toggle('hidden', !edit || !all.length); $('#lsCancelAll').textContent = 'ยกเลิก' + K.btn + 'ทั้งหมด (' + nf0.format(all.length) + ')';
   var list = all.filter(function (x) { return !q || (x.code + ' ' + x.name + ' ' + x.note + ' ' + x.br).toLowerCase().indexOf(q) >= 0; });
   var pcs = adjPcs(all), val = 0; all.forEach(function (x) { (x.hit || []).forEach(function (h) { val += h.qty * h.cost; }); });
   $('#lsSum').textContent = all.length ? nf0.format(all.length) + ' รายการ · หักออกจากยอด ' + qtyF(pcs) + ' ชิ้น · มูลค่าทุน ' + money(val) + ' บาท' + (D.ver === 'prev' ? ' (ตามฉบับก่อนหน้าที่กำลังดู)' : '') : 'ยังไม่มีรายการ' + K.btn;
@@ -1347,6 +1388,12 @@ $('#bExp').addEventListener('click', function () { openAdj('exp'); });
 $('#bPend').addEventListener('click', function () { openAdj('pend'); });
 $('#bWaste').addEventListener('click', function () { openAdj('waste'); });
 $('#lsClose').addEventListener('click', function () { closeDlg('#lostDlg'); });
+$('#lsCancelAll').addEventListener('click', function () {
+  var K = AKI[AK], all = D[AK] || []; if (!all.length) return;
+  if (!confirm('ยกเลิก' + K.btn + 'ทั้งหมด ' + nf0.format(all.length) + ' รายการ ?\nจำนวนทั้งหมดจะกลับมานับรวมในค้างสต็อก (ถ้ายังมีในข้อมูล)')) return;
+  var keys = all.map(function (x) { return x.k; });
+  busy(this, async function () { await call(K.rm, keys); toast('ยกเลิก' + K.btn + 'ทั้งหมดแล้ว · ' + nf0.format(keys.length) + ' รายการ'); await load(VIEW); });
+});
 $('#lsQ').addEventListener('input', renderLost);
 $('#lsIn').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#lsAdd').click(); } });     // สแกนบาร์แล้ว Enter = เพิ่มทันที
 function parseAdjIn(txt, defQ) {                                      // 1 บรรทัด = "บาร์ [จำนวน]" → { items, bad }
