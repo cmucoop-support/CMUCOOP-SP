@@ -980,7 +980,7 @@ $('#bReload').addEventListener('click', function () { busy(this, load); });
  * หัวรายงาน 3 บรรทัด · ตาราง 20 คอลัมน์ (หัวสีส้ม TH Sarabun New 18) · สรุป "ค้างเกิน 60 วัน" แยกสาขาท้ายชีต · A4 แนวนอน
  * sheets = [{ name, title, rep:'YYYY-MM-DD', items:[{g,code,name,br,qty,sold,avg,recv,last,days,st,cost,price,note,below,profit,pct,sales,net}] }] → Promise<Uint8Array> */
 var XL_HEAD = ['ลำดับ', 'กลุ่ม', 'รหัส', 'ชื่อสินค้า', 'สาขา', 'คงเหลือ', 'รวมขาย', 'เฉลี่ยขาย', 'รับเข้า', 'ขายล่าสุด', 'ค้าง(วัน)', 'สถานะ', 'ต้นทุน', 'ราคา', 'ต่ำกว่าทุน', 'กำไร฿', 'กำไร%', 'ยอดขาย', 'กำไรสุทธิ V', 'หมายเหตุ'];
-var XL_WIDTH = [6.5, 5.8984375, 19.5, 37.796875, 7.59765625, 8.09765625, 8.09765625, 8.796875, 10.5, 11.5, 8.5, 7.59765625, 7.59765625, 7.59765625, 9.19921875, 7.59765625, 7.59765625, 8.19921875, 13.09765625, 12.3984375];
+var XL_WIDTH = [6.5, 5.8984375, 19.5, 37.796875, 7.59765625, 8.09765625, 8.09765625, 8.796875, 10.5, 11.5, 8.5, 7.59765625, 7.59765625, 7.59765625, 9.19921875, 7.59765625, 7.59765625, 8.19921875, 13.09765625, 28];
 var XL_SHOP = 'ร้านสหกรณ์มหาวิทยาลัยเชียงใหม่ จำกัด';
 var XL_NOTE = 'หมายเหตุ : T1 คือ ขายออกไม่เกิน 15 วัน, T2 ขายออกระหว่าง 15-30 วัน, T3 ขายออกระหว่าง 30-60 วัน, DS สินค้าที่ขายไม่ออกนานเกิน 60 วัน';
 var XL_DSLABEL = 'สินค้าที่ไม่มีความเคลื่อนไหว (ค้างสต็อก) นานเกิน 60 วัน';
@@ -996,6 +996,12 @@ function xlAtTxt(ts) {                                                      // '
   var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
     .formatToParts(new Date(ts || Date.now())).forEach(function (x) { p[x.type] = x.value; });
   return 'ณ วันที่ ' + p.day + '/' + p.month + '/' + p.year + '\nเวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
+}
+function xlNote(x) {                                                        // หมายเหตุในไฟล์ต้นฉบับ + หมายเหตุที่บันทึกในระบบ (ขายยาก/ของหาย/หมดอายุ/รอปรับ/ของเสีย)
+  var o = [], tn = x.tn || {};
+  if (x.note) o.push(String(x.note));
+  Object.keys(TAGS).forEach(function (k) { if (tn[k]) o.push(TAGS[k].t + ': ' + tn[k]); });
+  return o.join(' · ');
 }
 function xlNum(v) { return (typeof v === 'number' && isFinite(v)) ? String(v) : null; }
 
@@ -1049,13 +1055,14 @@ function xlSheet(sh, ctx, idx) {
   // ข้อมูล
   items.forEach(function (x, i) {
     var r = 5 + i, c = XL_S.c, code = String(x.code == null ? '' : x.code).replace(/^[Pp](?=\d)/, ''), cells = [];   // ส่งออก: ตัด P นำหน้ารหัส (เฉพาะตามด้วยตัวเลข) ไม่แตะข้อมูลที่เก็บไว้
+    var note = xlNote(x);
     var d = function (col, iso) { var v = xlSerial(iso); return v === null ? E(col + r, XL_S.date) : N(col + r, XL_S.date, v); };
     cells.push(N('A' + r, c, i + 1), T('B' + r, c, x.g));
     cells.push(/^(0|[1-9]\d{0,14})$/.test(code) ? N('C' + r, XL_S.code, Number(code)) : T('C' + r, c, code));
     cells.push(T('D' + r, XL_S.left, x.name), T('E' + r, c, x.br), N('F' + r, c, x.qty), N('G' + r, c, x.sold), N('H' + r, c, x.avg), d('I', x.recv), d('J', x.last),
       N('K' + r, c, x.days), T('L' + r, c, x.st), N('M' + r, c, x.cost), N('N' + r, c, x.price), T('O' + r, c, x.below), N('P' + r, c, x.profit), N('Q' + r, c, x.pct),
-      N('R' + r, c, x.sales), N('S' + r, c, x.net), T('T' + r, c, x.note));
-    var v = xlVis(x.name), lines = v > 64 ? 3 : (v > 32 ? 2 : 1);
+      N('R' + r, c, x.sales), N('S' + r, c, x.net), T('T' + r, c, note));
+    var v = xlVis(x.name), lines = v > 64 ? 3 : (v > 32 ? 2 : 1), nl = Math.ceil(xlVis(note) / 24); if (nl > lines) lines = nl;
     row(r, cells, lines > 1 ? 27 * lines : 0);
   });
   var z = last, lastRow = last;
