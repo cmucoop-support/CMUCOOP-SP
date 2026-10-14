@@ -539,8 +539,13 @@ function daysSince(iso, fallback) {
   if (!m) return fallback;
   return Math.max(0, Math.round((TODAY_MS - Date.UTC(+m[1], +m[2] - 1, +m[3])) / 86400000));
 }
+function stByDays(d, fallback) {                                      // สถานะจากค้าง(วัน): ≤15 = T1 · ≤30 = T2 · ≤60 = T3 · เกิน 60 = DS · ไม่มีข้อมูลวัน → ใช้ค่าเดิมจากไฟล์
+  if (d === null || d === undefined || !isFinite(d)) return fallback;
+  return d <= 15 ? 'T1' : (d <= 30 ? 'T2' : (d <= 60 ? 'T3' : 'DS'));
+}
 function toItem(a) {
-  return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], sold: a[5], avg: a[6], recv: a[7], last: a[8], days: daysSince(a[8], a[9]), st: a[10], sk: a[10] || 'NA',
+  var dy = daysSince(a[8], a[9]), st = stByDays(dy, a[10]);
+  return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], sold: a[5], avg: a[6], recv: a[7], last: a[8], days: dy, st: st, sk: st || 'NA',
     cost: a[11], price: a[12], note: a[13], rep: a[14], below: a[15], profit: a[16], pct: a[17], sales: a[18], net: a[19],
     vc: a[4] * a[11], vp: a[4] * a[12], hay: (a[1] + ' ' + a[2] + ' ' + a[13]).toLowerCase() };
 }
