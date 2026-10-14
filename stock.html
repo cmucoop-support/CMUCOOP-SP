@@ -977,8 +977,8 @@ function xlSheet(sh, ctx, idx) {
     for (var cc = 13; cc < 20; cc++) tt.push(E(xlCol(cc) + q, XL_S.bL));
     row(q, tt, 27); merges.push('M' + q + ':T' + q);
     row(q + 1, hd(q + 1, 'ประเภท', 'รายการ', 'ชิ้น', 'มูลค่าทุน'), 27); merges.push('M' + (q + 1) + ':P' + (q + 1));
-    var lines = [['ของเสีย', A.waste], ['อื่นๆ : ของหาย', A.lost], ['อื่นๆ : สินค้าหมดอายุ', A.exp], ['อื่นๆ : รอปรับข้อมูล', A.pend], ['รวมอื่นๆ (ไม่รวมของเสีย)', A.others], ['รวมที่หักทั้งหมด', A.all]];
-    lines.forEach(function (l, i) { var r = q + 2 + i; row(r, ln(r, l[0], l[1], i >= 4), 27); merges.push('M' + r + ':P' + r); });
+    var lines = [['ของเสีย', A.waste], ['ของหาย', A.lost], ['สินค้าหมดอายุ', A.exp], ['รอปรับข้อมูล', A.pend], ['รวมที่หักทั้งหมด', A.all]];
+    lines.forEach(function (l, i) { var r = q + 2 + i; row(r, ln(r, l[0], l[1], i >= 3), 27); merges.push('M' + r + ':P' + r); });
     lastRow = q + 1 + lines.length;
   }
   var cols = XL_WIDTH.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('');
@@ -1349,8 +1349,8 @@ function renderLostBtn() {
   var tr = function (label, o, cls) { return '<tr' + (cls ? ' style="font-weight:700"' : '') + '><td>' + label + '</td><td class="num">' + nf0.format(o.n) + '</td><td class="num">' + qtyF(o.pcs) + '</td><td class="num">' + money(o.val) + '</td></tr>'; };
   $('#lostNote').innerHTML = '<div style="font-weight:700;margin:4px 0"><span style="color:var(--bad)">สรุปรายการที่หักออกจากค้างสต็อก</span> <span class="muted" style="font-weight:400">— กดปุ่ม "ของหาย" / "สินค้าหมดอายุ" / "รอปรับข้อมูล" / "ของเสีย" ด้านบนเพื่อดู/ยกเลิก</span></div>' +
     '<div class="tscroll"><table class="pvt"><thead><tr><th class="nosort">ประเภท</th><th class="nosort">รายการ</th><th class="nosort">ชิ้น</th><th class="nosort">มูลค่าทุน (บาท)</th></tr></thead><tbody>' +
-    tr('ของเสีย', S.waste, 1) + tr('อื่นๆ : ของหาย', S.lost) + tr('อื่นๆ : สินค้าหมดอายุ', S.exp) + tr('อื่นๆ : รอปรับข้อมูล', S.pend) +
-    tr('รวมอื่นๆ (ไม่รวมของเสีย)', S.oth, 1) + tr('รวมที่หักทั้งหมด', S.all, 1) + '</tbody></table></div>';
+    tr('ของเสีย', S.waste, 1) + tr('ของหาย', S.lost) + tr('สินค้าหมดอายุ', S.exp) + tr('รอปรับข้อมูล', S.pend) +
+    tr('รวมที่หักทั้งหมด', S.all, 1) + '</tbody></table></div>';
 }
 function fillLsBr() {
   var set = {}, old = $('#lsBr').value;
