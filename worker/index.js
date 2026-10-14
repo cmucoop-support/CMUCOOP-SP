@@ -1374,11 +1374,11 @@ const stockNames = async C => { const raw = (await kvJson(C, 'STOCK_NAMES', {}))
 API.stockGet = async (C, token, ver) => {
   const me = await authPerm(C, token, 'stock'), v = ver === 'prev' ? 1 : 0;
   const state = await stockState(C);
-  const [rows0, history, names, lost] = await Promise.all([stockLoadRows(C, v), kvJson(C, 'STOCK_HISTORY', []), stockNames(C), stockAdjLoad(C)]);
+  const [rows0, history, names, lost, hard] = await Promise.all([stockLoadRows(C, v), kvJson(C, 'STOCK_HISTORY', []), stockNames(C), stockAdjLoad(C), stockHardLoad(C)]);
   const ap = stockApply(rows0, lost);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h.slice(0, 30) }; }).sort((a, b) => b.ts - a.ts);
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste') };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, history: Array.isArray(history) ? history : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
@@ -1538,6 +1538,30 @@ API.stockSetNames = async (C, token, names) => {
   await kvSet(C, 'STOCK_NAMES', JSON.stringify(out));
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งชื่อหมวด', Object.keys(out).length + ' หมวด');
   return out;
+};
+
+/* ============================== แท็ก "สินค้าขายยาก" ==============================
+ * ผูกกับรหัสสินค้า/บาร์ (ทุกสาขา) เก็บใน KV 'STOCK_HARD' = { stockCodeKey: { code, ts, who } }
+ * อัปโหลดไฟล์ใหม่/ล้างข้อมูล/สลับฉบับ ไม่แตะแท็ก → ติดอยู่จนกว่าจะยกเลิก (ดูอย่างเดียวก็เห็นแท็กได้ · แก้ไขต้องมีสิทธิ์ stock_edit) */
+async function stockHardLoad(C) {
+  const raw = (await kvJson(C, 'STOCK_HARD', {})) || {}, out = {};
+  Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who) }; });
+  return out;
+}
+/* codes = รหัส/บาร์ 1 ตัว หรือรายการ · on = true ติดแท็ก, false ยกเลิก */
+API.stockHardSet = async (C, token, codes, on) => {
+  const me = await stockEditAuth(C, token), list = (Array.isArray(codes) ? codes : [codes]).map(x => str(x).trim().slice(0, 40)).filter(Boolean).slice(0, 500);
+  if (!list.length) throw new Error('ไม่พบรหัสสินค้า');
+  const hard = await stockHardLoad(C), ts = now();
+  let n = 0;
+  list.forEach(code => {
+    const k = stockCodeKey(code); if (!k) return;
+    if (on) { if (!hard[k]) n++; hard[k] = { code, ts, who: me.name }; }
+    else if (hard[k]) { delete hard[k]; n++; }
+  });
+  await kvSet(C, 'STOCK_HARD', JSON.stringify(hard));
+  if (n) await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', on ? 'ติดแท็กสินค้าขายยาก' : 'ยกเลิกแท็กสินค้าขายยาก', n + ' รายการ (' + list.slice(0, 10).join(',') + (list.length > 10 ? ',…' : '') + ')');
+  return hard;
 };
 
 /* ============================== ของหาย / สินค้าหมดอายุ / รอปรับข้อมูล ==============================
