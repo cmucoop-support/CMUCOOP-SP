@@ -131,7 +131,9 @@ tr.click{cursor:pointer}
 .tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent-text);white-space:nowrap}
 .tag.new{background:#e6f6ec;color:var(--ok)}.tag.old{background:#fdecea;color:var(--bad)}
 .tag.hard{background:#fff1d6;color:#9a5b00;border:1px solid #f0c36d;margin-left:6px;font-size:11.5px;padding:0 8px}
-.hardf{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:600}.hardf input{width:auto;margin:0}
+.tag.t-lost{background:#fdecea;color:#b3261e;border-color:#f2b8b5}.tag.t-exp{background:#f3e8fd;color:#6a1b9a;border-color:#d9b8f2}.tag.t-pend{background:#e3f0fd;color:#0b5394;border-color:#aecdf2}.tag.t-waste{background:#eceff1;color:#455a64;border-color:#b8c4ca}
+.tagnote{font-size:12px;color:var(--steel);margin-top:2px;white-space:normal}.tag.hard[data-hardnote]{cursor:pointer}
+.tag.t-lost,.tag.t-exp,.tag.t-pend,.tag.t-waste{border:1px solid;margin-left:6px;font-size:11.5px;padding:0 8px}
 .up{color:var(--bad)}.down{color:var(--ok)}
 .opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:8px;cursor:pointer;background:#fff;color:var(--ink);font-size:15px;font-weight:400}
 .opt input{margin-top:6px}
@@ -220,7 +222,7 @@ tfoot td{background:var(--accent-soft)}
         <div class="muted" style="margin-bottom:5px">อายุสินค้า (เลือกได้หลายช่วง) — ค่าเริ่มต้น "ค้างเกิน 60 วัน" ตามนิยามของรายงาน</div>
         <div class="chips" id="chips"></div>
       </div>
-      <div><label class="hardf"><input type="checkbox" id="fHard"> แสดงเฉพาะสินค้าขายยาก <span class="muted" id="hardCnt" style="font-weight:400"></span></label></div>
+      <div class="frow"><label>แท็กสินค้า<select id="fTag"></select></label></div>
       <div id="gpill" class="hidden"></div>
     </section>
 
@@ -528,7 +530,7 @@ $('#lgBtn').addEventListener('click', function () {
 /* ---------- ข้อมูล / สถานะหน้า ---------- */
 var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], zero: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
-var F = { st: { DS: true }, hard: false, g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
+var F = { st: { DS: true }, tag: '', g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
 var ST_DEF = [
   { k: 'DS', t: 'ค้างเกิน 60 วัน (DS)' }, { k: 'T3', t: '30–60 วัน (T3)' }, { k: 'T2', t: '15–30 วัน (T2)' },
@@ -566,7 +568,13 @@ function applyData(r) {
   D.zero = (r.zero || []).map(toItem);                                  // คงเหลือ 0 — เก็บไว้ แต่ไม่นับรวมในยอด/กราฟ
   D.lost = r.lost || []; D.exp = r.expired || []; D.pend = r.pending || []; D.waste = r.waste || [];          // ของหาย/หมดอายุ: ฝั่งหลังบ้านหักจำนวนออกจาก rows แล้ว (แถวที่หักหมดไม่ถูกส่งมา)
   D.hard = r.hard || {};                                                // แท็ก "สินค้าขายยาก" ผูกกับรหัสสินค้า (ทุกสาขา)
-  D.items.concat(D.zero).forEach(function (x) { x.hard = !!(x.code && D.hard[codeKey(x.code)]); if (x.hard) x.hay += ' ขายยาก'; });
+  var adjIdx = {};                                                      // แท็กจากรายการ ของหาย/หมดอายุ/รอปรับ/ของเสีย: รหัส → รายการ (สาขาว่าง = ทุกสาขา)
+  [['lost', D.lost], ['exp', D.exp], ['pend', D.pend], ['waste', D.waste]].forEach(function (p) { (p[1] || []).forEach(function (e) { var ck = codeKey(e.code); if (ck) (adjIdx[ck] || (adjIdx[ck] = [])).push({ k: p[0], br: brKey(e.br), qty: e.qty, note: e.note || '' }); }); });
+  D.items.concat(D.zero).forEach(function (x) {
+    var ck = codeKey(x.code); x.hard = !!(ck && D.hard[ck]); x.tg = {}; x.tn = {}; if (x.hard && D.hard[ck].note) x.tn.hard = D.hard[ck].note;
+    (adjIdx[ck] || []).forEach(function (e) { if (!e.br || e.br === brKey(x.br)) { x.tg[e.k] = (x.tg[e.k] || 0) + (e.qty == null ? 0 : e.qty); if (e.note && (x.tn[e.k] || '').indexOf(e.note) < 0) x.tn[e.k] = (x.tn[e.k] ? x.tn[e.k] + ' / ' : '') + e.note; } });
+    if (x.hard) x.hay += ' ขายยาก'; Object.keys(x.tg).forEach(function (k) { x.hay += ' ' + TAGS[k].t; }); Object.keys(x.tn).forEach(function (k) { x.hay += ' ' + x.tn[k]; }); x.hay = x.hay.toLowerCase();
+  });
   D.items.forEach(function (x, i) { x.i = i; }); D.zero.forEach(function (x, i) { x.i = i; });                       // ลำดับเดิมในไฟล์ ใช้ตอนส่งออก
   var gs = {}, bs = {};
   D.items.forEach(function (x) { gs[x.g] = 1; bs[x.br] = 1; });
@@ -653,11 +661,11 @@ function agg(list) {
 }
 function render() {
   var q = F.q.trim().toLowerCase();
-  var A = D.items.filter(function (x) { return (!F.br || x.br === F.br) && (!F.hard || x.hard) && (!q || x.hay.indexOf(q) >= 0); });      // ยังไม่กรองหมวด/อายุ
+  var A = D.items.filter(function (x) { return (!F.br || x.br === F.br) && (!F.tag || hasTag(x, F.tag)) && (!q || x.hay.indexOf(q) >= 0); });      // ยังไม่กรองหมวด/อายุ
   var N = A.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองหมวดแล้ว ทุกอายุ
   var G = A.filter(function (x) { return F.st[x.sk]; });                                                            // กรองอายุแล้ว ทุกหมวด
   var S = G.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองครบ
-  renderChips(N); renderPill(); renderHardCnt(); renderKpis(S, N);
+  renderChips(N); renderPill(); renderTagSel(); renderKpis(S, N);
   renderGroupChart(G); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
   renderGroupTable(G); renderTable(S); renderZero();
 }
@@ -683,9 +691,10 @@ function renderChips(N) {
     return '<button type="button" class="chip' + (F.st[s.k] ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (F.st[s.k] ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '"></i>' + esc(s.t) + ' <b>' + (cnt[s.k] || 0) + '</b></button>';
   }).join('');
 }
-function renderHardCnt() {                                              // จำนวนสินค้าขายยาก (รหัสไม่ซ้ำ) ที่มีสต็อกอยู่ในฉบับที่กำลังดู
-  var seen = {}, n = 0; D.items.forEach(function (x) { if (x.hard && !seen[codeKey(x.code)]) { seen[codeKey(x.code)] = 1; n++; } });
-  $('#hardCnt').textContent = '(' + nf0.format(n) + ' รหัส)'; $('#fHard').checked = F.hard;
+function renderTagSel() {                                               // ตัวเลือกแท็ก + จำนวนรหัสสินค้าที่มีแท็กนั้นในฉบับที่กำลังดู
+  var cnt = {}; Object.keys(TAGS).forEach(function (k) { cnt[k] = {}; });
+  D.items.forEach(function (x) { Object.keys(TAGS).forEach(function (k) { if (hasTag(x, k)) cnt[k][codeKey(x.code)] = 1; }); });
+  $('#fTag').innerHTML = '<option value="">ทั้งหมด</option>' + Object.keys(TAGS).map(function (k) { return '<option value="' + k + '"' + (F.tag === k ? ' selected' : '') + '>' + esc(TAGS[k].t) + ' (' + nf0.format(Object.keys(cnt[k]).length) + ' รหัส)</option>'; }).join('');
 }
 function renderPill() {
   var el = $('#gpill');
@@ -875,7 +884,7 @@ function renderTable(S) {
   $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ';
   var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'หาย / หมดอายุ / รอปรับ / เสีย / ขายยาก', nosort: 1 }]) : DT_COLS;
   $('#dt').innerHTML = thead(cols, F.ds) + '<tbody>' + (part.length ? part.map(function (x) {
-    return '<tr><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + (x.hard ? '<span class="tag hard" title="ติดแท็กสินค้าขายยาก">ขายยาก</span>' : '') + '</td><td>' + esc(x.br) + '</td><td class="num">' + qtyF(x.qty) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
+    return '<tr><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + tagHtml(x) + '</td><td>' + esc(x.br) + '</td><td class="num">' + qtyF(x.qty) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
       '</td><td>' + fmtDate(x.recv) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + (canLost ? '<td style="white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small" data-adj="lost" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หายออกจากค้างสต็อก">หาย</button> <button type="button" class="btn ghost small" data-adj="exp" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่หมดอายุออกจากค้างสต็อก">หมดอายุ</button> <button type="button" class="btn ghost small" data-adj="pend" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่รอปรับข้อมูลออกจากค้างสต็อก">รอปรับ</button> <button type="button" class="btn ghost small" data-adj="waste" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="หักจำนวนที่เป็นของเสียออกจากค้างสต็อก">เสีย</button> <button type="button" class="btn ghost small" data-hard="' + (x.hard ? '0' : '1') + '" data-code="' + esc(x.code) + '" title="' + (x.hard ? 'ยกเลิกแท็กสินค้าขายยาก (ทุกสาขา)' : 'ติดแท็กสินค้าขายยาก (ทุกสาขา)') + '">' + (x.hard ? 'ยกเลิกขายยาก' : 'ขายยาก') + '</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>' : '') + '</tr>';
   }).join('') : '<tr><td colspan="' + cols.length + '" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
   $('#pgInfo').textContent = LAST_S.length ? 'แสดง ' + nf0.format(from + 1) + '–' + nf0.format(from + part.length) + ' จาก ' + nf0.format(LAST_S.length) + ' · หน้า ' + (F.page + 1) + '/' + pages : '';
@@ -902,12 +911,20 @@ $('#gt').addEventListener('click', function (e) {
   F.g = F.g === tr.dataset.g ? '' : tr.dataset.g; F.page = 0; $('#fG').value = F.g; render();
   document.getElementById('dt').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
-$('#fHard').addEventListener('change', function () { F.hard = this.checked; F.page = 0; render(); });
+$('#fTag').addEventListener('change', function () { F.tag = this.value; F.page = 0; render(); });
 $('#dt').addEventListener('click', function (e) {
+  var nb = e.target.closest('[data-hardnote]');
+  if (nb) {                                                          // คลิกป้าย "ขายยาก" → แก้หมายเหตุ
+    var nc = nb.dataset.hardnote, cur = (D.hard[codeKey(nc)] || {}).note || '', nn = prompt('หมายเหตุสินค้าขายยาก\n' + nc + '\n(เว้นว่างเพื่อลบหมายเหตุ)', cur);
+    if (nn === null) return;
+    busy(nb, async function () { await call('stockHardSet', [nc], true, nn); toast('บันทึกหมายเหตุแล้ว · ' + nc); await load(VIEW); });
+    return;
+  }
   var hb = e.target.closest('[data-hard]');
   if (hb) {                                                          // ปุ่ม "ขายยาก" → ติด/ยกเลิกแท็กของรหัสสินค้านี้ (มีผลทุกสาขา และไม่หายเมื่ออัปโหลดไฟล์ใหม่)
-    var on = hb.dataset.hard === '1', hc = hb.dataset.code;
-    busy(hb, async function () { await call('stockHardSet', [hc], on); toast((on ? 'ติดแท็กสินค้าขายยาก · ' : 'ยกเลิกแท็กสินค้าขายยาก · ') + hc); await load(VIEW); });
+    var on = hb.dataset.hard === '1', hc = hb.dataset.code, hn = '';
+    if (on) { hn = prompt('ติดแท็กสินค้าขายยาก\n' + hc + '\n\nหมายเหตุ (ไม่บังคับ — เว้นว่างได้)', ''); if (hn === null) return; }
+    busy(hb, async function () { await call('stockHardSet', [hc], on, hn); toast((on ? 'ติดแท็กสินค้าขายยาก · ' : 'ยกเลิกแท็กสินค้าขายยาก · ') + hc); await load(VIEW); });
     return;
   }
   var lb = e.target.closest('[data-adj]');
@@ -918,7 +935,9 @@ $('#dt').addEventListener('click', function (e) {
     if (inp === null) return;
     var q = Number(String(inp).replace(/,/g, '').trim());
     if (!(q > 0)) { toast('จำนวนไม่ถูกต้อง', true); return; }
-    busy(lb, async function () { await call(K.add, [{ code: code, qty: q }], '', br); toast('บันทึก' + K.btn + ' ' + qtyF(q) + ' ชิ้น · ' + code + ' · ' + br); await load(VIEW); });
+    var an = prompt('หมายเหตุ' + K.btn + ' (ไม่บังคับ — เว้นว่างได้)\n' + code + ' · ' + br, '');
+    if (an === null) return;
+    busy(lb, async function () { await call(K.add, [{ code: code, qty: q }], an, br); toast('บันทึก' + K.btn + ' ' + qtyF(q) + ' ชิ้น · ' + code + ' · ' + br); await load(VIEW); });
     return;
   }
   var th = e.target.closest('th'); if (!th) return;
@@ -1425,6 +1444,14 @@ document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { cl
 /* ---------- ของหาย / สินค้าหมดอายุ (จำเฉพาะจำนวน · หักจากคงเหลือ · คงสถานะทุกครั้งที่อัปโหลดจนกว่าจะยกเลิก) ---------- */
 function codeKey(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); }     // ต้องตรงกับ stockCodeKey ของหลังบ้าน
 var AK = 'lost';            // รายการที่เปิดอยู่ในหน้าต่าง: 'lost' = ของหาย · 'exp' = สินค้าหมดอายุ
+var TAGS = { hard: { t: 'ขายยาก' }, lost: { t: 'ของหาย' }, exp: { t: 'หมดอายุ' }, pend: { t: 'รอปรับ' }, waste: { t: 'ของเสีย' } };
+function hasTag(x, k) { return k === 'hard' ? !!x.hard : x.tg && x.tg[k] !== undefined; }
+function tagHtml(x) {
+  var tn = x.tn || {}, h = x.hard ? '<span class="tag hard"' + (D.me && D.me.edit ? ' data-hardnote="' + esc(x.code) + '"' : '') + ' title="ติดแท็กสินค้าขายยาก' + (D.me && D.me.edit ? ' — คลิกเพื่อแก้หมายเหตุ' : '') + '">ขายยาก</span>' : '', nl = [];
+  Object.keys(x.tg || {}).forEach(function (k) { var q = x.tg[k]; h += '<span class="tag t-' + k + '" title="' + esc(TAGS[k].t + (q ? ' ' + qtyF(q) + ' ชิ้น (หักออกจากค้างสต็อกแล้ว)' : ' (ทั้งหมด)')) + '">' + esc(TAGS[k].t) + (q ? ' ' + qtyF(q) : '') + '</span>'; });
+  Object.keys(TAGS).forEach(function (k) { if (tn[k]) nl.push(TAGS[k].t + ': ' + tn[k]); });
+  return h + (nl.length ? '<div class="tagnote">หมายเหตุ — ' + esc(nl.join(' · ')) + '</div>' : '');
+}
 var AKI = {
   lost: { btn: 'ของหาย', verb: 'หาย', add: 'stockLostAdd', rm: 'stockLostRemove', bid: '#bLost' },
   exp: { btn: 'สินค้าหมดอายุ', verb: 'หมดอายุ', add: 'stockExpiredAdd', rm: 'stockExpiredRemove', bid: '#bExp' },
