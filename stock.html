@@ -699,7 +699,7 @@ function renderTagSel() {                                               // ต�
 }
 function isAdjTag() { return F.tag === 'lost' || F.tag === 'exp' || F.tag === 'pend' || F.tag === 'waste'; }
 function renderTagList() {                                              // เลือกแท็กหาย/หมดอายุ/รอปรับ/เสีย → ตารางแสดงรายการของแท็กนั้นล้วน ๆ (เหมือนในปุ่มด้านบน) ไม่ปนกับรายการค้างสต็อก
-  var k = F.tag, q = F.q.trim().toLowerCase(), bk = brKey(F.br);
+  var k = F.tag, q = F.q.trim().toLowerCase(), bk = brKey(F.br), canEd = !!(D.me && D.me.edit);
   var rows = (D[k] || []).map(function (e) {
     var h = e.hit || [], hq = 0, hv = 0; h.forEach(function (y) { hq += y.qty; hv += y.qty * y.cost; });
     var brs = e.br || h.map(function (y) { return y.br; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
@@ -712,7 +712,7 @@ function renderTagList() {                                              // เ�
   $('#dtNote').textContent = TAGS[k].t + ' · ' + nf0.format(rows.length) + ' รายการ · ' + qtyF(tp) + ' ชิ้น · มูลค่าทุน ' + money(tv) + ' บาท';
   $('#dt').innerHTML = '<thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวน (ชิ้น)</th><th class="nosort">มูลค่าทุน</th><th class="nosort">หมายเหตุ</th><th class="nosort">ผู้บันทึก</th><th class="nosort">เมื่อ</th></tr></thead><tbody>' +
     (rows.length ? rows.map(function (r) {
-      return '<tr><td>' + esc(r.g || '–') + '</td><td>' + esc(r.e.code) + '</td><td>' + esc(r.name || '–') + (r.hasHit ? '' : ' <span class="tag old" title="ยังไม่พบบาร์นี้ในข้อมูลสต็อกปัจจุบัน">ไม่พบในข้อมูล</span>') + '</td><td>' + (r.br ? esc(r.br) : '<span class="muted">ทุกสาขา</span>') + '</td><td class="num">' + (r.qty == null ? 'ทั้งหมด' : qtyF(r.qty)) + '</td><td class="num">' + (r.hasHit ? money(r.val) : '–') + '</td><td>' + esc(r.e.note || '') + '</td><td>' + esc(r.e.who || '') + '</td><td>' + (r.e.ts ? fmtTs(r.e.ts) : '–') + '</td></tr>';
+      return '<tr><td>' + esc(r.g || '–') + '</td><td>' + esc(r.e.code) + '</td><td>' + esc(r.name || '–') + (r.hasHit ? '' : ' <span class="tag old" title="ยังไม่พบบาร์นี้ในข้อมูลสต็อกปัจจุบัน">ไม่พบในข้อมูล</span>') + '</td><td>' + (r.br ? esc(r.br) : '<span class="muted">ทุกสาขา</span>') + '</td><td class="num">' + (r.qty == null ? 'ทั้งหมด' : qtyF(r.qty)) + '</td><td class="num">' + (r.hasHit ? money(r.val) : '–') + '</td><td>' + esc(r.e.note || '') + (canEd ? ' <button type="button" class="btn ghost small" data-nk="' + k + '" data-nkey="' + esc(r.e.k) + '" data-code="' + esc(r.e.code) + '" title="แก้หมายเหตุ">✎ แก้</button>' : '') + '</td><td>' + esc(r.e.who || '') + '</td><td>' + (r.e.ts ? fmtTs(r.e.ts) : '–') + '</td></tr>';
     }).join('') : '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
   $('#pgInfo').textContent = ''; $('#pgPrev').disabled = true; $('#pgNext').disabled = true;
 }
@@ -933,6 +933,13 @@ $('#gt').addEventListener('click', function (e) {
 });
 $('#fTag').addEventListener('change', function () { F.tag = this.value; F.page = 0; render(); });
 $('#dt').addEventListener('click', function (e) {
+  var eb = e.target.closest('[data-nk]');
+  if (eb) {                                                          // แท็กหาย/หมดอายุ/รอปรับ/เสีย: แก้หมายเหตุ (ไม่แตะจำนวน)
+    var ek = eb.dataset.nk, ekey = eb.dataset.nkey, en = (D[ek] || []).filter(function (y) { return y.k === ekey; })[0], nv = prompt('แก้หมายเหตุ ' + TAGS[ek].t + '\n' + eb.dataset.code + '\n(เว้นว่างเพื่อลบหมายเหตุ)', en ? en.note || '' : '');
+    if (nv === null) return;
+    busy(eb, async function () { await call('stockAdjNote', ek, ekey, nv); toast('บันทึกหมายเหตุแล้ว · ' + eb.dataset.code); await load(VIEW); });
+    return;
+  }
   var nb = e.target.closest('[data-hardnote]');
   if (nb) {                                                          // คลิกป้าย "ขายยาก" → แก้หมายเหตุ
     var nc = nb.dataset.hardnote, cur = (D.hard[codeKey(nc)] || {}).note || '', nn = prompt('หมายเหตุสินค้าขายยาก\n' + nc + '\n(เว้นว่างเพื่อลบหมายเหตุ)', cur);
