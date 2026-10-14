@@ -1229,6 +1229,7 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
 const STOCK_CHUNK = 400000;        // ตัวอักษรต่อก้อน (ภาษาไทย 3 ไบต์/ตัว → ไม่เกิน ~1.2 MB ต่อแถว ต่ำกว่าเพดาน 2 MB ของ D1)
 const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
 const STOCK_GROUP_RE = /^[A-Z0-9_-]{1,12}$/;
+const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
 const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
 const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
 const stockOpt = (v, dp) => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : stockNum(v, dp);
@@ -1319,35 +1320,54 @@ API.stockGet = async (C, token, ver) => {
   const [rows, history, names] = await Promise.all([stockLoadRows(C, v), kvJson(C, 'STOCK_HISTORY', []), stockNames(C)]);
   return { me: { name: me.name, role: me.role }, ver: v ? 'prev' : 'cur', groups: state, rows, history: Array.isArray(history) ? history : [], names };
 };
-/* payload = { fileName, groups: [{ g, rep, title, rows }] } — แทนที่เฉพาะหมวดที่ส่งมา หมวดอื่นไม่แตะ
- * ฉบับปัจจุบันของหมวดนั้นถูกย้ายไปเป็น "ฉบับก่อนหน้า" (ทับฉบับก่อนหน้าเดิม) · ถ้าข้อมูลเหมือนฉบับปัจจุบันทุกอย่างจะข้าม ไม่ดันฉบับเก่าทิ้ง */
+/* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
+ * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
+ * ฉบับปัจจุบันของหมวดนั้น (ทุกสาขา) ถูกย้ายไปเป็น "ฉบับก่อนหน้า" (ทับฉบับก่อนหน้าเดิม) · ถ้าข้อมูลเหมือนฉบับปัจจุบันทุกอย่างจะข้าม ไม่ดันฉบับเก่าทิ้ง
+ * meta ของหมวดมี br = { สาขา: { count, rep, ts, who, file } } ไว้บอกว่าแต่ละสาขาอัปเดตล่าสุดเมื่อไร */
 API.stockSave = async (C, token, payload) => {
   const me = await auth(C, token, true);
   payload = payload || {};
   if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
+  const branch = str(payload.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
+  if (!branch) throw new Error('กรุณาเลือกสาขาก่อนอัปโหลด');
+  const bk = stockBrKey(branch);
   const state = await stockState(C), ts = now(), file = str(payload.fileName).slice(0, 120), ops = [], changed = [], same = [], seen = {};
   let total = 0;
   for (const it of payload.groups) {
     const g = str(it && it.g).toUpperCase();
     if (!STOCK_GROUP_RE.test(g) || seen[g]) continue;
     seen[g] = 1;
-    const rows = stockDedupe((Array.isArray(it.rows) ? it.rows : []).map(stockCleanRow).filter(r => r && r[0] === g));
-    total += rows.length;
+    // แถวใหม่: เอาเฉพาะของสาขาที่เลือก (แถวที่ไม่มีชื่อสาขานับเป็นสาขานี้)
+    const mine = stockDedupe((Array.isArray(it.rows) ? it.rows : []).map(stockCleanRow).filter(r => r && r[0] === g && (!r[3] || stockBrKey(r[3]) === bk))).map(r => { r[3] = branch; return r; });
+    total += mine.length;
     if (total > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
-    const reps = rows.map(r => r[14]).filter(Boolean).sort(), rep = stockDate(it.rep) || reps[reps.length - 1] || '';
+    // แถวเดิมของสาขาอื่นในหมวดนี้เก็บไว้ครบ — ตัดออกเฉพาะแถวของสาขาที่กำลังอัปโหลด
+    const oldJson = await stockGroupJson(C, g, 0);
+    let existing = [];
+    if (oldJson) { try { const v = JSON.parse(oldJson); if (Array.isArray(v)) existing = v; } catch (e) { existing = []; } }
+    const rows = stockDedupe(existing.filter(r => stockBrKey(r[3]) !== bk).concat(mine));
+    const reps = rows.map(r => r[14]).filter(Boolean).sort(), rep = reps[reps.length - 1] || stockDate(it.rep) || '';
     const json = JSON.stringify(rows), old = state[g];
-    if (old && old.cur && old.cur.rep === rep && (await stockGroupJson(C, g, 0)) === json) { same.push(g); continue; }
+    if (old && old.cur && old.cur.rep === rep && oldJson === json) { same.push(g); continue; }
+    // meta รายสาขา: สาขาที่อัปโหลดครั้งนี้ใช้เวลา/ผู้อัป/ไฟล์ใหม่ สาขาอื่นคงของเดิมไว้
+    const oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    if (!br[branch]) br[branch] = { count: 0, rep: stockDate(it.rep) };
+    Object.keys(br).forEach(k => {
+      const src = k === branch ? { ts, who: me.name, file } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file }));
+      br[k].ts = src.ts; br[k].who = src.who; br[k].file = src.file;
+    });
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, json));
-    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.length, sum: stockSummary(rows) }, prev: old && old.cur ? old.cur : null };
+    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.length, sum: stockSummary(rows), br }, prev: old && old.cur ? old.cur : null };
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same };
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
-  hist.push({ ts, who: me.name, file, to: dates[dates.length - 1] || '', sum });
+  hist.push({ ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist.slice(-STOCK_HISTORY_MAX))));
   await batch(C, ops);
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · แทนที่ ' + changed.length + ' หมวด (' + changed.join(',') + ')' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · แทนที่ ' + changed.length + ' หมวด (' + changed.join(',') + ')' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
   return { ok: true, changed, same };
 };
 /* สลับฉบับปัจจุบันกับฉบับก่อนหน้าของหมวดนั้น (กดซ้ำ = สลับกลับ) */
