@@ -1926,9 +1926,9 @@ $('#userBody').addEventListener('click', async function (e) {
   }
 });
 /* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
-var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง', stock: 'สินค้าค้างสต็อก' };
+var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง', stock: 'สินค้าค้างสต็อก (ดู)', stock_edit: 'สินค้าค้างสต็อก: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)' };
 var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false };
+var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false };
 function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
 function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
 function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
@@ -1946,10 +1946,19 @@ function getPermBox() {
 function syncPerms() {                                      // แอดมินใช้ได้ทุกการ์ดเสมอ
   var a = $('#uRole').value === 'admin';
   document.querySelectorAll('#uPermBox input').forEach(function (i) { if (a) i.checked = true; i.disabled = a; });
+  syncStockEdit();
 }
+function syncStockEdit() {                                  // แก้ไขสินค้าค้างสต็อกได้ ต้องมีสิทธิ์ดูก่อน
+  var s = document.querySelector('#uPermBox input[data-pk="stock"]'), e = document.querySelector('#uPermBox input[data-pk="stock_edit"]');
+  if (!s || !e || $('#uRole').value === 'admin') return;
+  if (!s.checked) e.checked = false;
+  e.disabled = !s.checked;
+}
+$('#uPermBox').addEventListener('change', syncStockEdit);
 function permText(u) {
   if (u.role === 'admin') return 'ทุกการ์ด';
-  var t = permKeys().filter(function (k) { return u.perms && u.perms[k] !== undefined ? u.perms[k] : permDef(k); }).map(permLabel);
+  var on = function (k) { return u.perms && u.perms[k] !== undefined ? !!u.perms[k] : permDef(k); };
+  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && on(k); }).map(function (k) { return k === 'stock' ? 'สินค้าค้างสต็อก (' + (on('stock_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')' : permLabel(k); });
   return t.length ? t.join(' · ') : 'ไม่มี';
 }
 $('#uRole').addEventListener('change', syncPerms);

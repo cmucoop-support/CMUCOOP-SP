@@ -146,6 +146,7 @@ tr.click{cursor:pointer}
   <div class="acts">
     <button class="btn onDark small hidden" id="bUpload">อัปโหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งชื่อหมวด</button>
+    <button class="btn onDark small hidden" id="bClear">ล้างข้อมูล</button>
     <button class="btn onDark small" id="bXlsx">ส่งออก Excel</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -234,11 +235,26 @@ tr.click{cursor:pointer}
 <div class="overlay hidden" id="exDlg">
   <div class="dlg">
     <h2>ส่งออกเป็นไฟล์ Excel</h2>
-    <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด</div>
+    <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
     <label class="opt"><input type="radio" name="exMode" value="filter" checked><span><b>ตามตัวกรองที่เลือกอยู่</b><br><span class="muted" id="exN1"></span></span></label>
     <label class="opt"><input type="radio" name="exMode" value="all"><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br><span class="muted" id="exN2"></span></span></label>
+    <label class="opt"><input type="radio" name="exMode" value="branch"><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
     <div class="err" id="exErr"></div>
     <div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
+  </div>
+</div>
+
+<!-- ล้างข้อมูล (แอดมิน + ใส่รหัส) -->
+<div class="overlay hidden" id="clDlg">
+  <div class="dlg">
+    <h2>ล้างข้อมูลสินค้าค้างสต็อก</h2>
+    <div class="muted">เฉพาะแอดมิน · ต้องใส่รหัสผ่านของคุณเพื่อยืนยัน (บัญชีที่เข้าทางลิงก์ใช้รหัสกู้คืนแอดมินแทนได้)</div>
+    <label class="opt"><input type="radio" name="clMode" value="branch" checked><span><b>ล้างทั้งสาขา</b> (ทุกหมวด)<br><select id="clBr"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
+    <label class="opt"><input type="radio" name="clMode" value="group"><span><b>ล้างทั้งหมวด</b> (ทุกสาขา)<br><select id="clG"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
+    <label class="opt"><input type="radio" name="clMode" value="all"><span><b>ล้างข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา)<br><span class="muted"><b style="color:var(--bad)">ย้อนกลับไม่ได้</b> · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย · ชื่อหมวดคงไว้</span></span></label>
+    <label style="display:block;margin-top:10px">รหัสผ่านยืนยัน<input type="password" id="clPw" autocomplete="current-password"></label>
+    <div class="err" id="clErr"></div>
+    <div class="row"><button class="btn ghost" id="clCancel">ยกเลิก</button><button class="btn" id="clGo" style="background:var(--bad)">ล้างข้อมูล</button></div>
   </div>
 </div>
 
@@ -471,13 +487,14 @@ function applyData(r) {
   D.meta = meta;
   if (F.g && !gs[F.g]) F.g = '';
   if (F.br && !bs[F.br]) F.br = '';
-  var admin = D.me && D.me.role === 'admin';
-  $('#bUpload').classList.toggle('hidden', !admin);
-  $('#bNames').classList.toggle('hidden', !admin || !D.items.length);
+  var admin = D.me && D.me.role === 'admin', edit = !!(D.me && D.me.edit);          // edit = แอดมิน หรือผู้ใช้ที่ได้สิทธิ์แก้ไข · ไม่งั้น = ดูอย่างเดียว
+  $('#bUpload').classList.toggle('hidden', !edit);
+  $('#bNames').classList.toggle('hidden', !edit || !D.items.length);
+  $('#bClear').classList.toggle('hidden', !admin || !Object.keys(D.gm).length);
   renderInfo(); renderVerTabs(); fillSelects();
   var has = D.items.length > 0 || D.ver === 'prev';
   $('#empty').classList.toggle('hidden', has); $('#main').hidden = !has;
-  if (!has) $('#emptyMsg').textContent = admin ? 'กดปุ่ม "อัปโหลด Excel" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
+  if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลด Excel" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินหรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
   render();
 }
 function nPrev() { return Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length; }
@@ -486,16 +503,17 @@ function renderVerTabs() {
   $('#verTabs').innerHTML = '<button type="button" class="tab' + (D.ver === 'cur' ? ' on' : '') + '" data-v="cur" role="tab" aria-selected="' + (D.ver === 'cur') + '">ฉบับปัจจุบัน (' + nc + ' หมวด)</button>' +
     '<button type="button" class="tab' + (D.ver === 'prev' ? ' on' : '') + '" data-v="prev" role="tab" aria-selected="' + (D.ver === 'prev') + '"' + (np || D.ver === 'prev' ? '' : ' disabled title="ยังไม่มีฉบับก่อนหน้า — จะมีเมื่อมีการอัปโหลดทับหมวดเดิม"') + '>ฉบับก่อนหน้า (' + np + ' หมวด)</button>';
   $('#verNote').innerHTML = D.ver === 'prev'
-    ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> — เก็บไว้หมวดละ 1 ฉบับ (ก่อนการอัปโหลดทับครั้งล่าสุดของหมวดนั้น) ไม่ใช่ข้อมูลปัจจุบัน' + (D.me && D.me.role === 'admin' ? ' · แอดมินกด "ใช้ฉบับนี้" ในตารางสรุปหมวดเพื่อสลับกลับได้' : '')
+    ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> — เก็บไว้หมวดละ 1 ฉบับ (ก่อนการอัปโหลดทับครั้งล่าสุดของหมวดนั้น) ไม่ใช่ข้อมูลปัจจุบัน' + (D.me && D.me.edit ? ' · กด "ใช้ฉบับนี้" ในตารางสรุปหมวดเพื่อสลับกลับได้' : '')
     : (np ? 'มีฉบับก่อนหน้า ' + np + ' หมวด — กดแท็บ "ฉบับก่อนหน้า" เพื่อเทียบ · ตารางสรุปหมวดแสดงผลต่างมูลค่า DS เทียบฉบับก่อนหน้า' : 'ยังไม่มีฉบับก่อนหน้า (จะเก็บไว้ให้อัตโนมัติเมื่ออัปโหลดทับหมวดเดิม)');
 }
+function roNote() { return D.me && !D.me.edit ? ' · <b style="color:#ffd27a">สิทธิ์: ดูอย่างเดียว</b>' : ''; }
 function renderInfo() {
   var m = D.meta, el = $('#info');
-  if (!m) { el.textContent = D.me ? 'ผู้ใช้: ' + D.me.name : ''; return; }
+  if (!m) { el.innerHTML = D.me ? 'ผู้ใช้: ' + esc(D.me.name) + roNote() : ''; return; }
   var days = Math.floor((Date.now() - m.ts) / 86400000);
   var dates = m.from ? (m.from === m.to ? 'ข้อมูลรายงานวันที่ ' + fmtDate(m.to) : 'ข้อมูลรายงานวันที่ ' + fmtDate(m.from) + ' – ' + fmtDate(m.to) + ' (แต่ละหมวดดึงรายงานคนละวัน)') : '';
   el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffd27a">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
-    '<br>' + esc(dates) + (m.file ? ' · ไฟล์ ' + esc(m.file) : '') + brStatus();
+    '<br>' + esc(dates) + (m.file ? ' · ไฟล์ ' + esc(m.file) : '') + roNote() + brStatus();
 }
 function brStatus() {                                // อัปเดตล่าสุดรายสาขา (จากเมตาที่เก็บไว้ต่อหมวด) · เกิน 30 วันขึ้นเตือน
   var bl = {};
@@ -685,7 +703,7 @@ function dsDelta(g) {                                                  // มู
 }
 function renderGroupTable(G) {
   var m = {}; G.forEach(function (x) { (m[x.g] || (m[x.g] = [])).push(x); });
-  var admin = D.me && D.me.role === 'admin', prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
+  var admin = D.me && D.me.edit, prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
   if (prevMode && admin) cols = cols.concat([{ k: '_act', t: 'จัดการ', nosort: 1 }]);
   var tot = agg(G), rows = Object.keys(m).map(function (g) {
     var a = agg(m[g]), rep = ''; m[g].forEach(function (x) { if (x.rep > rep) rep = x.rep; });
@@ -920,12 +938,24 @@ $('#bXlsx').addEventListener('click', function () {
   var gsN = function (l) { var o = {}; l.forEach(function (x) { o[x.g] = 1; }); return Object.keys(o).length; };
   $('#exN1').textContent = nf0.format(LAST_RAW.length) + ' รายการ · ' + gsN(LAST_RAW) + ' หมวด';
   $('#exN2').textContent = nf0.format(D.items.length) + ' รายการ · ' + D.groups.length + ' หมวด';
+  var bs = D.branches.filter(Boolean), sel = F.br && bs.indexOf(F.br) >= 0 ? F.br : (bs[0] || '');         // ค่าเริ่มต้น = สาขาที่กรองอยู่ในหน้าจอ
+  $('#exBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
+  $('#exBr').value = sel; $('#exBr').disabled = !bs.length;
+  document.querySelector('input[name=exMode][value=branch]').disabled = !bs.length;
+  exBrNote();
   $('#exErr').textContent = ''; $('#exDlg').classList.remove('hidden');
 });
+function exBranchItems() { var k = brKey($('#exBr').value); return D.items.filter(function (x) { return brKey(x.br) === k; }); }
+function exBrNote() {
+  var l = $('#exBr').value ? exBranchItems() : [], o = {}; l.forEach(function (x) { o[x.g] = 1; });
+  $('#exN3').textContent = $('#exBr').value ? ' ' + nf0.format(l.length) + ' รายการ · ' + Object.keys(o).length + ' หมวด' : ' ไม่มีข้อมูลสาขา';
+}
+$('#exBr').addEventListener('change', function () { document.querySelector('input[name=exMode][value=branch]').checked = true; exBrNote(); });
 $('#exCancel').addEventListener('click', function () { closeDlg('#exDlg'); });
 $('#exGo').addEventListener('click', function () {
-  var all = document.querySelector('input[name=exMode]:checked').value === 'all', list = all ? D.items : LAST_RAW;
-  if (!list.length) { $('#exErr').textContent = 'ไม่มีรายการตามตัวกรองนี้'; return; }
+  var mode = document.querySelector('input[name=exMode]:checked').value, brName = mode === 'branch' ? $('#exBr').value : '';
+  var list = mode === 'all' ? D.items : (mode === 'branch' ? exBranchItems() : LAST_RAW);
+  if (!list.length) { $('#exErr').textContent = mode === 'branch' ? 'ไม่มีรายการของสาขานี้' : 'ไม่มีรายการตามตัวกรองนี้'; return; }
   busy(this, async function () {
     var by = {}; list.forEach(function (x) { (by[x.g] || (by[x.g] = [])).push(x); });
     var sheets = Object.keys(by).sort().map(function (g) {
@@ -935,7 +965,7 @@ $('#exGo').addEventListener('click', function () {
     });
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    a.href = url; a.download = 'สินค้าค้างสต็อก' + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ');
   });
 });
@@ -1091,6 +1121,41 @@ $('#verTabs').addEventListener('click', function (e) {
   F.page = 0; busy(b, function () { return load(b.dataset.v); });
 });
 
+/* ---------- ล้างข้อมูล (แอดมิน + ใส่รหัส) ---------- */
+function knownBranches() {
+  var set = {};
+  D.branches.forEach(function (k) { if (k) set[k] = 1; });
+  Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k && c.br[k].count > 0) set[k] = 1; }); });
+  return Object.keys(set).sort();
+}
+$('#bClear').addEventListener('click', function () {
+  var bs = knownBranches(), gs = Object.keys(D.gm).sort();
+  $('#clErr').textContent = ''; $('#clPw').value = '';
+  $('#clBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
+  $('#clG').innerHTML = gs.map(function (g) { return '<option value="' + esc(g) + '">' + esc(gl(g)) + '</option>'; }).join('');
+  document.querySelector('input[name=clMode][value=' + (bs.length ? 'branch' : 'all') + ']').checked = true;
+  $('#clDlg').classList.remove('hidden');
+});
+$('#clCancel').addEventListener('click', function () { $('#clPw').value = ''; closeDlg('#clDlg'); });
+$('#clGo').addEventListener('click', function () {
+  var mode = document.querySelector('input[name=clMode]:checked').value, pw = $('#clPw').value, sc = { mode: mode };
+  if (mode === 'branch') sc.branch = $('#clBr').value;
+  if (mode === 'group') sc.g = $('#clG').value;
+  if ((mode === 'branch' && !sc.branch) || (mode === 'group' && !sc.g)) { $('#clErr').textContent = 'กรุณาเลือกสาขา/หมวดที่จะล้าง'; return; }
+  if (!pw) { $('#clErr').textContent = 'กรุณาใส่รหัสผ่านเพื่อยืนยัน'; return; }
+  var what = mode === 'all' ? 'ข้อมูลทั้งหมด' : (mode === 'branch' ? 'ข้อมูลทั้งสาขา ' + sc.branch : 'ข้อมูลทั้งหมวด ' + gl(sc.g));
+  if (!confirm('ยืนยันล้าง' + what + ' ?\n' + (mode === 'all' ? 'ย้อนกลับไม่ได้' : 'ฉบับที่ล้างจะเก็บเป็น "ฉบับก่อนหน้า" ให้กู้คืนได้'))) return;
+  busy(this, async function () {
+    $('#clErr').textContent = '';
+    var r;
+    try { r = await call('stockClear', pw, sc); }
+    catch (e) { if (e.message === 'SESSION_EXPIRED') throw e; $('#clErr').textContent = e.message; $('#clPw').value = ''; return; }
+    $('#clPw').value = ''; closeDlg('#clDlg');
+    toast(r.changed.length ? 'ล้าง' + what + 'แล้ว (' + r.changed.length + ' หมวด)' : 'ไม่มีข้อมูลที่ต้องล้าง');
+    VIEW = 'cur'; await load('cur');
+  });
+});
+
 /* ---------- ตั้งชื่อหมวด (แอดมิน) ---------- */
 $('#bNames').addEventListener('click', function () {
   $('#nmErr').textContent = '';
@@ -1105,7 +1170,7 @@ $('#nmSave').addEventListener('click', function () {
     closeDlg('#nmDlg'); fillSelects(); render(); toast('บันทึกชื่อหมวดแล้ว');
   });
 });
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); } });
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); closeDlg('#clDlg'); } });
 
 /* ---------- เริ่มทำงาน ---------- */
 initToken();
