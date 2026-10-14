@@ -214,13 +214,16 @@ tfoot td{background:var(--accent-soft)}
     </section>
     <section class="card filters">
       <div class="frow">
-        <label>หมวดสินค้า<select id="fG"></select></label>
         <label>สาขา<select id="fBr"></select></label>
         <label class="grow">ค้นหา (ชื่อ / รหัส / หมายเหตุ)<input type="search" id="fQ" placeholder="พิมพ์เพื่อค้นหา" autocomplete="off"></label>
       </div>
       <div>
         <div class="muted" style="margin-bottom:5px">อายุสินค้า (เลือกได้หลายช่วง) — ค่าเริ่มต้น "ค้างเกิน 60 วัน" ตามนิยามของรายงาน</div>
         <div class="chips" id="chips"></div>
+      </div>
+      <div>
+        <div class="muted" style="margin-bottom:5px">หมวดสินค้า (คลิกเลือกได้หลายหมวด · คลิกซ้ำเพื่อยกเลิก)</div>
+        <div class="chips" id="gchips"></div>
       </div>
       <div class="frow"><label>แท็กสินค้า<select id="fTag"></select></label></div>
       <div id="gpill" class="hidden"></div>
@@ -530,7 +533,10 @@ $('#lgBtn').addEventListener('click', function () {
 /* ---------- ข้อมูล / สถานะหน้า ---------- */
 var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], zero: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };   // lost / exp = รายการของหาย / สินค้าหมดอายุ (บาร์ + จำนวน) ที่หักออกจากคงเหลือแล้วที่หลังบ้าน
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
-var F = { st: { DS: true }, tag: '', g: '', br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
+function gOn(g) { return !Object.keys(F.gm).length || !!F.gm[g]; }                 // ไม่ได้เลือกหมวดเลย = ทุกหมวด
+function gSel() { return Object.keys(F.gm).sort(); }
+function gToggle(g) { if (F.gm[g]) delete F.gm[g]; else F.gm[g] = true; F.page = 0; }
+var F = { st: { DS: true }, tag: '', gm: {}, br: '', q: '', gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
 var ST_DEF = [
   { k: 'DS', t: 'ค้างเกิน 60 วัน (DS)' }, { k: 'T3', t: '30–60 วัน (T3)' }, { k: 'T2', t: '15–30 วัน (T2)' },
@@ -586,7 +592,7 @@ function applyData(r) {
     meta = { ts: last.ts, who: last.who, file: last.file, from: reps[0] || '', to: reps[reps.length - 1] || '', count: ms.reduce(function (s, m) { return s + m.count; }, 0), n: ms.length };
   }
   D.meta = meta;
-  if (F.g && !gs[F.g]) F.g = '';
+  Object.keys(F.gm).forEach(function (k) { if (!gs[k]) delete F.gm[k]; });
   if (F.br && !bs[F.br]) F.br = '';
   var admin = D.me && D.me.role === 'admin', edit = !!(D.me && D.me.edit);          // edit = แอดมิน หรือผู้ใช้ที่ได้สิทธิ์แก้ไข · ไม่งั้น = ดูอย่างเดียว
   $('#bUpload').classList.toggle('hidden', !edit);
@@ -636,10 +642,9 @@ function brStatus() {                                // อัปเดตล่
   return '<br>รายสาขา: ' + ks.map(function (k) { var d = Math.floor((Date.now() - bl[k].ts) / 86400000); return esc(k) + ' ' + esc(fmtTs(bl[k].ts)) + (D.ver === 'cur' && d >= 30 ? ' <b style="color:#ffd27a">(' + d + ' วัน)</b>' : ''); }).join(' · ');
 }
 function fillSelects() {
-  var g = $('#fG'), b = $('#fBr');
-  g.innerHTML = '<option value="">ทุกหมวด (' + D.groups.length + ')</option>' + D.groups.map(function (k) { return '<option value="' + esc(k) + '">' + esc(gl(k)) + '</option>'; }).join('');
+  var b = $('#fBr');
   b.innerHTML = '<option value="">ทุกสาขา</option>' + D.branches.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-  g.value = F.g; b.value = F.br;
+  b.value = F.br;
 }
 
 async function load(ver) {
@@ -662,17 +667,17 @@ function agg(list) {
 function render() {
   var q = F.q.trim().toLowerCase();
   var A = D.items.filter(function (x) { return (!F.br || x.br === F.br) && (F.tag !== 'hard' || x.hard) && (!q || x.hay.indexOf(q) >= 0); });      // ยังไม่กรองหมวด/อายุ
-  var N = A.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองหมวดแล้ว ทุกอายุ
+  var N = A.filter(function (x) { return gOn(x.g); });                                                   // กรองหมวดแล้ว ทุกอายุ
   var G = A.filter(function (x) { return F.st[x.sk]; });                                                            // กรองอายุแล้ว ทุกหมวด
-  var S = G.filter(function (x) { return !F.g || x.g === F.g; });                                                   // กรองครบ
-  renderChips(N); renderPill(); renderTagSel(); renderKpis(S, N);
+  var S = G.filter(function (x) { return gOn(x.g); });                                                   // กรองครบ
+  renderChips(N); renderGChips(); renderPill(); renderTagSel(); renderKpis(S, N);
   var adjT = isAdjTag(); $('#kpis').style.display = adjT ? 'none' : ''; document.querySelector('.charts').style.display = adjT ? 'none' : '';
   renderGroupChart(G); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
   renderGroupTable(G); if (isAdjTag()) renderTagList(); else renderTable(S); renderZero();
 }
 function zeroFiltered() {                                              // รายการคงเหลือ 0 ตามตัวกรอง หมวด/สาขา/ค้นหา (ไม่สนอายุสินค้า)
   var q = F.q.trim().toLowerCase();
-  return (D.zero || []).filter(function (x) { return (!F.g || x.g === F.g) && (!F.br || x.br === F.br) && (!q || x.hay.indexOf(q) >= 0); });
+  return (D.zero || []).filter(function (x) { return gOn(x.g) && (!F.br || x.br === F.br) && (!q || x.hay.indexOf(q) >= 0); });
 }
 var ZERO_MAX = 300;
 function renderZero() {
@@ -705,7 +710,7 @@ function renderTagList() {                                              // เ�
     var brs = e.br || h.map(function (y) { return y.br; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', ');
     return { e: e, g: h[0] ? h[0].g : '', name: e.name || '', br: brs, qty: h.length ? hq : e.qty, val: hv, hasHit: h.length > 0 };
   }).filter(function (r) {
-    return (!F.g || r.g === F.g) && (!bk || !r.e.br || brKey(r.e.br) === bk || (r.e.hit || []).some(function (y) { return brKey(y.br) === bk; })) &&
+    return gOn(r.g) && (!bk || !r.e.br || brKey(r.e.br) === bk || (r.e.hit || []).some(function (y) { return brKey(y.br) === bk; })) &&
       (!q || (r.e.code + ' ' + r.name + ' ' + (r.e.note || '')).toLowerCase().indexOf(q) >= 0);
   });
   var tp = 0, tv = 0; rows.forEach(function (r) { tp += r.qty || 0; tv += r.val; });
@@ -716,11 +721,16 @@ function renderTagList() {                                              // เ�
     }).join('') : '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
   $('#pgInfo').textContent = ''; $('#pgPrev').disabled = true; $('#pgNext').disabled = true;
 }
+function renderGChips() {
+  var cnt = {}; D.items.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
+  $('#gchips').innerHTML = '<button type="button" class="chip' + (gSel().length ? '' : ' on') + '" data-g="" aria-pressed="' + (gSel().length ? 'false' : 'true') + '">ทุกหมวด <b>' + D.groups.length + '</b></button>' +
+    D.groups.map(function (k) { var on = !!F.gm[k]; return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-g="' + esc(k) + '" aria-pressed="' + on + '">' + esc(gl(k)) + ' <b>' + nf0.format(cnt[k] || 0) + '</b></button>'; }).join('');
+}
 function renderPill() {
   var el = $('#gpill');
-  if (!F.g) { el.classList.add('hidden'); return; }
+  if (!gSel().length) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  el.innerHTML = '<span class="pill">กำลังดูหมวด: <b>' + esc(gl(F.g)) + '</b><button type="button" id="gClear" aria-label="ล้างตัวกรองหมวด">×</button></span>';
+  el.innerHTML = '<span class="pill">กำลังดูหมวด: <b>' + esc(gSel().map(gl).join(', ')) + '</b><button type="button" id="gClear" aria-label="ล้างตัวกรองหมวด">×</button></span>';
 }
 function renderKpis(S, N) {
   var a = agg(S), tot = agg(N), stN = ST_DEF.filter(function (s) { return F.st[s.k]; }).map(function (s) { return s.k === 'NA' ? 'ไม่มีข้อมูล' : s.k; }).join('+') || '–';
@@ -756,26 +766,34 @@ function renderGroupChart(G) {
   ensureCanvas('boxGroup', 'chGroup');
   chart('chGroup', {
     type: 'bar',
-    data: { labels: arr.map(function (o) { return glShort(o.g); }), datasets: [{ data: arr.map(function (o) { return Math.round(o.vc); }), backgroundColor: arr.map(function (o) { return F.g === o.g ? '#6a3fd1' : '#b99aff'; }), borderRadius: 4 }] },
+    data: { labels: arr.map(function (o) { return glShort(o.g); }), datasets: [{ data: arr.map(function (o) { return Math.round(o.vc); }), backgroundColor: arr.map(function (o) { return F.gm[o.g] ? '#6a3fd1' : '#b99aff'; }), borderRadius: 4 }] },
     options: {
       indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return ' ' + money(c.parsed.x) + ' บาท · ' + arr[c.dataIndex].n + ' รายการ'; } } } },
       scales: { x: { ticks: { callback: function (v) { return nf0.format(v); } } }, y: { grid: { display: false } } },
-      onClick: function (e, els) { if (els.length) { var g = arr[els[0].index].g; F.g = F.g === g ? '' : g; F.page = 0; $('#fG').value = F.g; render(); } },
+      onClick: function (e, els) { if (els.length) { gToggle(arr[els[0].index].g); render(); } },
       onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
     }
   });
 }
+var PCT_PLUGIN = { id: 'pctLabels', afterDatasetsDraw: function (ch) {         // เขียน % บนชิ้นของโดนัท (ชิ้นเล็กกว่า 4% ไม่เขียน — ดูในคำอธิบายด้านล่างแทน)
+  var ds = ch.data.datasets[0], tot = ds.data.reduce(function (a, b) { return a + b; }, 0), c = ch.ctx, meta = ch.getDatasetMeta(0);
+  if (!tot) return;
+  c.save(); c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '600 13px ' + Chart.defaults.font.family; c.fillStyle = '#fff'; c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 3;
+  meta.data.forEach(function (arc, i) { var p = ds.data[i] / tot * 100; if (p < 4) return; var pos = arc.tooltipPosition(); c.fillText((Math.round(p * 10) / 10) + '%', pos.x, pos.y); });
+  c.restore();
+} };
 function renderStatusChart(N) {
   var m = {}; N.forEach(function (x) { var o = m[x.sk] || (m[x.sk] = { n: 0, vc: 0 }); o.n++; o.vc += x.vc; });
   var keys = ST_DEF.map(function (s) { return s.k; }).filter(function (k) { return m[k] && m[k].vc > 0; });
   if (!keys.length) { noData('boxStatus', 'chStatus'); return; }
+  var tot = keys.reduce(function (s, x) { return s + m[x].vc; }, 0), pc = function (k) { return (Math.round(m[k].vc / tot * 1000) / 10) + '%'; };
   ensureCanvas('boxStatus', 'chStatus');
   chart('chStatus', {
-    type: 'doughnut',
-    data: { labels: keys.map(function (k) { return ST_NAME[k]; }), datasets: [{ data: keys.map(function (k) { return Math.round(m[k].vc); }), backgroundColor: keys.map(function (k) { return ST_COLOR[k]; }), borderWidth: 2 }] },
+    type: 'doughnut', plugins: [PCT_PLUGIN],
+    data: { labels: keys.map(function (k) { return ST_NAME[k] + ' · ' + pc(k); }), datasets: [{ data: keys.map(function (k) { return Math.round(m[k].vc); }), backgroundColor: keys.map(function (k) { return ST_COLOR[k]; }), borderWidth: 2 }] },
     options: {
       maintainAspectRatio: false, cutout: '55%',
-      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (c) { var k = keys[c.dataIndex], tot = keys.reduce(function (s, x) { return s + m[x].vc; }, 0); return ' ' + money(m[k].vc) + ' บาท (' + (Math.round(m[k].vc / tot * 1000) / 10) + '%) · ' + m[k].n + ' รายการ'; } } } }
+      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (c) { var k = keys[c.dataIndex]; return ' ' + money(m[k].vc) + ' บาท (' + pc(k) + ') · ' + m[k].n + ' รายการ'; } } } }
     }
   });
 }
@@ -848,7 +866,7 @@ function renderTrend() {
   ensureCanvas('boxTrend', 'chTrend');
   chart('chTrend', { type: 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
     var c = TR_PAL[i % TR_PAL.length];
-    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, tension: .25, borderWidth: F.g === g ? 4 : 2, pointRadius: 3 };
+    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 3 };
   }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) });
 }
 $('#trMode').addEventListener('change', function () { TR_MODE = this.value; renderTrend(); });
@@ -887,7 +905,7 @@ function renderGroupTable(G) {
   $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อกรองรายการด้านล่าง';
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
     var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้าวันที่ ' + esc(fmtDate(D.gm[r.g].prev.rep)) + '">' + (r.dds > 0 ? '▲ +' : (r.dds < 0 ? '▼ ' : '')) + money(r.dds) + '</span>';
-    return '<tr class="click' + (F.g === r.g ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
+    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
       '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td><td>' + fmtDate(r.rep) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + (prevMode && admin ? '<td><button type="button" class="btn ghost small" data-restore="' + esc(r.g) + '">ใช้ฉบับนี้เป็นปัจจุบัน</button></td>' : '') + '</tr>';
   }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (cols.length > 8 ? '<td></td>' : '') + '</tr></tfoot>';
@@ -912,7 +930,11 @@ function renderTable(S) {
 }
 
 /* ---------- เหตุการณ์ของตัวกรอง/ตาราง ---------- */
-$('#fG').addEventListener('change', function () { F.g = this.value; F.page = 0; render(); });
+$('#gchips').addEventListener('click', function (e) {
+  var b = e.target.closest('.chip'); if (!b) return;
+  if (b.dataset.g === '') { F.gm = {}; F.page = 0; } else gToggle(b.dataset.g);
+  render();
+});
 $('#fBr').addEventListener('change', function () { F.br = this.value; F.page = 0; render(); });
 var qT = null;
 $('#fQ').addEventListener('input', function () { var v = this.value; clearTimeout(qT); qT = setTimeout(function () { F.q = v; F.page = 0; render(); }, 200); });
@@ -921,14 +943,14 @@ $('#chips').addEventListener('click', function (e) {
   var k = b.dataset.st; if (F.st[k]) delete F.st[k]; else F.st[k] = true;
   F.page = 0; render();
 });
-$('#gpill').addEventListener('click', function (e) { if (e.target.closest('#gClear')) { F.g = ''; F.page = 0; $('#fG').value = ''; render(); } });
+$('#gpill').addEventListener('click', function (e) { if (e.target.closest('#gClear')) { F.gm = {}; F.page = 0; render(); } });
 $('#gt').addEventListener('click', function (e) {
   var rb = e.target.closest('[data-restore]');
   if (rb) { restoreGroup(rb.dataset.restore, rb); return; }
   var th = e.target.closest('th');
   if (th) { var k = th.dataset.k; if (k === '_act') return; F.gs = { k: k, d: F.gs.k === k ? -F.gs.d : (k === 'g' ? 1 : -1) }; render(); return; }
   var tr = e.target.closest('tr[data-g]'); if (!tr) return;
-  F.g = F.g === tr.dataset.g ? '' : tr.dataset.g; F.page = 0; $('#fG').value = F.g; render();
+  gToggle(tr.dataset.g); render();
   document.getElementById('dt').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 $('#fTag').addEventListener('change', function () { F.tag = this.value; F.page = 0; render(); });
