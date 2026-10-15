@@ -169,7 +169,6 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
   <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
     <button class="btn exportMain small hidden" id="bUpload">อัปโหลดข้อมูล</button>
-    <button class="btn onDark small hidden" id="bSyncStock" title="ดึงรายการ ต้นทุน ราคาขาย และคงเหลือจากหน้าสินค้าค้างสต็อก">ดึงจากค้างสต็อก</button>
     <button class="btn exportMain small" id="bXlsx">ดาวน์โหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด/ผู้สำรวจ</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
@@ -184,7 +183,6 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
     <div class="muted" id="emptyMsg" style="margin-bottom:14px"></div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="btn" id="bEmptyUpload">อัปโหลดไฟล์ Excel</button>
-      <button class="btn ghost" id="bEmptySync">ดึงข้อมูลจากการ์ดค้างสต็อก</button>
     </div>
   </div>
 
@@ -637,12 +635,12 @@ async function load() {
   loadLocalState();
   try {
     var me = await call('whoami');
-    var canView = me.role === 'admin' || (me.perms && (me.perms.market || me.perms.stock || me.perms.market === undefined));
+    var canView = me.role === 'admin' || (me.perms && me.perms.market);
     if (!canView) {
       showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดเช็คราคาตลาด — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
       return;
     }
-    var canEdit = me.role === 'admin' || !!(me.perms && (me.perms.market_edit || me.perms.stock_edit));
+    var canEdit = me.role === 'admin' || !!(me.perms && me.perms.market && me.perms.market_edit);
     D.me = { user: me.user, name: me.name, role: me.role, edit: canEdit };
     try {
       var srv = await call('marketGet');
@@ -704,7 +702,6 @@ function filteredItems() {
 function renderAll() {
   var edit = !!(D.me && D.me.edit);
   $('#bUpload').classList.toggle('hidden', !edit);
-  $('#bSyncStock').classList.toggle('hidden', !edit);
   $('#bNames').classList.toggle('hidden', !edit);
   $('#bAutoRec').classList.toggle('hidden', !edit);
   $('#bDelGrp').classList.toggle('hidden', !edit || !F.g || D.ver !== 'cur');
@@ -715,7 +712,7 @@ function renderAll() {
   $('#main').hidden = !hasData;
   if (!hasData) {
     $('#info').textContent = D.me ? 'ผู้ใช้: ' + D.me.name : '';
-    $('#emptyMsg').textContent = edit ? 'กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาด หรือดึงข้อมูลจากการ์ดสินค้าค้างสต็อก' : 'ยังไม่มีข้อมูลในระบบ กรุณาให้แอดมินอัปโหลดข้อมูล';
+    $('#emptyMsg').textContent = edit ? 'ไม่มีข้อมูล (ทุกอย่างเป็น 0) กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาดไฟล์ใหม่' : 'ยังไม่มีข้อมูลในระบบ กรุณาให้แอดมินอัปโหลดข้อมูล';
     return;
   }
 
@@ -1010,45 +1007,6 @@ $('#pgPrev').addEventListener('click', function () { if (F.page > 0) { F.page--;
 $('#pgNext').addEventListener('click', function () { F.page++; renderTable(); });
 $('#bReload').addEventListener('click', function () { load(); toast('รีเฟรชข้อมูลแล้ว'); });
 $('#bEmptyUpload').addEventListener('click', function () { $('#bUpload').click(); });
-$('#bEmptySync').addEventListener('click', function () { $('#bSyncStock').click(); });
-
-/* ---------- ดึงข้อมูลจากการ์ด "สินค้าค้างสต็อก" (stockGet) ---------- */
-$('#bSyncStock').addEventListener('click', function () {
-  busy(this, async function () {
-    var r = await call('stockGet', 'cur');
-    var allStock = (r.rows || []).concat(r.zero || []);
-    if (!allStock.length) { toast('ยังไม่มีข้อมูลในการ์ดสินค้าค้างสต็อก', true); return; }
-    if (r.names) {
-      Object.keys(r.names).forEach(function (k) {
-        if (k !== '__BR_CFG__' && k.indexOf(':') < 0 && r.names[k]) D.names[k] = r.names[k];
-      });
-    }
-    var byG = {};
-    allStock.forEach(function (a) {
-      var g = String(a[0] || '').trim().toUpperCase(); if (!g) return;
-      var code = String(a[1] || '').trim(), name = String(a[2] || '').trim();
-      var qty = Number(a[4]) || 0, cost = Number(a[11]) || 0, price = Number(a[12]) || 0, rep = String(a[14] || todayIso());
-      var map = byG[g] || (byG[g] = {});
-      var k = codeKey(code || name);
-      if (!map[k]) {
-        map[k] = { g: g, code: code, name: name, qty: qty, cost: cost, price: price, rep: rep };
-      } else {
-        map[k].qty = Math.round((map[k].qty + qty) * 100) / 100;
-        if (rep >= map[k].rep) { map[k].cost = cost; map[k].price = price; map[k].rep = rep; }
-      }
-    });
-    var ts = Date.now(), upCnt = 0;
-    Object.keys(byG).sort().forEach(function (g) {
-      var items = Object.keys(byG[g]).map(function (k) { return byG[g][k]; });
-      mergeUploadedGroup(g, items, 'ดึงจากสินค้าค้างสต็อก', todayIso(), ts, '');
-      upCnt++;
-    });
-    await syncToServer();
-    rebuildItems();
-    renderAll();
-    toast('ดึงข้อมูลจากสินค้าค้างสต็อกแล้ว ' + upCnt + ' หมวด (ตรวจจับการเปลี่ยนแปลงราคาขายอัตโนมัติ)');
-  });
-});
 
 /* ---------- อ่านไฟล์ Excel ที่อัปโหลด (รองรับทั้งไฟล์สำรวจราคาตลาด และไฟล์รายงานวิเคราะห์การขาย POS) ---------- */
 function normH(s) { return String(s == null ? '' : s).replace(/[\s\u00a0]+/g, '').toLowerCase(); }
