@@ -474,15 +474,17 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     <div class="row"><button class="btn ghost" id="hsClose">ปิด</button></div>
   </div>
 </div>
-<!-- ดูรายการเชื่อมโยง บาร์กระจาย / บาร์แพ็ค (แสดงข้อมูลจากสินค้าค้างสต็อก) -->
+<!-- ดูรายการเชื่อมโยง บาร์กระจาย / บาร์แพ็ค (แสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา) -->
 <div class="overlay hidden" id="bcDlg">
-  <div class="dlg wide" style="width:min(1050px,100%)">
-    <h2 id="bcTitle">ข้อมูลบาร์กระจาย / บาร์แพ็ค ในสินค้าค้างสต็อก</h2>
+  <div class="dlg wide" style="width:min(1080px,100%)">
+    <div class="cardhead" style="margin-bottom:4px">
+      <h2 id="bcTitle" style="margin:0">รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค</h2>
+      <div class="tabs" id="bcBrTabs" role="tablist"></div>
+    </div>
     <div class="muted" id="bcSub" style="margin-bottom:10px"></div>
     <div id="bcPairInfo" style="display:grid;gap:6px;margin-bottom:10px"></div>
-    <div class="tscroll" style="max-height:420px">
-      <table class="pvt" id="bcTb"></table>
-    </div>
+    <div id="bcBrSections" style="display:grid;gap:12px;max-height:520px;overflow:auto;padding-right:2px"></div>
+    <table class="pvt hidden" id="bcTb"></table>
     <div class="row"><button class="btn ghost" id="bcClose">ปิด</button></div>
   </div>
 </div>
@@ -1654,7 +1656,8 @@ $('#gt').addEventListener('click', function (e) {
   gToggle(tr.dataset.g); render();
 });
 
-/* ---------- เปิดดูรายการบาร์กระจาย / บาร์แพ็ค โดยแสดงข้อมูลจากสินค้าค้างสต็อก ---------- */
+/* ---------- เปิดดูรายการบาร์กระจาย / บาร์แพ็ค โดยแสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา ---------- */
+var BC_DLG_STATE = null;
 function openBcPairDlg(code, preferBr) {
   var keys = splitBarCodes(code), links = [], seenRec = {};
   keys.forEach(function (k) {
@@ -1667,43 +1670,93 @@ function openBcPairDlg(code, preferBr) {
     toast('ไม่พบข้อมูลเชื่อมโยงบาร์เดี่ยว/บาร์แพ็คของรหัส ' + code, true);
     return;
   }
-  var roleByKey = {}, codeMeta = {};
+  var roleByKey = {}, codeMeta = {}, pairEntries = [];
   links.forEach(function (r) {
-    splitBarCodes(r.unitBar).forEach(function (uk) {
-      roleByKey[uk] = 'บาร์กระจาย';
-      codeMeta[uk] = { rawCode: r.unitBar, role: 'บาร์กระจาย', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
-    });
-    splitBarCodes(r.packBar).forEach(function (pk) {
-      roleByKey[pk] = 'บาร์แพ็ค';
-      codeMeta[pk] = { rawCode: r.packBar, role: 'บาร์แพ็ค', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
-    });
+    if (r.unitBar) {
+      var uks = splitBarCodes(r.unitBar);
+      uks.forEach(function (uk) {
+        roleByKey[uk] = 'บาร์กระจาย';
+        codeMeta[uk] = { key: uk, rawCode: r.unitBar, role: 'บาร์กระจาย', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
+      });
+      pairEntries.push({ keys: uks, rawCode: r.unitBar, role: 'บาร์กระจาย', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner });
+    }
+    if (r.packBar) {
+      var pks = splitBarCodes(r.packBar);
+      pks.forEach(function (pk) {
+        roleByKey[pk] = 'บาร์แพ็ค';
+        codeMeta[pk] = { key: pk, rawCode: r.packBar, role: 'บาร์แพ็ค', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
+      });
+      pairEntries.push({ keys: pks, rawCode: r.packBar, role: 'บาร์แพ็ค', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner });
+    }
   });
 
-  // ค้นหารายการในสินค้าค้างสต็อกทั้งหมด (รวมรายการปกติ, ที่ตัดออก, และคงเหลือ 0) ที่มีรหัสตรงกับบาร์กระจายหรือบาร์แพ็คของชุดนี้
-  var pool = allPool(true), matchedStock = [], foundKeys = {};
+  // ค้นหารายการในสินค้าค้างสต็อกทั้งหมดที่มีรหัสตรงกับบาร์กระจายหรือบาร์แพ็คของชุดนี้
+  var pool = allPool(true), matchedStock = [], brSet = {};
+  (D.branches || []).forEach(function (b) { if (b) brSet[b] = 1; });
+  if (preferBr) brSet[preferBr] = 1;
   pool.forEach(function (x) {
     var xks = splitBarCodes(x.code);
     for (var i = 0; i < xks.length; i++) {
       var k = xks[i];
       if (roleByKey[k]) {
-        foundKeys[k] = 1;
-        matchedStock.push({ x: x, role: roleByKey[k], isClicked: keys.indexOf(k) >= 0 && (!preferBr || brKey(x.br) === brKey(preferBr)) });
+        var bName = x.br || 'ไม่ระบุสาขา';
+        brSet[bName] = 1;
+        matchedStock.push({
+          x: x,
+          br: bName,
+          matchKey: k,
+          role: roleByKey[k],
+          isClicked: keys.indexOf(k) >= 0 && (!preferBr || brKey(x.br) === brKey(preferBr))
+        });
         break;
       }
     }
   });
 
-  // เรียงลำดับ: สาขาเดียวกับแถวที่กดขึ้นก่อน -> บาร์กระจายคู่กับบาร์แพ็ค
-  matchedStock.sort(function (a, b) {
-    var ba = preferBr && brKey(a.x.br) === brKey(preferBr) ? 0 : 1;
-    var bb = preferBr && brKey(b.x.br) === brKey(preferBr) ? 0 : 1;
-    if (ba !== bb) return ba - bb;
-    if (a.role !== b.role) return a.role === 'บาร์กระจาย' ? -1 : 1;
-    return (a.x.br || '').localeCompare(b.x.br || '', 'th');
+  var brList = Object.keys(brSet).sort(function (a, b) {
+    var pa = preferBr && brKey(a) === brKey(preferBr) ? 0 : 1;
+    var pb = preferBr && brKey(b) === brKey(preferBr) ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return a.localeCompare(b, 'th');
   });
+  if (!brList.length) brList = ['ไม่ระบุสาขา'];
 
-  $('#bcTitle').textContent = 'รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค';
-  $('#bcSub').textContent = 'อ้างอิงความเชื่อมโยงจากฐานข้อมูลรายการบาร์เดี่ยว/บาร์แพ็ค และนำข้อมูลในรายการสินค้าค้างสต็อกมาแสดง';
+  BC_DLG_STATE = {
+    code: code,
+    preferBr: preferBr || '',
+    selBr: preferBr || (F.br || '*'),
+    brList: brList,
+    links: links,
+    pairEntries: pairEntries,
+    matchedStock: matchedStock
+  };
+  renderBcPairDlg();
+  $('#bcDlg').classList.remove('hidden');
+}
+
+function renderBcPairDlg() {
+  if (!BC_DLG_STATE) return;
+  var st = BC_DLG_STATE, links = st.links, brList = st.brList, selBr = st.selBr;
+  if (selBr !== '*' && !brList.some(function (b) { return brKey(b) === brKey(selBr); })) selBr = '*';
+
+  $('#bcTitle').textContent = 'รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค (แยกสาขา)';
+  $('#bcSub').textContent = 'อ้างอิงความเชื่อมโยงจากรายการบาร์เดี่ยว/บาร์แพ็ค และแสดงข้อมูลจากรายการสินค้าค้างสต็อกแยกตามสาขา';
+
+  // แท็บเลือกสาขาในหน้าต่างดูรายการเชื่อมโยง
+  var tabsEl = $('#bcBrTabs');
+  if (tabsEl) {
+    var countInBr = function (b) {
+      var bk = brKey(b);
+      return st.matchedStock.filter(function (m) { return brKey(m.br) === bk; }).length;
+    };
+    tabsEl.innerHTML =
+      brList.map(function (b) {
+        var on = selBr !== '*' && brKey(selBr) === brKey(b);
+        return '<button type="button" class="tab' + (on ? ' on' : '') + '" data-bcbr="' + esc(b) + '">สาขา ' + esc(b) + ' (' + nf0.format(countInBr(b)) + ')</button>';
+      }).join('') +
+      (brList.length > 1 ? '<button type="button" class="tab' + (selBr === '*' ? ' on' : '') + '" data-bcbr="*">ดูทุกสาขาแยกตาราง (' + brList.length + ' สาขา)</button>' : '');
+  }
+
   $('#bcPairInfo').innerHTML = links.map(function (r) {
     return '<div class="ghist-item" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">' +
       '<span><b>ชื่อในระบบบาร์:</b> ' + esc(r.name || '–') + '</span>' +
@@ -1715,43 +1768,79 @@ function openBcPairDlg(code, preferBr) {
   }).join('');
 
   var canEdit = !!(D.me && D.me.edit);
-  var missingRowsHtml = Object.keys(codeMeta).filter(function (k) { return !foundKeys[k]; }).map(function (k) {
-    var cm = codeMeta[k];
-    var badgeStyle = cm.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
-    return '<tr class="row-zero"><td><span class="tag" style="' + badgeStyle + '">' + esc(cm.role) + '</span></td><td>–</td><td>' + esc(cm.rawCode) + '</td><td>' + esc(cm.name || '–') + ' <span class="tag old">ไม่พบในข้อมูลค้างสต็อก</span></td><td>–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td>–</td><td>–</td><td class="num">–</td><td>–</td><td>' + (cm.perPack ? 'จำนวนต่อแพ็ค ' + esc(cm.perPack) : '–') + '</td>' + (canEdit ? '<td>–</td>' : '') + '</tr>';
-  }).join('');
+  var showBrs = selBr === '*' ? brList : brList.filter(function (b) { return brKey(b) === brKey(selBr); });
 
-  var stockRowsHtml = matchedStock.map(function (m) {
-    var x = m.x;
-    var badgeStyle = m.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
-    var rowCls = m.isClicked ? ' class="sel"' : (x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : ''));
-    var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '">&#8943;</button>' : '–') + '</td>' : '';
-    return '<tr' + rowCls + '>' +
-      '<td><span class="tag" style="' + badgeStyle + '">' + esc(m.role) + '</span></td>' +
-      '<td>' + esc(gl(x.g, x.br)) + '</td>' +
-      '<td><b>' + esc(x.code) + '</b></td>' +
-      '<td>' + esc(x.name) + tagHtml(x) + '</td>' +
-      '<td>' + esc(x.br) + '</td>' +
-      '<td class="num">' + fmtQtyCell(x) + '</td>' +
-      '<td class="num">' + nf2.format(x.cost) + '</td>' +
-      '<td class="num">' + money(x.vc) + '</td>' +
-      '<td class="num">' + nf2.format(x.price) + '</td>' +
-      '<td>' + fmtDate(x.recv) + '</td>' +
-      '<td>' + fmtDate(x.last) + '</td>' +
-      '<td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td>' +
-      '<td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td>' +
-      '<td>' + esc(x.note) + '</td>' +
-      actCell +
-    '</tr>';
-  }).join('');
+  var buildBrSection = function (bName) {
+    var bk = brKey(bName);
+    var brRows = st.matchedStock.filter(function (m) { return brKey(m.br) === bk; }).slice().sort(function (a, b) {
+      if (a.role !== b.role) return a.role === 'บาร์กระจาย' ? -1 : 1;
+      return (a.x.code || '').localeCompare(b.x.code || '', 'th');
+    });
+    var foundKeysInBr = {};
+    brRows.forEach(function (m) { foundKeysInBr[m.matchKey] = 1; });
 
-  $('#bcTb').innerHTML = '<thead><tr><th class="nosort">ประเภทบาร์</th><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้าในค้างสต็อก</th><th class="nosort">สาขา</th><th class="nosort">คงเหลือ</th><th class="nosort">ต้นทุน/หน่วย</th><th class="nosort">มูลค่าทุน</th><th class="nosort">ราคาขาย</th><th class="nosort">รับเข้า</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง วัน</th><th class="nosort">ช่วงอายุสินค้า</th><th class="nosort">หมายเหตุ</th>' + (canEdit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead>' +
-    '<tbody>' + (stockRowsHtml + missingRowsHtml || '<tr><td colspan="15" class="muted" style="text-align:center;padding:20px">ไม่พบข้อมูลในรายการสินค้าค้างสต็อก</td></tr>') + '</tbody>';
-  $('#bcDlg').classList.remove('hidden');
+    var missingInBrHtml = st.pairEntries.filter(function (pe) {
+      return !pe.keys.some(function (k) { return foundKeysInBr[k]; });
+    }).map(function (pe) {
+      var badgeStyle = pe.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
+      return '<tr class="row-zero">' +
+        '<td><span class="tag" style="' + badgeStyle + '">' + esc(pe.role) + '</span></td>' +
+        '<td>–</td>' +
+        '<td><b>' + esc(pe.rawCode) + '</b></td>' +
+        '<td>' + esc(pe.name || '–') + ' <span class="tag old">ไม่พบในค้างสต็อกของสาขา ' + esc(bName) + '</span></td>' +
+        '<td>' + esc(bName) + '</td>' +
+        '<td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td>–</td><td>–</td><td class="num">–</td><td>–</td>' +
+        '<td>' + (pe.perPack ? 'จำนวนต่อแพ็ค ' + esc(pe.perPack) : '–') + '</td>' +
+        (canEdit ? '<td>–</td>' : '') +
+      '</tr>';
+    }).join('');
+
+    var stockRowsHtml = brRows.map(function (m) {
+      var x = m.x;
+      var badgeStyle = m.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
+      var rowCls = m.isClicked ? ' class="sel"' : (x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : ''));
+      var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '">&#8943;</button>' : '–') + '</td>' : '';
+      return '<tr' + rowCls + '>' +
+        '<td><span class="tag" style="' + badgeStyle + '">' + esc(m.role) + '</span></td>' +
+        '<td>' + esc(gl(x.g, x.br)) + '</td>' +
+        '<td><b>' + esc(x.code) + '</b></td>' +
+        '<td>' + esc(x.name) + tagHtml(x) + '</td>' +
+        '<td>' + esc(x.br) + '</td>' +
+        '<td class="num">' + fmtQtyCell(x) + '</td>' +
+        '<td class="num">' + nf2.format(x.cost) + '</td>' +
+        '<td class="num">' + money(x.vc) + '</td>' +
+        '<td class="num">' + nf2.format(x.price) + '</td>' +
+        '<td>' + fmtDate(x.recv) + '</td>' +
+        '<td>' + fmtDate(x.last) + '</td>' +
+        '<td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td>' +
+        '<td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td>' +
+        '<td>' + esc(x.note) + '</td>' +
+        actCell +
+      '</tr>';
+    }).join('');
+
+    var totVc = brRows.reduce(function (s, m) { return s + (m.x.vc || 0); }, 0);
+    var headHtml = '<thead><tr><th class="nosort">ประเภทบาร์</th><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้าในค้างสต็อก</th><th class="nosort">สาขา</th><th class="nosort">คงเหลือ</th><th class="nosort">ต้นทุน/หน่วย</th><th class="nosort">มูลค่าทุน</th><th class="nosort">ราคาขาย</th><th class="nosort">รับเข้า</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง วัน</th><th class="nosort">ช่วงอายุสินค้า</th><th class="nosort">หมายเหตุ</th>' + (canEdit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead>';
+    var bodyHtml = '<tbody>' + (stockRowsHtml + missingInBrHtml || '<tr><td colspan="15" class="muted" style="text-align:center;padding:16px">ไม่พบข้อมูลในสาขา ' + esc(bName) + '</td></tr>') + '</tbody>';
+    return '<div class="deduct-sub" style="background:#faf7ff;border:1.5px solid #d9c8ff">' +
+      '<h4><span style="color:var(--accent-text)">สาขา: <b>' + esc(bName) + '</b> · พบในค้างสต็อก ' + nf0.format(brRows.length) + ' รายการ · มูลค่าทุนรวม ' + money(totVc) + ' บาท</span></h4>' +
+      '<div class="tscroll" style="max-height:320px"><table class="pvt">' + headHtml + bodyHtml + '</table></div>' +
+    '</div>';
+  };
+
+  var secHtml = showBrs.map(buildBrSection).join('');
+  if ($('#bcBrSections')) $('#bcBrSections').innerHTML = secHtml;
+  if ($('#bcTb')) $('#bcTb').innerHTML = secHtml;
 }
 $('#bcClose').addEventListener('click', function () { closeDlg('#bcDlg'); });
 $('#bcDlg').addEventListener('click', function (e) {
   if (e.target === this) { closeDlg('#bcDlg'); return; }
+  var brTab = e.target.closest('[data-bcbr]');
+  if (brTab && BC_DLG_STATE) {
+    BC_DLG_STATE.selBr = brTab.dataset.bcbr;
+    renderBcPairDlg();
+    return;
+  }
   var bcv = e.target.closest('[data-bcview]');
   if (bcv) {
     e.stopPropagation();
