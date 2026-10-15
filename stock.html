@@ -313,7 +313,7 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     </section>
 
     <section class="card" id="zeroCard" hidden>
-      <div class="cardhead"><h3>สินค้าคงเหลือ 0 <small id="zeroNote"></small></h3></div>
+      <div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
       <div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
       <div class="muted" id="zeroMore" style="margin-top:6px"></div>
     </section>
@@ -618,7 +618,7 @@ function parseSheets(sheets, branch) {                // branch (ไม่บั
   var before = rows.length;
   rows = dedupeRows(rows);
   info.dup = before - rows.length;
-  rows = rows.filter(function (r) { return r[4] >= 0; });               // เก็บทุกแถว รวมคงเหลือ 0 (ไม่นับรวมในยอด แสดง/ส่งออกแยกเป็นอีกรายการ)
+  rows = rows.filter(function (r) { return isFinite(r[4]); });          // เก็บทุกแถว รวมคงเหลือ 0 และติดลบ (ไม่นับรวมในยอด แสดง/ส่งออกแยกเป็นอีกรายการ)
   info.kept = rows.length; info.zero = rows.filter(function (r) { return !(r[4] > 0); }).length;
   var groups = {};
   Object.keys(meta).forEach(function (g) { groups[g] = { g: g, rep: meta[g].rep, title: meta[g].title, rows: [] }; });
@@ -888,7 +888,7 @@ function applyData(r) {
     if (x.hard) x.hay += ' ขายยาก';
     Object.keys(x.tg).forEach(function (k) { x.hay += ' ' + TAGS[k].t; });
     Object.keys(x.tn).forEach(function (k) { x.hay += ' ' + x.tn[k]; });
-    if (x.isZero) x.hay += ' คงเหลือ 0 สินค้า 0';
+    if (x.isZero) x.hay += ' คงเหลือ 0 สินค้า 0 ติดลบ คงเหลือ 0 และ ติดลบ';
     if (x.isCut) x.hay += ' ตัดออก';
     x.hay = x.hay.toLowerCase();
   });
@@ -1153,7 +1153,7 @@ function renderKpis(S, N, TS) {
   var zeroCnt = (TS || []).filter(function (x) { return x.isZero; }).length;
   var cutCnt = (TS || []).filter(function (x) { return x.isCut; }).length;
   $('#kpis').innerHTML =
-    kpi('red', 'รายการสินค้า · ' + stN, nf0.format((TS || S).length), 'รายการ', 'มีสต็อก ' + nf0.format(a.n) + (zeroCnt ? ' · คงเหลือ 0 จำนวน ' + nf0.format(zeroCnt) : '') + (cutCnt ? ' · ตัดออก ' + nf0.format(cutCnt) : '')) +
+    kpi('red', 'รายการสินค้า · ' + stN, nf0.format((TS || S).length), 'รายการ', 'มีสต็อก ' + nf0.format(a.n) + (zeroCnt ? ' · คงเหลือ 0 และ ติดลบ จำนวน ' + nf0.format(zeroCnt) : '') + (cutCnt ? ' · ตัดออก ' + nf0.format(cutCnt) : '')) +
     kpi('', 'จำนวนคงเหลือรวม', qtyF(a.pcs), 'ชิ้น', 'เฉพาะรายการที่มีสต็อกคงเหลือ') +
     kpi('red', 'มูลค่าตามต้นทุน', money(a.vc), 'บาท', tot.vc ? Math.round(a.vc / tot.vc * 1000) / 10 + '% ของมูลค่าสต็อกในหมวดที่เลือก' : '') +
     kpi('amber', 'มูลค่าตามราคาขาย', money(a.vp), 'บาท', 'ถ้าขายหมดตามราคาปัจจุบัน') +
@@ -1352,7 +1352,7 @@ function fmtQtyCell(x) {
     return qtyF(x.qty) + ' <span class="muted" style="font-size:11.5px;display:block" title="เดิม ' + qtyF(x.origQty) + ' ชิ้น · หักออก ' + qtyF(x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
   }
   if (x.isZero) {
-    return '0 <span class="tag" style="background:#eef1f5;color:var(--steel);font-size:11px;margin-left:4px">คงเหลือ 0</span>';
+    return (x.qty < 0 ? '<span style="color:var(--bad)">' + qtyF(x.qty) + '</span>' : '0') + ' <span class="tag" style="background:#eef1f5;color:var(--steel);font-size:11px;margin-left:4px">' + (x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0') + '</span>';
   }
   return qtyF(x.qty);
 }
@@ -1364,7 +1364,7 @@ function renderTable(S) {
   var nPos = S.filter(function (x) { return x.qty > 0; }).length;
   var nZero = S.filter(function (x) { return x.isZero; }).length;
   var nCut = S.filter(function (x) { return x.isCut; }).length;
-  $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ · มีสต็อก ' + nf0.format(nPos) + (nZero ? ' · คงเหลือ 0 จำนวน ' + nf0.format(nZero) : '') + (nCut ? ' · ตัดออก ' + nf0.format(nCut) : '');
+  $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ · มีสต็อก ' + nf0.format(nPos) + (nZero ? ' · คงเหลือ 0 และ ติดลบ จำนวน ' + nf0.format(nZero) : '') + (nCut ? ' · ตัดออก ' + nf0.format(nCut) : '');
   var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'จัดการ', nosort: 1 }]) : DT_COLS;
   $('#dt').innerHTML = thead(cols, F.ds) + '<tbody>' + (part.length ? part.map(function (x, idx) {
     var rowCls = x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : '');
@@ -2203,11 +2203,11 @@ $('#exGo').addEventListener('click', function () {
       return { name: g, title: m.title || synthTitle(rep), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
     });
     var zl = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === brKey(brName); }) : zeroFiltered());
-    if (zl.length) sheets.push({ name: 'คงเหลือ 0', title: 'สินค้าคงเหลือ 0 (ไม่นับรวมในยอดค้างสต็อก)', rep: '', at: Date.now(), zero: true, items: zl.slice().sort(function (a, b) { return a.g === b.g ? a.i - b.i : (a.g < b.g ? -1 : 1); }) });
+    if (zl.length) sheets.push({ name: 'คงเหลือ 0 และ ติดลบ', title: 'สินค้าคงเหลือ 0 และ ติดลบ (ไม่นับรวมในยอดค้างสต็อก)', rep: '', at: Date.now(), zero: true, items: zl.slice().sort(function (a, b) { return a.g === b.g ? a.i - b.i : (a.g < b.g ? -1 : 1); }) });
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (zl.length ? ' + คงเหลือ 0 อีก ' + nf0.format(zl.length) + ' รายการ (ชีตแยก)' : ''));
+    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (zl.length ? ' + คงเหลือ 0 และ ติดลบ อีก ' + nf0.format(zl.length) + ' รายการ (ชีตแยก)' : ''));
   });
 });
 
@@ -2384,7 +2384,7 @@ function showPreview() {
     var n = UP.groups[g], cur = brMeta(g, UP.branch), dn = 0, dc = 0;
     var pos = 0, zr = 0; n.rows.forEach(function (r) { if (!(r[4] > 0)) { zr++; return; } pos++; if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
     var tag = !cur ? '<span class="tag new">หมวดใหม่</span>' : (cur.rep && n.rep && n.rep < cur.rep ? '<span class="tag old">เก่ากว่าที่มี</span>' : '<span class="tag">แทนที่</span>');
-    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
+    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 และ ติดลบ : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
       '<td>' + (cur ? nf0.format(cur.count) + ' รายการ · ' + fmtDate(cur.rep) : '–') + '</td><td>' + tag + '</td></tr>';
   }).join('');
   $('#pv').innerHTML = '<div>สาขา <b>' + esc(UP.branch) + '</b> · <b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
@@ -2641,7 +2641,7 @@ function attachBcToItems() {
   });
 }
 var AK = 'lost';
-var TAGS = { hard: { t: 'ขายยาก' }, lost: { t: 'ของหาย' }, exp: { t: 'หมดอายุ' }, pend: { t: 'รอปรับ' }, waste: { t: 'ของเสีย' }, zero: { t: 'คงเหลือ 0' } };
+var TAGS = { hard: { t: 'ขายยาก' }, lost: { t: 'ของหาย' }, exp: { t: 'หมดอายุ' }, pend: { t: 'รอปรับ' }, waste: { t: 'ของเสีย' }, zero: { t: 'คงเหลือ 0 และ ติดลบ' } };
 function hasTag(x, k) { return k === 'hard' ? !!x.hard : (k === 'zero' ? !!x.isZero : !!(x.tg && x.tg[k] !== undefined)); }
 function tagHtml(x) {
   var tn = x.tn || {}, h = '', nl = [];
