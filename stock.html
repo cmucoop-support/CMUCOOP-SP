@@ -697,7 +697,7 @@ function gToggle(g) { if (F.gm[g]) delete F.gm[g]; else F.gm[g] = true; F.page =
 function stOn(sk) { return !Object.keys(F.st).length || !!F.st[sk]; }              // ไม่ได้เลือกช่วงอายุเลย = แสดงทุกช่วงอายุ
 function tagOn(x) {
   var ks = Object.keys(F.tags || {});
-  if (!ks.length) return !x.isZero || x.qty < 0;                                     // ก่อนกดแท็กสินค้าจะไม่รวมสินค้าคงเหลือ 0 (แต่แสดงรายการติดลบเสมอ)
+  if (!ks.length) return true;                                                       // ยังไม่กรองแท็ก = แสดงทุกรายการ (รวมคงเหลือ 0 ติดลบ และที่ถูกตัดออก)
   return ks.some(function (k) { return hasTag(x, k); });
 }
 var F = { st: {}, tag: '', tags: {}, gm: {}, br: '', q: '', deductTab: 'waste', deductCollapsed: true, gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
@@ -1046,8 +1046,7 @@ function agg(list) {
 }
 function allPool(includeZero) {                                          // ก่อนกดแท็ก "คงเหลือ 0" จะไม่รวมสินค้าคงเหลือ 0
   var base = D.items.concat(D.cut || []);
-  if (includeZero || (F.tags && F.tags.zero)) base = base.concat(D.zero || []);
-  else base = base.concat((D.zero || []).filter(function (x) { return x.qty < 0; }));   // รายการติดลบแสดงเสมอ (ไม่นับรวมในยอดคำนวณ)
+  base = base.concat(D.zero || []);                                      // รวมคงเหลือ 0 และติดลบเสมอ (ไม่นับรวมในยอดคำนวณ)
   return base;
 }
 function render() {
