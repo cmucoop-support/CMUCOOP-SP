@@ -1,3 +1,7 @@
+/* CMUCOOP API — Cloudflare Worker + D1
+ * รับ POST {fn, args:[...]} แล้วตอบ {ok:true,data} / {ok:false,error}  (รูปแบบเดียวกับ Apps Script เดิม → หน้าเว็บใช้ gas-shim.js เหมือนเดิม)
+ * เฟส 1 : ล็อกอิน/ผู้ใช้/สิทธิ์ · การ์ดเมนูหลัก · ประวัติการใช้งาน · Banner · ระบบเสียงประกาศ
+ * ไฟล์รูป/เสียงเก็บใน D1 (ตาราง files) เป็นข้อความ base64 แบ่งก้อนละ ~900 KB (ไม่ต้องใช้ R2 / ไม่ต้องผูกบัตร) */
 
 const SESSION_TTL = 21600;           // วินาที (6 ชั่วโมง) ต่ออายุเมื่อเหลือน้อยกว่าครึ่ง
 const MAX_FAIL = 5, LOCK_SEC = 300, LOG_DAYS = 30;
@@ -40,6 +44,7 @@ const SOUND_MIME = { mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac:
 const SOUND_LEGACY = 'https://ratthaphontha-wq.github.io/--audio/';
 const NOT_YET = 'ระบบนี้ยังไม่ได้ย้ายมาใช้หลังบ้านใหม่ (อยู่ระหว่างพัฒนา)';
 
+/* ---------- ฟังก์ชันที่ยังไม่รองรับในเฟส 1 (ตอบข้อความชัดเจนแทนที่จะพัง) ---------- */
 const PENDING = ['makePdf'];   // makePdf: ใช้ปุ่มปริ้นจากเบราว์เซอร์แทน
 
 const SCHEMA = [
@@ -1808,13 +1813,13 @@ API.stockAdjNote = async (C, token, kind, key, note) => {
 /* ============================== เช็คราคาตลาด (market.html) ============================== */
 API.marketGet = async (C, token) => {
   const me = await auth(C, token);
-  if (me.role !== 'admin' && !(me.perms && (me.perms.market || me.perms.stock))) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
+  if (me.role !== 'admin' && !(me.perms && me.perms.market)) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
   const raw = await kvJson(C, 'MARKET_STATE', null);
   return raw && typeof raw === 'object' ? raw : { groups: {}, names: {}, surveyor: 'รัฐพล', checker: '', approver: '', surveyNote: '' };
 };
 API.marketSaveState = async (C, token, state) => {
   const me = await auth(C, token);
-  if (me.role !== 'admin' && !(me.perms && (me.perms.market_edit || me.perms.stock_edit))) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
+  if (me.role !== 'admin' && !(me.perms && me.perms.market && me.perms.market_edit)) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
   if (!state || typeof state !== 'object') throw new Error('ข้อมูลไม่ถูกต้อง');
   await kvSet(C, 'MARKET_STATE', JSON.stringify(state));
   await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', Object.keys(state.groups || {}).length + ' หมวด');
