@@ -484,7 +484,7 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
         <button type="button" class="btn ghost small" id="hsClearAllPrev" style="color:var(--bad)">ลบฉบับก่อนหน้าทั้งหมด</button>
       </div>
       <div class="tscroll" style="max-height:240px"><table class="pvt">
-        <thead><tr><th class="nosort">หมวด</th><th class="nosort">ข้อมูลรายงานวันที่</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายการที่มีสต็อก</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">จัดการ</th></tr></thead>
+        <thead><tr><th class="nosort">หมวด</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายการที่มีสต็อก</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">จัดการ</th></tr></thead>
         <tbody id="hsPrevTb"></tbody>
       </table></div>
     </div>
@@ -985,11 +985,11 @@ function renderRepCard() {                                              // ป�
     var brCnt = allInGrp || (bk ? 0 : (v.count || 0));
     var brTxt = bs.map(function (k) {
       var b = v.br[k] || {}, bAll = allPool(true).filter(function (x) { return x.g === g && brKey(x.br) === brKey(k); }).length || b.count || 0;
-      return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(bAll) + ' รายการ' + (b.rep ? ' · รายงาน ' + fmtDate(b.rep) : '') + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
+      return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(bAll) + ' รายการ' + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
     }).join('<br>');
-    var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: รายงานวันที่ ' + fmtDate(pv.rep) + ' · บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
+    var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
     return '<div class="ghist-item">' +
-      '<div><b>' + esc(gl(g)) + '</b> · ข้อมูลรายงานวันที่ <b>' + fmtDate(v.rep) + '</b> · สินค้าทั้งหมด' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
+      '<div><b>' + esc(gl(g)) + '</b> · สินค้าทั้งหมด' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
       '<div class="muted">อัปเดตล่าสุด: <b>' + (v.ts ? esc(fmtTs(v.ts)) : '–') + '</b>' + (cur && v.ts && d >= 30 ? ' <b style="color:var(--bad)">· ผ่านมา ' + d + ' วัน</b>' : '') + (v.who ? ' · โดย <b>' + esc(v.who) + '</b>' : '') + (v.file ? ' · ไฟล์ ' + esc(v.file) : '') + '</div>' +
       (brTxt ? '<div style="margin-top:4px;font-size:12.5px;color:var(--steel)">' + brTxt + '</div>' : '') +
       prevLine +
@@ -1014,9 +1014,8 @@ function renderInfo() {
   var m = D.meta, el = $('#info');
   if (!m) { el.innerHTML = D.me ? 'ผู้ใช้: ' + esc(D.me.name) + roNote() : ''; return; }
   var days = Math.floor((Date.now() - m.ts) / 86400000);
-  var dates = m.from ? (m.from === m.to ? 'ข้อมูลรายงานวันที่ ' + fmtDate(m.to) : 'ข้อมูลรายงานวันที่ ' + fmtDate(m.from) + ' – ' + fmtDate(m.to) + ' (แต่ละหมวดดึงรายงานคนละวัน)') : '';
   el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffd27a">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
-    '<br>' + esc(dates) + (m.file ? ' · ไฟล์ ' + esc(m.file) : '') + roNote() + brStatus();
+    (m.file ? '<br>ไฟล์ ' + esc(m.file) : '') + roNote() + brStatus();
 }
 function brStatus() {                                // อัปเดตล่าสุดรายสาขา (จากเมตาที่เก็บไว้ต่อหมวด) · เกิน 30 วันขึ้นเตือน
   var bl = {};
@@ -1341,7 +1340,7 @@ function thead(cols, sort) {
     return '<th data-k="' + c.k + '"' + (c.nosort ? ' class="nosort"' : (c.num ? ' class="num"' : '')) + (sort.k === c.k ? ' aria-sort="' + (sort.d > 0 ? 'ascending' : 'descending') + '"' : '') + '>' + esc(c.t) + '</th>';
   }).join('') + '</tr></thead>';
 }
-var GT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'n', t: 'รายการ', num: 1 }, { k: 'pcs', t: 'ชิ้น', num: 1 }, { k: 'vc', t: 'มูลค่าทุน (บาท)', num: 1 }, { k: 'vp', t: 'มูลค่าขาย (บาท)', num: 1 }, { k: 'share', t: 'สัดส่วนมูลค่าทุน' }, { k: 'avg', t: 'อายุเฉลี่ย (วัน)', num: 1 }, { k: 'rep', t: 'ข้อมูลรายงานวันที่' },
+var GT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'n', t: 'รายการ', num: 1 }, { k: 'pcs', t: 'ชิ้น', num: 1 }, { k: 'vc', t: 'มูลค่าทุน (บาท)', num: 1 }, { k: 'vp', t: 'มูลค่าขาย (บาท)', num: 1 }, { k: 'share', t: 'สัดส่วนมูลค่าทุน' }, { k: 'avg', t: 'อายุเฉลี่ย (วัน)', num: 1 },
   { k: 'dds', t: 'DS เทียบฉบับก่อนหน้า (บาท)', num: 1 }];
 function dsDelta(g) {                                                  // มูลค่าทุน DS ของฉบับปัจจุบัน − ฉบับก่อนหน้า (จากยอดสรุปที่เก็บไว้ ไม่ขึ้นกับตัวกรอง)
   var m = D.gm[g]; if (!m || !m.cur || !m.prev || !m.cur.sum || !m.prev.sum) return null;
@@ -1360,9 +1359,9 @@ function renderGroupTable(G) {
   var maxShare = rows.reduce(function (s, r) { return Math.max(s, r.share); }, 0.0001);
   $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือก/ยกเลิกได้หลายหมวด';
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
-    var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้าวันที่ ' + esc(fmtDate(D.gm[r.g] && D.gm[r.g].prev ? D.gm[r.g].prev.rep : '')) + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
+    var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้า' + (D.gm[r.g] && D.gm[r.g].prev && D.gm[r.g].prev.ts ? ' (บันทึกเมื่อ ' + esc(fmtTs(D.gm[r.g].prev.ts)) + ')' : '') + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
     return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
-      '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td><td>' + fmtDate(r.rep) + '</td>' +
+      '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
   }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
 }
@@ -2204,6 +2203,12 @@ async function xlsxBuild(sheets) {
   return xlZip(files);
 }
 /*XLSX-END*/
+function upTitle(ts) {                                                   // 'รายงานวิเคราะห์การขายสินค้า รายการอัปโหลดวันที่ dd/mm/พ.ศ. เวลา HH:MM น.' (เขตเวลา Asia/Bangkok)
+  if (!ts) return 'รายงานวิเคราะห์การขายสินค้า';
+  var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+    .formatToParts(new Date(ts)).forEach(function (x) { p[x.type] = x.value; });
+  return 'รายงานวิเคราะห์การขายสินค้า รายการอัปโหลดวันที่ ' + p.day + '/' + p.month + '/' + (+p.year + 543) + ' เวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
+}
 function synthTitle(rep) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(rep || '');
   return 'รายงานวิเคราะห์การขายสินค้า' + (m ? ' ปี ' + (+m[1] + 543) + ' ข้อมูลวันที่ ' + m[3] + '/' + m[2] + '/' + (+m[1] + 543) : '');
@@ -2254,7 +2259,7 @@ $('#exGo').addEventListener('click', function () {
     var sheets = Object.keys(by).sort().map(function (g) {
       var items = by[g].slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
       if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
-      return { name: g, title: m.title || synthTitle(rep), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
+      return { name: g, title: upTitle(m.ts), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
     });
     var zlAll = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === brKey(brName); }) : zeroFiltered());
     var byG = function (a, b) { return a.g === b.g ? a.i - b.i : (a.g < b.g ? -1 : 1); };
@@ -2442,19 +2447,19 @@ function showPreview() {
   if (UP.skipped.length) warns.push('ข้ามชีตที่ไม่พบหัวตาราง: ' + UP.skipped.join(', '));
   if (UP.mismatch) warns.push('พบ ' + nf0.format(UP.mismatch) + ' แถวที่รหัสหมวดไม่ตรงกับชื่อชีต — ระบบใช้รหัสในคอลัมน์ "กลุ่ม"');
   if (UP.dup) warns.push('ตัดแถวซ้ำ ' + nf0.format(UP.dup) + ' แถว (สินค้า+สาขาเดียวกันอยู่หลายชีต) โดยใช้ข้อมูลจากรายงานที่วันที่ใหม่กว่า');
-  if (UP.conflicts.length) warns.push('หมวด ' + UP.conflicts.join(', ') + ' อยู่ในหลายไฟล์ — ใช้ไฟล์ที่วันที่รายงานใหม่กว่า');
+  if (UP.conflicts.length) warns.push('หมวด ' + UP.conflicts.join(', ') + ' อยู่ในหลายไฟล์ — ใช้ข้อมูลจากไฟล์ที่อ่านทีหลังสุด');
   var older = gs.filter(function (g) { var c = brMeta(g, UP.branch); return c && c.rep && UP.groups[g].rep && UP.groups[g].rep < c.rep; });
   if (older.length) warns.push('หมวด ' + older.join(', ') + ' เป็นรายงานเก่ากว่าที่มีในระบบ จึงไม่ได้ติ๊กไว้ให้ — ติ๊กเองถ้าต้องการใช้จริง');
   var body = gs.map(function (g) {
     var n = UP.groups[g], cur = brMeta(g, UP.branch), dn = 0, dc = 0;
     var pos = 0, zr = 0; n.rows.forEach(function (r) { if (!(r[4] > 0)) { zr++; return; } pos++; if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
     var tag = !cur ? '<span class="tag new">หมวดใหม่</span>' : (cur.rep && n.rep && n.rep < cur.rep ? '<span class="tag old">เก่ากว่าที่มี</span>' : '<span class="tag">แทนที่</span>');
-    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 และ ติดลบ : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td><td>' + fmtDate(n.rep) + '</td>' +
-      '<td>' + (cur ? nf0.format(cur.count) + ' รายการ · ' + fmtDate(cur.rep) : '–') + '</td><td>' + tag + '</td></tr>';
+    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 และ ติดลบ : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td>' +
+      '<td>' + (cur ? nf0.format(cur.count) + ' รายการ' : '–') + '</td><td>' + tag + '</td></tr>';
   }).join('');
   $('#pv').innerHTML = '<div>สาขา <b>' + esc(UP.branch) + '</b> · <b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
     '<div class="pvk" id="pvK"></div>' + warns.map(function (w) { return '<div class="warnbox">' + esc(w) + '</div>'; }).join('') +
-    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort"><input type="checkbox" id="pvAll" aria-label="เลือกทุกหมวด"></th><th class="nosort">หมวด</th><th class="nosort">รายการมีสต็อก (ใหม่)</th><th class="nosort">DS (รายการ)</th><th class="nosort">DS มูลค่าทุน</th><th class="nosort">ข้อมูล ณ วันที่ (ใหม่)</th><th class="nosort">สาขา ' + esc(UP.branch) + ' ที่มีในระบบตอนนี้</th><th class="nosort">ผล</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
+    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort"><input type="checkbox" id="pvAll" aria-label="เลือกทุกหมวด"></th><th class="nosort">หมวด</th><th class="nosort">รายการมีสต็อก (ใหม่)</th><th class="nosort">DS (รายการ)</th><th class="nosort">DS มูลค่าทุน</th><th class="nosort">สาขา ' + esc(UP.branch) + ' ที่มีในระบบตอนนี้</th><th class="nosort">ผล</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
     '<div id="pvAdj"></div><div class="muted" id="pvPrev"></div>';
   $('#pv').classList.remove('hidden'); $('#upSave').classList.remove('hidden'); pvSummary();
 }
@@ -2483,7 +2488,7 @@ $('#upSave').addEventListener('click', function () {
 });
 async function restoreGroup(g, btn) {
   var m = D.gm[g]; if (!m || !m.prev || !m.cur) return;
-  if (!confirm('ใช้ฉบับก่อนหน้าของหมวด ' + gl(g) + ' (ข้อมูลวันที่ ' + fmtDate(m.prev.rep) + ') เป็นฉบับปัจจุบัน?\nฉบับปัจจุบัน (ข้อมูลวันที่ ' + fmtDate(m.cur.rep) + ') จะกลายเป็นฉบับก่อนหน้าแทน')) return;
+  if (!confirm('ใช้ฉบับก่อนหน้าของหมวด ' + gl(g) + ' (บันทึกเมื่อ ' + fmtTs(m.prev.ts) + ') เป็นฉบับปัจจุบัน?\nฉบับปัจจุบัน (บันทึกเมื่อ ' + fmtTs(m.cur.ts) + ') จะกลายเป็นฉบับก่อนหน้าแทน')) return;
   await busy(btn, async function () { await call('stockRestore', g); toast('สลับฉบับของหมวด ' + g + ' แล้ว'); await load('prev'); });
 }
 $('#verTabs').addEventListener('click', function (e) {
@@ -2888,7 +2893,7 @@ function renderHistDlg() {
   $('#hsClearAllPrev').classList.toggle('hidden', !prevGs.length);
   $('#hsPrevTb').innerHTML = prevGs.length ? prevGs.map(function (g) {
     var pv = D.gm[g].prev, dsC = (pv.sum && pv.sum.st && pv.sum.st.DS && pv.sum.st.DS.cost) || 0;
-    return '<tr><td><b>' + esc(gl(g)) + '</b></td><td>' + fmtDate(pv.rep) + '</td><td>' + esc(fmtTs(pv.ts)) + '</td><td>' + esc(pv.who || '–') + '</td><td class="num">' + nf0.format(pv.count || 0) + '</td><td class="num">' + money(dsC) + '</td>' +
+    return '<tr><td><b>' + esc(gl(g)) + '</b></td><td>' + esc(fmtTs(pv.ts)) + '</td><td>' + esc(pv.who || '–') + '</td><td class="num">' + nf0.format(pv.count || 0) + '</td><td class="num">' + money(dsC) + '</td>' +
       '<td><button type="button" class="btn ghost small" style="color:var(--bad)" data-delprevg="' + esc(g) + '">ลบข้อมูลย้อนหลัง</button></td></tr>';
   }).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:16px">ไม่มีข้อมูลย้อนหลังฉบับก่อนหน้าที่บันทึกไว้</td></tr>';
 }
