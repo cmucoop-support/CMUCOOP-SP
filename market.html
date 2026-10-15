@@ -168,6 +168,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
   <h1>เช็คราคาตลาด</h1>
   <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
+    <select id="brSel" title="เลือกสาขา" style="width:auto;min-width:150px;max-width:220px;padding:6px 10px;border-radius:999px;font-weight:600"></select>
     <button class="btn exportMain small hidden" id="bUpload">อัปโหลดข้อมูล</button>
     <button class="btn exportMain small" id="bXlsx">ดาวน์โหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด/ผู้สำรวจ</button>
@@ -340,6 +341,8 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
       เมื่ออัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม ระบบจะ<b>ตรวจจับราคาขายที่เปลี่ยนไปโดยอัตโนมัติ</b> (ขึ้นข้อความ <code>&gt; ปรับขึ้น เดิม X ขึ้น Y</code> หรือ <code>&lt; ปรับลง เดิม X ลง Y</code> พร้อมวันที่) และ<b>คงข้อมูลราคาท้องตลาดที่เคยสำรวจไว้</b> พร้อมเก็บข้อมูลชุดเดิมไว้ในแท็บ "ฉบับก่อนหน้า"
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px">
+      <label style="font-size:13px;font-weight:600;color:var(--steel)">สาขาที่จะอัปโหลด<select id="upBr"></select></label>
+      <label class="hidden" id="upBrNewW" style="font-size:13px;font-weight:600;color:var(--steel)">ชื่อสาขาใหม่<input type="text" id="upBrNew" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก" autocomplete="off"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel)">วันที่อัปข้อมูลเข้าระบบ (แสดงมุมซ้ายบนของหัวตาราง)<input type="date" id="upDate"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel)">รหัสหมวดเริ่มต้น (กรณีไฟล์ไม่มีรหัสหมวดในชื่อชีต)<input type="text" id="upDefGrp" placeholder="เช่น 34 หรือ G01" maxlength="12"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel)">ชื่อหมวดเริ่มต้น (ไม่บังคับ)<input type="text" id="upDefName" placeholder="เช่น ผลิตภัณฑ์ดูแลผ้า" maxlength="50"></label>
@@ -391,6 +394,12 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
   <div class="dlg wide">
     <h2>ตั้งค่าหมวดสินค้าและข้อมูลผู้สำรวจ</h2>
     <div class="muted">ตั้งชื่อหมวดสินค้า (เช่น รหัส <code>34</code> = <code>ผลิตภัณฑ์ดูแลผ้า</code>) และกำหนดชื่อผู้สำรวจเริ่มต้นที่จะแสดงในท้ายรายงาน Excel</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+      <div style="flex:1 1 200px;font-size:13px;font-weight:600">สาขาที่กำลังตั้งค่าอยู่: <b id="nmBrCur" style="color:var(--accent-text)">–</b><div class="muted" style="font-weight:400">หมวดสินค้าและข้อมูลแยกกันตามสาขา · เลือกสาขาได้ที่แถบด้านบน</div></div>
+      <label style="font-size:13px;font-weight:600;flex:1 1 180px">เพิ่มสาขาใหม่<input type="text" id="nmNewBr" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก" autocomplete="off"></label>
+      <button type="button" class="btn small" id="nmAddBrBtn">+ เพิ่มสาขา</button>
+      <button type="button" class="btn ghost small" id="nmDelBrBtn" style="color:var(--bad);border-color:var(--bad)">ลบสาขานี้</button>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
       <label style="font-size:13px;font-weight:600">รหัสหมวดใหม่<input type="text" id="nmNewCode" maxlength="12" placeholder="เช่น 34 หรือ G01"></label>
       <label style="font-size:13px;font-weight:600">ชื่อหมวดสินค้า<input type="text" id="nmNewName" maxlength="50" placeholder="เช่น ผลิตภัณฑ์ดูแลผ้า"></label>
@@ -398,7 +407,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
     </div>
     <div id="nmGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:10px;max-height:280px;overflow:auto"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-      <button type="button" class="btn ghost small" id="bClearAll" style="color:var(--bad);border-color:var(--bad)">ลบข้อมูลทุกหมวดทั้งหมด</button>
+      <button type="button" class="btn ghost small" id="bClearAll" style="color:var(--bad);border-color:var(--bad)">ลบข้อมูลทุกหมวดในสาขานี้</button>
     </div>
     <div class="row">
       <button class="btn ghost" id="nmCancel">ปิด</button>
@@ -474,8 +483,12 @@ $('#lgBtn').addEventListener('click', function () {
 
 /* ---------- สถานะของหน้าเว็บ ---------- */
 var STORAGE_KEY = 'cmucoop_market_state_v1';
+var DEFAULT_BR = 'สาขาหลัก';
+var BR_KEY = 'cmucoop_market_br';
 var D = {
   me: null,
+  store: {},       // { 'ชื่อสาขา': { groups:{...}, names:{...} } }
+  br: '',          // สาขาที่เลือกอยู่ (D.groups / D.names ชี้ไปที่ข้อมูลของสาขานี้)
   ver: 'cur',
   groups: {},      // { '34': { cur: { ts, who, file, rep, surveyNote, rows:[...] }, prev: {...} } }
   names: {},
@@ -501,6 +514,7 @@ var REC_META = [
   { k: '__LOW__', t: 'กำไรหลัง Vat < 12%', c: '#c0392b' }
 ];
 
+function brKey(s) { return String(s == null ? '' : s).replace(/[\s\u00a0]+/g, '').toLowerCase(); }
 function codeKey(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); }
 function todayIso() {
   try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); }
@@ -570,47 +584,109 @@ function calcItem(r, idx) {
   };
 }
 
-/* ---------- บันทึก/โหลดสถานะ (รองรับทั้ง Cloud Worker API + LocalStorage Fallback) ---------- */
-function saveLocalState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      groups: D.groups,
-      names: D.names,
-      surveyor: D.surveyor,
-      checker: D.checker,
-      approver: D.approver,
-      surveyNote: D.surveyNote
-    }));
-  } catch (e) {}
+/* ---------- ตรวจสอบ "การปรับ" ให้ตรงกับคอลัมน์ราคาขาย ----------
+ * ข้อความการปรับ เช่น "> ปรับขึ้น\nเดิม 129 ขึ้น 135" → ราคาใหม่ในข้อความ (135) ต้องเท่ากับราคาขายปัจจุบัน
+ * ถ้าไม่ตรง → ลบทั้ง "การปรับ" และ "วันที่" (ตั้งเป็น "-") */
+function chgNewPrice(t) {
+  var m = /(?:ข[ึ้]{2}น|ลง)\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*$/.exec(String(t == null ? '' : t).trim());
+  return m ? Number(m[1].replace(/,/g, '')) : null;
 }
-function loadLocalState() {
-  try {
-    var o = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (o && typeof o === 'object') {
-      if (o.groups && typeof o.groups === 'object') D.groups = o.groups;
-      if (o.names && typeof o.names === 'object') D.names = Object.assign({}, o.names);
-      if (o.surveyor !== undefined) D.surveyor = o.surveyor;
-      if (o.checker !== undefined) D.checker = o.checker;
-      if (o.approver !== undefined) D.approver = o.approver;
-      if (o.surveyNote !== undefined) D.surveyNote = o.surveyNote;
-    }
-  } catch (e) {}
+function sanitizeChg(r) {
+  var t = r[4];
+  if (t === null || t === undefined || t === '' || t === '-') return false;
+  var np = chgNewPrice(t);
+  if (np === null || !isFinite(np)) return false;      // อ่านราคาไม่ออก (ข้อความอิสระ) → ไม่แตะ
+  var price = Number(r[7]); if (!isFinite(price)) price = 0;
+  if (Math.abs(np - price) < 0.005) return false;
+  r[4] = '-'; r[5] = '-';
+  return true;
+}
+function fixChgAll() {
+  var n = 0;
+  Object.keys(D.store).forEach(function (b) {
+    var gs = D.store[b].groups;
+    Object.keys(gs).forEach(function (g) {
+      ['cur', 'prev'].forEach(function (v) {
+        var side = gs[g] && gs[g][v];
+        if (side && Array.isArray(side.rows)) side.rows.forEach(function (r) { if (sanitizeChg(r)) n++; });
+      });
+    });
+  });
+  return n;
 }
 
-async function syncToServer() {
+/* ---------- สาขา ---------- */
+function stateObj() {
+  return { branches: D.store, surveyor: D.surveyor, checker: D.checker, approver: D.approver, surveyNote: D.surveyNote };
+}
+function applyState(o) {
+  if (!o || typeof o !== 'object') return false;
+  var st = null;
+  if (o.branches && typeof o.branches === 'object') {
+    st = {};
+    Object.keys(o.branches).forEach(function (b) {
+      var v = o.branches[b] || {};
+      st[b] = { groups: v.groups && typeof v.groups === 'object' ? v.groups : {}, names: v.names && typeof v.names === 'object' ? v.names : {} };
+    });
+  } else if (o.groups && typeof o.groups === 'object') {   // ข้อมูลเก่าก่อนมีสาขา → ย้ายเข้า "สาขาหลัก"
+    st = {};
+    var nm = o.names && typeof o.names === 'object' ? o.names : {};
+    if (Object.keys(o.groups).length || Object.keys(nm).length) st[DEFAULT_BR] = { groups: o.groups, names: nm };
+  }
+  if (!st) return false;
+  D.store = st;
+  if (o.surveyor) D.surveyor = o.surveyor;
+  if (o.checker !== undefined) D.checker = o.checker;
+  if (o.approver !== undefined) D.approver = o.approver;
+  if (o.surveyNote !== undefined) D.surveyNote = o.surveyNote;
+  return true;
+}
+function ensureBranch(name) {
+  if (!D.store[name]) D.store[name] = { groups: {}, names: {} };
+  return D.store[name];
+}
+function findBranch(name) {
+  var k = brKey(name), hit = '';
+  Object.keys(D.store).forEach(function (b) { if (brKey(b) === k) hit = b; });
+  return hit;
+}
+function setBranch(b) {
+  if (!b || !D.store[b]) {
+    var keys = Object.keys(D.store).sort();
+    b = (D.br && D.store[D.br]) ? D.br : (keys[0] || '');
+  }
+  D.br = b;
+  D.groups = b ? D.store[b].groups : {};
+  D.names = b ? D.store[b].names : {};
+  try { localStorage.setItem(BR_KEY, b); } catch (e) {}
+}
+
+/* ---------- บันทึก/โหลดสถานะ (รองรับทั้ง Cloud Worker API + LocalStorage Fallback) ---------- */
+function saveLocalState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stateObj())); } catch (e) {}
+}
+function loadLocalState() {
+  try { applyState(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')); } catch (e) {}
+}
+
+/* บันทึกขึ้นเซิร์ฟเวอร์ · คืนค่า true = สำเร็จ · false = ไม่สำเร็จ (แสดงข้อความแจ้งเตือน ยกเว้น quiet) */
+async function syncToServer(quiet) {
   saveLocalState();
   try {
-    await call('marketSaveState', {
-      groups: D.groups,
-      names: D.names,
-      surveyor: D.surveyor,
-      checker: D.checker,
-      approver: D.approver,
-      surveyNote: D.surveyNote
-    });
+    await call('marketSaveState', stateObj());
+    return true;
   } catch (e) {
-    /* หากหลังบ้านยังไม่ได้อัปเดตฟังก์ชัน marketSaveState ข้อมูลจะยังคงอยู่ในเครื่องและใช้งานได้ครบทุกฟีเจอร์ */
+    if (e.message !== 'SESSION_EXPIRED' && !quiet) toast('บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ: ' + e.message + ' — ข้อมูลที่เปลี่ยนจะกลับมาเมื่อรีเฟรช', true);
+    syncToServer.lastErr = e.message;
+    return false;
   }
+}
+function syncThen(okMsg) {
+  return syncToServer(true).then(function (ok) {
+    if (ok) toast(okMsg);
+    else if (syncToServer.lastErr !== 'SESSION_EXPIRED') toast('ทำรายการในหน้านี้แล้ว แต่บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (' + syncToServer.lastErr + ') — ข้อมูลจะกลับมาเมื่อรีเฟรช', true);
+    return ok;
+  });
 }
 
 function rebuildItems() {
@@ -633,6 +709,7 @@ function rebuildItems() {
 async function load() {
   if (!TOKEN) { showLogin(''); return; }
   loadLocalState();
+  var prefBr = ''; try { prefBr = localStorage.getItem(BR_KEY) || ''; } catch (e0) {}
   try {
     var me = await call('whoami');
     var canView = me.role === 'admin' || (me.perms && me.perms.market);
@@ -644,16 +721,11 @@ async function load() {
     D.me = { user: me.user, name: me.name, role: me.role, edit: canEdit };
     try {
       var srv = await call('marketGet');
-      if (srv && srv.groups && typeof srv.groups === 'object') {
-        D.groups = srv.groups;
-        if (srv.names) D.names = Object.assign({}, srv.names);
-        if (srv.surveyor) D.surveyor = srv.surveyor;
-        if (srv.checker !== undefined) D.checker = srv.checker;
-        if (srv.approver !== undefined) D.approver = srv.approver;
-        if (srv.surveyNote !== undefined) D.surveyNote = srv.surveyNote;
-        saveLocalState();
-      }
+      if (applyState(srv)) saveLocalState();
     } catch (e2) {}
+    var fixed = fixChgAll();            // ลบ "การปรับ/วันที่" ที่ไม่ตรงกับราคาขายปัจจุบัน
+    setBranch(prefBr);
+    if (fixed && canEdit) syncToServer(true);
     rebuildItems();
     renderAll();
   } catch (e) {
@@ -707,12 +779,19 @@ function renderAll() {
   $('#bDelGrp').classList.toggle('hidden', !edit || !F.g || D.ver !== 'cur');
   $('#bSaveEdits').classList.toggle('hidden', !edit || !DIRTY);
 
+  var brKeys = Object.keys(D.store).sort();
+  $('#brSel').innerHTML = brKeys.length ? brKeys.map(function (b) {
+    var n = Object.keys(D.store[b].groups).length;
+    return '<option value="' + esc(b) + '"' + (D.br === b ? ' selected' : '') + '>สาขา ' + esc(b) + ' (' + n + ' หมวด)</option>';
+  }).join('') : '<option value="">ยังไม่มีสาขา</option>';
+  $('#brSel').disabled = !brKeys.length;
+
   var hasData = Object.keys(D.groups).length > 0;
   $('#empty').classList.toggle('hidden', hasData);
   $('#main').hidden = !hasData;
   if (!hasData) {
     $('#info').textContent = D.me ? 'ผู้ใช้: ' + D.me.name : '';
-    $('#emptyMsg').textContent = edit ? 'ไม่มีข้อมูล (ทุกอย่างเป็น 0) กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาดไฟล์ใหม่' : 'ยังไม่มีข้อมูลในระบบ กรุณาให้แอดมินอัปโหลดข้อมูล';
+    $('#emptyMsg').textContent = edit ? (D.br ? 'สาขา ' + D.br + ' ยังไม่มีข้อมูล · ' : '') + 'กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาดไฟล์ใหม่ (เลือกสาขาในหน้าต่างอัปโหลด)' : (D.br ? 'สาขา ' + D.br + ' ' : '') + 'ยังไม่มีข้อมูลในระบบ กรุณาให้แอดมินอัปโหลดข้อมูล';
     return;
   }
 
@@ -721,7 +800,7 @@ function renderAll() {
   var cyc = cycleStatus(m && m.ts);
   var nextDueTs = m && m.ts ? (m.ts + 15 * 86400000) : 0;
   $('#info').innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">[ฉบับก่อนหน้า]</b> · ' : '') +
-    (m ? 'หมวด <b>' + esc(grpLabel(F.g)) + '</b> · อัปข้อมูลเข้าเมื่อ <b>' + esc(fmtTsTh(m.ts)) + '</b> โดย ' + esc(m.who || '–') +
+    (D.br ? 'สาขา <b>' + esc(D.br) + '</b> · ' : '') + (m ? 'หมวด <b>' + esc(grpLabel(F.g)) + '</b> · อัปข้อมูลเข้าเมื่อ <b>' + esc(fmtTsTh(m.ts)) + '</b> โดย ' + esc(m.who || '–') +
       (m.file ? ' (' + esc(m.file) + ')' : '') : 'รวมทุกหมวด') +
     (D.me && !D.me.edit ? ' · <b style="color:#ffd27a">สิทธิ์: ดูอย่างเดียว</b>' : '');
 
@@ -788,7 +867,7 @@ function renderAll() {
   $('#topExportDate').textContent = 'ส่งออกข้อมูล วันที่ ' + exDateStr + (sNote ? ' · ' + sNote : '');
   var gCode = F.g || (D.allGroups[0] || '');
   var gName = (D.names && D.names[gCode]) || '';
-  $('#topSheetTitle').textContent = 'สำรวจราคาท้องตลาดหมวดสินค้า ' + (gCode ? gCode + (gName ? ' ' + gName : '') : 'ทุกหมวด');
+  $('#topSheetTitle').textContent = 'สำรวจราคาท้องตลาดหมวดสินค้า ' + (gCode ? gCode + (gName ? ' ' + gName : '') : 'ทุกหมวด') + (D.br ? ' · สาขา ' + D.br : '');
 
   /* ตารางรายการ */
   renderTable();
@@ -942,10 +1021,8 @@ $('#mtBody').addEventListener('change', function (e) {
 
 $('#bSaveEdits').addEventListener('click', function () {
   busy(this, async function () {
-    await syncToServer();
-    DIRTY = false;
-    $('#bSaveEdits').classList.add('hidden');
-    toast('บันทึกข้อมูลการสำรวจราคาตลาดแล้ว');
+    var ok = await syncThen('บันทึกข้อมูลการสำรวจราคาตลาดแล้ว');
+    if (ok) { DIRTY = false; $('#bSaveEdits').classList.add('hidden'); }
   });
 });
 
@@ -985,15 +1062,18 @@ $('#bAutoRec').addEventListener('click', function () {
     }
   });
   rebuildItems();
-  syncToServer();
   renderAll();
-  toast('คำนวณรายการแนะนำอัตโนมัติแล้ว · เปลี่ยนแปลง ' + nf0.format(cnt) + ' รายการ');
+  syncThen('คำนวณรายการแนะนำอัตโนมัติแล้ว · เปลี่ยนแปลง ' + nf0.format(cnt) + ' รายการ');
 });
 
 /* ---------- ตัวกรองและเปลี่ยนหน้า ---------- */
 $('#verTabs').addEventListener('click', function (e) {
   var b = e.target.closest('button[data-v]'); if (!b || b.disabled) return;
   D.ver = b.dataset.v; F.page = 0;
+  rebuildItems(); renderAll();
+});
+$('#brSel').addEventListener('change', function () {
+  setBranch(this.value); F.g = ''; F.page = 0; F.rec = '';
   rebuildItems(); renderAll();
 });
 $('#fGrp').addEventListener('change', function () { F.g = this.value; F.page = 0; renderAll(); });
@@ -1180,12 +1260,14 @@ function mergeUploadedGroup(g, newItems, fileName, repDate, ts, sNote) {
       }
     }
 
-    mergedRows.push([
+    var newRow = [
       g, it.code, it.name, it.qty, chgTxt, chgDate,
       Math.round((Number(it.cost) || 0) * 10000) / 10000,
       Math.round((Number(it.price) || 0) * 100) / 100,
       mktMin, mktMax, recAct, recPrice, editNote, repDate || todayIso()
-    ]);
+    ];
+    sanitizeChg(newRow);      // การปรับไม่ตรงกับราคาขาย → ลบการปรับ+วันที่
+    mergedRows.push(newRow);
   });
 
   D.groups[g] = {
@@ -1207,6 +1289,11 @@ function mergeUploadedGroup(g, newItems, fileName, repDate, ts, sNote) {
 var UP = null;
 $('#bUpload').addEventListener('click', function () {
   UP = null;
+  var bks = Object.keys(D.store).sort();
+  $('#upBr').innerHTML = bks.map(function (b) { return '<option value="' + esc(b) + '"' + (D.br === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
+    '<option value="__new__"' + (bks.length ? '' : ' selected') + '>+ เพิ่มสาขาใหม่…</option>';
+  $('#upBrNew').value = '';
+  $('#upBrNewW').classList.toggle('hidden', $('#upBr').value !== '__new__');
   $('#upDate').value = todayIso();
   $('#upDefGrp').value = F.g || '';
   $('#upDefName').value = (F.g && D.names[F.g]) || '';
@@ -1216,6 +1303,7 @@ $('#bUpload').addEventListener('click', function () {
   $('#upFile').value = '';
   $('#upDlg').classList.remove('hidden');
 });
+$('#upBr').addEventListener('change', function () { $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__'); });
 $('#upCancel').addEventListener('click', function () { $('#upDlg').classList.add('hidden'); });
 $('#drop').addEventListener('click', function () { $('#upFile').click(); });
 ['dragenter', 'dragover'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('over'); }); });
@@ -1272,6 +1360,11 @@ async function handleUploadFiles(fileList) {
 $('#upSave').addEventListener('click', function () {
   if (!UP) return;
   busy(this, async function () {
+    var brName = $('#upBr').value === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim() : $('#upBr').value;
+    if (!brName) { toast('กรุณาเลือกสาขา หรือกรอกชื่อสาขาใหม่', true); return; }
+    brName = findBranch(brName) || brName;
+    ensureBranch(brName);
+    setBranch(brName);
     Object.assign(D.names, UP.names);
     if (UP.surveyNote) D.surveyNote = UP.surveyNote;
     var ts = Date.now(), gKeys = Object.keys(UP.groups).sort(), chgSum = 0;
@@ -1282,10 +1375,11 @@ $('#upSave').addEventListener('click', function () {
     F.g = gKeys[0];
     D.ver = 'cur';
     $('#upDlg').classList.add('hidden');
-    await syncToServer();
     rebuildItems();
     renderAll();
-    toast('อัปโหลดข้อมูลเรียบร้อย · ' + gKeys.length + ' หมวด (' + nf0.format(UP.totalRows) + ' รายการ)' + (chgSum ? ' · ตรวจพบการปรับราคาขาย ' + chgSum + ' รายการ' : ''));
+    var upOk = await syncToServer();
+    if (!upOk) return;
+    toast('อัปโหลดข้อมูลเรียบร้อย · สาขา ' + brName + ' · ' + gKeys.length + ' หมวด (' + nf0.format(UP.totalRows) + ' รายการ)' + (chgSum ? ' · ตรวจพบการปรับราคาขาย ' + chgSum + ' รายการ' : ''));
   });
 });
 
@@ -1296,6 +1390,8 @@ function nmKeepEdits() {
   });
 }
 function renderNmGrid() {
+  $('#nmBrCur').textContent = D.br || '(ยังไม่มีสาขา)';
+  $('#nmDelBrBtn').disabled = !D.br;
   var seen = {};
   Object.keys(D.names).concat(Object.keys(D.groups)).forEach(function (k) { seen[k] = 1; });
   var ks = Object.keys(seen).sort();
@@ -1317,10 +1413,9 @@ function deleteGroup(g) {
   delete D.names[g];
   if (F.g === g) F.g = '';
   DIRTY = false;
-  syncToServer();
   rebuildItems();
   renderAll();
-  toast('ลบหมวด ' + label + ' แล้ว');
+  syncThen('ลบหมวด ' + label + ' แล้ว');
   return true;
 }
 $('#nmGrid').addEventListener('click', function (e) {
@@ -1336,11 +1431,32 @@ $('#bNames').addEventListener('click', function () {
 $('#nmCancel').addEventListener('click', function () { $('#nmDlg').classList.add('hidden'); });
 $('#nmAddBtn').addEventListener('click', function () {
   var c = $('#nmNewCode').value.trim().toUpperCase(), n = $('#nmNewName').value.trim();
+  if (!D.br) { toast('กรุณาเพิ่มสาขาก่อน', true); return; }
   if (!c) { toast('กรุณากรอกรหัสหมวด', true); return; }
   nmKeepEdits();
   D.names[c] = n || c;
   $('#nmNewCode').value = ''; $('#nmNewName').value = '';
   renderNmGrid();
+});
+$('#nmAddBrBtn').addEventListener('click', function () {
+  var n = $('#nmNewBr').value.replace(/\s+/g, ' ').trim();
+  if (!n) { toast('กรุณากรอกชื่อสาขา', true); return; }
+  if (findBranch(n)) { toast('มีสาขา ' + findBranch(n) + ' อยู่แล้ว', true); return; }
+  nmKeepEdits();
+  ensureBranch(n); setBranch(n);
+  $('#nmNewBr').value = ''; F.g = ''; F.page = 0;
+  rebuildItems(); renderAll(); renderNmGrid();
+  syncThen('เพิ่มสาขา ' + n + ' แล้ว');
+});
+$('#nmDelBrBtn').addEventListener('click', function () {
+  if (!D.br) return;
+  var b = D.br, n = Object.keys(D.groups).length;
+  if (!confirm('ลบสาขา ' + b + (n ? ' พร้อมข้อมูล ' + n + ' หมวด' : '') + ' ?\n(สาขาอื่นไม่ถูกแตะ) ลบแล้วกู้คืนไม่ได้')) return;
+  delete D.store[b];
+  D.br = ''; setBranch('');
+  F.g = ''; F.page = 0; DIRTY = false;
+  rebuildItems(); renderAll(); renderNmGrid();
+  syncThen('ลบสาขา ' + b + ' แล้ว');
 });
 $('#nmSave').addEventListener('click', function () {
   document.querySelectorAll('#nmGrid input[data-nmk]').forEach(function (inp) {
@@ -1353,16 +1469,16 @@ $('#nmSave').addEventListener('click', function () {
 });
 $('#bClearAll').addEventListener('click', function () {
   var n = Object.keys(D.groups).length;
-  if (!confirm('ลบข้อมูลเช็คราคาตลาดทุกหมวด' + (n ? ' (' + n + ' หมวด)' : '') + ' ทั้งหมดออกจากระบบ ?\nลบแล้วกู้คืนไม่ได้')) return;
-  D.groups = {};
-  D.names = {};
+  if (!D.br) { toast('ยังไม่มีสาขา', true); return; }
+  if (!confirm('ลบข้อมูลเช็คราคาตลาดทุกหมวดของสาขา ' + D.br + (n ? ' (' + n + ' หมวด)' : '') + ' ออกจากระบบ ?\n(สาขาอื่นไม่ถูกแตะ) ลบแล้วกู้คืนไม่ได้')) return;
+  Object.keys(D.groups).forEach(function (k) { delete D.groups[k]; });
+  Object.keys(D.names).forEach(function (k) { delete D.names[k]; });
   F.g = '';
   DIRTY = false;
-  syncToServer();
   $('#nmDlg').classList.add('hidden');
   rebuildItems();
   renderAll();
-  toast('ลบข้อมูลทุกหมวดแล้ว');
+  syncThen('ลบข้อมูลทุกหมวดของสาขา ' + D.br + ' แล้ว');
 });
 
 /* =============================================================================
@@ -1750,7 +1866,7 @@ $('#exGo').addEventListener('click', function () {
         name: g,
         leftHead: leftH,
         rightHead: rightH,
-        title: 'สำรวจราคาท้องตลาดหมวดสินค้า ' + g + (gName ? ' ' + gName : ''),
+        title: 'สำรวจราคาท้องตลาดหมวดสินค้า ' + g + (gName ? ' ' + gName : '') + (D.br ? ' · สาขา ' + D.br : ''),
         sumTitle: 'สรุปการสำรวจ หมวด ' + g + (gName ? ' ' + gName : ''),
         sumText: buildSummaryText(g, gName, gItems.length, inactCnt, act.length, adjTot, upCnt, downCnt, consCnt, avgEx, avgInc),
         surveyor: D.surveyor || 'รัฐพล',
@@ -1762,9 +1878,10 @@ $('#exGo').addEventListener('click', function () {
 
     var u8 = await xlsxBuildMarket(sheets);
     var firstG = sheets[0].name, firstName = (D.names && D.names[firstG]) || '';
+    var brPre = D.br ? D.br.replace(/[\\/:*?"<>|]/g, '') + '_' : '';
     var fn = sheets.length === 1
-      ? (firstG + (firstName ? firstName : '_สำรวจราคาตลาด') + '.xlsx')
-      : ('สำรวจราคาตลาด_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+      ? (brPre + firstG + (firstName ? firstName : '_สำรวจราคาตลาด') + '.xlsx')
+      : (brPre + 'สำรวจราคาตลาด_' + new Date().toISOString().slice(0, 10) + '.xlsx');
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
