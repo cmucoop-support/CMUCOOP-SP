@@ -929,14 +929,15 @@ function renderRepCard() {                                              // ป�
     var v = gView(g), pv = D.gm[g] && D.gm[g].prev;
     if (!v) return '<div class="ghist-item"><b>' + esc(gl(g)) + '</b><div class="muted">ยังไม่มีประวัติการอัปโหลดข้อมูลในหมวดนี้</div></div>';
     var d = v.ts ? Math.floor((Date.now() - v.ts) / 86400000) : 0, bs = v.br ? Object.keys(v.br).filter(function (k) { return !bk || brKey(k) === bk; }).sort() : [];
-    var brCnt = bk ? D.items.filter(function (x) { return x.g === g && brKey(x.br) === bk; }).length : (v.count || 0);
+    var allInGrp = allPool(true).filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
+    var brCnt = allInGrp || (bk ? 0 : (v.count || 0));
     var brTxt = bs.map(function (k) {
-      var b = v.br[k] || {};
-      return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(b.count || 0) + ' รายการ' + (b.rep ? ' · รายงาน ' + fmtDate(b.rep) : '') + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
+      var b = v.br[k] || {}, bAll = allPool(true).filter(function (x) { return x.g === g && brKey(x.br) === brKey(k); }).length || b.count || 0;
+      return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(bAll) + ' รายการ' + (b.rep ? ' · รายงาน ' + fmtDate(b.rep) : '') + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
     }).join('<br>');
     var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: รายงานวันที่ ' + fmtDate(pv.rep) + ' · บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
     return '<div class="ghist-item">' +
-      '<div><b>' + esc(gl(g)) + '</b> · ข้อมูลรายงานวันที่ <b>' + fmtDate(v.rep) + '</b> · มีสต็อก' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
+      '<div><b>' + esc(gl(g)) + '</b> · ข้อมูลรายงานวันที่ <b>' + fmtDate(v.rep) + '</b> · สินค้าทั้งหมด' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
       '<div class="muted">อัปเดตล่าสุด: <b>' + (v.ts ? esc(fmtTs(v.ts)) : '–') + '</b>' + (cur && v.ts && d >= 30 ? ' <b style="color:var(--bad)">· ผ่านมา ' + d + ' วัน</b>' : '') + (v.who ? ' · โดย <b>' + esc(v.who) + '</b>' : '') + (v.file ? ' · ไฟล์ ' + esc(v.file) : '') + '</div>' +
       (brTxt ? '<div style="margin-top:4px;font-size:12.5px;color:var(--steel)">' + brTxt + '</div>' : '') +
       prevLine +
@@ -1057,9 +1058,9 @@ function renderTagSel() {                                               // แ�
   }
 }
 function isAdjTag() { return false; }
-function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง จำนวนรายการหลังหมวดแสดงเฉพาะสาขาที่เลือก
+function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง แสดงจำนวนสินค้าทั้งหมดที่มีในหมวดนั้น (ตามสาขาที่เลือก)
   var cnt = {}, bk = brKey(F.br);
-  var pool = allPool().filter(function (x) { return !bk || brKey(x.br) === bk; });
+  var pool = allPool(true).filter(function (x) { return !bk || brKey(x.br) === bk; });
   pool.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
   var sel = gSel(), lbl = $('#fGrpLabel'), menu = $('#fGrpMenu');
   if (lbl) {
@@ -1092,7 +1093,7 @@ function renderPill() {
   el.classList.remove('hidden');
   el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
     sel.map(function (g) {
-      var bk = brKey(F.br), gc = allPool().filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
+      var bk = brKey(F.br), gc = allPool(true).filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
       return '<span class="pill">หมวด: <b>' + esc(gl(g)) + ' · ' + nf0.format(gc) + ' รายการ</b><button type="button" data-rmg="' + esc(g) + '" title="เอาหมวดนี้ออกจากตัวกรอง">×</button></span>';
     }).join('') +
     (sel.length > 1 ? '<button type="button" class="btn ghost small" id="gClear">ล้างหมวดทั้งหมด</button>' : '') +
