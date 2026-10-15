@@ -87,31 +87,34 @@ input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px}
 .kpi .s{font-size:12.5px;color:var(--steel);margin-top:3px}
 
 /* ---------- หัวตารางวันที่อัปข้อมูลเข้า & วันที่ส่งออก + ตารางสำรวจราคาตลาด ---------- */
-.sheet-top-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f8f5ff;border:1.5px solid #d9c8ff;border-radius:12px 12px 0 0;padding:9px 14px;font-size:14px;font-weight:600;color:var(--ink)}
-.sheet-title-bar{background:#d9d9d9;color:#000;text-align:center;font-weight:700;font-size:15px;padding:7px 12px;border-left:1.5px solid #b8b8b8;border-right:1.5px solid #b8b8b8}
-.tscroll{overflow:auto;max-height:660px;border:1.5px solid #b8b8b8;border-radius:0 0 12px 12px;box-shadow:var(--shadow);background:#fff}
-table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
-.mt th,.mt td{padding:5px 7px;border:1px solid #bfbfbf;text-align:center;vertical-align:middle}
-.mt thead th{background:#d9d9d9;color:#000;font-weight:700;position:sticky;z-index:2;line-height:1.25}
+.sheet-top-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#f8f5ff;border:1.5px solid #d9c8ff;border-radius:12px 12px 0 0;padding:9px 14px;font-size:13.5px;font-weight:600;color:var(--ink)}
+.sheet-title-bar{background:#6a3fd1;color:#fff;text-align:center;font-weight:700;font-size:15px;padding:7px 12px;border-left:1.5px solid #d9c8ff;border-right:1.5px solid #d9c8ff}
+.tscroll{overflow:auto;max-height:660px;border:1.5px solid #d9c8ff;border-radius:0 0 12px 12px;box-shadow:var(--shadow);background:#fff}
+table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1460px}
+.mt th,.mt td{padding:5px 7px;border:1px solid #e6dcf7;text-align:center;vertical-align:middle}
+.mt thead th{background:#ebe2fc;color:#2a1f47;font-weight:700;position:sticky;z-index:2;line-height:1.25;border-color:#d9c8ff}
 .mt thead tr:nth-child(1) th{top:0}
 .mt thead tr:nth-child(2) th{top:31px}
 .mt thead tr:nth-child(3) th{top:62px}
 .mt td.nm{text-align:left;min-width:210px}
 .mt td.code{font-variant-numeric:tabular-nums;white-space:nowrap}
 .mt td.chg{font-size:12px;white-space:pre-line;line-height:1.25;min-width:95px}
-.mt td.c-cost{background:#a6a6a6;color:#000}
-.mt td.c-price{background:#d5a6bd;color:#000;font-weight:600}
-.mt td.c-vat{background:#d9ead3;color:#000}
-.mt td.c-p30{background:#d9d9d9;color:#000}
-.mt td.c-mkt{background:#ead1dc;color:#000}
-/* สีตามรายการแนะนำเหมือน Conditional Formatting ในไฟล์ Excel */
-.mt td.rec-const{background:#ffff66;color:#000;font-weight:600}
-.mt td.rec-up{background:#ff7c80;color:#000;font-weight:700}
-.mt td.rec-down{background:#b4a7d6;color:#000;font-weight:700}
-.mt td.rec-cons{background:#e2efda;color:#000;font-weight:600}
-.mt td.rec-inact{background:#bfbfbf;color:#333}
-.mt td.mkt-dash{background:#bfbfbf!important;color:#333}
+.mt tbody tr:nth-child(even) td{background:#fcfaff}
+.mt td.c-cost{background:#f0eafb!important;color:#2a1f47}
+.mt td.c-price{background:#e2d6fa!important;color:#3b1d8f;font-weight:600}
+.mt td.c-vat{background:#e6f3ec!important;color:#14532d}
+.mt td.c-p30{background:#f4f0fb!important;color:#2a1f47}
+.mt td.c-mkt{background:#fbeaf4!important;color:#6b1d4a}
+/* สีตามรายการแนะนำ */
+.mt td.rec-const{background:#fff3c4!important;color:#5c4400;font-weight:600}
+.mt td.rec-up{background:#ffd5d8!important;color:#8a1c24;font-weight:700}
+.mt td.rec-down{background:#d9ccf5!important;color:#3b1d8f;font-weight:700}
+.mt td.rec-cons{background:#d6f0e0!important;color:#14532d;font-weight:600}
+.mt td.rec-inact{background:#e8e4f0!important;color:#5b5275}
+.mt td.mkt-dash{background:#e8e4f0!important;color:#6a5f88}
 .mt tbody tr:hover td{filter:brightness(.96)}
+.gbtn{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--accent);background:#fff;color:var(--accent-text);border-radius:999px;padding:3px 12px;font-size:12.5px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
+.gbtn:hover{background:var(--accent);color:#fff}
 
 .mt input.in-cell,.mt select.in-cell{width:100%;min-width:64px;border:1px solid rgba(42,31,71,.22);border-radius:6px;padding:3px 5px;font-size:13px;text-align:center;background:rgba(255,255,255,.88)}
 .mt input.in-cell.left{text-align:left;min-width:100px}
@@ -167,12 +170,12 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
   <h1>เช็คราคาตลาด</h1>
   <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
-    <button class="btn exportMain small hidden" id="bUpload">&#11014; อัปโหลดข้อมูล</button>
-    <button class="btn onDark small hidden" id="bSyncStock" title="ดึงรายการ ต้นทุน ราคาขาย และคงเหลือจากหน้าสินค้าค้างสต็อก">&#128260; ดึงจากค้างสต็อก</button>
-    <button class="btn exportMain small" id="bXlsx">&#11015; ดาวน์โหลด Excel</button>
+    <button class="btn exportMain small hidden" id="bUpload">อัปโหลดข้อมูล</button>
+    <button class="btn onDark small hidden" id="bSyncStock" title="ดึงรายการ ต้นทุน ราคาขาย และคงเหลือจากหน้าสินค้าค้างสต็อก">ดึงจากค้างสต็อก</button>
+    <button class="btn exportMain small" id="bXlsx">ดาวน์โหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด/ผู้สำรวจ</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
-    <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
+    <a class="btn onDark small" href="index.html" id="bHome">เมนูหลัก</a>
   </div>
 </header>
 
@@ -182,9 +185,9 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
     <h2>ยังไม่มีข้อมูลสำรวจราคาตลาด</h2>
     <div class="muted" id="emptyMsg" style="margin-bottom:14px"></div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      <button class="btn" id="bEmptyUpload">&#11014; อัปโหลดไฟล์ Excel</button>
-      <button class="btn ghost" id="bEmptySync">&#128260; ดึงข้อมูลจากการ์ดค้างสต็อก</button>
-      <button class="btn ghost" id="bLoadSample">&#128194; โหลดข้อมูลตัวอย่าง (หมวด 34 ผลิตภัณฑ์ดูแลผ้า)</button>
+      <button class="btn" id="bEmptyUpload">อัปโหลดไฟล์ Excel</button>
+      <button class="btn ghost" id="bEmptySync">ดึงข้อมูลจากการ์ดค้างสต็อก</button>
+      <button class="btn ghost" id="bLoadSample">โหลดข้อมูลตัวอย่าง (หมวด 34 ผลิตภัณฑ์ดูแลผ้า)</button>
     </div>
   </div>
 
@@ -220,14 +223,14 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
       <div class="cardhead">
         <h3>ตารางสำรวจและเปรียบเทียบราคาท้องตลาด <small id="dtNote"></small></h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn ghost small hidden" id="bAutoRec" title="คำนวณรายการแนะนำ (คงที่/ปรับขึ้น/ปรับลง/ฝากพิจารณา/ไม่เคลื่อนไหว) จากราคาท้องตลาดอัตโนมัติ">&#10024; คำนวณคำแนะนำอัตโนมัติ</button>
-          <button type="button" class="btn small hidden" id="bSaveEdits">&#128190; บันทึกการแก้ไขในตาราง</button>
+          <button type="button" class="btn ghost small hidden" id="bAutoRec" title="คำนวณรายการแนะนำ (คงที่/ปรับขึ้น/ปรับลง/ฝากพิจารณา/ไม่เคลื่อนไหว) จากราคาท้องตลาดอัตโนมัติ">คำนวณคำแนะนำอัตโนมัติ</button>
+          <button type="button" class="btn small hidden" id="bSaveEdits">บันทึกการแก้ไขในตาราง</button>
         </div>
       </div>
 
       <!-- แถบบนสุดของหัวตาราง: วันที่อัปข้อมูลเข้า กับ วันที่ส่งออกข้อมูล -->
       <div class="sheet-top-bar">
-        <span id="topUploadDate">ดึงข้อมูลในระบบ / อัปข้อมูลเข้า วันที่ –</span>
+        <span id="topUploadDate">อัปข้อมูลเข้า วันที่ –</span>
         <span id="topExportDate">ส่งออกข้อมูล วันที่ –</span>
       </div>
       <div class="sheet-title-bar" id="topSheetTitle">สำรวจราคาท้องตลาด</div>
@@ -241,6 +244,7 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
               <th rowspan="3" style="min-width:210px">ชื่อสินค้า</th>
               <th colspan="7">ข้อมูลในระบบ (ไม่รวม Vat)</th>
               <th colspan="9">อื่นๆ (รวม Vat)</th>
+              <th rowspan="3" style="width:100px">ค้นหา</th>
             </tr>
             <tr>
               <th rowspan="2" style="width:64px">จำนวน<br>คงเหลือ</th>
@@ -270,7 +274,7 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
         </table>
       </div>
       <div class="pager">
-        <span class="muted">💡 คอลัมน์สีเทา/เขียวคำนวณสูตรอัตโนมัติ · คลิกแก้ไขช่อง <b>ราคาท้องตลาด (ต่ำสุด/สูงสุด)</b>, <b>รายการแนะนำ (ปรับ/ราคา)</b> และ <b>แก้ไข</b> ได้โดยตรง</span>
+        <span class="muted">คอลัมน์สีเทา/เขียวคำนวณสูตรอัตโนมัติ · คลิกแก้ไขช่อง <b>ราคาท้องตลาด (ต่ำสุด/สูงสุด)</b>, <b>รายการแนะนำ (ปรับ/ราคา)</b> และ <b>แก้ไข</b> ได้โดยตรง</span>
         <div style="display:flex;gap:8px;align-items:center">
           <span class="muted" id="pgInfo"></span>
           <button class="btn ghost small" id="pgPrev">ก่อนหน้า</button>
@@ -380,7 +384,7 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
     <div class="err" id="exErr"></div>
     <div class="row">
       <button class="btn ghost" id="exCancel">ยกเลิก</button>
-      <button class="btn" id="exGo">&#11015; ดาวน์โหลด .xlsx</button>
+      <button class="btn" id="exGo">ดาวน์โหลด .xlsx</button>
     </div>
   </div>
 </div>
@@ -397,8 +401,8 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
     </div>
     <div id="nmGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:10px;max-height:280px;overflow:auto"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">
-      <button type="button" class="btn ghost small" id="bLoadSample2">&#128194; โหลดข้อมูลตัวอย่าง หมวด 34 (339 รายการ)</button>
-      <button type="button" class="btn ghost small" id="bClearAll" style="color:var(--bad)">&#128465; ล้างข้อมูลเช็คราคาตลาดในเครื่อง</button>
+      <button type="button" class="btn ghost small" id="bLoadSample2">โหลดข้อมูลตัวอย่าง หมวด 34 (339 รายการ)</button>
+      <button type="button" class="btn ghost small" id="bClearAll" style="color:var(--bad)">ล้างข้อมูลเช็คราคาตลาดในเครื่อง</button>
     </div>
     <div class="row">
       <button class="btn ghost" id="nmCancel">ปิด</button>
@@ -410,6 +414,7 @@ table.mt{border-collapse:collapse;width:100%;font-size:13px;min-width:1380px}
 <script>
 var $ = function (s) { return document.querySelector(s); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+var stripOldNote = function (t) { return String(t == null ? '' : t).split('สุ่มสำรวจเดือนกรกฎาคม เริ่มวันที่ 02/09/2026 สิ้นสุดวันที่ 07/09/2026').join('').replace(/^[\s\u00b7]+|[\s\u00b7]+$/g, ''); };
 var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
 var nf0 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 });
 var nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -618,7 +623,7 @@ function seedSample34() {
   var ts = Date.now();
   var prevCur = D.groups['34'] && D.groups['34'].cur ? D.groups['34'].cur : null;
   D.names['34'] = 'ผลิตภัณฑ์ดูแลผ้า';
-  D.surveyNote = 'สุ่มสำรวจเดือนกรกฎาคม เริ่มวันที่ 02/09/2026 สิ้นสุดวันที่ 07/09/2026';
+  D.surveyNote = '';
   D.groups['34'] = {
     cur: {
       ts: ts,
@@ -682,7 +687,7 @@ async function load() {
     /* หากเปิดครั้งแรกและยังไม่มีข้อมูลเลย โหลดข้อมูลหมวด 34 จากไฟล์ตัวอย่างที่แนบมาให้พร้อมใช้งานทันที */
     if (!Object.keys(D.groups).length && SAMPLE_34 && SAMPLE_34.length) {
       D.names['34'] = 'ผลิตภัณฑ์ดูแลผ้า';
-      D.surveyNote = 'สุ่มสำรวจเดือนกรกฎาคม เริ่มวันที่ 02/09/2026 สิ้นสุดวันที่ 07/09/2026';
+      D.surveyNote = '';
       D.groups['34'] = {
         cur: {
           ts: Date.now(),
@@ -710,12 +715,12 @@ function cycleStatus(ts) {
   var days = Math.max(0, Math.floor((Date.now() - ts) / 86400000));
   var left = 15 - days;
   if (days >= 15) {
-    return { days: days, left: left, cls: 'bad', txt: '⚠ อัปโหลดมาแล้ว ' + days + ' วัน (ครบรอบ/เกินกำหนด 15 วัน — ควรอัปข้อมูลใหม่เข้าระบบ)' };
+    return { days: days, left: left, cls: 'bad', txt: 'อัปโหลดมาแล้ว ' + days + ' วัน (ครบรอบ/เกินกำหนด 15 วัน — ควรอัปข้อมูลใหม่เข้าระบบ)' };
   }
   if (days >= 11) {
-    return { days: days, left: left, cls: 'warn', txt: '⏳ อัปโหลดเมื่อ ' + days + ' วันที่แล้ว · เหลืออีก ' + left + ' วันครบรอบอัปข้อมูล 15 วัน' };
+    return { days: days, left: left, cls: 'warn', txt: 'อัปโหลดเมื่อ ' + days + ' วันที่แล้ว · เหลืออีก ' + left + ' วันครบรอบอัปข้อมูล 15 วัน' };
   }
-  return { days: days, left: left, cls: 'ok', txt: '✓ อัปโหลดเมื่อ ' + (days === 0 ? 'วันนี้' : days + ' วันที่แล้ว') + ' · เหลืออีก ' + left + ' วันครบรอบอัปข้อมูล 15 วัน' };
+  return { days: days, left: left, cls: 'ok', txt: 'อัปโหลดเมื่อ ' + (days === 0 ? 'วันนี้' : days + ' วันที่แล้ว') + ' · เหลืออีก ' + left + ' วันครบรอบอัปข้อมูล 15 วัน' };
 }
 
 function curGroupMeta(g) {
@@ -777,9 +782,9 @@ function renderAll() {
 
   $('#cycleBadgeBox').innerHTML = '<span class="cycle-badge ' + cyc.cls + '">' + esc(cyc.txt) + '</span>';
   $('#cycleBar').innerHTML =
-    '<div>📅 <b>วันที่อัปข้อมูลเข้าระบบ:</b> ' + (m && (m.rep || m.ts) ? '<b>' + esc(fmtDateSlash(m.rep || m.ts, false)) + '</b> (' + esc(fmtTsTh(m.ts)) + ')' : '–') +
-    (nextDueTs ? ' &nbsp;·&nbsp; 🔔 <b>กำหนดอัปเดตรอบถัดไป (ทุก 15 วัน):</b> ' + esc(fmtDateSlash(nextDueTs, false)) : '') + '</div>' +
-    '<div>📤 <b>วันที่ส่งออกข้อมูล (วันนี้):</b> <b>' + esc(fmtDateSlash(Date.now(), false)) + '</b></div>';
+    '<div><b>วันที่อัปข้อมูลเข้าระบบ:</b> ' + (m && (m.rep || m.ts) ? '<b>' + esc(fmtDateSlash(m.rep || m.ts, false)) + '</b> (' + esc(fmtTsTh(m.ts)) + ')' : '–') +
+    (nextDueTs ? ' &nbsp;·&nbsp; <b>กำหนดอัปเดตรอบถัดไป (ทุก 15 วัน):</b> ' + esc(fmtDateSlash(nextDueTs, false)) : '') + '</div>' +
+    '<div><b>วันที่ส่งออกข้อมูล (วันนี้):</b> <b>' + esc(fmtDateSlash(Date.now(), false)) + '</b></div>';
 
   /* ตัวเลือกหมวดสินค้า */
   $('#fGrp').innerHTML = '<option value="">ทุกหมวด (' + D.allGroups.length + ' หมวด)</option>' +
@@ -826,8 +831,8 @@ function renderAll() {
   /* แถบบนสุดของตาราง (แสดงวันที่อัปข้อมูลเข้า กับ วันที่ส่งออกข้อมูล) */
   var upDateStr = m ? fmtDateSlash(m.rep || m.ts, false) : fmtDateSlash(Date.now(), false);
   var exDateStr = fmtDateSlash(Date.now(), false);
-  var sNote = (m && m.surveyNote) || D.surveyNote || '';
-  $('#topUploadDate').textContent = 'ดึงข้อมูลในระบบ / อัปข้อมูลเข้า วันที่ ' + upDateStr;
+  var sNote = stripOldNote((m && m.surveyNote) || D.surveyNote || '');
+  $('#topUploadDate').textContent = 'อัปข้อมูลเข้า วันที่ ' + upDateStr;
   $('#topExportDate').textContent = 'ส่งออกข้อมูล วันที่ ' + exDateStr + (sNote ? ' · ' + sNote : '');
   var gCode = F.g || (D.allGroups[0] || '');
   var gName = (D.names && D.names[gCode]) || '';
@@ -869,6 +874,11 @@ function recClass(recAct) {
   return '';
 }
 
+function gLink(x) {
+  var q = encodeURIComponent((String(x.code || '').trim() + ' ' + String(x.name || '').trim()).trim());
+  return '<td><a class="gbtn" href="https://www.google.com/search?q=' + q + '" target="_blank" rel="noopener noreferrer" title="ค้นหา ' + esc(x.code) + ' ' + esc(x.name) + ' ใน Google">ค้นหา Google</a></td>';
+}
+
 function renderTable() {
   var list = filteredItems();
   var edit = !!(D.me && D.me.edit) && D.ver === 'cur';
@@ -883,7 +893,7 @@ function renderTable() {
   $('#pgNext').disabled = F.page >= maxPage;
 
   if (!slice.length) {
-    $('#mtBody').innerHTML = '<tr><td colspan="19" class="muted" style="padding:28px;text-align:center">ไม่พบรายการตามตัวกรองที่เลือก</td></tr>';
+    $('#mtBody').innerHTML = '<tr><td colspan="20" class="muted" style="padding:28px;text-align:center">ไม่พบรายการตามตัวกรองที่เลือก</td></tr>';
     return;
   }
 
@@ -916,6 +926,7 @@ function renderTable() {
         '<td class="' + rCls + '">' + esc(x.recAct) + '</td>' +
         '<td class="' + rCls + '">' + (x.recPrice === '' ? '' : money(x.recPrice)) + '</td>' +
         '<td>' + esc(x.editNote) + '</td>' +
+        gLink(x) +
       '</tr>';
     }
 
@@ -943,6 +954,7 @@ function renderTable() {
       '<td class="' + rCls + '"><select class="in-cell" data-f="10">' + opts + '</select></td>' +
       '<td class="' + rCls + '"><input type="text" class="in-cell" data-f="11" value="' + esc(x.recPrice) + '" placeholder="ราคา"></td>' +
       '<td><input type="text" class="in-cell left" data-f="12" value="' + esc(x.editNote) + '" placeholder="หมายเหตุ"></td>' +
+      gLink(x) +
     '</tr>';
   }).join('');
 }
@@ -1727,14 +1739,14 @@ function refreshExHeaders() {
   var upDate = fmtDateSlash((m && (m.rep || m.ts)) || Date.now(), useBe);
   var exDate = fmtDateSlash(Date.now(), useBe);
   var sNote = $('#exSurveyNote').value.trim();
-  $('#exLeftHead').value = 'ดึงข้อมูลในระบบ / อัปข้อมูลเข้า วันที่ ' + upDate;
+  $('#exLeftHead').value = 'อัปข้อมูลเข้า วันที่ ' + upDate;
   $('#exRightHead').value = 'ส่งออกข้อมูล วันที่ ' + exDate + (sNote ? ' · ' + sNote : '');
 }
 
 $('#bXlsx').addEventListener('click', function () {
   if (!D.items.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
   var m = curGroupMeta(F.g);
-  $('#exSurveyNote').value = (m && m.surveyNote) || D.surveyNote || '';
+  $('#exSurveyNote').value = stripOldNote((m && m.surveyNote) || D.surveyNote || '');
   refreshExHeaders();
   var flt = filteredItems();
   var gSet = {}; flt.forEach(function (x) { gSet[x.g] = 1; });
@@ -1764,7 +1776,7 @@ $('#exGo').addEventListener('click', function () {
       var gItems = byG[g], gName = (D.names && D.names[g]) || '';
       var gm = curGroupMeta(g);
       var upDate = fmtDateSlash((gm && (gm.rep || gm.ts)) || Date.now(), useBe);
-      var leftH = Object.keys(byG).length === 1 && customLeft ? customLeft : ('ดึงข้อมูลในระบบ / อัปข้อมูลเข้า วันที่ ' + upDate);
+      var leftH = Object.keys(byG).length === 1 && customLeft ? customLeft : ('อัปข้อมูลเข้า วันที่ ' + upDate);
       var rightH = customRight || ('ส่งออกข้อมูล วันที่ ' + fmtDateSlash(Date.now(), useBe));
 
       var act = gItems.filter(function (x) { return x.qty > 0; });
