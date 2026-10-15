@@ -238,8 +238,8 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   <h1>สินค้าค้างสต็อก</h1>
   <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
-    <button class="btn exportMain small" id="bXlsx">&#11015; ส่งออกข้อมูล</button>
-    <button class="btn onDark small hidden" id="bUpload">อัปโหลด Excel</button>
+    <button class="btn exportMain small hidden" id="bUpload">&#11014; อัปโหลดข้อมูล</button>
+    <button class="btn exportMain small" id="bXlsx">&#11015; ดาวน์โหลดข้อมูล</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งค่า</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -280,12 +280,12 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
         <div class="chips" id="chips"></div>
       </div>
       <div>
-        <div class="muted" style="margin-bottom:5px">แท็กแสดงสินค้า</div>
+        <div class="muted" style="margin-bottom:5px">แสดงสินค้าในแท็ก</div>
         <div class="chk-row" id="fTagChecks"></div>
         <select id="fTag" class="hidden"></select>
       </div>
       <div>
-        <div class="muted" style="margin-bottom:5px">แท็กซ่อนสินค้า</div>
+        <div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
         <div class="chk-row" id="fHideChecks"></div>
       </div>
     </section>
@@ -713,7 +713,7 @@ function gOn(g) { return !Object.keys(F.gm).length || !!F.gm[g]; }              
 function gSel() { return Object.keys(F.gm).sort(); }
 function gToggle(g) { if (F.gm[g]) delete F.gm[g]; else F.gm[g] = true; F.page = 0; }
 function stOn(sk) { return !Object.keys(F.st).length || !!F.st[sk]; }              // ไม่ได้เลือกช่วงอายุเลย = แสดงทุกช่วงอายุ
-function tagHidden(x) { return Object.keys(F.hide || {}).some(function (k) { return hasTag(x, k); }); }   // แท็กซ่อนสินค้า: ซ่อนรายการที่มีแท็กที่ติ๊กไว้
+function tagHidden(x) { return Object.keys(F.hide || {}).some(function (k) { return hasTag(x, k); }); }   // ซ่อนสินค้าในแท็ก: ซ่อนรายการที่มีแท็กที่ติ๊กไว้
 function tagOn(x) {
   if (tagHidden(x)) return false;
   var ks = Object.keys(F.tags || {});
@@ -967,7 +967,7 @@ function applyData(r) {
   renderInfo(); renderVerTabs(); fillSelects(); renderLostBtn();
   var has = D.items.length > 0 || D.zero.length > 0 || D.cut.length > 0 || D.groups.length > 0 || D.ver === 'prev';
   $('#empty').classList.toggle('hidden', has); $('#main').hidden = !has;
-  if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลด Excel" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินหรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
+  if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลดข้อมูล" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้แอดมินหรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
   render();
   if (!$('#lostDlg').classList.contains('hidden')) renderLost();
 }
