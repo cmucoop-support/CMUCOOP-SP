@@ -1822,6 +1822,6 @@ API.marketSaveState = async (C, token, state) => {
   if (me.role !== 'admin' && !(me.perms && me.perms.market && me.perms.market_edit)) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
   if (!state || typeof state !== 'object') throw new Error('ข้อมูลไม่ถูกต้อง');
   await kvSet(C, 'MARKET_STATE', JSON.stringify(state));
-  await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', Object.keys(state.groups || {}).length + ' หมวด');
+  await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', (state.branches && typeof state.branches === 'object' ? Object.keys(state.branches).length + ' สาขา · ' + Object.keys(state.branches).reduce((n, b) => n + Object.keys((state.branches[b] && state.branches[b].groups) || {}).length, 0) : Object.keys(state.groups || {}).length) + ' หมวด');
   return { ok: true };
 };
