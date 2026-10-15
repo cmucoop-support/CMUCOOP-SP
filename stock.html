@@ -313,12 +313,17 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     </section>
 
     <section class="card" id="deductCard">
-      <div class="cardhead">
+      <div class="cardhead" id="deductHead" style="cursor:pointer;user-select:none">
         <h3>สรุปรายการที่หักออกจากค้างสต็อก <small id="deductNote"></small></h3>
-        <div class="tabs" id="deductTabs" role="tablist"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="tabs" id="deductTabs" role="tablist"></div>
+          <button type="button" class="btn ghost small" id="bToggleDeduct">ย่อพับเก็บ &#9652;</button>
+        </div>
       </div>
-      <div id="lostNote"></div>
-      <div id="deductDetailBox"></div>
+      <div id="deductBody">
+        <div id="lostNote"></div>
+        <div id="deductDetailBox"></div>
+      </div>
     </section>
 
     <section class="card" id="analysisCard">
@@ -919,17 +924,19 @@ function renderRepCard() {                                              // ป�
   var sel = gSel(), edit = !!(D.me && D.me.edit);
   if (!sel.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
   var cur = D.ver === 'cur';
+  var bk = brKey(F.br);
   var cards = sel.map(function (g) {
     var v = gView(g), pv = D.gm[g] && D.gm[g].prev;
     if (!v) return '<div class="ghist-item"><b>' + esc(gl(g)) + '</b><div class="muted">ยังไม่มีประวัติการอัปโหลดข้อมูลในหมวดนี้</div></div>';
-    var d = v.ts ? Math.floor((Date.now() - v.ts) / 86400000) : 0, bs = v.br ? Object.keys(v.br).sort() : [];
+    var d = v.ts ? Math.floor((Date.now() - v.ts) / 86400000) : 0, bs = v.br ? Object.keys(v.br).filter(function (k) { return !bk || brKey(k) === bk; }).sort() : [];
+    var brCnt = bk ? D.items.filter(function (x) { return x.g === g && brKey(x.br) === bk; }).length : (v.count || 0);
     var brTxt = bs.map(function (k) {
       var b = v.br[k] || {};
       return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(b.count || 0) + ' รายการ' + (b.rep ? ' · รายงาน ' + fmtDate(b.rep) : '') + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
     }).join('<br>');
     var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: รายงานวันที่ ' + fmtDate(pv.rep) + ' · บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
     return '<div class="ghist-item">' +
-      '<div><b>' + esc(gl(g)) + '</b> · ข้อมูลรายงานวันที่ <b>' + fmtDate(v.rep) + '</b> · มีสต็อก <b>' + nf0.format(v.count || 0) + '</b> รายการ</div>' +
+      '<div><b>' + esc(gl(g)) + '</b> · ข้อมูลรายงานวันที่ <b>' + fmtDate(v.rep) + '</b> · มีสต็อก' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
       '<div class="muted">อัปเดตล่าสุด: <b>' + (v.ts ? esc(fmtTs(v.ts)) : '–') + '</b>' + (cur && v.ts && d >= 30 ? ' <b style="color:var(--bad)">· ผ่านมา ' + d + ' วัน</b>' : '') + (v.who ? ' · โดย <b>' + esc(v.who) + '</b>' : '') + (v.file ? ' · ไฟล์ ' + esc(v.file) : '') + '</div>' +
       (brTxt ? '<div style="margin-top:4px;font-size:12.5px;color:var(--steel)">' + brTxt + '</div>' : '') +
       prevLine +
@@ -1025,16 +1032,16 @@ function renderZero() {
 function renderChips(N) {
   var cnt = {}; N.forEach(function (x) { cnt[x.sk] = (cnt[x.sk] || 0) + 1; });
   var allOn = !Object.keys(F.st).length;
-  $('#chips').innerHTML = '<button type="button" class="chip' + (allOn ? ' on' : '') + '" data-st="" aria-pressed="' + (allOn ? 'true' : 'false') + '">ทุกช่วงอายุ <b>' + nf0.format(N.length) + '</b></button>' +
+  $('#chips').innerHTML = '<button type="button" class="chip' + (allOn ? ' on' : '') + '" data-st="" aria-pressed="' + (allOn ? 'true' : 'false') + '">ทุกช่วงอายุ <b>' + nf0.format(N.length) + ' รายการ</b></button>' +
     ST_DEF.map(function (s) {
       var on = !!F.st[s.k];
-      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '"></i>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + '</b></button>';
+      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '"></i>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
     }).join('');
 }
-function renderTagSel() {                                               // แท็กสินค้าแบบติ๊ก/ไม่ติ๊ก (นับจำนวนคงเหลือ 0 ให้เห็นบนปุ่มแท็กแม้ยังไม่ติ๊ก)
-  var q = F.q.trim().toLowerCase();
+function renderTagSel() {                                               // แท็กสินค้าแบบติ๊ก/ไม่ติ๊ก เติมคำว่า "รายการ" ต่อท้ายจำนวน
+  var q = F.q.trim().toLowerCase(), bk = brKey(F.br);
   var pool = allPool(true).filter(function (x) {
-    return gOn(x.g) && (!F.br || x.br === F.br) && stOn(x.sk) && (!q || x.hay.indexOf(q) >= 0);
+    return gOn(x.g) && (!bk || brKey(x.br) === bk) && stOn(x.sk) && (!q || x.hay.indexOf(q) >= 0);
   });
   var cnt = { lost: 0, exp: 0, waste: 0, pend: 0, hard: 0, zero: 0 };
   pool.forEach(function (x) {
@@ -1045,23 +1052,27 @@ function renderTagSel() {                                               // แ�
   if (box) {
     box.innerHTML = order.map(function (k) {
       var on = !!(F.tags && F.tags[k]);
-      return '<label class="chk-pill"><input type="checkbox" data-ftag="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + '</b></span></label>';
+      return '<label class="chk-pill"><input type="checkbox" data-ftag="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
     }).join('') + (Object.keys(F.tags || {}).length ? '<button type="button" class="btn ghost small" id="bClearTags">ล้างตัวกรองแท็ก</button>' : '');
   }
 }
 function isAdjTag() { return false; }
-function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง คลิกเลือกได้หลายหมวด
-  var cnt = {}, pool = allPool();
+function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง จำนวนรายการหลังหมวดแสดงเฉพาะสาขาที่เลือก
+  var cnt = {}, bk = brKey(F.br);
+  var pool = allPool().filter(function (x) { return !bk || brKey(x.br) === bk; });
   pool.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
   var sel = gSel(), lbl = $('#fGrpLabel'), menu = $('#fGrpMenu');
   if (lbl) {
     if (!sel.length) lbl.textContent = 'ทุกหมวด · ' + D.groups.length + ' หมวด · ' + nf0.format(pool.length) + ' รายการ';
     else if (sel.length === 1) lbl.textContent = gl(sel[0]) + ' · ' + nf0.format(cnt[sel[0]] || 0) + ' รายการ';
-    else lbl.textContent = 'เลือกแล้ว ' + sel.length + ' หมวด · ' + sel.join(', ');
+    else {
+      var selCnt = sel.reduce(function (s, g) { return s + (cnt[g] || 0); }, 0);
+      lbl.textContent = 'เลือกแล้ว ' + sel.length + ' หมวด · ' + sel.join(', ') + ' · ' + nf0.format(selCnt) + ' รายการ';
+    }
   }
   if (menu) {
     var topHtml = '<div class="mgrp-top">' +
-      '<span class="muted" style="font-size:12.5px">' + (sel.length ? 'เลือกอยู่ ' + sel.length + ' หมวด' : 'แสดงทุกหมวด') + '</span>' +
+      '<span class="muted" style="font-size:12.5px">' + (sel.length ? 'เลือกอยู่ ' + sel.length + ' หมวด' : (F.br ? 'สาขา ' + esc(F.br) + ' · ทุกหมวด' : 'แสดงทุกหมวด')) + '</span>' +
       '<div style="display:flex;gap:6px">' +
         '<button type="button" class="btn ghost small" data-gact="all" style="padding:2px 8px;min-height:26px;font-size:12px">เลือกทั้งหมด</button>' +
         (sel.length ? '<button type="button" class="btn ghost small" data-gact="clear" style="padding:2px 8px;min-height:26px;font-size:12px">ล้างที่เลือก</button>' : '') +
@@ -1069,7 +1080,7 @@ function renderGSelect() {                                              // ร�
     var itemsHtml = D.groups.length ? D.groups.map(function (k) {
       var on = !!F.gm[k];
       return '<div class="mgrp-item' + (on ? ' on' : '') + '" data-gitem="' + esc(k) + '">' +
-        '<label><input type="checkbox" data-gchk="' + esc(k) + '"' + (on ? ' checked' : '') + '><span>' + esc(gl(k)) + ' <span class="muted">· ' + nf0.format(cnt[k] || 0) + '</span></span></label>' +
+        '<label><input type="checkbox" data-gchk="' + esc(k) + '"' + (on ? ' checked' : '') + '><span>' + esc(gl(k)) + ' <span class="muted">· ' + nf0.format(cnt[k] || 0) + ' รายการ</span></span></label>' +
       '</div>';
     }).join('') : '<div class="muted" style="padding:8px;text-align:center">ยังไม่มีหมวดสินค้า</div>';
     menu.innerHTML = topHtml + itemsHtml;
@@ -1081,7 +1092,8 @@ function renderPill() {
   el.classList.remove('hidden');
   el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
     sel.map(function (g) {
-      return '<span class="pill">หมวด: <b>' + esc(gl(g)) + '</b><button type="button" data-rmg="' + esc(g) + '" title="เอาหมวดนี้ออกจากตัวกรอง">×</button></span>';
+      var bk = brKey(F.br), gc = allPool().filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
+      return '<span class="pill">หมวด: <b>' + esc(gl(g)) + ' · ' + nf0.format(gc) + ' รายการ</b><button type="button" data-rmg="' + esc(g) + '" title="เอาหมวดนี้ออกจากตัวกรอง">×</button></span>';
     }).join('') +
     (sel.length > 1 ? '<button type="button" class="btn ghost small" id="gClear">ล้างหมวดทั้งหมด</button>' : '') +
     '</div>';
@@ -2317,9 +2329,14 @@ function renderLostBtn() {
     { k: 'exp', t: 'สินค้าหมดอายุ ' + nf0.format(cnt('exp')) },
     { k: 'pend', t: 'รอปรับข้อมูล ' + nf0.format(cnt('pend')) }
   ];
+  var collapsed = !!F.deductCollapsed;
+  if ($('#deductBody')) $('#deductBody').classList.toggle('hidden', collapsed);
+  if ($('#deductTabs')) $('#deductTabs').classList.toggle('hidden', collapsed);
+  if ($('#bToggleDeduct')) $('#bToggleDeduct').innerHTML = collapsed ? 'ขยายดูข้อมูล &#9662;' : 'ย่อพับเก็บ &#9652;';
+  if ($('#deductHead')) $('#deductHead').style.marginBottom = collapsed ? '0' : '';
   if ($('#deductTabs')) {
     $('#deductTabs').innerHTML = tabs.map(function (tb) {
-      return '<button type="button" class="tab' + (tabMode === tb.k ? ' on' : '') + '" data-dedtab="' + tb.k + '">' + esc(tb.t) + '</button>';
+      return '<button type="button" class="tab' + (tabMode === tb.k ? ' on' : '') + '" data-dedtab="' + tb.k + '">' + esc(tb.t) + ' รายการ</button>';
     }).join('');
   }
   var tr = function (label, o, cls) { return '<tr' + (cls ? ' style="font-weight:700"' : '') + '><td>' + label + '</td><td class="num">' + nf0.format(o.n) + '</td><td class="num">' + qtyF(o.pcs) + '</td><td class="num">' + money(o.val) + '</td></tr>'; };
@@ -2334,7 +2351,12 @@ function renderLostBtn() {
 }
 $('#deductCard').addEventListener('click', function (e) {
   var tb = e.target.closest('[data-dedtab]');
-  if (tb) { F.deductTab = tb.dataset.dedtab; renderLostBtn(); return; }
+  if (tb) { F.deductTab = tb.dataset.dedtab; F.deductCollapsed = false; renderLostBtn(); return; }
+  if (e.target.closest('#bToggleDeduct') || (e.target.closest('#deductHead') && !e.target.closest('#deductTabs'))) {
+    F.deductCollapsed = !F.deductCollapsed;
+    renderLostBtn();
+    return;
+  }
   var oa = e.target.closest('[data-openadj]');
   if (oa) { openAdj(oa.dataset.openadj); return; }
   var dn = e.target.closest('[data-dednote]');
