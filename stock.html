@@ -280,9 +280,13 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
         <div class="chips" id="chips"></div>
       </div>
       <div>
-        <div class="muted" style="margin-bottom:5px">แท็กสินค้า</div>
+        <div class="muted" style="margin-bottom:5px">แท็กแสดงสินค้า</div>
         <div class="chk-row" id="fTagChecks"></div>
         <select id="fTag" class="hidden"></select>
+      </div>
+      <div>
+        <div class="muted" style="margin-bottom:5px">แท็กซ่อนสินค้า</div>
+        <div class="chk-row" id="fHideChecks"></div>
       </div>
     </section>
 
@@ -704,12 +708,14 @@ function gOn(g) { return !Object.keys(F.gm).length || !!F.gm[g]; }              
 function gSel() { return Object.keys(F.gm).sort(); }
 function gToggle(g) { if (F.gm[g]) delete F.gm[g]; else F.gm[g] = true; F.page = 0; }
 function stOn(sk) { return !Object.keys(F.st).length || !!F.st[sk]; }              // ไม่ได้เลือกช่วงอายุเลย = แสดงทุกช่วงอายุ
+function tagHidden(x) { return Object.keys(F.hide || {}).some(function (k) { return hasTag(x, k); }); }   // แท็กซ่อนสินค้า: ซ่อนรายการที่มีแท็กที่ติ๊กไว้
 function tagOn(x) {
+  if (tagHidden(x)) return false;
   var ks = Object.keys(F.tags || {});
   if (!ks.length) return true;                                                       // ยังไม่กรองแท็ก = แสดงทุกรายการ (รวมคงเหลือ 0 ติดลบ และที่ถูกตัดออก)
   return ks.some(function (k) { return hasTag(x, k); });
 }
-var F = { st: {}, tag: '', tags: {}, gm: {}, br: '', q: '', deductTab: 'waste', deductCollapsed: true, gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
+var F = { st: {}, tag: '', tags: {}, hide: {}, gm: {}, br: '', q: '', deductTab: 'waste', deductCollapsed: true, gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
 var ST_DEF = [
   { k: 'DS', t: 'ค้างเกิน 60 วัน DS' }, { k: 'T3', t: '30–60 วัน T3' }, { k: 'T2', t: '15–30 วัน T2' },
@@ -1081,7 +1087,7 @@ function render() {
 }
 function zeroFiltered() {
   var q = F.q.trim().toLowerCase();
-  return (D.zero || []).filter(function (x) { return gOn(x.g) && (!F.br || x.br === F.br) && (!q || x.hay.indexOf(q) >= 0); });
+  return (D.zero || []).filter(function (x) { return gOn(x.g) && (!F.br || x.br === F.br) && !tagHidden(x) && (!q || x.hay.indexOf(q) >= 0); });
 }
 function renderZero() {
   var sec = $('#zeroCard');
@@ -1112,6 +1118,13 @@ function renderTagSel() {                                               // แ�
       var on = !!(F.tags && F.tags[k]);
       return '<label class="chk-pill"><input type="checkbox" data-ftag="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
     }).join('') + (Object.keys(F.tags || {}).length ? '<button type="button" class="btn ghost small" id="bClearTags">ล้างตัวกรองแท็ก</button>' : '');
+  }
+  var hbox = $('#fHideChecks');
+  if (hbox) {
+    hbox.innerHTML = order.map(function (k) {
+      var on = !!(F.hide && F.hide[k]);
+      return '<label class="chk-pill"><input type="checkbox" data-fhide="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
+    }).join('') + (Object.keys(F.hide || {}).length ? '<button type="button" class="btn ghost small" id="bClearHide">ล้างแท็กซ่อน</button>' : '');
   }
 }
 function isAdjTag() { return false; }
@@ -1652,8 +1665,17 @@ $('#chips').addEventListener('click', function (e) {
 $('#fTagChecks').addEventListener('change', function (e) {
   var cb = e.target.closest('input[data-ftag]'); if (!cb) return;
   var k = cb.dataset.ftag;
-  if (cb.checked) F.tags[k] = true; else delete F.tags[k];
+  if (cb.checked) { F.tags[k] = true; delete F.hide[k]; } else delete F.tags[k];
   F.page = 0; render();
+});
+$('#fHideChecks').addEventListener('change', function (e) {
+  var cb = e.target.closest('input[data-fhide]'); if (!cb) return;
+  var k = cb.dataset.fhide;
+  if (cb.checked) { F.hide[k] = true; delete F.tags[k]; } else delete F.hide[k];
+  F.page = 0; render();
+});
+$('#fHideChecks').addEventListener('click', function (e) {
+  if (e.target.closest('#bClearHide')) { F.hide = {}; F.page = 0; render(); }
 });
 $('#fTagChecks').addEventListener('click', function (e) {
   if (e.target.closest('#bClearTags')) { F.tags = {}; F.page = 0; render(); }
