@@ -1286,7 +1286,7 @@ function stockCleanRow(r) {
   const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
   if (!g || !name) return null;
   const qty = stockNum(r[4], 2);
-  if (!(qty >= 0)) return null;                                  // เก็บทุกแถว รวมคงเหลือ 0 (แถวคงเหลือ 0 ไม่นับรวมในยอด/สรุป — แสดงแยกเป็นอีกรายการ)
+  if (!isFinite(qty)) return null;                               // เก็บทุกแถว รวมคงเหลือ 0 และติดลบ (แถวคงเหลือ 0 ไม่นับรวมในยอด/สรุป — แสดงแยกเป็นอีกรายการ)
   const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
   const sold = stockNum(r[5], 2), cost = stockNum(r[11], 4), price = stockNum(r[12], 2);
   let profit = stockOpt(r[16], 4); if (profit === null) profit = stockNum(price - cost, 4);                   // คอลัมน์ท้ายตามไฟล์ต้นฉบับ: ไม่มีในไฟล์ → คำนวณเอง
