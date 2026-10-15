@@ -1031,7 +1031,7 @@ function showLogin(msg) {
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
-function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return true; if (!S.me.perms) return false; if (k === 'market' && S.me.perms.market === undefined) return !!S.me.perms.stock; return !!S.me.perms[k]; }
+function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return true; if (!S.me.perms) return false; return !!S.me.perms[k]; }
 function goPortal() {
   var admin = S.me && S.me.role === 'admin';
   setNav('portal');
