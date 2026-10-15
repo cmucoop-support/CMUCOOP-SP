@@ -158,6 +158,8 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .tag.new{background:#e6f6ec;color:var(--ok)}.tag.old{background:#fdecea;color:var(--bad)}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#2a1f47;color:#fff;padding:9px 18px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:110;max-width:92vw;text-align:center}
 .toast.err2{background:var(--bad)}
+.upGrid label{display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
+.upGrid input,.upGrid select{height:42px;box-sizing:border-box}
 .empty{text-align:center;padding:42px 16px}
 .empty h2{margin:0 0 6px}
 </style>
@@ -340,7 +342,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
       รองรับทั้ง <b>1) ไฟล์สำรวจราคาตลาดรูปแบบตัวอย่าง (.xlsx)</b> และ <b>2) ไฟล์รายงานวิเคราะห์การขาย/สต็อกสินค้า (.xlsx / .xls / .csv)</b> ·
       เมื่ออัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม ระบบจะ<b>ตรวจจับราคาขายที่เปลี่ยนไปโดยอัตโนมัติ</b> (ขึ้นข้อความ <code>&gt; ปรับขึ้น เดิม X ขึ้น Y</code> หรือ <code>&lt; ปรับลง เดิม X ลง Y</code> พร้อมวันที่) และ<b>คงข้อมูลราคาท้องตลาดที่เคยสำรวจไว้</b> พร้อมเก็บข้อมูลชุดเดิมไว้ในแท็บ "ฉบับก่อนหน้า"
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px">
+    <div class="upGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px;align-items:end">
       <label style="font-size:13px;font-weight:600;color:var(--steel)">สาขาที่จะอัปโหลด<select id="upBr"></select></label>
       <label class="hidden" id="upBrNewW" style="font-size:13px;font-weight:600;color:var(--steel)">ชื่อสาขาใหม่<input type="text" id="upBrNew" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก" autocomplete="off"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel)">วันที่อัปข้อมูลเข้าระบบ (แสดงมุมซ้ายบนของหัวตาราง)<input type="date" id="upDate"></label>
