@@ -440,7 +440,7 @@ td.act{white-space:nowrap;min-width:170px}
     <section class="stp" id="st-cards" style="display:grid;gap:16px">
       <div class="card">
         <h3>สร้างการ์ดลิงก์ใหม่</h3>
-        <div class="muted" style="margin-bottom:8px">การ์ดจะขึ้นที่เมนูหลักของทุกคน กดแล้วเปิดลิงก์ในแท็บใหม่ · เลือกว่าผู้ใช้คนไหนเห็นได้ที่แท็บ "ผู้ใช้งาน"</div>
+        <div class="muted" style="margin-bottom:8px">การ์ดจะขึ้นที่เมนูหลักของทุกคน กดแล้วเปิดลิงก์ในแท็บเดิม · เลือกว่าผู้ใช้คนไหนเห็นได้ที่แท็บ "ผู้ใช้งาน"</div>
         <div class="grid">
           <label>ชื่อการ์ด<input type="text" id="ncTitle" maxlength="40" autocomplete="off"></label>
           <label class="wide">ลิงก์<input type="text" id="ncLink" placeholder="https://..." autocomplete="off"></label>
@@ -1063,7 +1063,7 @@ function renderCustomCards() {                                                  
   menu.querySelectorAll('.mcard[data-ck]').forEach(function (x) { x.remove(); });
   CUSTOM.forEach(function (c) {
     var a = document.createElement('a'), b = document.createElement('b');
-    a.className = 'mcard'; a.dataset.ck = c.k; a.href = c.u; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'mcard'; a.dataset.ck = c.k; a.href = c.u;
     a.style.cssText = 'text-decoration:none;color:inherit';
     b.textContent = c.t; a.appendChild(b); menu.appendChild(a);
   });
@@ -1083,7 +1083,13 @@ function logUse(area, action, detail) {
   var k = area + '|' + action + '|' + (detail || ''), t = Date.now();
   if (USE_LAST[k] && t - USE_LAST[k] < 1500) return;              // กันกดซ้ำรัว ๆ
   USE_LAST[k] = t;
-  try { google.script.run.withFailureHandler(function () {}).logUse(S.token, area, action, detail || ''); } catch (e) {}
+  try {
+    if (window.API_URL && navigator.sendBeacon) {
+      navigator.sendBeacon(window.API_URL, new Blob([JSON.stringify({ fn: 'logUse', args: [S.token, area, action, detail || ''] })], { type: 'text/plain;charset=utf-8' }));
+      return;
+    }
+    google.script.run.withFailureHandler(function () {}).logUse(S.token, area, action, detail || '');
+  } catch (e) {}
 }
 document.querySelector('#portal .menu').addEventListener('click', function (e) {
   var el = e.target.closest('.mcard'); if (!el) return;
@@ -1105,7 +1111,7 @@ function renderSortList() {
     if (cu) {
       var w = CUSTOM_WORK[k]; if (!w) return '';
       title = '<input type="text" data-ck="' + esc(k) + '" value="' + esc(w.t) + '" maxlength="40" placeholder="ชื่อการ์ด" style="flex:1;min-width:0">';
-      link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บใหม่)</div><input type="text" data-cu="' + esc(k) + '" value="' + esc(w.u) + '" maxlength="500" placeholder="https://..." autocomplete="off" style="width:100%;font-size:13px">';
+      link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บเดิม)</div><input type="text" data-cu="' + esc(k) + '" value="' + esc(w.u) + '" maxlength="500" placeholder="https://..." autocomplete="off" style="width:100%;font-size:13px">';
       del = ' <button class="btn danger small" data-del="' + esc(k) + '">ลบ</button>';
     } else {
       if (!d) return '';
@@ -1296,11 +1302,11 @@ document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
 });
 
 
-/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยก) + Banner (หน้าแอดมิน) ============================ */
+/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยกในแท็บเดิม เปลี่ยนเป็น URL ใหม่) + Banner (หน้าแอดมิน) ============================ */
 function openCardPage(file, perm) {
   if (!hasPerm(perm)) return;
   var u = pageUrl(file, 'https://cmucoop-support.github.io/CMUCOOP-SP/' + file);
-  window.open(u + '#t=' + encodeURIComponent(S.token), '_blank');
+  location.href = u + '#t=' + encodeURIComponent(S.token);
 }
 $('#mBarcode').addEventListener('click', function () { openCardPage('barcode.html', 'barcode'); });
 $('#mSound').addEventListener('click', function () { openCardPage('sound.html', 'sound'); });
