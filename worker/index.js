@@ -9,9 +9,9 @@ const CHUNK = 900000;                // จำนวนตัวอักษร 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
 const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
-const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
-const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'settings'];
+const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
+const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'settings'];
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
 /* การ์ดลิงก์เดิม 5 ใบ (ทำป้ายราคา ฯลฯ) ถูกแปลงเป็นการ์ดลิงก์ทั่วไปที่ลบ/แก้ได้ (ย้ายข้อมูลอัตโนมัติครั้งเดียวใน migrateLinks) */
@@ -29,10 +29,11 @@ const ACT_GROUPS = [
   { key: 'music', label: 'ขอเพลง/คิวเพลง', sheets: ['Music'] },
   { key: 'assets', label: 'รายการสินทรัพย์', sheets: ['รายการสินทรัพย์'] },
   { key: 'stock', label: 'สินค้าค้างสต็อก', sheets: ['สินค้าค้างสต็อก'] },
+  { key: 'market', label: 'เช็คราคาตลาด', sheets: ['เช็คราคาตลาด'] },
   { key: 'banner', label: 'Banner', sheets: ['Banner'] },
   { key: 'system', label: 'ผู้ใช้งาน/ระบบ', sheets: ['ระบบ'] }
 ];
-const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner', stock: 'สินค้าค้างสต็อก' };
+const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner', stock: 'สินค้าค้างสต็อก', market: 'เช็คราคาตลาด' };
 const BANNER_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const BANNER_DEF = { speed: 4, per: 0, perMax: 6, h: 80 };
 const SOUND_TYPES = ['ปุ่ม', 'เสียงตามเวลา', 'ระบบ', 'พนักงาน', 'สถานที่', 'แคชเชียร์', 'ประเภทงดรับ', 'เวลา', 'ตั้งค่า'];
@@ -1805,5 +1806,22 @@ API.stockAdjNote = async (C, token, kind, key, note) => {
   e.note = str(note).replace(/\s+/g, ' ').slice(0, 100);
   await kvSet(C, STOCK_ADJ_KV[kind], JSON.stringify(cur));
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'แก้หมายเหตุ' + STOCK_ADJ_LABEL[kind], str(e.code) + (e.br ? '@' + e.br : '') + ' · ' + (e.note || '(ลบหมายเหตุ)'));
+  return { ok: true };
+};
+
+
+/* ============================== เช็คราคาตลาด (market.html) ============================== */
+API.marketGet = async (C, token) => {
+  const me = await auth(C, token);
+  if (me.role !== 'admin' && !(me.perms && (me.perms.market || me.perms.stock))) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
+  const raw = await kvJson(C, 'MARKET_STATE', null);
+  return raw && typeof raw === 'object' ? raw : { groups: {}, names: { '34': 'ผลิตภัณฑ์ดูแลผ้า' }, surveyor: 'รัฐพล', checker: '', approver: '', surveyNote: '' };
+};
+API.marketSaveState = async (C, token, state) => {
+  const me = await auth(C, token);
+  if (me.role !== 'admin' && !(me.perms && (me.perms.market_edit || me.perms.stock_edit))) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
+  if (!state || typeof state !== 'object') throw new Error('ข้อมูลไม่ถูกต้อง');
+  await kvSet(C, 'MARKET_STATE', JSON.stringify(state));
+  await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', Object.keys(state.groups || {}).length + ' หมวด');
   return { ok: true };
 };
