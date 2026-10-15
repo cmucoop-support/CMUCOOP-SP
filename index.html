@@ -413,6 +413,7 @@ td.act{white-space:nowrap;min-width:170px}
       <button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b></button>
       <button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b></button>
       <button class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b></button>
+      <button class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b></button>
       <button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
     </div>
   </div>
@@ -946,9 +947,19 @@ $('#userBody').addEventListener('click', async function (e) {
   }
 });
 /* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
-var PERM_LABELS = { barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค', sound: 'ระบบเสียงประกาศ', music: 'ขอเพลง / คิวเพลง', stock: 'สินค้าค้างสต็อก (ดู)', stock_edit: 'สินค้าค้างสต็อก: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)' };
+
+/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
+var PERM_LABELS = {
+  barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค',
+  sound: 'ระบบเสียงประกาศ',
+  music: 'ขอเพลง / คิวเพลง',
+  stock: 'สินค้าค้างสต็อก (ดู)',
+  stock_edit: 'สินค้าค้างสต็อก: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)',
+  market: 'เช็คราคาตลาด (ดู)',
+  market_edit: 'เช็คราคาตลาด: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)'
+};
 var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false };
+var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };
 function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
 function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
 function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
@@ -968,17 +979,25 @@ function syncPerms() {                                      // แอดมิ�
   document.querySelectorAll('#uPermBox input').forEach(function (i) { if (a) i.checked = true; i.disabled = a; });
   syncStockEdit();
 }
-function syncStockEdit() {                                  // แก้ไขสินค้าค้างสต็อกได้ ต้องมีสิทธิ์ดูก่อน
-  var s = document.querySelector('#uPermBox input[data-pk="stock"]'), e = document.querySelector('#uPermBox input[data-pk="stock_edit"]');
-  if (!s || !e || $('#uRole').value === 'admin') return;
-  if (!s.checked) e.checked = false;
-  e.disabled = !s.checked;
+function syncStockEdit() {                                  // แก้ไขสินค้าค้างสต็อก/เช็คราคาตลาดได้ ต้องมีสิทธิ์ดูก่อน
+  if ($('#uRole').value === 'admin') return;
+  [['stock', 'stock_edit'], ['market', 'market_edit']].forEach(function (pair) {
+    var s = document.querySelector('#uPermBox input[data-pk="' + pair[0] + '"]'),
+        e = document.querySelector('#uPermBox input[data-pk="' + pair[1] + '"]');
+    if (!s || !e) return;
+    if (!s.checked) e.checked = false;
+    e.disabled = !s.checked;
+  });
 }
 $('#uPermBox').addEventListener('change', syncStockEdit);
 function permText(u) {
   if (u.role === 'admin') return 'ทุกการ์ด';
   var on = function (k) { return u.perms && u.perms[k] !== undefined ? !!u.perms[k] : permDef(k); };
-  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && on(k); }).map(function (k) { return k === 'stock' ? 'สินค้าค้างสต็อก (' + (on('stock_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')' : permLabel(k); });
+  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && k !== 'market_edit' && on(k); }).map(function (k) {
+    if (k === 'stock') return 'สินค้าค้างสต็อก (' + (on('stock_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
+    if (k === 'market') return 'เช็คราคาตลาด (' + (on('market_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
+    return permLabel(k);
+  });
   return t.length ? t.join(' · ') : 'ไม่มี';
 }
 $('#uRole').addEventListener('change', syncPerms);
@@ -1012,14 +1031,14 @@ function showLogin(msg) {
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
-function hasPerm(k) { return !!(S.me && S.me.perms && S.me.perms[k]); }
+function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return true; if (!S.me.perms) return false; if (k === 'market' && S.me.perms.market === undefined) return !!S.me.perms.stock; return !!S.me.perms[k]; }
 function goPortal() {
   var admin = S.me && S.me.role === 'admin';
   setNav('portal');
   $('#pMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
-  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock'].forEach(function (x) {
+  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่แอดมินติ๊กให้ผู้ใช้คนนี้
   });
 }
@@ -1037,7 +1056,7 @@ async function startApp(me) {
 /* ----- ลำดับการ์ดเมนูหลัก (แอดมินจัดได้) ----- */
 var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
-  { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' },
+  { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
@@ -1072,7 +1091,7 @@ function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); apply
 function loadCardOrder() {
   function ok(fn, def) { return call(fn).catch(function () { return def; }); }
   Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', [])]).then(function (r) {
-    CARD_ORDER = r[0]; CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
+    CARD_ORDER = Array.isArray(r[0]) ? r[0].slice() : CARD_DEF.map(function (c) { return c.k; }); CARD_DEF.forEach(function (c) { if (CARD_ORDER.indexOf(c.k) < 0) { var si = CARD_ORDER.indexOf('settings'); if (si >= 0) CARD_ORDER.splice(si, 0, c.k); else CARD_ORDER.push(c.k); } }); CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
     refreshCards();
   });
 }
@@ -1312,6 +1331,7 @@ $('#mBarcode').addEventListener('click', function () { openCardPage('barcode.htm
 $('#mSound').addEventListener('click', function () { openCardPage('sound.html', 'sound'); });
 $('#mMusic').addEventListener('click', function () { openCardPage('music.html', 'music'); });
 $('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
+$('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
 
 /* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
 var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'tv', 'history'];
