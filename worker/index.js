@@ -1815,7 +1815,7 @@ API.marketGet = async (C, token) => {
   const me = await auth(C, token);
   if (me.role !== 'admin' && !(me.perms && (me.perms.market || me.perms.stock))) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
   const raw = await kvJson(C, 'MARKET_STATE', null);
-  return raw && typeof raw === 'object' ? raw : { groups: {}, names: { '34': 'ผลิตภัณฑ์ดูแลผ้า' }, surveyor: 'รัฐพล', checker: '', approver: '', surveyNote: '' };
+  return raw && typeof raw === 'object' ? raw : { groups: {}, names: {}, surveyor: 'รัฐพล', checker: '', approver: '', surveyNote: '' };
 };
 API.marketSaveState = async (C, token, state) => {
   const me = await auth(C, token);
