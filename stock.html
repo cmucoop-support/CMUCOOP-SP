@@ -228,6 +228,8 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .bc-btn.bc-pack:hover{background:#ceead6;border-color:#137333}
 .bc-btn.bc-unit{background:#e8f0fe;color:#1967d2;border-color:#aecbfa}
 .bc-btn.bc-unit:hover{background:#d2e3fc;border-color:#1967d2}
+.top .btn.exportMain{background:#fff;color:var(--accent-text,#5b3fd0);border:2px solid #fff;font-weight:800;font-size:15px;padding:7px 18px;min-height:38px;box-shadow:0 3px 12px rgba(0,0,0,.3)}
+.top .btn.exportMain:hover{background:#f3ecff;transform:translateY(-1px)}
 </style>
 </head>
 <body>
@@ -236,11 +238,9 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   <h1>สินค้าค้างสต็อก</h1>
   <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
+    <button class="btn exportMain small" id="bXlsx">&#11015; ส่งออกข้อมูล</button>
     <button class="btn onDark small hidden" id="bUpload">อัปโหลด Excel</button>
-    <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด</button>
-    <button class="btn onDark small hidden" id="bHist">จัดการประวัติย้อนหลัง</button>
-    <button class="btn onDark small hidden" id="bClear">ล้างข้อมูล</button>
-    <button class="btn onDark small" id="bXlsx">ส่งออก Excel</button>
+    <button class="btn onDark small hidden" id="bNames">ตั้งค่า</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
     <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
   </div>
@@ -435,10 +435,10 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   </div>
 </div>
 
-<!-- ตั้งค่าหมวด (เพิ่มสาขา / เลือกสาขา / เพิ่มหมวด-ลบหมวด-ตั้งชื่อหมวดอิงตามสาขา) -->
+<!-- ตั้งค่า (เพิ่มสาขา / เลือกสาขา / เพิ่มหมวด-ลบหมวด-ตั้งชื่อหมวดอิงตามสาขา / จัดการประวัติย้อนหลัง / ล้างข้อมูล) -->
 <div class="overlay hidden" id="nmDlg">
   <div class="dlg wide">
-    <h2>ตั้งค่าหมวด</h2>
+    <h2>ตั้งค่า</h2>
     <div class="muted">เพิ่มสาขาและจัดการหมวดสินค้าโดยอิงตามสาขาที่เลือก · แต่ละสาขาสามารถมีหมวดและชื่อหมวดของตัวเองได้</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#f3ecff;border:1px solid #d9c8ff;border-radius:12px">
       <label style="font-size:13px;font-weight:600;color:var(--ink);flex:1 1 180px">สาขาที่กำลังตั้งค่าหมวด<select id="nmBr"></select></label>
@@ -453,6 +453,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
       <button type="button" class="btn small" id="nmAddBtn">+ เพิ่มหมวดในสาขานี้</button>
     </div>
     <div class="namegrid" id="nmGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+      <div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)">ข้อมูลและประวัติ</div>
+      <button type="button" class="btn ghost small hidden" id="bHist">จัดการประวัติย้อนหลัง</button>
+      <button type="button" class="btn ghost small hidden" id="bClear" style="color:var(--bad)">ล้างข้อมูล</button>
+    </div>
     <div class="err" id="nmErr"></div>
     <div class="row"><button class="btn ghost" id="nmCancel">ปิด</button><button class="btn" id="nmSave">บันทึกตั้งค่าหมวด</button></div>
   </div>
@@ -2493,6 +2498,7 @@ function knownBranches() {
   Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k && c.br[k].count > 0) set[k] = 1; }); });
   return Object.keys(set).sort();
 }
+$('#bClear').addEventListener('click', function () { closeDlg('#nmDlg'); });
 $('#bClear').addEventListener('click', function () {
   var bs = knownBranches(), gs = Object.keys(D.gm).sort();
   $('#clErr').textContent = ''; $('#clPw').value = '';
@@ -2924,6 +2930,7 @@ async function deletePrevGroupFlow(gs, btn) {
     await load(VIEW);
   });
 }
+$('#bHist').addEventListener('click', function () { closeDlg('#nmDlg'); });
 $('#bHist').addEventListener('click', openHistDlg);
 if ($('#bTrendHist')) $('#bTrendHist').addEventListener('click', openHistDlg);
 $('#hsClose').addEventListener('click', function () { closeDlg('#histDlg'); });
