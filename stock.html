@@ -488,6 +488,16 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     <div class="row"><button class="btn ghost" id="bcClose">ปิด</button></div>
   </div>
 </div>
+<!-- ค้นหาเพื่อเชื่อมบาร์กระจาย/บาร์แพ็คเองในสาขาที่ไม่พบข้อมูล -->
+<div class="overlay hidden" id="bcLinkDlg" style="z-index:95">
+  <div class="dlg" style="width:min(760px,100%)">
+    <h2 id="bcLinkTitle" style="margin:0 0 4px">เชื่อมรายการ</h2>
+    <div class="muted" id="bcLinkSub" style="margin-bottom:10px"></div>
+    <input type="search" id="bcLinkQ" placeholder="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" autocomplete="off">
+    <div id="bcLinkRes" class="tscroll" style="max-height:340px;margin-top:10px"></div>
+    <div class="row"><button class="btn ghost" id="bcLinkClose">ปิด</button></div>
+  </div>
+</div>
 <div id="dotPop" class="dot-pop hidden"></div>
 
 <script>
@@ -1658,6 +1668,10 @@ $('#gt').addEventListener('click', function (e) {
 
 /* ---------- เปิดดูรายการบาร์กระจาย / บาร์แพ็ค โดยแสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา ---------- */
 var BC_DLG_STATE = null;
+/* การเชื่อมเอง: เก็บในเบราว์เซอร์ { 'สาขา|ประเภทบาร์|รหัสบาร์': [รหัสสินค้าในค้างสต็อก, ...] } */
+var BC_MANUAL = (function () { try { return JSON.parse(localStorage.getItem('cmucoop_bc_manual') || '{}') || {}; } catch (e) { return {}; } })();
+function bcManualSave() { try { localStorage.setItem('cmucoop_bc_manual', JSON.stringify(BC_MANUAL)); } catch (e) {} }
+function bcManualKey(bName, pe) { return brKey(bName) + '|' + pe.role + '|' + pe.rawCode; }
 function openBcPairDlg(code, preferBr) {
   var keys = splitBarCodes(code), links = [], seenRec = {};
   keys.forEach(function (k) {
@@ -1728,7 +1742,8 @@ function openBcPairDlg(code, preferBr) {
     brList: brList,
     links: links,
     pairEntries: pairEntries,
-    matchedStock: matchedStock
+    matchedStock: matchedStock,
+    pool: pool
   };
   renderBcPairDlg();
   $('#bcDlg').classList.remove('hidden');
@@ -1776,8 +1791,20 @@ function renderBcPairDlg() {
       if (a.role !== b.role) return a.role === 'บาร์กระจาย' ? -1 : 1;
       return (a.x.code || '').localeCompare(b.x.code || '', 'th');
     });
+    // รายการที่เชื่อมเอง (ค้นหาในค้างสต็อกของสาขานี้)
+    st.pairEntries.forEach(function (pe) {
+      var codes = BC_MANUAL[bcManualKey(bName, pe)] || [];
+      codes.forEach(function (c) {
+        st.pool.forEach(function (x) {
+          if (brKey(x.br) === bk && x.code === c) brRows.push({ x: x, br: bName, matchKey: pe.keys[0], role: pe.role, manual: true, pe: pe, isClicked: false });
+        });
+      });
+    });
     var foundKeysInBr = {};
-    brRows.forEach(function (m) { foundKeysInBr[m.matchKey] = 1; });
+    brRows.forEach(function (m) {
+      if (m.manual) m.pe.keys.forEach(function (k) { foundKeysInBr[k] = 1; });
+      else foundKeysInBr[m.matchKey] = 1;
+    });
 
     var missingInBrHtml = st.pairEntries.filter(function (pe) {
       return !pe.keys.some(function (k) { return foundKeysInBr[k]; });
@@ -1787,7 +1814,8 @@ function renderBcPairDlg() {
         '<td><span class="tag" style="' + badgeStyle + '">' + esc(pe.role) + '</span></td>' +
         '<td>–</td>' +
         '<td><b>' + esc(pe.rawCode) + '</b></td>' +
-        '<td>' + esc(pe.name || '–') + ' <span class="tag old">ไม่พบในค้างสต็อกของสาขา ' + esc(bName) + '</span></td>' +
+        '<td>' + esc(pe.name || '–') + ' <span class="tag old">ไม่พบข้อมูลของสาขา ' + esc(bName) + '</span> ' +
+          '<button type="button" class="btn small" data-bclink="1" data-br="' + esc(bName) + '" data-role="' + esc(pe.role) + '" data-raw="' + esc(pe.rawCode) + '">เชื่อม</button></td>' +
         '<td>' + esc(bName) + '</td>' +
         '<td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td>–</td><td>–</td><td class="num">–</td><td>–</td>' +
         '<td>' + (pe.perPack ? 'จำนวนต่อแพ็ค ' + esc(pe.perPack) : '–') + '</td>' +
@@ -1804,7 +1832,7 @@ function renderBcPairDlg() {
         '<td><span class="tag" style="' + badgeStyle + '">' + esc(m.role) + '</span></td>' +
         '<td>' + esc(gl(x.g, x.br)) + '</td>' +
         '<td><b>' + esc(x.code) + '</b></td>' +
-        '<td>' + esc(x.name) + tagHtml(x) + '</td>' +
+        '<td>' + esc(x.name) + tagHtml(x) + (m.manual ? ' <span class="tag new">เชื่อมเอง</span> <button type="button" class="btn ghost small" data-bcunlink="1" data-br="' + esc(bName) + '" data-role="' + esc(m.pe.role) + '" data-raw="' + esc(m.pe.rawCode) + '" data-code="' + esc(x.code) + '" title="ยกเลิกการเชื่อม">ยกเลิก</button>' : '') + '</td>' +
         '<td>' + esc(x.br) + '</td>' +
         '<td class="num">' + fmtQtyCell(x) + '</td>' +
         '<td class="num">' + nf2.format(x.cost) + '</td>' +
@@ -1832,9 +1860,69 @@ function renderBcPairDlg() {
   if ($('#bcBrSections')) $('#bcBrSections').innerHTML = secHtml;
   if ($('#bcTb')) $('#bcTb').innerHTML = secHtml;
 }
+/* ---------- ค้นหาแล้วเชื่อมเอง ---------- */
+var BC_LINK_CTX = null;
+function openBcLink(bName, role, raw) {
+  if (!BC_DLG_STATE) return;
+  var pe = BC_DLG_STATE.pairEntries.filter(function (e) { return e.role === role && e.rawCode === raw; })[0];
+  if (!pe) return;
+  BC_LINK_CTX = { br: bName, pe: pe };
+  $('#bcLinkTitle').textContent = 'เชื่อม' + role + ' ' + raw + ' · สาขา ' + bName;
+  $('#bcLinkSub').textContent = 'ค้นหาสินค้าในค้างสต็อกของสาขานี้ แล้วกด "เชื่อม" ที่รายการที่ต้องการ' + (pe.name ? ' (ชื่อในระบบบาร์: ' + pe.name + ')' : '');
+  $('#bcLinkQ').value = '';
+  renderBcLinkRes();
+  $('#bcLinkDlg').classList.remove('hidden');
+  setTimeout(function () { $('#bcLinkQ').focus(); }, 30);
+}
+function renderBcLinkRes() {
+  if (!BC_LINK_CTX || !BC_DLG_STATE) return;
+  var bk = brKey(BC_LINK_CTX.br), q = $('#bcLinkQ').value.trim().toLowerCase();
+  var done = BC_MANUAL[bcManualKey(BC_LINK_CTX.br, BC_LINK_CTX.pe)] || [];
+  var rows = BC_DLG_STATE.pool.filter(function (x) {
+    return brKey(x.br) === bk && x.code && (!q || (String(x.code) + ' ' + String(x.name || '')).toLowerCase().indexOf(q) >= 0);
+  });
+  var total = rows.length; rows = rows.slice(0, 60);
+  $('#bcLinkRes').innerHTML = rows.length
+    ? '<table class="pvt"><thead><tr><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">คงเหลือ</th><th class="nosort"></th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        var has = done.indexOf(x.code) >= 0;
+        return '<tr><td><b>' + esc(x.code) + '</b></td><td>' + esc(x.name) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td style="text-align:center">' +
+          (has ? '<span class="tag new">เชื่อมแล้ว</span>' : '<button type="button" class="btn small" data-bcpick="' + esc(x.code) + '">เชื่อม</button>') + '</td></tr>';
+      }).join('') + '</tbody></table>' + (total > rows.length ? '<div class="muted" style="padding:8px">แสดง ' + rows.length + ' จาก ' + nf0.format(total) + ' รายการ — พิมพ์ค้นหาเพิ่มเพื่อกรอง</div>' : '')
+    : '<div class="muted" style="padding:16px;text-align:center">ไม่พบสินค้าในค้างสต็อกของสาขานี้ที่ตรงกับคำค้น</div>';
+}
+$('#bcLinkQ').addEventListener('input', renderBcLinkRes);
+$('#bcLinkClose').addEventListener('click', function () { closeDlg('#bcLinkDlg'); });
+$('#bcLinkDlg').addEventListener('click', function (e) {
+  if (e.target === this) { closeDlg('#bcLinkDlg'); return; }
+  var pk = e.target.closest('[data-bcpick]');
+  if (pk && BC_LINK_CTX) {
+    var key = bcManualKey(BC_LINK_CTX.br, BC_LINK_CTX.pe);
+    var arr = BC_MANUAL[key] || (BC_MANUAL[key] = []);
+    if (arr.indexOf(pk.dataset.bcpick) < 0) arr.push(pk.dataset.bcpick);
+    bcManualSave();
+    closeDlg('#bcLinkDlg');
+    renderBcPairDlg();
+    toast('เชื่อมรายการเรียบร้อย');
+  }
+});
 $('#bcClose').addEventListener('click', function () { closeDlg('#bcDlg'); });
 $('#bcDlg').addEventListener('click', function (e) {
   if (e.target === this) { closeDlg('#bcDlg'); return; }
+  var lk = e.target.closest('[data-bclink]');
+  if (lk) { e.stopPropagation(); openBcLink(lk.dataset.br, lk.dataset.role, lk.dataset.raw); return; }
+  var ul = e.target.closest('[data-bcunlink]');
+  if (ul && BC_DLG_STATE) {
+    e.stopPropagation();
+    var pe0 = BC_DLG_STATE.pairEntries.filter(function (z) { return z.role === ul.dataset.role && z.rawCode === ul.dataset.raw; })[0];
+    if (pe0) {
+      var k0 = bcManualKey(ul.dataset.br, pe0);
+      BC_MANUAL[k0] = (BC_MANUAL[k0] || []).filter(function (c) { return c !== ul.dataset.code; });
+      if (!BC_MANUAL[k0].length) delete BC_MANUAL[k0];
+      bcManualSave(); renderBcPairDlg();
+    }
+    return;
+  }
   var brTab = e.target.closest('[data-bcbr]');
   if (brTab && BC_DLG_STATE) {
     BC_DLG_STATE.selBr = brTab.dataset.bcbr;
