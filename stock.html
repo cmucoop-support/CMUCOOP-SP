@@ -238,11 +238,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<link href="app.css" rel="stylesheet"/></head>
-<body><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
+<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css" rel="stylesheet"/><script src="workspace-ui.js" defer></script></head>
+<body data-workspace="stock"><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>สินค้าค้างสต็อก</h1>
-<div class="info" id="info">กำลังโหลดข้อมูล…</div>
+
 <div class="acts">
 <button class="btn exportMain small hidden" id="bUpload"> อัปโหลดข้อมูล</button>
 <button class="btn exportMain small" id="bXlsx"> ดาวน์โหลดข้อมูล</button>
@@ -251,18 +251,16 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <a class="btn onDark small" href="index.html" id="bHome">เมนูหลัก</a>
 </div>
 </header>
-<div class="wrap" id="app" role="main">
+<div class="wrap" id="app" role="main"><div class="workspace-intro"><div><span class="workspace-eyebrow">CMUCOOP WORKSPACE</span><h2>สินค้าค้างสต็อก</h2><p>ค้นหาสินค้า ติดตามช่วงอายุ และวิเคราะห์มูลค่าค้างตามสาขาและหมวด</p></div></div><div class="workspace-context"><div class="info" id="info">กำลังโหลดข้อมูล…</div></div>
 <div class="card empty hidden" id="empty">
 <h2>ยังไม่มีข้อมูลสินค้าค้างสต็อก</h2>
 <div class="muted" id="emptyMsg"></div>
 </div>
-<div class="wrap" hidden="" id="main" style="padding:0">
-<section class="card" style="padding-bottom:0">
+<div class="wrap" hidden="" id="main" style="padding:0"><section class="card" style="padding-bottom:0">
 <div class="tabs" id="verTabs" role="tablist"></div>
 <div class="muted" id="verNote" style="padding:8px 0 10px"></div>
-</section>
-<section class="card filters">
-<div class="frow">
+</section><section class="card filters">
+<div class="workspace-filter-head"><h3>เลือกข้อมูลที่ต้องการดู</h3><button class="btn ghost small" type="button" data-clear-search>ล้างคำค้น</button></div><div class="frow">
 <label>สาขา<select id="fBr"></select></label>
 <div style="flex:1.4 1 260px;display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500">
 <span>หมวดสินค้า</span>
@@ -282,18 +280,24 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <div class="muted" style="margin-bottom:5px">ช่วงอายุสินค้า</div>
 <div class="chips" id="chips"></div>
 </div>
-<div>
+
+
+<details class="workspace-advanced"><summary>ตัวกรองแท็กเพิ่มเติม</summary><div>
 <div class="muted" style="margin-bottom:5px">แสดงสินค้าในแท็ก</div>
 <div class="chk-row" id="fTagChecks"></div>
 <select aria-label="ตัวเลือก fTag" class="hidden" id="fTag"></select>
-</div>
-<div>
+</div><div>
 <div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
 <div class="chk-row" id="fHideChecks"></div>
-</div>
-</section>
-<section class="kpis" id="kpis"></section>
-<section class="charts">
+</div></details></section><section class="kpis" id="kpis"></section><nav class="workspace-nav" role="tablist" aria-label="มุมมองstock"><button type="button" role="tab" id="ws-stock-tab-items" data-work-tab="items" aria-controls="ws-stock-items" aria-selected="true" tabindex="0">รายการสินค้า</button><button type="button" role="tab" id="ws-stock-tab-overview" data-work-tab="overview" aria-controls="ws-stock-overview" aria-selected="false" tabindex="-1">ภาพรวมและแนวโน้ม</button><button type="button" role="tab" id="ws-stock-tab-analysis" data-work-tab="analysis" aria-controls="ws-stock-analysis" aria-selected="false" tabindex="-1">วิเคราะห์และรายการตัดออก</button></nav><div class="workspace-pane" role="tabpanel" id="ws-stock-items" aria-labelledby="ws-stock-tab-items" data-work-pane="items"><section class="card">
+<div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
+<div class="tscroll"><table id="dt"></table></div>
+<div class="pager"><span class="muted" id="pgInfo"></span><button class="btn ghost small" id="pgPrev">ก่อนหน้า</button><button class="btn ghost small" id="pgNext">ถัดไป</button></div>
+</section><section class="card" hidden="" id="zeroCard">
+<div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
+<div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
+<div class="muted" id="zeroMore" style="margin-top:6px"></div>
+</section></div><div class="workspace-pane" role="tabpanel" id="ws-stock-overview" aria-labelledby="ws-stock-tab-overview" data-work-pane="overview" hidden><section class="charts">
 <div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
 <div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
 <div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
@@ -304,22 +308,16 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <button class="btn ghost small hidden" id="bTrendHist" type="button">ลบประวัติสถิติย้อนหลัง</button>
 </div></div>
 <div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
-</section>
-<section class="card">
+</section><section class="card">
 <div class="cardhead"><h3>สรุปแยกตามหมวด <small id="gtNote"></small></h3></div>
 <div class="tscroll" style="max-height:480px"><table id="gt"></table></div>
-</section>
-<section class="card">
-<div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
-<div class="tscroll"><table id="dt"></table></div>
-<div class="pager"><span class="muted" id="pgInfo"></span><button class="btn ghost small" id="pgPrev">ก่อนหน้า</button><button class="btn ghost small" id="pgNext">ถัดไป</button></div>
-</section>
-<section class="card" hidden="" id="zeroCard">
-<div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
-<div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
-<div class="muted" id="zeroMore" style="margin-top:6px"></div>
-</section>
-<section class="card" hidden="" id="deductCard">
+</section></div><div class="workspace-pane" role="tabpanel" id="ws-stock-analysis" aria-labelledby="ws-stock-tab-analysis" data-work-pane="analysis" hidden><section class="card" id="analysisCard">
+<div class="cardhead">
+<h3>วิเคราะห์แนวโน้มและสรุปข้อมูลสินค้าค้างสต็อก <small id="analysisNote"></small></h3>
+</div>
+<div id="analysisBody"></div>
+<div class="an-listbox hidden" id="anListBox"></div>
+</section><section class="card" hidden="" id="deductCard">
 <div class="cardhead" id="deductHead" style="user-select:none;margin-bottom:0">
 <h3>สรุปรายการที่หักออกจากค้างสต็อก <small id="deductNote"></small></h3>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -331,15 +329,7 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <div id="lostNote"></div>
 <div id="deductDetailBox"></div>
 </div>
-</section>
-<section class="card" id="analysisCard">
-<div class="cardhead">
-<h3>วิเคราะห์แนวโน้มและสรุปข้อมูลสินค้าค้างสต็อก <small id="analysisNote"></small></h3>
-</div>
-<div id="analysisBody"></div>
-<div class="an-listbox hidden" id="anListBox"></div>
-</section>
-</div>
+</section></div></div>
 </div>
 <!-- เข้าสู่ระบบ (หน้าตาเดียวกับหน้าหลัก) -->
 <div class="loginwrap hidden" id="login">

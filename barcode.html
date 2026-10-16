@@ -401,8 +401,8 @@ td.act{white-space:nowrap;min-width:170px}
 </style>
 <script src="vendor/xlsx.full.min.js"></script>
 <link href="a11y.css" rel="stylesheet"/>
-<link href="app.css" rel="stylesheet"/></head>
-<body class="locked"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css" rel="stylesheet"/><script src="workspace-ui.js" defer></script></head>
+<body data-workspace="barcode" class="locked"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
 <span class="me" id="me"></span>
@@ -411,30 +411,33 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
 </header>
 <div class="layout">
-<aside>
+<aside class="barcode-rail"><div class="workspace-rail-title"><h2>หมวดสินค้า</h2><small>เลือกหมวดเพื่อดูรายการ</small></div><label><span class="sr-only">ค้นหาหมวดสินค้า</span><input type="search" id="bcCategorySearch" placeholder="ค้นหาหมวดสินค้า"/></label><button class="btn ghost" id="bcAllCategories" type="button">ดูรายการทุกหมวด</button><p id="bcNoCats" class="muted" hidden>ไม่พบหมวดที่ค้นหา</p>
 <button class="btn ghost small" id="btnNewCat" style="width:100%;margin-bottom:10px">+ สร้างหมวดใหม่</button>
 <div id="catSide"></div>
 </aside>
-<main id="wcag-main">
+<main id="wcag-main"><div class="workspace-intro"><div><span class="workspace-eyebrow">CMUCOOP WORKSPACE</span><h2>จัดการบาร์เดี่ยว / บาร์แพ็ค</h2><p>ค้นหารายการ เลือกหมวด แล้วแก้ไขหรือจัดพิมพ์รายงาน</p></div></div><div class="workspace-stats barcode-stats" id="barcodeStats" aria-label="สรุปรายการบาร์โค้ด"></div>
 <nav class="tabs">
-<button class="tab on" data-t="data">ข้อมูลรายการ</button>
+<button class="tab on" data-t="data">รายการสินค้า</button><button class="tab" data-t="manage">เพิ่มและนำเข้า</button>
 <button class="tab" data-t="print">ปริ้นรายงาน</button>
 </nav>
 <!-- ========== แท็บข้อมูล ========== -->
-<section id="v-data" style="display:grid;gap:14px">
-<div class="card">
-<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
-<div class="row">
-<input accept=".xlsx,.xls,.csv" aria-label="ไฟล์นำเข้าบาร์โค้ด" id="bcImpFile" type="file"/>
-<select aria-label="ตัวเลือก bcImpMode" id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
-<button class="btn" disabled="" id="bcImpBtn">นำเข้า</button>
-</div>
-<div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
-</div>
-<div class="card">
+<section id="v-data" style="display:grid;gap:14px"><div class="card">
 <h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
+</div><div class="card">
+<div class="row" style="justify-content:space-between;margin-bottom:8px">
+<h3 style="margin:0">รายการสินค้า</h3>
+<div class="row">
+<span class="muted" id="count"></span>
+<input aria-label="ค้นหาชื่อหรือเลขบาร์" id="q" placeholder="ค้นหาชื่อหรือเลขบาร์" style="width:100%;min-width:0" type="search"/>
 </div>
-<div class="card">
+</div>
+<div class="tablewrap">
+<table class="dt"><thead id="thead"></thead>
+<tbody id="tbody"><tr><td class="empty">เลือกหมวดเพื่อดูรายการ</td></tr></tbody></table>
+</div>
+<div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
+</div></section>
+<section class="workspace-pane hidden" id="v-manage"><div class="workspace-section-title"><h3>เพิ่มรายการและจัดการไฟล์</h3><p>กรอกสินค้าใหม่ หรือนำเข้า Excel พร้อมสำรองข้อมูลเดิม</p></div><div class="card">
 <h3>เพิ่มรายการ</h3>
 <div class="grid" id="addForm"></div>
 <div aria-live="polite" class="bchint" id="addBc"></div>
@@ -443,22 +446,15 @@ td.act{white-space:nowrap;min-width:170px}
 <span class="muted" id="addHint"></span>
 </div>
 <datalist id="dlCats"></datalist>
-</div>
-<div class="card">
-<div class="row" style="justify-content:space-between;margin-bottom:8px">
-<h3 style="margin:0">รายการในหมวดนี้</h3>
+</div><div class="card">
+<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
 <div class="row">
-<span class="muted" id="count"></span>
-<input aria-label="ค้นหาชื่อหรือเลขบาร์" id="q" placeholder="ค้นหาชื่อหรือเลขบาร์" style="width:240px" type="search"/>
+<input accept=".xlsx,.xls,.csv" aria-label="ไฟล์นำเข้าบาร์โค้ด" id="bcImpFile" type="file"/>
+<select aria-label="ตัวเลือก bcImpMode" id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
+<button class="btn" disabled="" id="bcImpBtn">นำเข้า</button>
 </div>
-</div>
-<div class="tablewrap">
-<table class="dt"><thead id="thead"></thead>
-<tbody id="tbody"><tr><td class="empty">เลือกหมวดเพื่อดูรายการ</td></tr></tbody></table>
-</div>
-<div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
-</div>
-</section>
+<div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
+</div></section>
 <!-- ========== แท็บปริ้น ========== -->
 <section class="card hidden" id="v-print">
 <h3>เลือกหมวดที่ต้องการปริ้น</h3>
@@ -660,6 +656,7 @@ function renderSide() {
       '<span class="cm">' + (c.last ? 'อัพเดต ' + f.rel : 'ยังไม่มีข้อมูลสถานะ') + '</span></button></li>';
   });
   $('#catSide').innerHTML = html + (lastSheet !== null ? '</ul>' : '') || '<div class="muted">ไม่พบชีตข้อมูล</div>';
+  if (window.WorkspaceUI) WorkspaceUI.barcodeStats();
 }
 $('#btnNewCat').addEventListener('click', async function () {
   var name = (prompt('ชื่อหมวดใหม่ (เช่น ขนม, นม, บะหมี่)') || '').trim();
@@ -712,12 +709,12 @@ async function selectCat(key) {
 }
 function renderCurStatus() {}
 function buildHead(sc) {
-  $('#thead').innerHTML = '<tr>' + sc.cols.map(function (c) { return '<th>' + esc(c.label) + '</th>'; }).join('') + '<th>จัดการ</th></tr>';
+  $('#thead').innerHTML = '<tr>' + sc.cols.map(function (c) { return '<th data-col="'+esc(c.k)+'">' + esc(c.label) + '</th>'; }).join('') + '<th>จัดการ</th></tr>';
 }
 function rowHtml(sc, x) {
   return '<tr data-r="' + x.r + '" data-n="' + esc(x.v[sc.nameCol - 1]) + '">' + sc.cols.map(function (c, j) {
     var cls = c.num ? 'n' : c.text ? 'code' : c.k === 'name' ? 'nm' : '';
-    return '<td class="' + cls + '">' + esc(x.v[j]) + '</td>';
+    return '<td data-col="'+esc(c.k)+'" class="' + cls + '">' + esc(x.v[j]) + '</td>';
   }).join('') + '<td class="act"><button class="btn ghost small" data-a="edit">แก้ไข</button><button class="btn danger small" data-a="del">ลบ</button></td></tr>';
 }
 function renderTable() {
@@ -726,6 +723,7 @@ function renderTable() {
   var q = $('#q').value.trim().toLowerCase();
   var rows = S.data.rows.filter(function (x) { return !q || x.v.join(' ').toLowerCase().indexOf(q) >= 0; });
   $('#count').textContent = 'แสดง ' + rows.length + ' จาก ' + S.data.rows.length + ' รายการ';
+  if (window.WorkspaceUI) WorkspaceUI.barcodeStats();
   $('#tbody').innerHTML = rows.map(function (x) { return rowHtml(sc, x); }).join('') ||
     '<tr><td class="empty" colspan="' + (sc.cols.length + 1) + '">ไม่พบรายการ</td></tr>';
 }
@@ -1388,8 +1386,9 @@ $('#bcExpBtn').addEventListener('click', function () {
 
 /* ============================ ประวัติ / แท็บ ============================ */
 function switchTab(t) {
-  document.querySelectorAll('.tab').forEach(function (x) { x.classList.toggle('on', x.dataset.t === t); });
-  ['data', 'print'].forEach(function (k) { $('#v-' + k).classList.toggle('hidden', k !== t); });
+  if (S.me && S.me.role !== 'admin' && t !== 'print') t = 'print';
+  document.querySelectorAll('.tab').forEach(function (x) { var on=x.dataset.t===t;x.classList.toggle('on',on);x.setAttribute('aria-selected',String(on));x.tabIndex=on?0:-1; });
+  ['data', 'manage', 'print'].forEach(function (k) { $('#v-' + k).classList.toggle('hidden', k !== t); });
   if (t === 'print') renderPrintList();
 }
 document.querySelector('.tabs').addEventListener('click', function (e) {
@@ -1418,10 +1417,10 @@ async function openBarcode() {
   $('#me').textContent = me.name + ' (' + (me.role === 'admin' ? 'Admin' : 'ผู้ใช้งาน') + ')';
   var admin = me.role === 'admin';
   document.querySelectorAll('.tab').forEach(function (t) {
-    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data'));
+    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data' || t.dataset.t === 'manage'));
   });
-  $('.layout').classList.add('single');                 // ไม่ใช้แถบหมวดด้านข้างแล้ว เลือกหมวดที่ช่อง "หมวด" ในฟอร์มแทน
-  $('aside').classList.add('hidden');
+  $('.layout').classList.toggle('single', !admin);
+  $('aside').classList.toggle('hidden', !admin);
   switchTab(admin ? 'data' : 'print');
   if (admin) bcLoadBk();
   try {

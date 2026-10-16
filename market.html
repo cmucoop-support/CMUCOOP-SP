@@ -170,13 +170,13 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<link href="app.css" rel="stylesheet"/></head>
-<body><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
+<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css" rel="stylesheet"/><script src="workspace-ui.js" defer></script></head>
+<body data-workspace="market"><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>เช็คราคาตลาด</h1>
-<div class="info" id="info">กำลังโหลดข้อมูล…</div>
+
 <div class="acts">
-<select aria-label="เลือกสาขา" id="brSel" style="width:auto;min-width:150px;max-width:220px;padding:6px 10px;border-radius:999px;font-weight:600" title="เลือกสาขา"></select>
+
 <button class="btn exportMain small hidden" id="bUpload">อัปโหลดข้อมูล</button>
 <button class="btn exportMain small" id="bXlsx">ดาวน์โหลด Excel</button>
 <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด/ผู้สำรวจ</button>
@@ -184,7 +184,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <a class="btn onDark small" href="index.html" id="bHome">เมนูหลัก</a>
 </div>
 </header>
-<div class="wrap" id="app" role="main">
+<div class="wrap" id="app" role="main"><div class="workspace-intro"><div><span class="workspace-eyebrow">CMUCOOP WORKSPACE</span><h2>สำรวจและเปรียบเทียบราคาสินค้า</h2><p>เลือกสาขา ค้นหาสินค้า แล้วบันทึกราคาตลาดกับข้อเสนอปรับราคา</p></div><label class="workspace-branch">สาขา<select aria-label="เลือกสาขา" id="brSel" style="width:auto;min-width:150px;max-width:220px;padding:6px 10px;border-radius:999px;font-weight:600" title="เลือกสาขา"></select></label></div><div class="workspace-context"><div class="info" id="info">กำลังโหลดข้อมูล…</div></div>
 <div class="card empty hidden" id="empty">
 <h2>ยังไม่มีข้อมูลสำรวจราคาตลาด</h2>
 <div class="muted" id="emptyMsg" style="margin-bottom:14px"></div>
@@ -192,16 +192,14 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <button class="btn" id="bEmptyUpload">อัปโหลดไฟล์ Excel</button>
 </div>
 </div>
-<div class="wrap" hidden="" id="main" style="padding:0">
-<section class="card" style="display:grid;gap:10px">
+<div class="wrap" hidden="" id="main" style="padding:0"><section class="card" style="display:grid;gap:10px">
 <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
 <div class="tabs" id="verTabs" role="tablist"></div>
 <div id="cycleBadgeBox"></div>
 </div>
-<div class="cycle-bar" id="cycleBar"></div>
-</section>
-<section class="card filters">
-<div class="frow">
+
+</section><section class="card filters">
+<div class="workspace-filter-head"><h3>เลือกข้อมูลการสำรวจ</h3><button class="btn ghost small" type="button" data-clear-search>ล้างคำค้น</button></div><div class="frow">
 <label>หมวดสินค้า<select id="fGrp"></select></label>
 <label>สถานะสินค้าในระบบ<select id="fMove">
 <option value="">ทั้งหมด (เคลื่อนไหว + ไม่เคลื่อนไหว)</option>
@@ -215,15 +213,13 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <div class="muted" style="margin-bottom:5px">กรองตามรายการแนะนำ (การปรับราคาเทียบตลาด)</div>
 <div class="chips" id="chips"></div>
 </div>
-</section>
-<section class="kpis" id="kpis"></section>
-<section class="card">
+</section><nav class="workspace-nav" role="tablist" aria-label="มุมมองสำรวจราคา"><button id="marketFocusTab" role="tab" type="button" data-market-view="focus" aria-controls="marketTableCard" aria-selected="true">สำรวจราคา</button><button id="marketFullTab" role="tab" type="button" data-market-view="full" aria-controls="marketTableCard" aria-selected="false" tabindex="-1">รายละเอียดการคำนวณ</button><button id="marketSummaryTab" role="tab" type="button" data-market-view="summary" aria-controls="sumCard" aria-selected="false" tabindex="-1">สรุปรายงาน</button></nav><p class="workspace-view-help" id="marketViewHelp">กรอกราคาตลาดและข้อเสนอปรับราคาในมุมมองนี้ได้โดยตรง</p><section class="card" id="marketTableCard" role="tabpanel" aria-labelledby="marketFocusTab">
 <div class="cardhead">
 <h3>ตารางสำรวจและเปรียบเทียบราคาท้องตลาด <small id="dtNote"></small></h3>
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
 <button class="btn ghost small hidden" id="bAutoRec" title="คำนวณรายการแนะนำ (คงที่/ปรับขึ้น/ปรับลง/ฝากพิจารณา/ไม่เคลื่อนไหว) จากราคาท้องตลาดอัตโนมัติ" type="button">คำนวณคำแนะนำอัตโนมัติ</button>
 <button class="btn ghost small hidden" id="bDelGrp" style="color:var(--bad);border-color:var(--bad)" type="button">ลบหมวดนี้</button>
-<button class="btn small hidden" id="bSaveEdits" type="button">บันทึกการแก้ไขในตาราง</button>
+
 </div>
 </div>
 <!-- แถบบนสุดของหัวตาราง: วันที่อัปข้อมูลเข้า กับ วันที่ส่งออกข้อมูล -->
@@ -279,8 +275,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <button class="btn ghost small" id="pgNext">ถัดไป</button>
 </div>
 </div>
-</section>
-<section class="card" id="sumCard">
+</section><section class="card" id="sumCard" role="tabpanel" aria-labelledby="marketSummaryTab" hidden><section class="kpis" id="kpis"></section><div class="cycle-bar" id="cycleBar"></div>
 <div class="cardhead">
 <h3>สรุปผลการสำรวจราคาตลาดและลายเซ็นท้ายรายงาน <small>แสดงท้ายชีตเมื่อดาวน์โหลดไฟล์ Excel</small></h3>
 </div>
@@ -315,8 +310,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <div class="muted">ผู้ปรับแก้ไขราคาสินค้า</div>
 </div>
 </div>
-</section>
-</div>
+</section><div class="market-savebar"><div><strong>มีการแก้ไขราคาที่ยังไม่บันทึก</strong><small>ตรวจข้อมูลแล้วกดบันทึกเพื่อส่งเข้าระบบ</small></div><button class="btn small hidden" id="bSaveEdits" type="button">บันทึกการแก้ไขในตาราง</button></div></div>
 </div>
 <!-- เข้าสู่ระบบ -->
 <div class="loginwrap hidden" id="login">
@@ -1005,6 +999,7 @@ function renderTable() {
 
   if (!slice.length) {
     $('#mtBody').innerHTML = '<tr><td colspan="20" class="muted" style="padding:28px;text-align:center">ไม่พบรายการตามตัวกรองที่เลือก</td></tr>';
+    if (window.WorkspaceUI) WorkspaceUI.marketRows();
     fixHead();
     return;
   }
@@ -1069,6 +1064,7 @@ function renderTable() {
       gLink(x) +
     '</tr>';
   }).join('');
+  if (window.WorkspaceUI) WorkspaceUI.marketRows();
   fixHead();
 }
 
@@ -1078,7 +1074,7 @@ $('#mtBody').addEventListener('change', function (e) {
   var el = e.target.closest('[data-f]'); if (!el) return;
   var tr = el.closest('tr[data-idx]'); if (!tr) return;
   var idx = Number(tr.dataset.idx), item = D.items[idx]; if (!item) return;
-  var f = Number(el.dataset.f), v = el.value.trim();
+  var f = Number(el.dataset.f), v = el.value.trim(), keepFocus = document.activeElement === el;
   if (f === 8 || f === 9 || f === 11) {
     if (v !== '' && v !== '-') {
       var parsed = marketNumber(v);
@@ -1103,12 +1099,13 @@ $('#mtBody').addEventListener('change', function (e) {
   $('#bSaveEdits').classList.remove('hidden');
   saveLocalState();
   renderAll();
+  if(keepFocus){var replacement=document.querySelector('#mtBody tr[data-idx="'+idx+'"] [data-f="'+f+'"]');if(replacement)replacement.focus({preventScroll:true});}
 });
 
 $('#bSaveEdits').addEventListener('click', function () {
   busy(this, async function () {
     var ok = await syncThen('บันทึกข้อมูลการสำรวจราคาตลาดแล้ว');
-    if (ok) $('#bSaveEdits').classList.toggle('hidden', !DIRTY);
+    if (ok) { $('#bSaveEdits').classList.toggle('hidden', !DIRTY); if(!DIRTY)$('#fQ').focus({preventScroll:true}); }
   });
 });
 
