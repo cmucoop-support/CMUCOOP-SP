@@ -4,14 +4,14 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
-<meta content="#8b63a6" name="theme-color"/>
+<meta content="#a07ab8" name="theme-color"/>
 <link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
 <title>ร้านสหกรณ์ มช. (CMU CO-OP)</title>
 <link href="fonts.css" rel="stylesheet"/>
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#8b63a6; --tv-fg:#ffffff; --btn-bg:rgba(26,15,46,.48); --btn-hover:rgba(26,15,46,.68); --btn-border:rgba(255,255,255,.78);
+  :root { --bg:#a07ab8; --tv-fg:#ffffff; --btn-bg:rgba(26,15,46,.48); --btn-hover:rgba(26,15,46,.68); --btn-border:rgba(255,255,255,.78);
           --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
           --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
@@ -57,6 +57,12 @@
                  border-radius:999px; padding:5px 14px; min-height:32px; cursor:pointer; font-weight:600; }
   .foot button:hover { background:var(--btn-hover); }
   .foot button:focus-visible { outline:3px solid var(--tv-fg); outline-offset:2px; }
+  .receiver-preview{width:var(--receiver-w);max-width:100%;height:var(--receiver-h);margin-left:auto;margin-right:auto;border-radius:16px;background:#fff;color:#2a1f47;overflow:hidden;display:grid;grid-template-rows:auto 1fr;text-align:center}
+  .receiver-preview-head{padding:14px 20px;background:linear-gradient(135deg,#7a4be0,#9966ff);color:#fff;font-size:18px;font-weight:700}
+  .receiver-preview-state{display:grid;align-content:center;justify-items:center;gap:8px;padding:20px}
+  .receiver-preview-state strong{font-size:28px;color:#176b3f}
+  .receiver-preview-state span{font-size:15px;color:#5a4f78}
+  .tv-preview-mode .foot button{pointer-events:none}
 
 /* Critical a11y fallback styles */
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
@@ -78,8 +84,9 @@
 <!-- แบนเนอร์ (จัดการรูปที่หน้า Admin) -->
 <iframe class="frame" id="banner" loading="eager" src="banner.html" title="แบนเนอร์ประชาสัมพันธ์"></iframe>
 <div aria-label="ข้อความประกาศวิ่ง" class="caption" id="caption" role="region"></div>
-<!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
-<iframe allow="autoplay; fullscreen" class="frame" id="receiver" src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ"></iframe>
+<!-- ตัวรับสัญญาณเสียงประกาศ/เพลง -->
+<iframe allow="autoplay; fullscreen" class="frame" id="receiver" data-src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ" hidden></iframe>
+<div class="receiver-preview" id="receiverPreview" hidden><div class="receiver-preview-head">ระบบเสียงประกาศและคิวเพลง</div><div class="receiver-preview-state"><strong>พร้อมรับสัญญาณ</strong><span>ตัวอย่างพื้นที่ส่วนเสียง · พรีวิวไม่เปิดเสียง</span></div></div>
 <footer class="foot" role="contentinfo">
 <span>CMUCOOP</span>
 <div class="foot-acts">
@@ -89,6 +96,21 @@
 </footer>
 </main>
 <script>
+var TV_PREVIEW_MODE = new URLSearchParams(location.search).get('preview') === '1';
+var TV_LAST_BG = '#a07ab8';
+if (TV_PREVIEW_MODE) {
+  document.body.classList.add('tv-preview-mode');
+  document.getElementById('receiverPreview').hidden = false;
+} else {
+  var receiverFrame = document.getElementById('receiver');
+  receiverFrame.src = receiverFrame.dataset.src;
+  receiverFrame.hidden = false;
+}
+function tvSyncBannerTheme() {
+  var frame = document.getElementById('banner');
+  if (frame && frame.contentWindow) frame.contentWindow.postMessage({type:'cmucoop:banner-theme',bg:TV_LAST_BG,fg:getComputedStyle(document.body).color}, location.origin);
+}
+document.getElementById('banner').addEventListener('load', tvSyncBannerTheme);
 /* ค่าเริ่มต้น (ใช้ตอนโหลดหน้า/เมื่อติดต่อเซิร์ฟเวอร์ไม่ได้) — ค่าจริงตั้งได้ที่ ระบบหลัก > ตั้งค่า > หน้าจอ TV */
 var TEXT = {
   shop:     'ร้านสหกรณ์ มช. (CMU CO-OP)',
@@ -195,7 +217,8 @@ function applyCfg(c) {
   $('helloMain').parentNode.style.display = (T('helloMain') || T('helloSub')) ? '' : 'none';
   setCaption(T('caption'));
   var r = document.documentElement.style;
-  var bgVal = c.bg || '#8b63a6';
+  var bgVal = /^#[0-9a-f]{6}$/i.test(String(c.bg || '')) ? c.bg : '#a07ab8';
+  TV_LAST_BG = bgVal;
   r.setProperty('--bg', bgVal);
   syncContrast(bgVal, c.textColor);
   [['clockColor','--tv-clock'],['shopColor','--tv-shop'],['welcomeColor','--tv-welcome'],['subColor','--tv-sub'],['captionColor','--tv-caption'],['footColor','--tv-foot']].forEach(function (p) {
@@ -224,14 +247,27 @@ function applyCfg(c) {
   $('logo').style.display = c.showLogo === false ? 'none' : '';
   $('clock').style.display = c.showClock === false ? 'none' : '';
   $('banner').style.display = c.showBanner === false ? 'none' : '';
+  $('receiverPreview').style.marginTop = (c.gapReceiver === null || c.gapReceiver === undefined || c.gapReceiver === '' ? (c.gap === undefined ? 14 : c.gap) : c.gapReceiver) + 'px';
+  tvSyncBannerTheme();
 }
 applyCfg({});
+window.addEventListener('message', function (event) {
+  if (!TV_PREVIEW_MODE || window.parent === window || event.origin !== location.origin || event.source !== window.parent || !event.data || event.data.type !== 'cmucoop:tv-preview') return;
+  if (!event.data.config || typeof event.data.config !== 'object' || Array.isArray(event.data.config)) return;
+  applyCfg(event.data.config);
+  var sequence = event.data.seq;
+  requestAnimationFrame(function () {
+    window.parent.postMessage({type:'cmucoop:tv-preview-applied',seq:sequence,overflow:document.documentElement.scrollHeight > innerHeight + 2}, location.origin);
+  });
+});
+if (TV_PREVIEW_MODE && window.parent !== window) window.parent.postMessage({type:'cmucoop:tv-preview-ready'}, location.origin);
 /* ดึงค่าตั้งค่าจากเซิร์ฟเวอร์ แล้วตรวจซ้ำทุก 1 นาที (เปลี่ยนค่าที่ระบบหลักแล้ว TV อัปเดตเอง ไม่ต้องรีเฟรช) */
 function loadCfg() {
+  if (TV_PREVIEW_MODE) return;
   if (!window.google || !google.script) return;
   google.script.run.withSuccessHandler(applyCfg).withFailureHandler(function () {}).getTvPublic();
 }
-loadCfg(); setInterval(function () { if (!document.hidden) loadCfg(); }, 60000);
+if (!TV_PREVIEW_MODE) { loadCfg(); setInterval(function () { if (!document.hidden) loadCfg(); }, 60000); }
 
 /* นาฬิกา: เวลาไทย พ.ศ. อัปเดตทุกวินาที */
 var TZ = 'Asia/Bangkok';

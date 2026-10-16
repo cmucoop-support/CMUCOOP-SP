@@ -28,11 +28,6 @@
   .state.playing { animation:pulse 1.4s infinite; }
   @keyframes pulse { 50% { box-shadow:0 0 0 14px rgba(26,127,75,.16); } }
   .loadinfo { margin-top:14px; text-align:center; font-size:14px; color:var(--steel); min-height:20px; }
-  .audiobar { margin-top:12px; text-align:center; }
-  .btn-audio { font:inherit; font-size:14px; font-weight:600; color:var(--accent-text); background:#fff; border:1.5px solid var(--accent-text);
-               border-radius:999px; padding:8px 18px; min-height:38px; cursor:pointer; box-shadow:0 2px 8px rgba(106,63,209,.12); }
-  .btn-audio:hover { background:#f0e8ff; }
-  .btn-audio.on { background:#e6f6ec; color:var(--ok); border-color:var(--ok); }
   .hidden { display:none !important; }
   .musicbox { width:min(640px,92vw); margin:18px auto 0; background:#fff; border-radius:20px; padding:14px; box-shadow:0 8px 28px rgba(106,63,209,.15); }
   .mtitle { font-weight:700; font-size:18px; margin-bottom:8px; }
@@ -53,9 +48,6 @@
 <main class="center" id="wcag-main" role="main"><div>
 <div aria-atomic="true" aria-label="สถานะระบบรับสัญญาณ: ปิด (OFF)" aria-live="polite" class="state off" id="state" role="status"><span id="stateText">OFF</span></div>
 <div aria-live="polite" class="loadinfo" id="loadInfo" role="status">กำลังเริ่มระบบ…</div>
-<div class="audiobar">
-<button aria-pressed="false" class="btn-audio" id="btnUnlockAudio" type="button"> กดปุ่มนี้ 1 ครั้งเพื่อเปิดเสียงอัตโนมัติ</button>
-</div>
 <div aria-label="เครื่องเล่นเพลง" class="musicbox hidden" id="musicBox" role="region">
 <div class="mtitle" id="musicTitle"></div>
 <div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
@@ -100,14 +92,7 @@ function enableAudioContext() {
   if (audioUnlocked) return;
   audioUnlocked = true;
   var a = new Audio(); a.volume = 0.01; a.play().catch(function () {});
-  var btn = $('#btnUnlockAudio');
-  if (btn) {
-    btn.classList.add('on');
-    btn.setAttribute('aria-pressed', 'true');
-    btn.textContent = ' เปิดระบบเสียงอัตโนมัติแล้ว';
-  }
 }
-$('#btnUnlockAudio').addEventListener('click', enableAudioContext);
 ['click', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, enableAudioContext); });
 render();
 
@@ -252,7 +237,7 @@ function musicStart(item) {
     if (MUS.userPaused) return;
     a.play().catch(function (err) {
       if (err && err.name === 'NotAllowedError') {
-        $('#musicSub').textContent = 'แตะหน้าจอหรือกดปุ่มเปิดเสียง 1 ครั้งเพื่อเริ่มเล่นเพลง';
+        $('#musicSub').textContent = 'แตะหน้าจอเพื่อเริ่มเล่นเพลง';
         document.addEventListener('click', function once() { document.removeEventListener('click', once); if (MUS.au === a && !MUS.held) a.play(); });
       } else musicEnd(false);
     });

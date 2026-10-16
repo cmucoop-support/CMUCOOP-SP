@@ -10,7 +10,7 @@
 <title>CMUCOOP Banner</title>
 <link href="fonts.css" rel="stylesheet"/>
 <style>
-:root{--bg:#8b63a6;--ink:#2a1f47;--per:3;--gap:18px}
+:root{--bg:#a07ab8;--ink:#2a1f47;--per:3;--gap:18px}
 @media (max-width:900px){:root{--per:2}}
 @media (max-width:560px){:root{--per:1}}
 *{box-sizing:border-box}
@@ -37,6 +37,8 @@ html,body{height:100%;overflow:hidden}
 body{padding:0}
 .panel{position:absolute;left:8px;right:8px;top:8px;max-width:none;margin:0;padding:12px;display:flex;align-items:center}
 .viewport{width:100%;padding:6px 0}
+body,.panel,.slide:not(.sk){background:var(--bg)}
+.msg{color:var(--ink)}
 
 /* Critical a11y fallback styles */
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
@@ -68,6 +70,23 @@ var track = $('#track'), panel = $('#panel');
 var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 var timer = null, userPaused = !!reduce, hoverPaused = false, paused = userPaused, moving = false, count = 0, speed = 4, sig = '', perSet = 0, hPct = 80, ar = 0.75, arSet = false, firstId = '';
 var ANIM = 600;
+var bannerParentTheme = false;
+function applyBannerTheme(config) {
+  var bg = config && config.bg;
+  if (!/^#[0-9a-f]{6}$/i.test(String(bg || ''))) return;
+  document.documentElement.style.setProperty('--bg', bg);
+  var h = bg.slice(1), r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
+  document.documentElement.style.setProperty('--ink', r*.299 + g*.587 + b*.114 > 155 ? '#2a1f47' : '#ffffff');
+}
+window.addEventListener('message', function(event) {
+  if (window.parent === window || event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== 'cmucoop:banner-theme') return;
+  if (!/^#[0-9a-f]{6}$/i.test(String(event.data.bg || ''))) return;
+  bannerParentTheme = true; applyBannerTheme(event.data);
+});
+function loadBannerTheme() {
+  if (bannerParentTheme) return;
+  google.script.run.withSuccessHandler(function(config){if(!bannerParentTheme)applyBannerTheme(config);}).withFailureHandler(function(){}).getTvPublic();
+}
 
 function syncPauseState() {
   paused = userPaused || hoverPaused;
@@ -214,8 +233,9 @@ function load(first) {
     .getPublicBanners();
 }
 if (typeof google !== 'undefined' && google.script && google.script.run) {
+  loadBannerTheme();
   load(true);
-  setInterval(function () { if (!document.hidden) load(false); }, 60000);
+  setInterval(function () { if (!document.hidden) { load(false); loadBannerTheme(); } }, 60000);
 } else {
   track.innerHTML = '<div class="msg" style="flex:1">เปิดหน้านี้ผ่านลิงก์เว็บแอป (?page=banner)</div>';
 }
