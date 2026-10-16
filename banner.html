@@ -80,7 +80,7 @@ function syncPauseState() {
   }
 }
 
-/* วัดขนาดกรอบที่ฝังอยู่จริง แล้วจัดรูปให้เต็มกรอบ: perSet = 0 → เลือกจำนวนรูปที่เต็มกรอบที่สุดเอง, 1-6 → ตามที่แอดมินตั้ง */
+/* วัดขนาดกรอบที่ฝังอยู่จริง แล้วจัดรูปให้เต็มกรอบ: perSet = 0 → เลือกจำนวนรูปที่เต็มกรอบที่สุดเอง, 1-6 → ตามที่ Admin ตั้ง */
 var M = 8, PAD = 12, GAP = 18, swPx = 300;
 function normH(v) { v = Math.round(Number(v)); return v >= 30 && v <= 100 ? v : 80; }
 function normPer(v) { v = Math.round(Number(v)); return v >= 0 && v <= 6 ? v : 0; }

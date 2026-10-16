@@ -443,7 +443,7 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
 <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
 <div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-<label>รหัสผู้ใช้แอดมิน<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
 <label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
 <label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
 <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
@@ -541,11 +541,11 @@ function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return
 function goPortal() {
   var admin = S.me && S.me.role === 'admin';
   setNav('portal');
-  $('#pMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
+  $('#pMe').textContent = S.me.name + ' (' + (admin ? 'Admin' : 'ผู้ใช้งาน') + ')';
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
   ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket'].forEach(function (x) {
-    var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่แอดมินติ๊กให้ผู้ใช้คนนี้
+    var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่ Admin ติ๊กให้ผู้ใช้คนนี้
   });
 }
 async function startApp(me) {
@@ -561,15 +561,15 @@ async function startApp(me) {
   }
 }
 
-/* ----- ลำดับการ์ดเมนูหลัก (แอดมินจัดได้) ----- */
+/* ----- ลำดับการ์ดเมนูหลัก (Admin จัดได้) ----- */
 var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
-var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่แอดมินแก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
-var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่แอดมินสร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
+var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่ Admin แก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
+var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่ Admin สร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
 function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
 function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
 function cardDef(k) { return CARD_DEF.filter(function (c) { return c.k === k; })[0]; }
@@ -585,7 +585,7 @@ function applyCardTitles() {
     if (b) b.textContent = cardTitle(d.k);
   });
 }
-function renderCustomCards() {                                                   // วาดการ์ดลิงก์ที่แอดมินสร้างเองลงเมนูหลัก
+function renderCustomCards() {                                                   // วาดการ์ดลิงก์ที่ Admin สร้างเองลงเมนูหลัก
   var menu = document.querySelector('#portal .menu');
   menu.querySelectorAll('.mcard[data-ck]').forEach(function (x) { x.remove(); });
   CUSTOM.forEach(function (c) {
@@ -729,7 +729,7 @@ document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
 });
 
 
-/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยกในแท็บเดิม เปลี่ยนเป็น URL ใหม่) + Banner (หน้าแอดมิน) ============================ */
+/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยกในแท็บเดิม เปลี่ยนเป็น URL ใหม่) + Banner (หน้า Admin) ============================ */
 function openCardPage(file, perm) {
   if (!hasPerm(perm)) return;
   var u = pageUrl(file, 'https://cmucoop-support.github.io/CMUCOOP-SP/' + file);
@@ -741,7 +741,7 @@ $('#mMusic').addEventListener('click', function () { openCardPage('music.html', 
 $('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
 $('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
 
-/* ----- ตั้งค่า (แอดมิน) : เปิดเป็นหน้าแยก settings.html ----- */
+/* ----- ตั้งค่า (Admin) : เปิดเป็นหน้าแยก settings.html ----- */
 $('#mSettings').addEventListener('click', function () { if (S.me && S.me.role === 'admin') openCardPage('settings.html', 'settings'); });
 /* ============================ เริ่มต้น ============================ */
 function linkParams() {
@@ -752,7 +752,7 @@ function linkParams() {
 }
 (async function init() {
   var q = await linkParams();
-  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่แอดมินออกให้
+  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่ Admin ออกให้
     try {
       var r = await call('loginByLink', q.u, q.k);
       S.token = r.token;

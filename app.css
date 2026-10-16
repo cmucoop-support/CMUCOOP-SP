@@ -1,10 +1,10 @@
 /* CMUCOOP shared application design. Screen only: exported and printed reports
    keep their own page size, colors, and table geometry. */
 @media screen{
-  :root{--ink:#25233a;--steel:#646477;--bg:#f4f5f9;--panel:#fff;--line:#dfe1ea;--accent:#6941b5;--accent-text:#59359e;--accent-soft:#f0ebf8;--grad:linear-gradient(110deg,#35264f,#513471);--shadow:0 2px 8px rgba(35,31,55,.035);--r:12px}
+  :root{--ink:#2a1f47;--steel:#5a4f78;--bg:#f4f0fb;--panel:#fff;--line:#e3daf3;--accent:#7a4be0;--accent-text:#6a3fd1;--accent-soft:#f0e8ff;--grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff);--shadow:0 2px 8px rgba(106,63,209,.08);--r:12px}
   html{scroll-padding-top:100px}
   body{font-size:15px;line-height:1.6;background:var(--bg);color:var(--ink)}
-  .top,.phead{border-radius:0;background:var(--grad);box-shadow:0 1px 0 rgba(0,0,0,.15);border-bottom:3px solid #a68acb;padding:14px 24px;gap:12px 20px}
+  .top,.phead{border-radius:0;background:var(--grad);box-shadow:0 2px 12px rgba(106,63,209,.16);border-bottom:0;padding:14px 24px;gap:12px 20px}
   .top h1,.phead h1{font-size:18px;letter-spacing:0;display:flex;align-items:center;gap:10px}
   .top h1::before,.phead h1::before{content:"";display:block;width:32px;height:32px;flex:none;border-radius:8px;background:#fff url('logo.png') center/28px 28px no-repeat}
   .top .info{font-size:12px;line-height:1.55;min-width:180px;overflow-wrap:anywhere}
@@ -12,8 +12,8 @@
   .top .status{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:8px}
   .top .btn,.phead .btn{font-size:13px;min-height:36px;padding:7px 12px;box-shadow:none}
   .top .btn.onDark,.top .btn.ghost,.phead .btn.ghost{color:#fff;background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.4)}
-  .top .btn.exportMain,.top .btn:not(.onDark):not(.ghost){background:#fff;border-color:#fff;color:#513471;box-shadow:none}
-  .top select{background:#fff;color:var(--ink);border-color:#d9cde8;min-height:36px;font-size:13px}
+  .top .btn.exportMain,.top .btn:not(.onDark):not(.ghost){background:#fff;border-color:#fff;color:var(--accent-text);box-shadow:none}
+  .top select{background:#fff;color:var(--ink);border-color:#d9c8ff;min-height:36px;font-size:13px}
   .wrap{max-width:1600px;padding:22px 24px 48px;gap:18px}
   .layout{max-width:1600px;margin:auto;padding:22px 24px;gap:18px}
   .layout main{min-width:0;grid-template-columns:minmax(0,1fr)}
@@ -31,35 +31,36 @@
   .kpi .v{font-size:27px;line-height:1.35;margin:5px 0 3px}
   .kpi .s{font-size:12px}
   .btn,.gbtn{border-radius:8px;box-shadow:none;min-height:38px;padding:8px 14px;transition:background .15s,border-color .15s}
+  a.btn,a.btn:hover,a.btn:focus,a.btn:visited{text-decoration:none}
   .btn.small{min-height:32px;padding:5px 11px;font-size:13px}
   .btn:hover{filter:brightness(.96);box-shadow:none}
   .btn:active{transform:none}
-  .btn.ghost{background:#fff;border-color:#cfc7df;color:var(--accent-text)}
+  .btn.ghost{background:#fff;border-color:#d9c8ff;color:var(--accent-text)}
   .btn.danger{border-color:#d2aaa6;color:#a12f27}
-  input[type=text],input[type=search],input[type=password],input[type=number],input[type=date],select,textarea{border:1px solid #cfd2de;background:#fff;border-radius:8px;padding:9px 11px;min-height:40px}
-  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px #6941b515}
+  input[type=text],input[type=search],input[type=password],input[type=number],input[type=date],select,textarea{border:1px solid var(--line);background:#fbf9ff;border-radius:8px;padding:9px 11px;min-height:40px}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(153,102,255,.18)}
   input::placeholder,textarea::placeholder{color:#7c7d8c;opacity:1}
   .frow label{font-size:12px;gap:5px}
-  .tabs{border-radius:9px;background:#ececf3;border:1px solid var(--line);box-shadow:none;padding:4px;gap:3px}
+  .tabs{border-radius:9px;background:#f4f0fb;border:1px solid var(--line);box-shadow:none;padding:4px;gap:3px}
   .tab{border-radius:6px;padding:8px 15px;margin:0;border:0;font-size:14px}
-  .tab.on{background:#fff;color:var(--accent-text);box-shadow:0 1px 4px #29203815;border:0}
-  .chip{border:1px solid #d6d8e3;border-radius:7px;padding:5px 10px;font-size:13px}
-  .chip.on{background:var(--accent-soft);border-color:#b8a2d9}
+  .tab.on{background:var(--grad);color:#fff;box-shadow:none;border:0}
+  .chip{border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:13px}
+  .chip.on{background:var(--accent-soft);border-color:var(--accent-text)}
   .tscroll,.tablewrap{border:1px solid var(--line);border-radius:8px;box-shadow:none}
-  th,.dt th{background:#493463}
-  td{border-bottom-color:#e9eaf0}
-  tbody tr:hover td{background:#f6f4fa}
-  .sheet-top-bar{background:#f7f7fb;border-color:var(--line);border-width:1px;border-radius:8px 8px 0 0;font-size:13px;padding:10px 14px}
-  .sheet-title-bar{background:#493463;border-color:var(--line);border-width:1px;padding:10px 14px;font-size:14px}
+  th,.dt th{background:#4b3a8c}
+  td{border-bottom-color:#efe9fa}
+  tbody tr:hover td{background:#f8f4ff}
+  .sheet-top-bar{background:#f8f5ff;border-color:#d9c8ff;border-width:1px;border-radius:8px 8px 0 0;font-size:13px;padding:10px 14px}
+  .sheet-title-bar{background:#6a3fd1;border-color:#d9c8ff;border-width:1px;padding:10px 14px;font-size:14px}
   .sheet-title-bar+.tscroll{border-radius:0 0 8px 8px}
-  .mt thead th{background:#eee9f5;border-color:#dcd4e9;color:#352a46}
+  .mt thead th{background:#ebe2fc;border-color:#d9c8ff;color:var(--ink)}
   .mt input.in-cell,.mt select.in-cell{min-height:28px;padding:3px;border-radius:4px}
   .sum-box,.sum-tb th,.sum-tb td{border-color:var(--line)}
-  .sum-box-hd,.sum-tb th{background:#f4f1f9;color:var(--ink)}
+  .sum-box-hd,.sum-tb th{background:#f3ecff;color:var(--ink)}
   .sig-grid{gap:24px;margin-top:24px;padding-top:22px;border-color:var(--line)}
   .sig-line{min-height:56px;border-color:#777180}
   .sig-line input{background:transparent;border:0;border-radius:0;box-shadow:none;text-align:center}
-  .sig-line input:focus{background:#f7f4fb;box-shadow:0 0 0 2px #6941b530;border-radius:4px}
+  .sig-line input:focus{background:#f8f5ff;box-shadow:0 0 0 2px rgba(153,102,255,.2);border-radius:4px}
   .dlg,.modal{border-radius:12px;box-shadow:0 16px 56px #17122133;border:1px solid var(--line);padding:24px}
   .overlay,.modalwrap{background:#211a36a6;backdrop-filter:blur(2px)}
   .logincard{padding:32px;width:min(400px,100%);gap:16px;border-top:4px solid var(--accent)}

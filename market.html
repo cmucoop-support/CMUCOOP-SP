@@ -761,7 +761,7 @@ async function load() {
     try { sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
     var canView = me.role === 'admin' || (me.perms && me.perms.market);
     if (!canView) {
-      showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดเช็คราคาตลาด — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
+      showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดเช็คราคาตลาด — ติดต่อ Admin หรือเข้าสู่ระบบด้วยบัญชีอื่น');
       return false;
     }
     var canEdit = me.role === 'admin' || !!(me.perms && me.perms.market && me.perms.market_edit);
@@ -861,7 +861,7 @@ function renderAll() {
   $('#main').hidden = !hasData;
   if (!hasData) {
     $('#info').textContent = D.me ? 'ผู้ใช้: ' + D.me.name : '';
-    $('#emptyMsg').textContent = edit ? (D.br ? 'สาขา ' + D.br + ' ยังไม่มีข้อมูล · ' : '') + 'กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาดไฟล์ใหม่ (เลือกสาขาในหน้าต่างอัปโหลด)' : (D.br ? 'สาขา ' + D.br + ' ' : '') + 'ยังไม่มีข้อมูลในระบบ กรุณาให้แอดมินอัปโหลดข้อมูล';
+    $('#emptyMsg').textContent = edit ? (D.br ? 'สาขา ' + D.br + ' ยังไม่มีข้อมูล · ' : '') + 'กดปุ่มด้านล่างเพื่ออัปโหลดไฟล์ Excel สำรวจราคาตลาดไฟล์ใหม่ (เลือกสาขาในหน้าต่างอัปโหลด)' : (D.br ? 'สาขา ' + D.br + ' ' : '') + 'ยังไม่มีข้อมูลในระบบ กรุณาให้ Admin อัปโหลดข้อมูล';
     return;
   }
 
@@ -1371,7 +1371,7 @@ function mergeUploadedGroup(g, newItems, fileName, repDate, ts, sNote) {
   D.groups[g] = {
     cur: {
       ts: ts,
-      who: (D.me && D.me.name) || 'แอดมิน',
+      who: (D.me && D.me.name) || 'Admin',
       file: fileName,
       rep: repDate || todayIso(),
       surveyNote: sNote || (oldCur && oldCur.surveyNote) || D.surveyNote || '',

@@ -31,16 +31,17 @@
   .head[data-layout="topRow"] { flex-direction:column; }
   .logo { width:var(--logo); height:var(--logo); border-radius:50%; background:#fff; object-fit:cover; flex:none; box-shadow:0 2px 10px rgba(58,32,80,.25); }
   .txt { display:grid; gap:2px; font-weight:700; text-shadow:var(--tv-shadow,0 1px 2px rgba(58,32,80,.35)); }
-  .clock { font-size:var(--f-clock); font-variant-numeric:tabular-nums; }
-  .shop  { font-size:var(--f-shop); margin:0; font-weight:700; }
+  .clock { color:var(--tv-clock,var(--tv-fg)); font-size:var(--f-clock); font-variant-numeric:tabular-nums; }
+  .shop  { color:var(--tv-shop,var(--tv-fg)); font-size:var(--f-shop); margin:0; font-weight:700; }
   .hello { font-size:var(--f-hello); }
-  .hello small { font-size:.65em; font-weight:600; }
+  #helloMain { color:var(--tv-welcome,var(--tv-fg)); }
+  .hello small { color:var(--tv-sub,var(--tv-fg)); font-size:.65em; font-weight:600; }
 
   .frame { width:100%; max-width:100%; margin-left:auto; margin-right:auto; border:0; display:block; border-radius:14px; background:#fff; }
   #banner { width:var(--banner-w); height:var(--banner-h); background:transparent; }
   #receiver { width:var(--receiver-w); height:var(--receiver-h); border-radius:16px; }
   /* ข้อความใต้แบนเนอร์: มีข้อความเดียว ไหลจากขอบขวาออกขอบซ้ายแล้วเริ่มใหม่ */
-  .caption { overflow:hidden; white-space:nowrap; font-size:var(--f-caption); font-weight:700; line-height:1.5;
+  .caption { color:var(--tv-caption,var(--tv-fg)); overflow:hidden; white-space:nowrap; font-size:var(--f-caption); font-weight:700; line-height:1.5;
              text-shadow:var(--tv-shadow,0 1px 2px rgba(58,32,80,.35)); }
   .caption .track { display:inline-block; will-change:transform; animation:marq linear infinite; animation-duration:var(--dur,20s); }
   .caption.paused .track { animation-play-state:paused !important; }
@@ -50,9 +51,9 @@
     .caption .track { animation:none !important; transform:none !important; display:block; }
   }
 
-  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:600; }
+  .foot { color:var(--tv-foot,var(--tv-fg)); display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:600; }
   .foot-acts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .foot button { font:inherit; color:var(--tv-fg); background:var(--btn-bg); border:1.5px solid var(--btn-border);
+  .foot button { font:inherit; color:var(--tv-button-fg,var(--tv-fg)); background:var(--btn-bg); border:1.5px solid var(--btn-border);
                  border-radius:999px; padding:5px 14px; min-height:32px; cursor:pointer; font-weight:600; }
   .foot button:hover { background:var(--btn-hover); }
   .foot button:focus-visible { outline:3px solid var(--tv-fg); outline-offset:2px; }
@@ -74,7 +75,7 @@
 <div class="hello"><span id="helloMain"></span> <small id="helloSub"></small></div>
 </div>
 </header>
-<!-- แบนเนอร์ (จัดการรูปที่หน้าแอดมิน) -->
+<!-- แบนเนอร์ (จัดการรูปที่หน้า Admin) -->
 <iframe class="frame" id="banner" loading="eager" src="banner.html" title="แบนเนอร์ประชาสัมพันธ์"></iframe>
 <div aria-label="ข้อความประกาศวิ่ง" class="caption" id="caption" role="region"></div>
 <!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
@@ -126,7 +127,7 @@ $('capToggle').addEventListener('click', function () {
 window.addEventListener('resize', layoutCaption);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutCaption);
 
-/* คำนวณสีตัวอักษร (#ffffff หรือ #1f1530) ที่มีความต่าง (contrast ratio) สูงสุดเทียบกับสีพื้นหลังที่แอดมินตั้ง */
+/* คำนวณสีตัวอักษร (#ffffff หรือ #1f1530) ที่มีความต่าง (contrast ratio) สูงสุดเทียบกับสีพื้นหลังที่ Admin ตั้ง */
 function parseColor(str) {
   str = String(str || '').trim();
   var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str);
@@ -146,7 +147,7 @@ function relLum(c) {
 function contrastRatio(l1, l2) {
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
-function syncContrast(bgStr) {
+function syncContrast(bgStr, textColor) {
   var c = parseColor(bgStr) || parseColor(getComputedStyle(document.body).backgroundColor) || { r: 139, g: 99, b: 166 };
   var bgLum = relLum(c);
   var whiteLum = 1.0, darkLum = relLum({ r: 31, g: 21, b: 48 }); // #1f1530
@@ -165,6 +166,12 @@ function syncContrast(bgStr) {
     r.setProperty('--btn-bg', 'rgba(26,15,46,.48)');
     r.setProperty('--btn-hover', 'rgba(26,15,46,.68)');
     r.setProperty('--btn-border', 'rgba(255,255,255,.78)');
+  }
+  // ปุ่มใช้สีที่อ่านง่ายบนพื้นปุ่มเสมอ แม้จะเลือกสีข้อความส่วนอื่นเอง
+  r.setProperty('--tv-button-fg', useDark ? '#1f1530' : '#ffffff');
+  if (/^#[0-9a-f]{6}$/i.test(String(textColor || ''))) {
+    r.setProperty('--tv-fg', textColor);
+    r.setProperty('--tv-shadow', 'none');
   }
 }
 
@@ -190,7 +197,11 @@ function applyCfg(c) {
   var r = document.documentElement.style;
   var bgVal = c.bg || '#8b63a6';
   r.setProperty('--bg', bgVal);
-  syncContrast(bgVal);
+  syncContrast(bgVal, c.textColor);
+  [['clockColor','--tv-clock'],['shopColor','--tv-shop'],['welcomeColor','--tv-welcome'],['subColor','--tv-sub'],['captionColor','--tv-caption'],['footColor','--tv-foot']].forEach(function (p) {
+    var v = String(c[p[0]] || '');
+    if (/^#[0-9a-f]{6}$/i.test(v)) r.setProperty(p[1], v); else r.removeProperty(p[1]);
+  });
   if (c.width) r.setProperty('--w', c.width + 'px');
   if (c.bannerH) r.setProperty('--banner-h', c.bannerH + 'px');
   if (c.receiverH) r.setProperty('--receiver-h', c.receiverH + 'px');

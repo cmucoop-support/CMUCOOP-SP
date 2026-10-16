@@ -409,7 +409,7 @@ td.act{white-space:nowrap;min-width:170px}
 <h1>ระบบเสียงประกาศ</h1>
 <span class="me" id="sMe"></span>
 <button class="btn ghost small hidden" id="sGoCfg"> ตั้งค่าเสียง</button>
-<button class="btn ghost small" id="sHome">← เมนูหลัก</button>
+<button class="btn ghost small" id="sHome">เมนูหลัก</button>
 <button class="btn ghost small js-logout">ออกจากระบบ</button>
 </header>
 <div class="pwrap" id="wcag-main" role="main">
@@ -468,7 +468,7 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
 <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
 <div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-<label>รหัสผู้ใช้แอดมิน<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
 <label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
 <label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
 <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
@@ -607,7 +607,7 @@ function sndRender() {
   var c = SND.cfg; if (!c) return;
   $('#sKeys').innerHTML = c.buttons.map(function (b) {
     return '<div class="kb"><span class="kl">' + esc(b.label) + '</span><button class="kbtn" data-k="' + esc(b.code) + '" data-l="' + esc(b.label) + '">' + esc(b.code.replace('_', '.')) + '</button></div>';
-  }).join('') || '<div class="muted">ยังไม่มีเสียง — ให้แอดมินนำเข้าหรืออัปโหลดไฟล์เสียงในแท็บ "ตั้งค่าเสียง"</div>';
+  }).join('') || '<div class="muted">ยังไม่มีเสียง — ให้ Admin นำเข้าหรืออัปโหลดไฟล์เสียงในแท็บ "ตั้งค่าเสียง"</div>';
   $('#sTimed').innerHTML = c.timed.map(function (b) {
     return '<button class="btn ghost" data-k="' + esc(b.code) + '" data-l="' + esc(b.label) + '" data-io="1"> ' + esc(b.label) + '</button>';
   }).join('') || '<div class="muted">ยังไม่มีเสียงพิเศษ</div>';
@@ -676,7 +676,7 @@ $('#sGoCfg').addEventListener('click', function () {
 async function startApp(me) {
   S.me = me;
   if (!hasPerm('sound')) {
-    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดระบบเสียงประกาศ — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
+    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดระบบเสียงประกาศ — ติดต่อ Admin หรือเข้าสู่ระบบด้วยบัญชีอื่น');
     return;
   }
   document.body.classList.remove('locked');
@@ -733,7 +733,7 @@ function linkParams() {
 }
 (async function init() {
   var q = await linkParams();
-  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่แอดมินออกให้
+  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่ Admin ออกให้
     try {
       var r = await call('loginByLink', q.u, q.k);
       S.token = r.token;

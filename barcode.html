@@ -406,7 +406,7 @@ td.act{white-space:nowrap;min-width:170px}
 <header class="top" role="banner">
 <h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
 <span class="me" id="me"></span>
-<button class="btn ghost small" id="btnHome">← เมนูหลัก</button>
+<button class="btn ghost small" id="btnHome">เมนูหลัก</button>
 <button class="btn ghost small" id="btnReload">โหลดใหม่</button>
 <button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
 </header>
@@ -496,7 +496,7 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
 <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
 <div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-<label>รหัสผู้ใช้แอดมิน<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
 <label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
 <label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
 <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
@@ -731,7 +731,7 @@ function renderTable() {
 }
 $('#q').addEventListener('input', renderTable);
 
-/* ============================ แก้ไข / ลบรายการ (แอดมิน) ============================ */
+/* ============================ แก้ไข / ลบรายการ (Admin) ============================ */
 var editing = null;
 $('#tbody').addEventListener('click', function (e) {
   var b = e.target.closest('button[data-a]'); if (!b) return;
@@ -1249,13 +1249,13 @@ async function ensureThaiFont() {
     ]);
   } catch (e) {}
 }
-async function pfRender(font, list) {                    /* แถวเลือกฟอนต์ในแท็บปริ้น: แอดมินเปลี่ยนได้ ผู้ใช้อื่นเห็นเฉพาะที่ตั้งไว้ */
+async function pfRender(font, list) {                    /* แถวเลือกฟอนต์ในแท็บปริ้น: Admin เปลี่ยนได้ ผู้ใช้อื่นเห็นเฉพาะที่ตั้งไว้ */
   var sel = $('#pFont'); if (!sel) return;
   if (list && !sel.options.length) sel.innerHTML = list.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('');
   applyPrintFont(font); sel.value = PRINT_FONT;
   var admin = S.me && S.me.role === 'admin';
   sel.disabled = !admin;
-  $('#pFontNote').textContent = admin ? 'แอดมินตั้งได้ · ใช้กับทุกคนที่ปริ้นรายงาน' : 'ตั้งโดยแอดมิน (เฉพาะแอดมินเปลี่ยนได้)';
+  $('#pFontNote').textContent = admin ? 'Admin ตั้งได้ · ใช้กับทุกคนที่ปริ้นรายงาน' : 'ตั้งโดย Admin (เฉพาะ Admin เปลี่ยนได้)';
   $('#pFontSample').style.fontFamily = PDF_FONT;
   await ensureThaiFont();
   $('#pFontSample').style.fontFamily = PDF_FONT;
@@ -1415,7 +1415,7 @@ function goPortal() {
 }
 async function openBarcode() {
   var me = S.me; if (!me || !hasPerm('barcode')) return;
-  $('#me').textContent = me.name + ' (' + (me.role === 'admin' ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
+  $('#me').textContent = me.name + ' (' + (me.role === 'admin' ? 'Admin' : 'ผู้ใช้งาน') + ')';
   var admin = me.role === 'admin';
   document.querySelectorAll('.tab').forEach(function (t) {
     t.classList.toggle('hidden', !admin && (t.dataset.t === 'data'));
@@ -1433,7 +1433,7 @@ async function openBarcode() {
 async function startApp(me) {
   S.me = me;
   if (!hasPerm('barcode')) {
-    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดรายการบาร์เดี่ยว/บาร์แพ็ค — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
+    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดรายการบาร์เดี่ยว/บาร์แพ็ค — ติดต่อ Admin หรือเข้าสู่ระบบด้วยบัญชีอื่น');
     return;
   }
   document.body.classList.remove('locked');
@@ -1498,7 +1498,7 @@ function linkParams() {
 }
 (async function init() {
   var q = await linkParams();
-  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่แอดมินออกให้
+  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่ Admin ออกให้
     try {
       var r = await call('loginByLink', q.u, q.k);
       S.token = r.token;

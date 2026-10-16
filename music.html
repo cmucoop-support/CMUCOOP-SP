@@ -408,7 +408,7 @@ td.act{white-space:nowrap;min-width:170px}
 <header class="phead" role="banner">
 <h1>ขอเพลง / คิวเพลง</h1>
 <span class="me" id="muMe"></span>
-<button class="btn ghost small" id="muHome">← เมนูหลัก</button>
+<button class="btn ghost small" id="muHome">เมนูหลัก</button>
 <button class="btn ghost small js-logout">ออกจากระบบ</button>
 </header>
 <div class="pwrap" id="wcag-main" role="main">
@@ -419,7 +419,7 @@ td.act{white-space:nowrap;min-width:170px}
 <label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">
            ความดังเพลง <input id="muVol" max="100" min="0" step="5" style="flex:1" type="range" value="70"/> <b id="muVolTxt" style="min-width:48px">70%</b></label>
 </div>
-<div class="muted" style="margin-top:4px">ใครก็ปรับได้ · มีผลกับเพลงที่เล่นที่ TV เท่านั้น เสียงประกาศไม่เปลี่ยน (แอดมินตั้งความดังประกาศที่ ระบบเสียงประกาศ → ตั้งค่าเสียง) · TV ปรับตามภายในไม่กี่วินาที</div>
+<div class="muted" style="margin-top:4px">ใครก็ปรับได้ · มีผลกับเพลงที่เล่นที่ TV เท่านั้น เสียงประกาศไม่เปลี่ยน (Admin ตั้งความดังประกาศที่ ระบบเสียงประกาศ → ตั้งค่าเสียง) · TV ปรับตามภายในไม่กี่วินาที</div>
 </div>
 <div class="card">
 <div class="mu-head"><h3>ขอเพลง</h3><span class="muted" id="muQuota"></span></div>
@@ -431,7 +431,7 @@ td.act{white-space:nowrap;min-width:170px}
 <div class="muted" id="muNote" style="margin-top:6px"></div>
 </div>
 <div class="card hidden" id="muAdminCard">
-<div class="mu-head"><h3>ตั้งค่าสำหรับแอดมิน</h3><span class="mu-chip warn hidden" id="muPendBadge"><i></i><span></span></span></div>
+<div class="mu-head"><h3>ตั้งค่าสำหรับ Admin</h3><span class="mu-chip warn hidden" id="muPendBadge"><i></i><span></span></span></div>
 <div class="row">
 <label class="mu-opt"><input id="muAuto" type="checkbox"/> อนุมัติเพลงอัตโนมัติตลอด</label>
 <button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
@@ -439,7 +439,7 @@ td.act{white-space:nowrap;min-width:170px}
           <select id="muMaxUser"></select> เพลง</label>
 <button class="btn ghost small" id="muClear">ล้างประวัติ</button>
 </div>
-<div class="muted" style="margin-top:6px">แอดมินขอเพลงแล้วเข้าคิวทันทีและไม่ถูกจำกัดจำนวน · ผู้ใช้ทั่วไปมีเพลงค้างในคิวพร้อมกันได้ไม่เกินจำนวนที่ตั้งไว้</div>
+<div class="muted" style="margin-top:6px">Admin ขอเพลงแล้วเข้าคิวทันทีและไม่ถูกจำกัดจำนวน · ผู้ใช้ทั่วไปมีเพลงค้างในคิวพร้อมกันได้ไม่เกินจำนวนที่ตั้งไว้</div>
 </div>
 <div class="card">
 <div class="mu-head">
@@ -460,7 +460,7 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
 <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
 <div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-<label>รหัสผู้ใช้แอดมิน<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
 <label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
 <label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
 <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
@@ -576,7 +576,7 @@ function openMusic() {
   if (!hasPerm('music')) return;
   setNav('music');
   var admin = S.me.role === 'admin';
-  $('#muMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
+  $('#muMe').textContent = S.me.name + ' (' + (admin ? 'Admin' : 'ผู้ใช้งาน') + ')';
   $('#muAdminCard').classList.toggle('hidden', !admin);
   if (!$('#muMaxUser').options.length) $('#muMaxUser').innerHTML = [1, 2, 3, 4, 5, 6, 8, 10].map(function (n) { return '<option>' + n + '</option>'; }).join('');
   MU.tab = 'q'; MU.fails = 0;
@@ -687,10 +687,10 @@ function muRender() {
 
   /* ช่องขอเพลง + โควตา */
   var mine = live.filter(function (x) { return x.mine; }).length;
-  $('#muQuota').textContent = admin ? 'แอดมิน: เข้าคิวทันที ไม่จำกัดจำนวน' : 'คุณมีเพลงในคิว ' + mine + '/' + MU.maxUser;
-  $('#muNote').textContent = MU.auto ? 'เปิดอนุมัติอัตโนมัติอยู่ — เพลงที่ขอจะเข้าคิวทันที' : (admin ? 'ผู้ใช้ทั่วไปต้องรอแอดมินอนุมัติก่อนจึงเข้าคิว (เพลงที่แอดมินขอเข้าคิวทันที)' : 'เพลงที่ขอต้องรอแอดมินอนุมัติก่อนจึงเข้าคิว');
+  $('#muQuota').textContent = admin ? 'Admin: เข้าคิวทันที ไม่จำกัดจำนวน' : 'คุณมีเพลงในคิว ' + mine + '/' + MU.maxUser;
+  $('#muNote').textContent = MU.auto ? 'เปิดอนุมัติอัตโนมัติอยู่ — เพลงที่ขอจะเข้าคิวทันที' : (admin ? 'ผู้ใช้ทั่วไปต้องรอ Admin อนุมัติก่อนจึงเข้าคิว (เพลงที่ Admin ขอเข้าคิวทันที)' : 'เพลงที่ขอต้องรอ Admin อนุมัติก่อนจึงเข้าคิว');
 
-  /* ส่วนแอดมิน */
+  /* ส่วน Admin */
   $('#muAuto').checked = !!MU.auto;
   if (document.activeElement !== $('#muMaxUser')) $('#muMaxUser').value = String(MU.maxUser);
   var pb = $('#muPendBadge'); pb.classList.toggle('hidden', !pending.length); if (pending.length) pb.lastChild.textContent = 'รออนุมัติ ' + pending.length + ' เพลง';
@@ -733,7 +733,7 @@ $('#muSend').addEventListener('click', function () {
   busy(this, async function () {
     var r = await call('musicRequest', u);
     $('#muUrl').value = ''; muPreview(); MU.tab = 'q';
-    toast(r.status === 'รอคิว' ? 'เข้าคิวแล้ว: ' + r.title : 'ส่งคำขอแล้ว รอแอดมินอนุมัติ: ' + r.title);
+    toast(r.status === 'รอคิว' ? 'เข้าคิวแล้ว: ' + r.title : 'ส่งคำขอแล้ว รอ Admin อนุมัติ: ' + r.title);
     muNotify(); await muLoad();
   });
 });
@@ -785,7 +785,7 @@ $('#muHome').addEventListener('click', goPortal);
 async function startApp(me) {
   S.me = me;
   if (!hasPerm('music')) {
-    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดขอเพลง / คิวเพลง — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
+    showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดขอเพลง / คิวเพลง — ติดต่อ Admin หรือเข้าสู่ระบบด้วยบัญชีอื่น');
     return;
   }
   document.body.classList.remove('locked');
@@ -842,7 +842,7 @@ function linkParams() {
 }
 (async function init() {
   var q = await linkParams();
-  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่แอดมินออกให้
+  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่ Admin ออกให้
     try {
       var r = await call('loginByLink', q.u, q.k);
       S.token = r.token;
