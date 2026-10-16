@@ -1,18 +1,13 @@
-/* CMUCOOP API — Cloudflare Worker + D1
- * รับ POST {fn, args:[...]} แล้วตอบ {ok:true,data} / {ok:false,error}  (รูปแบบเดียวกับ Apps Script เดิม → หน้าเว็บใช้ gas-shim.js เหมือนเดิม)
- * เฟส 1 : ล็อกอิน/ผู้ใช้/สิทธิ์ · การ์ดเมนูหลัก · ประวัติการใช้งาน · Banner · ระบบเสียงประกาศ
- * ไฟล์รูป/เสียงเก็บใน D1 (ตาราง files) เป็นข้อความ base64 แบ่งก้อนละ ~900 KB (ไม่ต้องใช้ R2 / ไม่ต้องผูกบัตร) */
-
 const SESSION_TTL = 21600;           // วินาที (6 ชั่วโมง) ต่ออายุเมื่อเหลือน้อยกว่าครึ่ง
 const MAX_FAIL = 5, LOCK_SEC = 300, LOG_DAYS = 30;
 const CHUNK = 900000;                // จำนวนตัวอักษร base64 ต่อ 1 แถวในตาราง files (D1 จำกัดแถวละ 2 MB)
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
-const ROLES = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน' };
+const ROLES = { admin: 'Admin', viewer: 'ผู้ใช้งาน' };
 const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → แอดมินต้องติ๊กให้ผู้ใช้ทีละคน
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → Admin ต้องติ๊กให้ผู้ใช้ทีละคน
 const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'settings'];
-const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่แอดมินสร้างเอง (รหัส c_xxxxxxxx)
+const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่ Admin สร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
 /* การ์ดลิงก์เดิม 5 ใบ (ทำป้ายราคา ฯลฯ) ถูกแปลงเป็นการ์ดลิงก์ทั่วไปที่ลบ/แก้ได้ (ย้ายข้อมูลอัตโนมัติครั้งเดียวใน migrateLinks) */
 const LEGACY_LINKS = [
@@ -199,7 +194,7 @@ async function getUser(C, username) { const r = await one(C, 'SELECT * FROM user
 async function allUsers(C) { return (await all(C, 'SELECT * FROM users ORDER BY rowid')).map(rowToUser); }
 async function ensureAdmin(C) {
   const r = await one(C, 'SELECT COUNT(*) AS n FROM users');
-  if (!r || !r.n) { const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin'); await saveUserStmt(C, '0000', u).run(); }   // เหมือนของเดิม: แอดมินเริ่มต้น 0000/0000
+  if (!r || !r.n) { const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin'); await saveUserStmt(C, '0000', u).run(); }   // เหมือนของเดิม: Admin เริ่มต้น 0000/0000
 }
 async function newLinkRec(username) {
   const key = (uuid() + uuid()).replace(/-/g, ''), salt = uuid();
@@ -244,7 +239,7 @@ API.loginByLink = async (C, username, key) => {
   const u = await getUser(C, username);
   if (!u || !u.lk || !key || u.lk.hash !== await hashPw(u.lk.salt, key)) {
     await failBump(C, lockKey, fails + 1);
-    throw new Error('ลิงก์เข้าใช้งานไม่ถูกต้องหรือถูกยกเลิกแล้ว กรุณาขอลิงก์ใหม่จากแอดมิน');
+    throw new Error('ลิงก์เข้าใช้งานไม่ถูกต้องหรือถูกยกเลิกแล้ว กรุณาขอลิงก์ใหม่จาก Admin');
   }
   await failClear(C, lockKey);
   return startSession(C, username, u, 'ลิงก์');
@@ -273,7 +268,7 @@ API.changePassword = async (C, token, oldPassword, newPassword) => {
   return { ok: true };
 };
 
-/* ---------- รหัสกู้คืนแอดมิน ---------- */
+/* ---------- รหัสกู้คืน Admin ---------- */
 const normRecovery = c => String(c || '').replace(/[\s-]+/g, '').toUpperCase();
 async function checkRecovery(C, code) {
   const rec = await kvJson(C, 'RECOVERY_CODE', null);
@@ -300,19 +295,19 @@ API.recoverAdmin = async (C, username, code, newPassword) => {
   await ensureAdmin(C);
   const fails = await failCount(C, 'rfail');
   if (fails >= MAX_FAIL) throw new Error('ใส่รหัสกู้คืนผิดหลายครั้ง กรุณารอ 5 นาทีแล้วลองใหม่');
-  if (!username) throw new Error('กรุณากรอกรหัสผู้ใช้แอดมิน');
+  if (!username) throw new Error('กรุณากรอกรหัสผู้ใช้ Admin');
   if (newPassword.length < 4) throw new Error('รหัสผ่านใหม่ต้องมีอย่างน้อย 4 ตัวอักษร');
   if (!(await checkRecovery(C, code))) { await failBump(C, 'rfail', fails + 1); throw new Error('รหัสกู้คืนไม่ถูกต้อง'); }
   const u = await getUser(C, username);
-  if (!u || u.role !== 'admin') throw new Error('ไม่พบบัญชีแอดมินชื่อนี้');
+  if (!u || u.role !== 'admin') throw new Error('ไม่พบบัญชี Admin ชื่อนี้');
   const nu = await makeUser(newPassword, 'admin', u.name); nu.perms = u.perms; nu.lk = u.lk;
   await saveUserStmt(C, username, nu).run();
   await failClear(C, 'rfail'); await failClear(C, 'fail:' + username);
-  await sysLog(C, username, 'กู้คืนรหัสผ่านแอดมิน', 'รหัสผู้ใช้ ' + username);
+  await sysLog(C, username, 'กู้คืนรหัสผ่าน Admin', 'รหัสผู้ใช้ ' + username);
   return { ok: true };
 };
 
-/* ---------- จัดการผู้ใช้ (แอดมิน) ---------- */
+/* ---------- จัดการผู้ใช้ (Admin) ---------- */
 API.listUsers = async (C, token) => {
   await auth(C, token, true);
   return (await allUsers(C)).map(u => { const p = userPerms(u); return { username: u.username, name: u.name, role: u.role, assets: p.assets, perms: p, link: !!u.lk }; });
@@ -339,7 +334,7 @@ API.saveUser = async (C, token, p) => {
   let link = '';
   if ((!old && linkMode) || (old && old.lk && original !== username)) { const nl = await newLinkRec(username); rec.lk = nl.lk; link = nl.link; }
   const next = Object.assign({}, map); if (original && original !== username) delete next[original]; next[username] = rec;
-  if (!Object.keys(next).some(k => next[k].role === 'admin')) throw new Error('ต้องมีแอดมินอย่างน้อย 1 คน');
+  if (!Object.keys(next).some(k => next[k].role === 'admin')) throw new Error('ต้องมี Admin อย่างน้อย 1 คน');
   const ops = [];
   if (original && original !== username) ops.push(stmt(C, 'DELETE FROM users WHERE username=?', original), stmt(C, 'DELETE FROM sessions WHERE username=?', original));
   ops.push(saveUserStmt(C, username, rec));
@@ -361,7 +356,7 @@ API.deleteUser = async (C, token, username) => {
   if (username === me.user) throw new Error('ไม่สามารถลบบัญชีที่กำลังใช้งานอยู่ได้');
   const users = await allUsers(C);
   if (!users.some(u => u.username === username)) throw new Error('ไม่พบผู้ใช้ ' + username);
-  if (!users.some(u => u.username !== username && u.role === 'admin')) throw new Error('ต้องมีแอดมินอย่างน้อย 1 คน');
+  if (!users.some(u => u.username !== username && u.role === 'admin')) throw new Error('ต้องมี Admin อย่างน้อย 1 คน');
   await batch(C, [stmt(C, 'DELETE FROM users WHERE username=?', username), stmt(C, 'DELETE FROM sessions WHERE username=?', username), stmt(C, 'DELETE FROM kv WHERE k=?', 'CSZ:' + username)]);
   await sysLog(C, me.name, 'ลบผู้ใช้', username);
   return { ok: true };
@@ -410,7 +405,7 @@ async function customCards(C) {
 }
 const customIds = async C => (await customCards(C)).map(c => c.k);
 API.getCardOrder = async (C, token) => { await auth(C, token); return normCardOrder(await kvJson(C, 'CARD_ORDER', null), await customIds(C)); };
-API.getCustomCards = async (C, token) => {           // ผู้ใช้ทั่วไปเห็นเฉพาะการ์ดที่แอดมินไม่ได้ปิดสิทธิ์ไว้
+API.getCustomCards = async (C, token) => {           // ผู้ใช้ทั่วไปเห็นเฉพาะการ์ดที่ Admin ไม่ได้ปิดสิทธิ์ไว้
   const me = await auth(C, token), list = await customCards(C);
   return me.role === 'admin' ? list : list.filter(c => me.perms[c.k] !== false);
 };
@@ -874,7 +869,7 @@ API.musicCancel = async (C, token, id) => {
   await appendLog(C, me.name, 'Music', '', 'ยกเลิกคำขอเพลง', r.title);
   return true;
 };
-/* หยุดเพลง/เล่นต่อ (แอดมิน) — เก็บเป็น "รหัสเพลงที่ถูกหยุด" ข้ามเพลง/จบเพลง/เปลี่ยนเพลงแล้วสถานะหยุดหายเองโดยไม่ต้องล้าง */
+/* หยุดเพลง/เล่นต่อ (Admin) — เก็บเป็น "รหัสเพลงที่ถูกหยุด" ข้ามเพลง/จบเพลง/เปลี่ยนเพลงแล้วสถานะหยุดหายเองโดยไม่ต้องล้าง */
 API.musicPause = async (C, token, id, on) => {
   const me = await auth(C, token, true); id = str(id); on = on === true || on === 'true';
   const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
@@ -889,7 +884,7 @@ API.musicPause = async (C, token, id, on) => {
   await appendLog(C, me.name, 'Music', '', on ? 'หยุดเพลง' : 'เล่นเพลงต่อ', r.title);
   return { ok: true, paused: on };
 };
-/* ข้ามเพลงถัดไปในเพลย์ลิสต์ (แอดมิน) — ต่างจาก skip ที่ข้ามทั้งรายการ: ส่งคำสั่งให้ TV เลื่อนไปเพลงถัดไปในเพลย์ลิสต์เดิม */
+/* ข้ามเพลงถัดไปในเพลย์ลิสต์ (Admin) — ต่างจาก skip ที่ข้ามทั้งรายการ: ส่งคำสั่งให้ TV เลื่อนไปเพลงถัดไปในเพลย์ลิสต์เดิม */
 API.musicNextTrack = async (C, token, id) => {
   const me = await auth(C, token, true); id = str(id);
   const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
@@ -971,7 +966,7 @@ API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
   const base = { vol: s.vol, avol: s.avol };
   if (!top) return Object.assign({ action: 'idle' }, base);
   const cmd = s.cmd && s.cmd.id === top.id && now() - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
-  const paused = s.pausedId === top.id;                           // เพลงนี้ถูกแอดมินสั่งหยุดอยู่หรือไม่
+  const paused = s.pausedId === top.id;                           // เพลงนี้ถูก Admin สั่งหยุดอยู่หรือไม่
   if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep', paused, cmd }, base) : Object.assign({ action: 'play', item: muItem(top), paused }, base);
   const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว'", now(), top.id);
   return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top), paused: false }, base) : Object.assign({ action: 'keep', paused: false }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
@@ -1022,12 +1017,13 @@ async function bcDup(C, v, exceptId) {
   return '';
 }
 
-/* ฟอนต์ตอนปริ้นรายงานบาร์ — แอดมินตั้งครั้งเดียว ใช้กับทุกคน (เฉพาะฟอนต์ในรายการนี้ ซึ่งมีน้ำหนัก 400 และ 700 ครบทั้งหมด) */
+/* ฟอนต์ตอนปริ้นรายงานบาร์ — Admin ตั้งครั้งเดียว ใช้กับทุกคน (เฉพาะฟอนต์ในรายการนี้ ซึ่งมีน้ำหนัก 400 และ 700 ครบทั้งหมด) */
 const BC_FONTS = ['Bai Jamjuree', 'Mali', 'Sarabun', 'Prompt', 'Kanit', 'Niramit', 'Noto Sans Thai', 'Pridi', 'Taviraj', 'K2D', 'Athiti', 'Mitr', 'Krub', 'Maitree', 'TH Sarabun New', 'Tahoma'];
 const BC_FONT_DEF = 'Bai Jamjuree';
 /* ============================== ตั้งค่าหน้าจอ TV (tv.html) ============================== */
 const TV_DEF = { shop: 'ร้านสหกรณ์ มช. (CMU CO-OP)', helloMain: 'ยินดีต้อนรับ', helloSub: '"ขอให้วันนี้เป็นวันที่สดใสสำหรับคุณ"', caption: 'ร้านสหกรณ์ มช. ยินดีให้บริการ',
-  bg: '#a07ab8', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, gap: 14, padTop: 14, logoSize: 84, headGap: 18, gapBanner: null, gapCaption: null, gapReceiver: null, gapFoot: null, bannerW: 0, receiverW: 0, font: 'Sarabun', headLayout: 'side', showClock: true, showLogo: true, showBanner: true };
+  bg: '#a07ab8', textColor: '', clockColor: '', shopColor: '', welcomeColor: '', subColor: '', captionColor: '', footColor: '', width: 760, bannerH: 230, receiverH: 430, fontClock: 22, fontShop: 22, fontHello: 22, fontCaption: 22, capSpeed: 80, gap: 14, padTop: 14, logoSize: 84, headGap: 18, gapBanner: null, gapCaption: null, gapReceiver: null, gapFoot: null, bannerW: 0, receiverW: 0, font: 'Sarabun', headLayout: 'side', showClock: true, showLogo: true, showBanner: true };
+const TV_COLOR = ['textColor', 'clockColor', 'shopColor', 'welcomeColor', 'subColor', 'captionColor', 'footColor'];   // ว่าง = ใช้สีอัตโนมัติ / ใช้สีข้อความหลัก
 const TV_TXT = { shop: 80, helloMain: 60, helloSub: 100, caption: 120 };
 const TV_NUM = { width: [480, 3840, 'ความกว้างหน้า'], bannerH: [60, 2000, 'ความสูงแบนเนอร์'], receiverH: [150, 2000, 'ความสูงกรอบตัวรับเสียง'],
   gap: [0, 200, 'ระยะห่างระหว่างส่วน'], logoSize: [20, 600, 'ขนาดโลโก้'], padTop: [0, 600, 'ระยะห่างขอบด้านบนสุด'], headGap: [0, 200, 'ระยะห่างโลโก้กับข้อความ'], bannerW: [0, 3840, 'ความกว้างแบนเนอร์ (0 = เต็มหน้า)'], receiverW: [0, 3840, 'ความกว้างกรอบตัวรับเสียง (0 = เต็มหน้า)'],
@@ -1058,6 +1054,7 @@ function tvNorm(o, strict) {
   out.font = BC_FONTS.includes(str(o.font)) ? str(o.font) : TV_DEF.font;
   out.headLayout = TV_LAYOUTS.includes(str(o.headLayout)) ? str(o.headLayout) : TV_DEF.headLayout;
   out.bg = /^#[0-9a-f]{6}$/i.test(str(o.bg)) ? str(o.bg).toLowerCase() : TV_DEF.bg;
+  TV_COLOR.forEach(k => { out[k] = /^#[0-9a-f]{6}$/i.test(str(o[k])) ? str(o[k]).toLowerCase() : ''; });
   TV_BOOL.forEach(k => { out[k] = o[k] === undefined || o[k] === null ? TV_DEF[k] : !(o[k] === false || o[k] === 'false'); });
   return out;
 }
@@ -1065,7 +1062,8 @@ const tvCfg = async C => tvNorm(await kvJson(C, 'TV_CFG', {}), false);
 API.getTvPublic = C => tvCfg(C);                       // tv.html เรียกโดยไม่ต้องล็อกอิน (เป็นข้อความตั้งค่าล้วน ไม่มีข้อมูลลับ)
 API.getTvConfig = async (C, token) => { await auth(C, token, true); return { cfg: await tvCfg(C), def: TV_DEF }; };
 API.setTvConfig = async (C, token, o) => {
-  const me = await auth(C, token, true), cfg = tvNorm(o, true);
+  const me = await auth(C, token, true);
+  const cfg = tvNorm(Object.assign({}, await tvCfg(C), o && typeof o === 'object' && !Array.isArray(o) ? o : {}), true);
   await kvSet(C, 'TV_CFG', JSON.stringify(cfg));
   await appendLog(C, me.name, 'TV', '', 'ตั้งค่าหน้าจอ TV', cfg.shop + ' · แบนเนอร์สูง ' + cfg.bannerH + ' · ตัวรับเสียงสูง ' + cfg.receiverH);
   return { ok: true, cfg };
@@ -1369,11 +1367,15 @@ function stockSummary(rows, lost) {                                // lost (ไ�
   Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
   return out;
 }
-function stockGroupSums(state) {                                  // ยอด DS/T3 รายหมวด (ฉบับปัจจุบัน) เก็บคู่กับประวัติแต่ละรอบ → กราฟแนวโน้มแยกหมวด · { G01: { DS: [รายการ, มูลค่าทุน], T3: [..] } }
+function stockGroupSums(state) {                                  // ยอดทุกช่วงอายุรายหมวด ณ รอบที่บันทึก · { G01: { DS: [รายการ, มูลค่าทุน], T3: [..], T2: [..], T1: [..], NA: [..] } }
   const out = {};
   Object.keys(state).forEach(g => {
     const m = state[g] && state[g].cur, st = m && m.sum && m.sum.st; if (!st) return;
-    out[g] = { DS: [st.DS ? st.DS.n : 0, st.DS ? Math.round(st.DS.cost) : 0], T3: [st.T3 ? st.T3.n : 0, st.T3 ? Math.round(st.T3.cost) : 0] };
+    out[g] = {};
+    STOCK_ST.forEach(status => {
+      const k = status || 'NA', a = st[k];
+      out[g][k] = [a ? a.n : 0, a ? Math.round(a.cost) : 0];
+    });
   });
   return out;
 }
@@ -1504,9 +1506,9 @@ function stockDailyHistory(hist) {
     if (!x || !x.ts) return;
     const dk = stockDayKey(x.ts), prev = byDay.get(dk);
     if (!prev || x.ts >= prev.ts) {
-      const merged = Object.assign({}, x);
-      if (prev && prev.gs && !merged.gs) merged.gs = prev.gs;
-      byDay.set(dk, merged);
+      // Keep the final snapshot intact. Older per-group sums cannot describe a
+      // newer snapshot and missing legacy age buckets must stay unknown.
+      byDay.set(dk, Object.assign({}, x));
     }
   });
   return Array.from(byDay.values()).sort((a, b) => a.ts - b.ts);
@@ -1623,14 +1625,14 @@ API.stockRestore = async (C, token, g) => {
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
   return { ok: true, groups: state };
 };
-/* แก้ไขข้อมูลสินค้าค้างสต็อกได้: แอดมิน หรือผู้ใช้ที่แอดมินติ๊ก "แก้ไขได้" ให้ · ผู้ใช้ที่มีสิทธิ์ดูอย่างเดียวจะเห็นข้อมูลแต่แก้ไม่ได้ */
+/* แก้ไขข้อมูลสินค้าค้างสต็อกได้: Admin หรือผู้ใช้ที่ Admin ติ๊ก "แก้ไขได้" ให้ · ผู้ใช้ที่มีสิทธิ์ดูอย่างเดียวจะเห็นข้อมูลแต่แก้ไม่ได้ */
 async function stockEditAuth(C, token) {
   const me = await auth(C, token);
   if (!me.perms.stock) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
   if (me.role !== 'admin' && !me.perms.stock_edit) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
   return me;
 }
-/* ยืนยันรหัสผ่านของแอดมินที่กำลังใช้งาน (หรือรหัสกู้คืนแอดมิน สำหรับบัญชีที่เข้าทางลิงก์) · ใส่ผิดนับรวมกับการล็อกอิน (5 ครั้ง = รอ 5 นาที) */
+/* ยืนยันรหัสผ่านของ Admin ที่กำลังใช้งาน (หรือรหัสกู้คืน Admin สำหรับบัญชีที่เข้าทางลิงก์) · ใส่ผิดนับรวมกับการล็อกอิน (5 ครั้ง = รอ 5 นาที) */
 async function stockVerifyPw(C, me, password) {
   password = passArg(password);
   if (!password) throw new Error('กรุณาใส่รหัสผ่านเพื่อยืนยัน');
@@ -1641,7 +1643,7 @@ async function stockVerifyPw(C, me, password) {
   if (u.hash !== await hashPw(u.salt, password) && !(await checkRecovery(C, password))) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผ่านไม่ถูกต้อง'); }
   await failClear(C, lockKey);
 }
-/* ล้างข้อมูล (แอดมิน + ต้องใส่รหัส) scope = { mode:'all' } | { mode:'branch', branch } | { mode:'group', g }
+/* ล้างข้อมูล (Admin + ต้องใส่รหัส) scope = { mode:'all' } | { mode:'branch', branch } | { mode:'group', g }
  * branch/group: ฉบับที่ล้างเก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้ · all: ลบทุกอย่างรวมฉบับก่อนหน้าและประวัติแนวโน้ม (ย้อนกลับไม่ได้ · ชื่อหมวดคงไว้) */
 API.stockClear = async (C, token, password, scope) => {
   const me = await auth(C, token, true);
