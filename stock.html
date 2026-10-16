@@ -1,13 +1,14 @@
 <!DOCTYPE html>
+
 <html lang="th">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>สินค้าค้างสต็อก · CMUCOOP</title>
-<link rel="icon" type="image/png" href="logo.png">
+<link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{
@@ -237,294 +238,313 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
-<link rel="stylesheet" href="a11y.css">
-</head>
-<body>
+<link href="a11y.css" rel="stylesheet"/>
+<style id="cmucoop-accessible-design">
+/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
+:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
+html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
+:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
+:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
+:where(button,input,select,textarea){font-family:inherit}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
+:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
+:where(a){text-underline-offset:3px}
+:where(a:hover){text-decoration-thickness:2px}
+:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
+:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
+:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
+:where(.top h1,.appbar h1){letter-spacing:-.025em}
+:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
+:where(table){border-collapse:separate;border-spacing:0}
+:where(th){font-weight:700}
+:where(th,td){vertical-align:middle}
+:where(.num){font-variant-numeric:tabular-nums}
+:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
+:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+/* Dedicated keyboard-only bypass navigation */
+.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
+.wcag-skip:focus{transform:translateY(0)}
+/* Desktop-quality spacing, adaptive on phones and zoom */
+@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
+@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
 
+:root{--bg:#f6f3fb;--panel:#ffffff;--ink:#281d44;--steel:#554a70;--line:#d8cee9;--accent:#7541d1;--accent-text:#6231ba;--accent-soft:#eee6ff}
+:where(.top){box-shadow:0 3px 20px rgba(25,13,51,.12)}
+:where(.panel,.card,.box){border-color:var(--line)}
+:where(button){border-radius:10px}
+:where(button:hover:not(:disabled)){filter:brightness(.97)}
+</style></head>
+<body><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
-  <h1>สินค้าค้างสต็อก</h1>
-  <div class="info" id="info">กำลังโหลดข้อมูล…</div>
-  <div class="acts">
-    <button class="btn exportMain small hidden" id="bUpload">&#11014; อัปโหลดข้อมูล</button>
-    <button class="btn exportMain small" id="bXlsx">&#11015; ดาวน์โหลดข้อมูล</button>
-    <button class="btn onDark small hidden" id="bNames">ตั้งค่า</button>
-    <button class="btn onDark small" id="bReload">รีเฟรช</button>
-    <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
-  </div>
-</header>
-
-<div class="wrap" id="app" role="main">
-
-  <div class="card empty hidden" id="empty">
-    <h2>ยังไม่มีข้อมูลสินค้าค้างสต็อก</h2>
-    <div class="muted" id="emptyMsg"></div>
-  </div>
-
-  <div id="main" class="wrap" style="padding:0" hidden>
-    <section class="card" style="padding-bottom:0">
-      <div class="tabs" id="verTabs" role="tablist"></div>
-      <div class="muted" id="verNote" style="padding:8px 0 10px"></div>
-    </section>
-    <section class="card filters">
-      <div class="frow">
-        <label>สาขา<select id="fBr"></select></label>
-        <div style="flex:1.4 1 260px;display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500">
-          <span>หมวดสินค้า</span>
-          <div class="grp-bar">
-            <div class="mgrp-wrap" id="fGrpWrap">
-              <button type="button" class="mgrp-btn" id="fGrpBtn" aria-haspopup="true" aria-expanded="false" aria-controls="fGrpMenu" aria-label="เลือกหมวดสินค้า"><span id="fGrpLabel">ทุกหมวด</span><span class="arr" aria-hidden="true">&#9662;</span></button>
-              <div class="mgrp-menu hidden" id="fGrpMenu" role="group" aria-label="ตัวเลือกหมวดสินค้า"></div>
-            </div>
-            <select id="fGrp" class="hidden"></select>
-          </div>
-        </div>
-        <label class="grow">ค้นหา<input type="search" id="fQ" placeholder="พิมพ์ชื่อ รหัส หรือหมายเหตุเพื่อค้นหา" autocomplete="off"></label>
-      </div>
-      <div id="gpill" class="hidden"></div>
-      <div id="gHistBox" class="ghist hidden"></div>
-      <div>
-        <div class="muted" style="margin-bottom:5px">ช่วงอายุสินค้า</div>
-        <div class="chips" id="chips"></div>
-      </div>
-      <div>
-        <div class="muted" style="margin-bottom:5px">แสดงสินค้าในแท็ก</div>
-        <div class="chk-row" id="fTagChecks"></div>
-        <select id="fTag" class="hidden"></select>
-      </div>
-      <div>
-        <div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
-        <div class="chk-row" id="fHideChecks"></div>
-      </div>
-    </section>
-
-    <section class="kpis" id="kpis"></section>
-
-    <section class="charts">
-      <div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
-      <div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
-      <div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
-      <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
-      <div class="card" style="grid-column:1/-1"><div class="cardhead"><h3>แนวโน้มมูลค่าทุนตามวันที่อัปโหลด <small id="trNote"></small></h3>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="trMode" aria-label="รูปแบบการแสดงกราฟแนวโน้ม" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 30–60 วัน T3</option></select>
-          <button type="button" class="btn ghost small hidden" id="bTrendHist">ลบประวัติสถิติย้อนหลัง</button>
-        </div></div>
-        <div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
-    </section>
-
-    <section class="card">
-      <div class="cardhead"><h3>สรุปแยกตามหมวด <small id="gtNote"></small></h3></div>
-      <div class="tscroll" style="max-height:480px"><table id="gt"></table></div>
-    </section>
-
-    <section class="card">
-      <div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
-      <div class="tscroll"><table id="dt"></table></div>
-      <div class="pager"><span class="muted" id="pgInfo"></span><button class="btn ghost small" id="pgPrev">ก่อนหน้า</button><button class="btn ghost small" id="pgNext">ถัดไป</button></div>
-    </section>
-
-    <section class="card" id="zeroCard" hidden>
-      <div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
-      <div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
-      <div class="muted" id="zeroMore" style="margin-top:6px"></div>
-    </section>
-
-    <section class="card" id="deductCard" hidden>
-      <div class="cardhead" id="deductHead" style="user-select:none;margin-bottom:0">
-        <h3>สรุปรายการที่หักออกจากค้างสต็อก <small id="deductNote"></small></h3>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <div class="tabs hidden" id="deductTabs" role="tablist"></div>
-          <button type="button" class="btn ghost small" id="bToggleDeduct" aria-expanded="false" aria-controls="deductBody">ขยายดูข้อมูล &#9662;</button>
-        </div>
-      </div>
-      <div id="deductBody" class="hidden" style="margin-top:8px">
-        <div id="lostNote"></div>
-        <div id="deductDetailBox"></div>
-      </div>
-    </section>
-
-    <section class="card" id="analysisCard">
-      <div class="cardhead">
-        <h3>วิเคราะห์แนวโน้มและสรุปข้อมูลสินค้าค้างสต็อก <small id="analysisNote"></small></h3>
-      </div>
-      <div id="analysisBody"></div>
-      <div id="anListBox" class="an-listbox hidden"></div>
-    </section>
-  </div>
+<h1>สินค้าค้างสต็อก</h1>
+<div class="info" id="info">กำลังโหลดข้อมูล…</div>
+<div class="acts">
+<button class="btn exportMain small hidden" id="bUpload">⬆ อัปโหลดข้อมูล</button>
+<button class="btn exportMain small" id="bXlsx">⬇ ดาวน์โหลดข้อมูล</button>
+<button class="btn onDark small hidden" id="bNames">ตั้งค่า</button>
+<button class="btn onDark small" id="bReload">รีเฟรช</button>
+<a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
 </div>
-
+</header>
+<div class="wrap" id="app" role="main">
+<div class="card empty hidden" id="empty">
+<h2>ยังไม่มีข้อมูลสินค้าค้างสต็อก</h2>
+<div class="muted" id="emptyMsg"></div>
+</div>
+<div class="wrap" hidden="" id="main" style="padding:0">
+<section class="card" style="padding-bottom:0">
+<div class="tabs" id="verTabs" role="tablist"></div>
+<div class="muted" id="verNote" style="padding:8px 0 10px"></div>
+</section>
+<section class="card filters">
+<div class="frow">
+<label>สาขา<select id="fBr"></select></label>
+<div style="flex:1.4 1 260px;display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500">
+<span>หมวดสินค้า</span>
+<div class="grp-bar">
+<div class="mgrp-wrap" id="fGrpWrap">
+<button aria-controls="fGrpMenu" aria-expanded="false" aria-haspopup="true" aria-label="เลือกหมวดสินค้า" class="mgrp-btn" id="fGrpBtn" type="button"><span id="fGrpLabel">ทุกหมวด</span><span aria-hidden="true" class="arr">▾</span></button>
+<div aria-label="ตัวเลือกหมวดสินค้า" class="mgrp-menu hidden" id="fGrpMenu" role="group"></div>
+</div>
+<select aria-label="ตัวเลือก fGrp" class="hidden" id="fGrp"></select>
+</div>
+</div>
+<label class="grow">ค้นหา<input autocomplete="off" id="fQ" placeholder="พิมพ์ชื่อ รหัส หรือหมายเหตุเพื่อค้นหา" type="search"/></label>
+</div>
+<div class="hidden" id="gpill"></div>
+<div class="ghist hidden" id="gHistBox"></div>
+<div>
+<div class="muted" style="margin-bottom:5px">ช่วงอายุสินค้า</div>
+<div class="chips" id="chips"></div>
+</div>
+<div>
+<div class="muted" style="margin-bottom:5px">แสดงสินค้าในแท็ก</div>
+<div class="chk-row" id="fTagChecks"></div>
+<select aria-label="ตัวเลือก fTag" class="hidden" id="fTag"></select>
+</div>
+<div>
+<div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
+<div class="chk-row" id="fHideChecks"></div>
+</div>
+</section>
+<section class="kpis" id="kpis"></section>
+<section class="charts">
+<div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
+<div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
+<div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
+<div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
+<div class="card" style="grid-column:1/-1"><div class="cardhead"><h3>แนวโน้มมูลค่าทุนตามวันที่อัปโหลด <small id="trNote"></small></h3>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<select aria-label="รูปแบบการแสดงกราฟแนวโน้ม" id="trMode" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 30–60 วัน T3</option></select>
+<button class="btn ghost small hidden" id="bTrendHist" type="button">ลบประวัติสถิติย้อนหลัง</button>
+</div></div>
+<div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
+</section>
+<section class="card">
+<div class="cardhead"><h3>สรุปแยกตามหมวด <small id="gtNote"></small></h3></div>
+<div class="tscroll" style="max-height:480px"><table id="gt"></table></div>
+</section>
+<section class="card">
+<div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
+<div class="tscroll"><table id="dt"></table></div>
+<div class="pager"><span class="muted" id="pgInfo"></span><button class="btn ghost small" id="pgPrev">ก่อนหน้า</button><button class="btn ghost small" id="pgNext">ถัดไป</button></div>
+</section>
+<section class="card" hidden="" id="zeroCard">
+<div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
+<div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
+<div class="muted" id="zeroMore" style="margin-top:6px"></div>
+</section>
+<section class="card" hidden="" id="deductCard">
+<div class="cardhead" id="deductHead" style="user-select:none;margin-bottom:0">
+<h3>สรุปรายการที่หักออกจากค้างสต็อก <small id="deductNote"></small></h3>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<div class="tabs hidden" id="deductTabs" role="tablist"></div>
+<button aria-controls="deductBody" aria-expanded="false" class="btn ghost small" id="bToggleDeduct" type="button">ขยายดูข้อมูล ▾</button>
+</div>
+</div>
+<div class="hidden" id="deductBody" style="margin-top:8px">
+<div id="lostNote"></div>
+<div id="deductDetailBox"></div>
+</div>
+</section>
+<section class="card" id="analysisCard">
+<div class="cardhead">
+<h3>วิเคราะห์แนวโน้มและสรุปข้อมูลสินค้าค้างสต็อก <small id="analysisNote"></small></h3>
+</div>
+<div id="analysisBody"></div>
+<div class="an-listbox hidden" id="anListBox"></div>
+</section>
+</div>
+</div>
 <!-- เข้าสู่ระบบ (หน้าตาเดียวกับหน้าหลัก) -->
 <div class="loginwrap hidden" id="login">
-  <div class="logincard">
-    <h2>เข้าสู่ระบบ</h2>
-    <div class="muted" id="lgMsg">เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก</div>
-    <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
-    <label>รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
-    <div class="err" id="lgErr"></div>
-    <div class="row"><button class="btn" id="lgBtn">เข้าสู่ระบบ</button></div>
-  </div>
+<div class="logincard">
+<h2>เข้าสู่ระบบ</h2>
+<div class="muted" id="lgMsg">เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก</div>
+<label>รหัสผู้ใช้<input autocomplete="username" id="lgUser" type="text"/></label>
+<label>รหัสผ่าน<input autocomplete="current-password" id="lgPass" type="password"/></label>
+<div class="err" id="lgErr"></div>
+<div class="row"><button class="btn" id="lgBtn">เข้าสู่ระบบ</button></div>
 </div>
-
+</div>
 <!-- อัปโหลด -->
 <div class="overlay hidden" id="upDlg">
-  <div class="dlg wide">
-    <h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
-    <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · จำนวนที่บันทึกไว้ใน "ของหาย" "สินค้าหมดอายุ" "รอปรับข้อมูล" และ "ของเสีย" ยังถูกหักออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
-    <div class="brpick">
-      <label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
-      <label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input type="text" id="upBrNew" maxlength="20" autocomplete="off"></label>
-    </div>
-    <button type="button" class="drop off" id="drop" aria-disabled="true"><b>ขั้นที่ 2 · ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></button>
-    <input type="file" id="upFile" accept=".xlsx,.xls,.csv" class="hidden" multiple>
-    <div class="err" id="upErr"></div>
-    <div class="pv hidden" id="pv"></div>
-    <div class="row"><button class="btn ghost" id="upCancel">ปิด</button><button class="btn hidden" id="upSave">บันทึกหมวดที่เลือก</button></div>
-  </div>
+<div class="dlg wide">
+<h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
+<div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · จำนวนที่บันทึกไว้ใน "ของหาย" "สินค้าหมดอายุ" "รอปรับข้อมูล" และ "ของเสีย" ยังถูกหักออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
+<div class="brpick">
+<label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
+<label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input autocomplete="off" id="upBrNew" maxlength="20" type="text"/></label>
 </div>
-
+<button aria-disabled="true" class="drop off" id="drop" type="button"><b>ขั้นที่ 2 · ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></button>
+<input accept=".xlsx,.xls,.csv" aria-label="เลือกไฟล์" class="hidden" id="upFile" multiple="" type="file"/>
+<div class="err" id="upErr"></div>
+<div class="pv hidden" id="pv"></div>
+<div class="row"><button class="btn ghost" id="upCancel">ปิด</button><button class="btn hidden" id="upSave">บันทึกหมวดที่เลือก</button></div>
+</div>
+</div>
 <!-- ส่งออก Excel -->
 <div class="overlay hidden" id="exDlg">
-  <div class="dlg">
-    <h2>ส่งออกเป็นไฟล์ Excel</h2>
-    <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
-    <label class="opt"><input type="radio" name="exMode" value="filter" checked><span><b>ตามตัวกรองที่เลือกอยู่</b><br><span class="muted" id="exN1"></span></span></label>
-    <label class="opt"><input type="radio" name="exMode" value="all"><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br><span class="muted" id="exN2"></span></span></label>
-    <label class="opt"><input type="radio" name="exMode" value="branch"><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
-    <div style="margin-top:12px"><b>เพิ่มส่งออกเป็นชีตแยก</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ใช้ขอบเขตเดียวกับที่เลือกด้านบน)</span></div>
-    <div id="exExtra" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-      <label class="chk-pill"><input type="checkbox" data-exx="lost"><span>ของหาย</span></label>
-      <label class="chk-pill"><input type="checkbox" data-exx="exp"><span>หมดอายุ</span></label>
-      <label class="chk-pill"><input type="checkbox" data-exx="waste"><span>ของเสีย</span></label>
-      <label class="chk-pill"><input type="checkbox" data-exx="pend"><span>รอปรับ</span></label>
-      <label class="chk-pill"><input type="checkbox" data-exx="zero" checked><span>คงเหลือ 0</span></label>
-      <label class="chk-pill"><input type="checkbox" data-exx="neg" checked><span>ติดลบ</span></label>
-    </div>
-    <div class="err" id="exErr"></div>
-    <div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
-  </div>
+<div class="dlg">
+<h2>ส่งออกเป็นไฟล์ Excel</h2>
+<div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
+<label class="opt"><input checked="" name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
+<label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br/><span class="muted" id="exN2"></span></span></label>
+<label class="opt"><input name="exMode" type="radio" value="branch"/><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br/><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
+<div style="margin-top:12px"><b>เพิ่มส่งออกเป็นชีตแยก</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ใช้ขอบเขตเดียวกับที่เลือกด้านบน)</span></div>
+<div id="exExtra" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+<label class="chk-pill"><input data-exx="lost" type="checkbox"/><span>ของหาย</span></label>
+<label class="chk-pill"><input data-exx="exp" type="checkbox"/><span>หมดอายุ</span></label>
+<label class="chk-pill"><input data-exx="waste" type="checkbox"/><span>ของเสีย</span></label>
+<label class="chk-pill"><input data-exx="pend" type="checkbox"/><span>รอปรับ</span></label>
+<label class="chk-pill"><input checked="" data-exx="zero" type="checkbox"/><span>คงเหลือ 0</span></label>
+<label class="chk-pill"><input checked="" data-exx="neg" type="checkbox"/><span>ติดลบ</span></label>
 </div>
-
+<div class="err" id="exErr"></div>
+<div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
+</div>
+</div>
 <!-- ของหาย / สินค้าหมดอายุ (ใช้หน้าต่างเดียวกัน · จำเฉพาะจำนวน) -->
 <div class="overlay hidden" id="lostDlg">
-  <div class="dlg wide">
-    <h2 id="lsTitle">รายการของหาย</h2>
-    <div class="muted" id="lsDesc"></div>
-    <div class="brpick" id="lsAddBox">
-      <label><span id="lsInLab">กรอกบาร์ + จำนวน</span> <span class="muted" style="font-weight:400">(1 บรรทัด = 1 รายการ รูปแบบ "บาร์ จำนวน" เช่น 8850001234567 3 · ไม่ใส่จำนวนจะใช้ค่าด้านล่าง · สแกนแล้วกด Enter เพิ่มได้เลย · วางจาก Excel ได้ · Shift+Enter = ขึ้นบรรทัดใหม่)</span><textarea id="lsIn" rows="2" autocomplete="off"></textarea></label>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-        <label>จำนวนเริ่มต้น (ชิ้น)<input type="number" id="lsQty" min="0.01" step="any" value="1"></label>
-        <label>สาขา<select id="lsBr"></select></label>
-        <label>หมายเหตุ (ไม่บังคับ)<input type="text" id="lsNote" maxlength="100" autocomplete="off"></label>
-      </div>
-      <div class="row" style="margin-top:0"><button class="btn" id="lsAdd">เพิ่ม</button></div>
-    </div>
-    <div class="err" id="lsErr"></div>
-    <div class="cardhead" style="margin-top:10px"><div class="muted" id="lsSum"></div><input type="search" id="lsQ" placeholder="ค้นหา บาร์ / ชื่อ / หมายเหตุ" autocomplete="off" style="max-width:260px"></div>
-    <div class="tscroll" style="max-height:360px"><table class="pvt">
-      <thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">สาขา</th><th class="nosort">หักจากสต็อก (หมวด · สาขา · ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" id="lsThAct"></th></tr></thead>
-      <tbody id="lsTb"></tbody>
-    </table></div>
-    <div class="row"><button class="btn ghost hidden" id="lsCancelAll" style="color:var(--bad)">ยกเลิกทั้งหมด</button><button class="btn ghost" id="lsClose">ปิด</button></div>
-  </div>
+<div class="dlg wide">
+<h2 id="lsTitle">รายการของหาย</h2>
+<div class="muted" id="lsDesc"></div>
+<div class="brpick" id="lsAddBox">
+<label><span id="lsInLab">กรอกบาร์ + จำนวน</span> <span class="muted" style="font-weight:400">(1 บรรทัด = 1 รายการ รูปแบบ "บาร์ จำนวน" เช่น 8850001234567 3 · ไม่ใส่จำนวนจะใช้ค่าด้านล่าง · สแกนแล้วกด Enter เพิ่มได้เลย · วางจาก Excel ได้ · Shift+Enter = ขึ้นบรรทัดใหม่)</span><textarea autocomplete="off" id="lsIn" rows="2"></textarea></label>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+<label>จำนวนเริ่มต้น (ชิ้น)<input id="lsQty" min="0.01" step="any" type="number" value="1"/></label>
+<label>สาขา<select id="lsBr"></select></label>
+<label>หมายเหตุ (ไม่บังคับ)<input autocomplete="off" id="lsNote" maxlength="100" type="text"/></label>
 </div>
-
+<div class="row" style="margin-top:0"><button class="btn" id="lsAdd">เพิ่ม</button></div>
+</div>
+<div class="err" id="lsErr"></div>
+<div class="cardhead" style="margin-top:10px"><div class="muted" id="lsSum"></div><input aria-label="ค้นหา บาร์ / ชื่อ / หมายเหตุ" autocomplete="off" id="lsQ" placeholder="ค้นหา บาร์ / ชื่อ / หมายเหตุ" style="max-width:260px" type="search"/></div>
+<div class="tscroll" style="max-height:360px"><table class="pvt">
+<thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">สาขา</th><th class="nosort">หักจากสต็อก (หมวด · สาขา · ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" id="lsThAct"></th></tr></thead>
+<tbody id="lsTb"></tbody>
+</table></div>
+<div class="row"><button class="btn ghost hidden" id="lsCancelAll" style="color:var(--bad)">ยกเลิกทั้งหมด</button><button class="btn ghost" id="lsClose">ปิด</button></div>
+</div>
+</div>
 <!-- ล้างข้อมูล (แอดมิน + ใส่รหัส) -->
 <div class="overlay hidden" id="clDlg">
-  <div class="dlg">
-    <h2>ล้างข้อมูลสินค้าค้างสต็อก</h2>
-    <div class="muted">เฉพาะแอดมิน · ต้องใส่รหัสผ่านของคุณเพื่อยืนยัน (บัญชีที่เข้าทางลิงก์ใช้รหัสกู้คืนแอดมินแทนได้)</div>
-    <label class="opt"><input type="radio" name="clMode" value="branch" checked><span><b>ล้างทั้งสาขา</b> (ทุกหมวด)<br><select id="clBr"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
-    <label class="opt"><input type="radio" name="clMode" value="group"><span><b>ล้างทั้งหมวด</b> (ทุกสาขา)<br><select id="clG"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
-    <label class="opt"><input type="radio" name="clMode" value="all"><span><b>ล้างข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา)<br><span class="muted"><b style="color:var(--bad)">ย้อนกลับไม่ได้</b> · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย · ชื่อหมวดคงไว้</span></span></label>
-    <label style="display:block;margin-top:10px">รหัสผ่านยืนยัน<input type="password" id="clPw" autocomplete="current-password"></label>
-    <div class="err" id="clErr"></div>
-    <div class="row"><button class="btn ghost" id="clCancel">ยกเลิก</button><button class="btn" id="clGo" style="background:var(--bad)">ล้างข้อมูล</button></div>
-  </div>
+<div class="dlg">
+<h2>ล้างข้อมูลสินค้าค้างสต็อก</h2>
+<div class="muted">เฉพาะแอดมิน · ต้องใส่รหัสผ่านของคุณเพื่อยืนยัน (บัญชีที่เข้าทางลิงก์ใช้รหัสกู้คืนแอดมินแทนได้)</div>
+<label class="opt"><input checked="" name="clMode" type="radio" value="branch"/><span><b>ล้างทั้งสาขา</b> (ทุกหมวด)<br/><select id="clBr"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
+<label class="opt"><input name="clMode" type="radio" value="group"/><span><b>ล้างทั้งหมวด</b> (ทุกสาขา)<br/><select id="clG"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
+<label class="opt"><input name="clMode" type="radio" value="all"/><span><b>ล้างข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา)<br/><span class="muted"><b style="color:var(--bad)">ย้อนกลับไม่ได้</b> · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย · ชื่อหมวดคงไว้</span></span></label>
+<label style="display:block;margin-top:10px">รหัสผ่านยืนยัน<input autocomplete="current-password" id="clPw" type="password"/></label>
+<div class="err" id="clErr"></div>
+<div class="row"><button class="btn ghost" id="clCancel">ยกเลิก</button><button class="btn" id="clGo" style="background:var(--bad)">ล้างข้อมูล</button></div>
 </div>
-
+</div>
 <!-- ตั้งค่า (เพิ่มสาขา / เลือกสาขา / เพิ่มหมวด-ลบหมวด-ตั้งชื่อหมวดอิงตามสาขา / จัดการประวัติย้อนหลัง / ล้างข้อมูล) -->
 <div class="overlay hidden" id="nmDlg">
-  <div class="dlg wide">
-    <h2>ตั้งค่า</h2>
-    <div class="muted">เพิ่มสาขาและจัดการหมวดสินค้าโดยอิงตามสาขาที่เลือก · แต่ละสาขาสามารถมีหมวดและชื่อหมวดของตัวเองได้</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#f3ecff;border:1px solid #d9c8ff;border-radius:12px">
-      <label style="font-size:13px;font-weight:600;color:var(--ink);flex:1 1 180px">สาขาที่กำลังตั้งค่าหมวด<select id="nmBr"></select></label>
-      <button type="button" class="btn ghost small" id="nmDelBrBtn" style="color:var(--bad)" title="ลบสาขาที่เลือก">ลบสาขานี้</button>
-      <label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 180px">เพิ่มสาขาใหม่<input type="text" id="nmNewBr" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก"></label>
-      <button type="button" class="btn small" id="nmAddBrBtn">+ เพิ่มสาขา</button>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
-      <div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)" id="nmBrTitle">หมวดสินค้าของสาขา</div>
-      <label style="font-size:13px;font-weight:600;color:var(--steel);flex:0 0 140px">รหัสหมวดใหม่<input type="text" id="nmNewCode" maxlength="12" placeholder="เช่น G25"></label>
-      <label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 200px">ชื่อหมวดใหม่<input type="text" id="nmNewName" maxlength="40" placeholder="เช่น เครื่องดื่ม / ของใช้"></label>
-      <button type="button" class="btn small" id="nmAddBtn">+ เพิ่มหมวดในสาขานี้</button>
-    </div>
-    <div class="namegrid" id="nmGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
-      <div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)">ข้อมูลและประวัติ</div>
-      <button type="button" class="btn ghost small hidden" id="bHist">จัดการประวัติย้อนหลัง</button>
-      <button type="button" class="btn ghost small hidden" id="bClear" style="color:var(--bad)">ล้างข้อมูล</button>
-    </div>
-    <div class="err" id="nmErr"></div>
-    <div class="row"><button class="btn ghost" id="nmCancel">ปิด</button><button class="btn" id="nmSave">บันทึกตั้งค่าหมวด</button></div>
-  </div>
+<div class="dlg wide">
+<h2>ตั้งค่า</h2>
+<div class="muted">เพิ่มสาขาและจัดการหมวดสินค้าโดยอิงตามสาขาที่เลือก · แต่ละสาขาสามารถมีหมวดและชื่อหมวดของตัวเองได้</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#f3ecff;border:1px solid #d9c8ff;border-radius:12px">
+<label style="font-size:13px;font-weight:600;color:var(--ink);flex:1 1 180px">สาขาที่กำลังตั้งค่าหมวด<select id="nmBr"></select></label>
+<button class="btn ghost small" id="nmDelBrBtn" style="color:var(--bad)" title="ลบสาขาที่เลือก" type="button">ลบสาขานี้</button>
+<label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 180px">เพิ่มสาขาใหม่<input id="nmNewBr" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก" type="text"/></label>
+<button class="btn small" id="nmAddBrBtn" type="button">+ เพิ่มสาขา</button>
 </div>
-
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+<div id="nmBrTitle" style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)">หมวดสินค้าของสาขา</div>
+<label style="font-size:13px;font-weight:600;color:var(--steel);flex:0 0 140px">รหัสหมวดใหม่<input id="nmNewCode" maxlength="12" placeholder="เช่น G25" type="text"/></label>
+<label style="font-size:13px;font-weight:600;color:var(--steel);flex:1 1 200px">ชื่อหมวดใหม่<input id="nmNewName" maxlength="40" placeholder="เช่น เครื่องดื่ม / ของใช้" type="text"/></label>
+<button class="btn small" id="nmAddBtn" type="button">+ เพิ่มหมวดในสาขานี้</button>
+</div>
+<div class="namegrid" id="nmGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+<div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)">ข้อมูลและประวัติ</div>
+<button class="btn ghost small hidden" id="bHist" type="button">จัดการประวัติย้อนหลัง</button>
+<button class="btn ghost small hidden" id="bClear" style="color:var(--bad)" type="button">ล้างข้อมูล</button>
+</div>
+<div class="err" id="nmErr"></div>
+<div class="row"><button class="btn ghost" id="nmCancel">ปิด</button><button class="btn" id="nmSave">บันทึกตั้งค่าหมวด</button></div>
+</div>
+</div>
 <!-- จัดการประวัติข้อมูลและสถิติย้อนหลัง -->
 <div class="overlay hidden" id="histDlg">
-  <div class="dlg wide">
-    <h2>จัดการประวัติข้อมูลและสถิติย้อนหลัง</h2>
-    <div class="muted">สามารถลบประวัติสถิติแนวโน้มรายวัน หรือลบข้อมูลย้อนหลังฉบับก่อนหน้าของแต่ละหมวดที่บันทึกทิ้งไว้ได้โดยไม่กระทบข้อมูลสต็อกปัจจุบัน</div>
-    <div style="margin-top:12px">
-      <div class="cardhead">
-        <h3 style="font-size:15px;margin:0">1. ประวัติสถิติแนวโน้มตามวันที่อัปโหลด <small id="hsTrendNote"></small></h3>
-        <button type="button" class="btn ghost small" id="hsClearAllHist" style="color:var(--bad)">ลบสถิติแนวโน้มทั้งหมด</button>
-      </div>
-      <div class="tscroll" style="max-height:240px"><table class="pvt">
-        <thead><tr><th class="nosort">วันที่</th><th class="nosort">อัปเดตล่าสุดของวัน</th><th class="nosort">ผู้อัปโหลด</th><th class="nosort">ไฟล์ / สาขา</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">มูลค่าทุน T3</th><th class="nosort">จัดการ</th></tr></thead>
-        <tbody id="hsTrendTb"></tbody>
-      </table></div>
-    </div>
-    <div style="margin-top:14px">
-      <div class="cardhead">
-        <h3 style="font-size:15px;margin:0">2. ข้อมูลย้อนหลังรายหมวด — ฉบับก่อนหน้า <small id="hsPrevNote"></small></h3>
-        <button type="button" class="btn ghost small" id="hsClearAllPrev" style="color:var(--bad)">ลบฉบับก่อนหน้าทั้งหมด</button>
-      </div>
-      <div class="tscroll" style="max-height:240px"><table class="pvt">
-        <thead><tr><th class="nosort">หมวด</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายการที่มีสต็อก</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">จัดการ</th></tr></thead>
-        <tbody id="hsPrevTb"></tbody>
-      </table></div>
-    </div>
-    <div class="err" id="hsErr"></div>
-    <div class="row"><button class="btn ghost" id="hsClose">ปิด</button></div>
-  </div>
+<div class="dlg wide">
+<h2>จัดการประวัติข้อมูลและสถิติย้อนหลัง</h2>
+<div class="muted">สามารถลบประวัติสถิติแนวโน้มรายวัน หรือลบข้อมูลย้อนหลังฉบับก่อนหน้าของแต่ละหมวดที่บันทึกทิ้งไว้ได้โดยไม่กระทบข้อมูลสต็อกปัจจุบัน</div>
+<div style="margin-top:12px">
+<div class="cardhead">
+<h3 style="font-size:15px;margin:0">1. ประวัติสถิติแนวโน้มตามวันที่อัปโหลด <small id="hsTrendNote"></small></h3>
+<button class="btn ghost small" id="hsClearAllHist" style="color:var(--bad)" type="button">ลบสถิติแนวโน้มทั้งหมด</button>
+</div>
+<div class="tscroll" style="max-height:240px"><table class="pvt">
+<thead><tr><th class="nosort">วันที่</th><th class="nosort">อัปเดตล่าสุดของวัน</th><th class="nosort">ผู้อัปโหลด</th><th class="nosort">ไฟล์ / สาขา</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">มูลค่าทุน T3</th><th class="nosort">จัดการ</th></tr></thead>
+<tbody id="hsTrendTb"></tbody>
+</table></div>
+</div>
+<div style="margin-top:14px">
+<div class="cardhead">
+<h3 style="font-size:15px;margin:0">2. ข้อมูลย้อนหลังรายหมวด — ฉบับก่อนหน้า <small id="hsPrevNote"></small></h3>
+<button class="btn ghost small" id="hsClearAllPrev" style="color:var(--bad)" type="button">ลบฉบับก่อนหน้าทั้งหมด</button>
+</div>
+<div class="tscroll" style="max-height:240px"><table class="pvt">
+<thead><tr><th class="nosort">หมวด</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort">โดย</th><th class="nosort">รายการที่มีสต็อก</th><th class="nosort">มูลค่าทุน DS</th><th class="nosort">จัดการ</th></tr></thead>
+<tbody id="hsPrevTb"></tbody>
+</table></div>
+</div>
+<div class="err" id="hsErr"></div>
+<div class="row"><button class="btn ghost" id="hsClose">ปิด</button></div>
+</div>
 </div>
 <!-- ดูรายการเชื่อมโยง บาร์กระจาย / บาร์แพ็ค (แสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา) -->
 <div class="overlay hidden" id="bcDlg">
-  <div class="dlg wide" style="width:min(1080px,100%)">
-    <div class="cardhead" style="margin-bottom:4px">
-      <h2 id="bcTitle" style="margin:0">รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค</h2>
-      <div class="tabs" id="bcBrTabs" role="tablist"></div>
-    </div>
-    <div class="muted" id="bcSub" style="margin-bottom:10px"></div>
-    <div id="bcPairInfo" style="display:grid;gap:6px;margin-bottom:10px"></div>
-    <div id="bcBrSections" style="display:grid;gap:12px;max-height:520px;overflow:auto;padding-right:2px"></div>
-    <table class="pvt hidden" id="bcTb"></table>
-    <div class="row"><button class="btn ghost" id="bcClose">ปิด</button></div>
-  </div>
+<div class="dlg wide" style="width:min(1080px,100%)">
+<div class="cardhead" style="margin-bottom:4px">
+<h2 id="bcTitle" style="margin:0">รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค</h2>
+<div class="tabs" id="bcBrTabs" role="tablist"></div>
+</div>
+<div class="muted" id="bcSub" style="margin-bottom:10px"></div>
+<div id="bcPairInfo" style="display:grid;gap:6px;margin-bottom:10px"></div>
+<div id="bcBrSections" style="display:grid;gap:12px;max-height:520px;overflow:auto;padding-right:2px"></div>
+<table class="pvt hidden" id="bcTb"></table>
+<div class="row"><button class="btn ghost" id="bcClose">ปิด</button></div>
+</div>
 </div>
 <!-- ค้นหาเพื่อเชื่อมบาร์กระจาย/บาร์แพ็คเองในสาขาที่ไม่พบข้อมูล -->
 <div class="overlay hidden" id="bcLinkDlg" style="z-index:95">
-  <div class="dlg" style="width:min(760px,100%)">
-    <h2 id="bcLinkTitle" style="margin:0 0 4px">เชื่อมรายการ</h2>
-    <div class="muted" id="bcLinkSub" style="margin-bottom:10px"></div>
-    <input type="search" id="bcLinkQ" placeholder="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" autocomplete="off">
-    <div id="bcLinkRes" class="tscroll" style="max-height:340px;margin-top:10px"></div>
-    <div class="row"><button class="btn ghost" id="bcLinkClose">ปิด</button></div>
-  </div>
+<div class="dlg" style="width:min(760px,100%)">
+<h2 id="bcLinkTitle" style="margin:0 0 4px">เชื่อมรายการ</h2>
+<div class="muted" id="bcLinkSub" style="margin-bottom:10px"></div>
+<input aria-label="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" autocomplete="off" id="bcLinkQ" placeholder="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" type="search"/>
+<div class="tscroll" id="bcLinkRes" style="max-height:340px;margin-top:10px"></div>
+<div class="row"><button class="btn ghost" id="bcLinkClose">ปิด</button></div>
 </div>
-<div id="dotPop" class="dot-pop hidden" role="dialog" aria-label="จัดการแท็กสินค้า"></div>
-
+</div>
+<div aria-label="จัดการแท็กสินค้า" class="dot-pop hidden" id="dotPop" role="dialog"></div>
 <script>
 /* =============================================================================
  * stock.html — แดชบอร์ดสินค้าค้างสต็อก (แยกจากระบบหลัก)
@@ -800,10 +820,19 @@ function groupsForBranch(br) {                                          // ห�
   });
   return Object.keys(set).sort();
 }
-function dayKey(ts) {
-  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts)); }
-  catch (e) { return new Date((ts || 0) + 7 * 3600000).toISOString().slice(0, 10); }
+function thaiDayIso(ts) {
+  var date = new Date(ts == null ? Date.now() : ts);
+  if (!Number.isFinite(date.getTime())) return '';
+  try {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+    var obj = {};
+    parts.forEach(function (part) { obj[part.type] = part.value; });
+    return obj.year + '-' + obj.month + '-' + obj.day;
+  } catch (e) {
+    return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  }
 }
+function dayKey(ts) { return thaiDayIso(ts); }
 function dailyHistory(hist) {                                           // รวมรอบอัปโหลดเป็นรายวัน (ไม่แตกย่อยหลายรอบในวันเดียวกัน · ยึดรายการล่าสุดของวันนั้น)
   var byDay = {}, order = [];
   (hist || []).forEach(function (x) {
@@ -2361,7 +2390,7 @@ $('#exGo').addEventListener('click', function () {
     if (!sheets.length) { $('#exErr').textContent = 'ไม่มีรายการให้ส่งออก'; return; }
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + thaiDayIso() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (zl.length ? ' + คงเหลือ 0/ติดลบ อีก ' + nf0.format(zl.length) + ' รายการ' : '') + (adjCnt.length ? ' + ' + adjCnt.join(' · ') + ' รายการ' : ''));
   });
 });

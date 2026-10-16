@@ -1,14 +1,15 @@
 <!DOCTYPE html>
+
 <html lang="th">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#8b63a6">
-<link rel="icon" type="image/png" href="logo.png">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#8b63a6" name="theme-color"/>
+<link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
 <title>ร้านสหกรณ์ มช. (CMU CO-OP)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
   :root { --bg:#8b63a6; --tv-fg:#ffffff; --btn-bg:rgba(26,15,46,.48); --btn-hover:rgba(26,15,46,.68); --btn-border:rgba(255,255,255,.78);
@@ -62,36 +63,63 @@
 .skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
-<link rel="stylesheet" href="a11y.css">
-</head>
-<body>
-<main class="wrap" role="main">
-
-  <header class="head" id="head" data-layout="side" role="banner">
-    <img class="logo" id="logo" src="logo.png" alt="โลโก้ร้านสหกรณ์ มช.">
-    <div class="txt">
-      <div class="clock" id="clock">--:--:--</div>
-      <h1 class="shop" id="shopName"></h1>
-      <div class="hello"><span id="helloMain"></span> <small id="helloSub"></small></div>
-    </div>
-  </header>
-
-  <!-- แบนเนอร์ (จัดการรูปที่หน้าแอดมิน) -->
-  <iframe id="banner" class="frame" src="banner.html" title="แบนเนอร์ประชาสัมพันธ์" loading="eager"></iframe>
-  <div class="caption" id="caption" role="region" aria-label="ข้อความประกาศวิ่ง"></div>
-
-  <!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
-  <iframe id="receiver" class="frame" src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ" allow="autoplay; fullscreen"></iframe>
-
-  <footer class="foot" role="contentinfo">
-    <span>CMUCOOP</span>
-    <div class="foot-acts">
-      <button type="button" id="capToggle" aria-pressed="false" aria-label="หยุดข้อความวิ่งชั่วคราว">⏸ หยุดข้อความวิ่ง</button>
-      <button type="button" id="copyLink">คัดลอกลิงก์หน้านี้</button>
-    </div>
-  </footer>
+<link href="a11y.css" rel="stylesheet"/>
+<style id="cmucoop-accessible-design">
+/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
+:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
+html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
+:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
+:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
+:where(button,input,select,textarea){font-family:inherit}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
+:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
+:where(a){text-underline-offset:3px}
+:where(a:hover){text-decoration-thickness:2px}
+:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
+:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
+:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
+:where(.top h1,.appbar h1){letter-spacing:-.025em}
+:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
+:where(table){border-collapse:separate;border-spacing:0}
+:where(th){font-weight:700}
+:where(th,td){vertical-align:middle}
+:where(.num){font-variant-numeric:tabular-nums}
+:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
+:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+/* Dedicated keyboard-only bypass navigation */
+.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
+.wcag-skip:focus{transform:translateY(0)}
+/* Desktop-quality spacing, adaptive on phones and zoom */
+@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
+@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
+</style></head>
+<body><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<main class="wrap" id="wcag-main" role="main">
+<header class="head" data-layout="side" id="head" role="banner">
+<img alt="โลโก้ร้านสหกรณ์ มช." class="logo" id="logo" src="logo.png"/>
+<div class="txt">
+<div class="clock" id="clock">--:--:--</div>
+<h1 class="shop" id="shopName"></h1>
+<div class="hello"><span id="helloMain"></span> <small id="helloSub"></small></div>
+</div>
+</header>
+<!-- แบนเนอร์ (จัดการรูปที่หน้าแอดมิน) -->
+<iframe class="frame" id="banner" loading="eager" src="banner.html" title="แบนเนอร์ประชาสัมพันธ์"></iframe>
+<div aria-label="ข้อความประกาศวิ่ง" class="caption" id="caption" role="region"></div>
+<!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
+<iframe allow="autoplay; fullscreen" class="frame" id="receiver" src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ"></iframe>
+<footer class="foot" role="contentinfo">
+<span>CMUCOOP</span>
+<div class="foot-acts">
+<button aria-label="หยุดข้อความวิ่งชั่วคราว" aria-pressed="false" id="capToggle" type="button">⏸ หยุดข้อความวิ่ง</button>
+<button id="copyLink" type="button">คัดลอกลิงก์หน้านี้</button>
+</div>
+</footer>
 </main>
-
 <script>
 /* ค่าเริ่มต้น (ใช้ตอนโหลดหน้า/เมื่อติดต่อเซิร์ฟเวอร์ไม่ได้) — ค่าจริงตั้งได้ที่ ระบบหลัก > ตั้งค่า > หน้าจอ TV */
 var TEXT = {

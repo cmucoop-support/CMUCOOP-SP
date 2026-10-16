@@ -4,21 +4,29 @@ window.API_URL = 'https://cmucoop-api.cmucoopcashier.workers.dev';
 
 (function () {
   function post(fn, args) {
+    // ทุกคำสั่งต้องอ่านผลใหม่จากเซิร์ฟเวอร์ (ไม่ใช้ response เก่าจาก cache)
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 90000) : null;
     return fetch(window.API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // text/plain = ไม่เกิด CORS preflight
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ fn: fn, args: args }),
-      redirect: 'follow'
-    }).then(function (r) {
-      if (!r.ok) throw new Error('เซิร์ฟเวอร์ตอบกลับผิดปกติ (' + r.status + ')');
-      return r.json();
-    }).then(function (j) {
-      if (!j || !j.ok) throw new Error((j && j.error) || 'เกิดข้อผิดพลาด');
-      return j.data;
-    }, function (e) {
+      cache: 'no-store',
+      redirect: 'follow',
+      signal: controller ? controller.signal : undefined
+    }).then(async function (r) {
+      var payload;
+      try { payload = await r.json(); }
+      catch (_) { throw new Error('เซิร์ฟเวอร์ส่งข้อมูลกลับไม่ใช่ JSON (' + r.status + ')'); }
+      // error ของ API อาจกลับมาเป็น 200 จึงต้องตรวจทั้งสองเงื่อนไข
+      if (!r.ok) throw new Error((payload && payload.error) || 'เซิร์ฟเวอร์ตอบกลับผิดปกติ (' + r.status + ')');
+      if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || 'ไม่สามารถดึงข้อมูลได้');
+      return payload.data;
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') throw new Error('เชื่อมต่อเซิร์ฟเวอร์เกิน 90 วินาที กรุณาลองใหม่ (ตรวจสอบข้อมูลก่อนกดบันทึกซ้ำ)');
       if (e instanceof TypeError) throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ตรวจอินเทอร์เน็ตหรือการตั้งค่าของ Worker');
       throw e;
-    });
+    }).finally(function () { if (timer) clearTimeout(timer); });
   }
   function runner(ok, fail) {
     return new Proxy({}, {

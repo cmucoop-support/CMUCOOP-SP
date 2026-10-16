@@ -1,15 +1,16 @@
 <!DOCTYPE html>
+
 <html lang="th">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>รายการบาร์เดี่ยว/บาร์แพ็ค · CMUCOOP</title>
-<link rel="icon" type="image/png" href="logo.png">
+<link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
-<base target="_top">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<base target="_top"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
 :root{
   --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
@@ -399,155 +400,174 @@ td.act{white-space:nowrap;min-width:170px}
 .skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="a11y.css">
-</head>
-<body class="locked">
+<link href="a11y.css" rel="stylesheet"/>
+<style id="cmucoop-accessible-design">
+/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
+:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
+html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
+:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
+:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
+:where(button,input,select,textarea){font-family:inherit}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
+:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
+:where(a){text-underline-offset:3px}
+:where(a:hover){text-decoration-thickness:2px}
+:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
+:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
+:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
+:where(.top h1,.appbar h1){letter-spacing:-.025em}
+:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
+:where(table){border-collapse:separate;border-spacing:0}
+:where(th){font-weight:700}
+:where(th,td){vertical-align:middle}
+:where(.num){font-variant-numeric:tabular-nums}
+:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
+:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+/* Dedicated keyboard-only bypass navigation */
+.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
+.wcag-skip:focus{transform:translateY(0)}
+/* Desktop-quality spacing, adaptive on phones and zoom */
+@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
+@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
 
+:root{--bg:#f6f3fb;--panel:#ffffff;--ink:#281d44;--steel:#554a70;--line:#d8cee9;--accent:#7541d1;--accent-text:#6231ba;--accent-soft:#eee6ff}
+:where(.top){box-shadow:0 3px 20px rgba(25,13,51,.12)}
+:where(.panel,.card,.box){border-color:var(--line)}
+:where(button){border-radius:10px}
+:where(button:hover:not(:disabled)){filter:brightness(.97)}
+</style></head>
+<body class="locked"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
-  <h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
-  <span class="me" id="me"></span>
-  <button class="btn ghost small" id="btnHome">← เมนูหลัก</button>
-  <button class="btn ghost small" id="btnReload">โหลดใหม่</button>
-  <button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
+<h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
+<span class="me" id="me"></span>
+<button class="btn ghost small" id="btnHome">← เมนูหลัก</button>
+<button class="btn ghost small" id="btnReload">โหลดใหม่</button>
+<button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
 </header>
-
 <div class="layout">
-  <aside>
-    <button class="btn ghost small" id="btnNewCat" style="width:100%;margin-bottom:10px">+ สร้างหมวดใหม่</button>
-    <div id="catSide"></div>
-  </aside>
-
-  <main>
-    <nav class="tabs">
-      <button class="tab on" data-t="data">ข้อมูลรายการ</button>
-      <button class="tab" data-t="print">ปริ้นรายงาน</button>
-    </nav>
-
-    <!-- ========== แท็บข้อมูล ========== -->
-    <section id="v-data" style="display:grid;gap:14px">
-      <div class="card">
-        <div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
-        <div class="row">
-          <input type="file" id="bcImpFile" accept=".xlsx,.xls,.csv">
-          <select id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
-          <button class="btn" id="bcImpBtn" disabled>นำเข้า</button>
-        </div>
-        <div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
-      </div>
-
-      <div class="card">
-        <h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
-      </div>
-
-      <div class="card">
-        <h3>เพิ่มรายการ</h3>
-        <div class="grid" id="addForm"></div>
-        <div class="bchint" id="addBc" aria-live="polite"></div>
-        <div class="addbar">
-          <button class="btn" id="btnAdd" disabled>เพิ่มรายการ</button>
-          <span class="muted" id="addHint"></span>
-        </div>
-        <datalist id="dlCats"></datalist>
-      </div>
-
-      <div class="card">
-        <div class="row" style="justify-content:space-between;margin-bottom:8px">
-          <h3 style="margin:0">รายการในหมวดนี้</h3>
-          <div class="row">
-            <span class="muted" id="count"></span>
-            <input type="search" id="q" placeholder="ค้นหาชื่อหรือเลขบาร์" style="width:240px">
-          </div>
-        </div>
-        <div class="tablewrap">
-          <table class="dt"><thead id="thead"></thead>
-            <tbody id="tbody"><tr><td class="empty">เลือกหมวดเพื่อดูรายการ</td></tr></tbody></table>
-        </div>
-        <div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
-      </div>
-    </section>
-
-    <!-- ========== แท็บปริ้น ========== -->
-    <section id="v-print" class="card hidden">
-      <h3>เลือกหมวดที่ต้องการปริ้น</h3>
-      <label class="pgroup" style="margin-top:0"><input type="checkbox" id="pAll"> เลือกทุกหมวด</label>
-      <div class="plist" id="pList"></div>
-      <div class="pgroup" style="margin-top:6px">เลือกเฉพาะรหัสคู่ค้า <span class="muted" style="font-weight:400">(ไม่เลือกเลย = ปริ้นทุกรหัส)</span>
-        <button type="button" class="btn ghost small" id="pPartnerClear">ล้างที่เลือก</button></div>
-      <div class="plist" id="pPartners" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));max-height:30vh"></div>
-      <div class="pgroup" style="margin-top:12px;flex-wrap:wrap">ฟอนต์ตอนปริ้น
-        <select id="pFont"></select>
-        <span class="muted" style="font-weight:400" id="pFontNote"></span></div>
-      <div id="pFontSample" style="margin-top:6px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;font-size:18px;background:#fff">ตัวอย่าง: รายการบาร์เดี่ยว/บาร์แพ็ค 8851234567890 ก ข ค ฎ ฏ ญ ฐ ไก่ ป่า ผู้ ปี้</div>
-      <div class="row" style="margin-top:12px">
-        <button class="btn" id="btnPrint">ปริ้นรายงาน</button>
-        <button class="btn ghost hidden" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
-        <span class="muted">หมวดละเริ่มหน้าใหม่ หัวตารางพิมพ์ซ้ำทุกหน้า กระดาษ A4 แนวตั้ง</span>
-      </div>
-    </section>
-
-  </main>
+<aside>
+<button class="btn ghost small" id="btnNewCat" style="width:100%;margin-bottom:10px">+ สร้างหมวดใหม่</button>
+<div id="catSide"></div>
+</aside>
+<main id="wcag-main">
+<nav class="tabs">
+<button class="tab on" data-t="data">ข้อมูลรายการ</button>
+<button class="tab" data-t="print">ปริ้นรายงาน</button>
+</nav>
+<!-- ========== แท็บข้อมูล ========== -->
+<section id="v-data" style="display:grid;gap:14px">
+<div class="card">
+<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
+<div class="row">
+<input accept=".xlsx,.xls,.csv" aria-label="ไฟล์นำเข้าบาร์โค้ด" id="bcImpFile" type="file"/>
+<select aria-label="ตัวเลือก bcImpMode" id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
+<button class="btn" disabled="" id="bcImpBtn">นำเข้า</button>
 </div>
-
-
+<div class="muted" id="bcImpHint" style="margin-top:6px">ข้อมูลเก็บในระบบคลาวด์ แก้ไขได้ที่หน้านี้ · แถวหัวตารางต้องมีคอลัมน์ "ชื่อสินค้า/ชื่อรายการ" และ "เลขบาร์แพ็ค" หรือ "เลขบาร์เดี่ยว" (มี "รหัสคู่ค้า" และ "หมวด" ด้วยก็ได้) · ถ้าไฟล์มีหลายแผ่นงานและไม่มีคอลัมน์หมวด ระบบใช้ชื่อแผ่นงานเป็นหมวด · ระบบทำสำเนาก่อนนำเข้าทุกครั้ง เก็บล่าสุด 2 ชุด</div>
+</div>
+<div class="card">
+<h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
+</div>
+<div class="card">
+<h3>เพิ่มรายการ</h3>
+<div class="grid" id="addForm"></div>
+<div aria-live="polite" class="bchint" id="addBc"></div>
+<div class="addbar">
+<button class="btn" disabled="" id="btnAdd">เพิ่มรายการ</button>
+<span class="muted" id="addHint"></span>
+</div>
+<datalist id="dlCats"></datalist>
+</div>
+<div class="card">
+<div class="row" style="justify-content:space-between;margin-bottom:8px">
+<h3 style="margin:0">รายการในหมวดนี้</h3>
+<div class="row">
+<span class="muted" id="count"></span>
+<input aria-label="ค้นหาชื่อหรือเลขบาร์" id="q" placeholder="ค้นหาชื่อหรือเลขบาร์" style="width:240px" type="search"/>
+</div>
+</div>
+<div class="tablewrap">
+<table class="dt"><thead id="thead"></thead>
+<tbody id="tbody"><tr><td class="empty">เลือกหมวดเพื่อดูรายการ</td></tr></tbody></table>
+</div>
+<div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
+</div>
+</section>
+<!-- ========== แท็บปริ้น ========== -->
+<section class="card hidden" id="v-print">
+<h3>เลือกหมวดที่ต้องการปริ้น</h3>
+<label class="pgroup" style="margin-top:0"><input id="pAll" type="checkbox"/> เลือกทุกหมวด</label>
+<div class="plist" id="pList"></div>
+<div class="pgroup" style="margin-top:6px">เลือกเฉพาะรหัสคู่ค้า <span class="muted" style="font-weight:400">(ไม่เลือกเลย = ปริ้นทุกรหัส)</span>
+<button class="btn ghost small" id="pPartnerClear" type="button">ล้างที่เลือก</button></div>
+<div class="plist" id="pPartners" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));max-height:30vh"></div>
+<div class="pgroup" style="margin-top:12px;flex-wrap:wrap">ฟอนต์ตอนปริ้น
+        <select aria-label="ตัวเลือก pFont" id="pFont"></select>
+<span class="muted" id="pFontNote" style="font-weight:400"></span></div>
+<div id="pFontSample" style="margin-top:6px;padding:8px 12px;border:1px dashed var(--line);border-radius:8px;font-size:18px;background:#fff">ตัวอย่าง: รายการบาร์เดี่ยว/บาร์แพ็ค 8851234567890 ก ข ค ฎ ฏ ญ ฐ ไก่ ป่า ผู้ ปี้</div>
+<div class="row" style="margin-top:12px">
+<button class="btn" id="btnPrint">ปริ้นรายงาน</button>
+<button class="btn ghost hidden" id="btnPrintOld">ปริ้นจากเบราว์เซอร์ (สำรอง)</button>
+<span class="muted">หมวดละเริ่มหน้าใหม่ หัวตารางพิมพ์ซ้ำทุกหน้า กระดาษ A4 แนวตั้ง</span>
+</div>
+</section>
+</main>
+</div>
 <div class="modalwrap hidden" id="bcBkModal">
-  <div class="modal" style="width:min(620px,100%)">
-    <h3>สำเนาข้อมูลรายการบาร์ (เก็บล่าสุด 2 ชุด)</h3>
-    <div class="muted">ระบบทำสำเนาก่อนนำเข้าและก่อนกู้คืนทุกครั้ง (ถ้าข้อมูลต่างจากชุดล่าสุด) ชุดที่เก่ากว่าถูกลบอัตโนมัติ · กู้คืน = นำข้อมูลในสำเนากลับมาแทนที่ข้อมูลปัจจุบัน</div>
-    <div id="bcBkList"></div>
-    <div class="addbar"><button class="btn ghost" id="bcBkClose">ปิด</button></div>
-  </div>
+<div class="modal" style="width:min(620px,100%)">
+<h3>สำเนาข้อมูลรายการบาร์ (เก็บล่าสุด 2 ชุด)</h3>
+<div class="muted">ระบบทำสำเนาก่อนนำเข้าและก่อนกู้คืนทุกครั้ง (ถ้าข้อมูลต่างจากชุดล่าสุด) ชุดที่เก่ากว่าถูกลบอัตโนมัติ · กู้คืน = นำข้อมูลในสำเนากลับมาแทนที่ข้อมูลปัจจุบัน</div>
+<div id="bcBkList"></div>
+<div class="addbar"><button class="btn ghost" id="bcBkClose">ปิด</button></div>
 </div>
-
-
+</div>
 <div class="loginwrap hidden" id="login">
-  <div class="logincard">
-    <h2>CMUCOOP SUPPORT</h2>
-    <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
-    <label>รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
-    <div class="err" id="lgErr" role="alert"></div>
-    <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
-    <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
-    <div id="rcBox" class="hidden" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-      <label>รหัสผู้ใช้แอดมิน<input type="text" id="rcUser" autocomplete="off"></label>
-      <label>รหัสกู้คืน<input type="password" id="rcCode" autocomplete="off"></label>
-      <label>รหัสผ่านใหม่<input type="password" id="rcPass" autocomplete="new-password"></label>
-      <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
-    </div>
-  </div>
+<div class="logincard">
+<h2>CMUCOOP SUPPORT</h2>
+<label>รหัสผู้ใช้<input autocomplete="username" id="lgUser" type="text"/></label>
+<label>รหัสผ่าน<input autocomplete="current-password" id="lgPass" type="password"/></label>
+<div class="err" id="lgErr" role="alert"></div>
+<button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
+<a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
+<div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
+<label>รหัสผู้ใช้แอดมิน<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
+<label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
+<button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
 </div>
-
+</div>
+</div>
 <div class="modalwrap hidden" id="editModal">
-  <div class="modal">
-    <h3 id="eTitle">แก้ไขรายการ</h3>
-    <div class="grid" id="eForm"></div>
-    <div class="bchint" id="eBc" aria-live="polite"></div>
-    <div class="addbar">
-      <button class="btn" id="eSave">บันทึกการแก้ไข</button>
-      <button class="btn ghost" id="eCancel">ยกเลิก</button>
-      <span class="muted">แก้ได้ทุกช่อง ยกเว้นลำดับ (ระบบเรียงให้เอง)</span>
-    </div>
-  </div>
+<div class="modal">
+<h3 id="eTitle">แก้ไขรายการ</h3>
+<div class="grid" id="eForm"></div>
+<div aria-live="polite" class="bchint" id="eBc"></div>
+<div class="addbar">
+<button class="btn" id="eSave">บันทึกการแก้ไข</button>
+<button class="btn ghost" id="eCancel">ยกเลิก</button>
+<span class="muted">แก้ได้ทุกช่อง ยกเว้นลำดับ (ระบบเรียงให้เอง)</span>
 </div>
-
+</div>
+</div>
 <div class="modalwrap hidden" id="pdfModal">
-  <div class="modal">
-    <h3>สร้างไฟล์ PDF เรียบร้อย</h3>
-    <div class="pdfnote" id="pdfName"></div>
-    <div class="row">
-      <a class="btn" id="pdfOpen" href="#" target="_blank" rel="noopener">เปิด PDF เพื่อปริ้น</a>
-      <a class="btn ghost" id="pdfDl" href="#">ดาวน์โหลด</a>
-      <button class="btn ghost" id="pdfClose">ปิด</button>
-    </div>
-    <div class="pdfnote">กด "เปิด PDF เพื่อปริ้น" แล้วสั่งพิมพ์จากหน้าต่างที่เปิดขึ้น (Ctrl+P) หรือดาวน์โหลดไปเปิดด้วยโปรแกรมอ่าน PDF ก็ได้ ระบบไม่เก็บไฟล์ PDF ไว้ในไดรฟ์ สร้างใหม่จากข้อมูลล่าสุดทุกครั้ง</div>
-  </div>
+<div class="modal">
+<h3>สร้างไฟล์ PDF เรียบร้อย</h3>
+<div class="pdfnote" id="pdfName"></div>
+<div class="row">
+<a class="btn" href="#" id="pdfOpen" rel="noopener" target="_blank">เปิด PDF เพื่อปริ้น</a>
+<a class="btn ghost" href="#" id="pdfDl">ดาวน์โหลด</a>
+<button class="btn ghost" id="pdfClose">ปิด</button>
 </div>
-
-
+<div class="pdfnote">กด "เปิด PDF เพื่อปริ้น" แล้วสั่งพิมพ์จากหน้าต่างที่เปิดขึ้น (Ctrl+P) หรือดาวน์โหลดไปเปิดด้วยโปรแกรมอ่าน PDF ก็ได้ ระบบไม่เก็บไฟล์ PDF ไว้ในไดรฟ์ สร้างใหม่จากข้อมูลล่าสุดทุกครั้ง</div>
+</div>
+</div>
 <div id="printArea"></div>
 <div id="toast" role="status"></div>
-
 <script>
 /* ============================ ตัวช่วย ============================ */
 var $ = function (s) { return document.querySelector(s); };
@@ -627,6 +647,18 @@ function logUse(area, action, detail) {
   try { google.script.run.withFailureHandler(function () {}).logUse(S.token, area, action, detail || ''); } catch (e) {}
 }
 
+function thaiDayIso(ts) {
+  var date = new Date(ts == null ? Date.now() : ts);
+  if (!Number.isFinite(date.getTime())) return '';
+  try {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+    var obj = {};
+    parts.forEach(function (part) { obj[part.type] = part.value; });
+    return obj.year + '-' + obj.month + '-' + obj.day;
+  } catch (e) {
+    return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  }
+}
 function nowMs() { return Date.now() + S.offset; }
 function fresh(l) {
   if (!l) return { cls: 'none', rel: '' };
@@ -1284,7 +1316,7 @@ $('#btnPrint').addEventListener('click', async function () {
     var blob = await buildPrintPdf(results);
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     pdfUrl = URL.createObjectURL(blob);
-    var nm = 'รายการบาร์_' + new Date().toISOString().slice(0, 10) + '.pdf';
+    var nm = 'รายการบาร์_' + thaiDayIso() + '.pdf';
     $('#pdfName').textContent = nm + ' · ' + results.length + ' หมวด · ' + Math.round(blob.size / 1024) + ' KB';
     $('#pdfOpen').href = pdfUrl; $('#pdfDl').href = pdfUrl; $('#pdfDl').setAttribute('download', nm);
     $('#pdfModal').classList.remove('hidden');
@@ -1332,7 +1364,7 @@ $('#bcBkList').addEventListener('click', async function (e) {
     try {
       var r = await call('barcodeBackupData', Number(b.dataset.dl)), a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([r.csv], { type: 'text/csv;charset=utf-8' }));
-      a.download = r.name + '_' + new Date().toISOString().slice(0, 10) + '.csv';
+      a.download = r.name + '_' + thaiDayIso() + '.csv';
       document.body.appendChild(a); a.click(); a.remove();
     } catch (err) { toast(err.message, true); }
     b.disabled = false;
@@ -1376,7 +1408,7 @@ $('#bcExpBtn').addEventListener('click', function () {
     var d = await call('getCategoryData', allCat().sheet, '*');
     var aoa = [['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'จำนวนต่อแพ็ค', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(d.rows.map(function (x) { return [x.v[0], x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; }));
     var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
-    XLSX.writeFile(wb, 'รายการบาร์_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+    XLSX.writeFile(wb, 'รายการบาร์_' + thaiDayIso() + '.xlsx');
   });
 });
 

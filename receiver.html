@@ -1,14 +1,15 @@
 <!DOCTYPE html>
+
 <html lang="th">
 <head>
-<link rel="icon" type="image/png" href="logo.png">
+<link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
-<base target="_top">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#7a4be0">
+<base target="_top"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<meta content="#7a4be0" name="theme-color"/>
 <title>ระบบรับสัญญาณเสียงประกาศ</title>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
 <style>
   :root { --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --accent:#7a4be0; --accent-text:#6a3fd1; --ok:#176b3f; --bad:#b42318; --old:#6b7684;
           --grad:linear-gradient(135deg,#6a3fd1,#7a4be0 55%,#8250f0); }
@@ -45,23 +46,54 @@
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
-<link rel="stylesheet" href="a11y.css">
-</head>
-<body>
+<link href="a11y.css" rel="stylesheet"/>
+<style id="cmucoop-accessible-design">
+/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
+:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
+html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
+:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
+:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
+:where(button,input,select,textarea){font-family:inherit}
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
+:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
+:where(a){text-underline-offset:3px}
+:where(a:hover){text-decoration-thickness:2px}
+:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
+:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
+:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
+:where(.top h1,.appbar h1){letter-spacing:-.025em}
+:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
+:where(table){border-collapse:separate;border-spacing:0}
+:where(th){font-weight:700}
+:where(th,td){vertical-align:middle}
+:where(.num){font-variant-numeric:tabular-nums}
+:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
+:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+/* Dedicated keyboard-only bypass navigation */
+.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
+.wcag-skip:focus{transform:translateY(0)}
+/* Desktop-quality spacing, adaptive on phones and zoom */
+@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
+@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
+</style></head>
+<body><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="appbar" role="banner"><h1>ระบบรับสัญญาณเสียงประกาศ</h1></header>
-<main class="center" role="main"><div>
-  <div id="state" class="state off" role="status" aria-live="polite" aria-atomic="true" aria-label="สถานะระบบรับสัญญาณ: ปิด (OFF)"><span id="stateText">OFF</span></div>
-  <div id="loadInfo" class="loadinfo" role="status" aria-live="polite">กำลังเริ่มระบบ…</div>
-  <div class="audiobar">
-    <button type="button" class="btn-audio" id="btnUnlockAudio" aria-pressed="false">🔊 กดปุ่มนี้ 1 ครั้งเพื่อเปิดเสียงอัตโนมัติ</button>
-  </div>
-  <div id="musicBox" class="musicbox hidden" role="region" aria-label="เครื่องเล่นเพลง">
-    <div class="mtitle" id="musicTitle"></div>
-    <div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
-    <div class="msub" id="musicSub" aria-live="polite"></div>
-  </div>
+<main class="center" id="wcag-main" role="main"><div>
+<div aria-atomic="true" aria-label="สถานะระบบรับสัญญาณ: ปิด (OFF)" aria-live="polite" class="state off" id="state" role="status"><span id="stateText">OFF</span></div>
+<div aria-live="polite" class="loadinfo" id="loadInfo" role="status">กำลังเริ่มระบบ…</div>
+<div class="audiobar">
+<button aria-pressed="false" class="btn-audio" id="btnUnlockAudio" type="button">🔊 กดปุ่มนี้ 1 ครั้งเพื่อเปิดเสียงอัตโนมัติ</button>
+</div>
+<div aria-label="เครื่องเล่นเพลง" class="musicbox hidden" id="musicBox" role="region">
+<div class="mtitle" id="musicTitle"></div>
+<div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
+<div aria-live="polite" class="msub" id="musicSub"></div>
+</div>
 </div></main>
-
 <script>
 var topicFile = 'cmucoop/audio/control/signal_key_v1';
 var topicSpeech = 'cmucoop/audio/control/staff_speech_v1';
