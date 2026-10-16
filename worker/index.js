@@ -889,9 +889,9 @@ API.musicPause = async (C, token, id, on) => {
   await appendLog(C, me.name, 'Music', '', on ? 'หยุดเพลง' : 'เล่นเพลงต่อ', r.title);
   return { ok: true, paused: on };
 };
-/* ข้ามเพลงถัดไปในเพลย์ลิสต์ (Admin) — ต่างจาก skip ที่ข้ามทั้งรายการ: ส่งคำสั่งให้ TV เลื่อนไปเพลงถัดไปในเพลย์ลิสต์เดิม */
+/* ผู้ใช้ที่มีสิทธิ์ขอเพลงข้ามเพลงในเพลย์ลิสต์ได้ โดยยังคงรายการเดิมในคิว */
 API.musicNextTrack = async (C, token, id) => {
-  const me = await auth(C, token, true); id = str(id);
+  const me = await authPerm(C, token, 'music'); id = str(id);
   const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
   if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
   if (r.kind !== 'ytlist') throw new Error('ใช้ได้เฉพาะเพลย์ลิสต์ YouTube');
@@ -900,7 +900,8 @@ API.musicNextTrack = async (C, token, id) => {
   return { ok: true };
 };
 API.musicDecide = async (C, token, id, action) => {
-  const me = await auth(C, token, true); id = str(id); action = str(action);
+  action = str(action);
+  const me = action === 'skip' ? await authPerm(C, token, 'music') : await auth(C, token, true); id = str(id);
   const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
   if (!r) throw new Error('ไม่พบคำขอนี้');
   let label;
