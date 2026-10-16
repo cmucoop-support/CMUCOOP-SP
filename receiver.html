@@ -10,8 +10,9 @@
 <title>ระบบรับสัญญาณเสียงประกาศ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#2a1f47; --steel:#6a5f88; --bg:#f4f0fb; --accent:#9966FF; --ok:#1a7f4b; --bad:#b42318; --old:#8a97a5;
-          --grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff); }
+  :root { --ink:#24193d; --steel:#54496e; --bg:#f5f2fc; --accent:#6838e3; --ok:#136a3c; --bad:#b42318; --old:#525f6d;
+          --grad:linear-gradient(135deg,#5225c2,#6838e3 60%,#7849f0); }
+  :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
   body { font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
@@ -24,7 +25,8 @@
   .state.on { border-color:var(--ok); } .state.on span { color:var(--ok); }
   .state.error { border-color:var(--bad); } .state.error span { color:var(--bad); font-size:clamp(44px,11vw,76px); }
   .state.playing { animation:pulse 1.4s infinite; }
-  @keyframes pulse { 50% { box-shadow:0 0 0 14px rgba(26,127,75,.16); } }
+  @keyframes pulse { 50% { box-shadow:0 0 0 14px rgba(19,106,60,.18); } }
+  @media (prefers-reduced-motion:reduce) { .state.playing { animation:none; } }
   .loadinfo { margin-top:14px; text-align:center; font-size:13px; color:var(--steel); min-height:18px; }
   .hidden { display:none !important; }
   .musicbox { width:min(640px,92vw); margin:18px auto 0; background:#fff; border-radius:20px; padding:14px; box-shadow:0 8px 28px rgba(106,63,209,.15); }
@@ -36,14 +38,14 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 </head>
 <body>
-<div class="appbar">ระบบรับสัญญาณเสียงประกาศ</div>
-<div class="center"><div><div id="state" class="state off"><span id="stateText">OFF</span></div>
-<div id="loadInfo" class="loadinfo">กำลังเริ่มระบบ…</div>
-<div id="musicBox" class="musicbox hidden">
+<header class="appbar" role="banner">ระบบรับสัญญาณเสียงประกาศ</header>
+<main id="mainContent" class="center"><div><div id="state" class="state off" role="button" tabindex="0" aria-live="polite" aria-label="สถานะระบบรับสัญญาณ กดเพื่อปลดล็อกเสียง"><span id="stateText">OFF</span></div>
+<div id="loadInfo" class="loadinfo" role="status" aria-live="polite">กำลังเริ่มระบบ…</div>
+<div id="musicBox" class="musicbox hidden" aria-live="polite">
   <div class="mtitle" id="musicTitle"></div>
   <div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
   <div class="msub" id="musicSub"></div>
-</div></div></div>
+</div></div></main>
 
 <script>
 var topicFile = 'cmucoop/audio/control/signal_key_v1';

@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#a37bb9;--ink:#2b2234;--per:3;--gap:18px}
+:root{--bg:#6c4685;--ink:#24193d;--per:3;--gap:18px}
 @media (max-width:900px){:root{--per:2}}
 @media (max-width:560px){:root{--per:1}}
 *{box-sizing:border-box}
@@ -26,12 +26,12 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Th
 .slide.sk{background:linear-gradient(100deg,#f1ecf5 30%,#faf7fc 50%,#f1ecf5 70%);background-size:200% 100%;animation:sk 1.4s linear infinite;box-shadow:none}
 @keyframes sk{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.slide.sk{animation:none}}
-.nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:0;background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1.5px solid #7e6f9d;background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .nav:hover{background:#f3ebf8}
 .nav:focus-visible{outline:3px solid #6b3f8c;outline-offset:2px}
 .nav.prev{left:6px}.nav.next{right:6px}
 .nav[hidden]{display:none}
-.msg{padding:48px 12px;text-align:center;color:#6d5f78}
+.msg{padding:48px 12px;text-align:center;color:#54496e;font-weight:600}
 html,body{height:100%;overflow:hidden}
 body{padding:0}
 .panel{position:absolute;left:8px;right:8px;top:8px;max-width:none;margin:0;padding:12px;display:flex;align-items:center}
@@ -39,15 +39,15 @@ body{padding:0}
 </style>
 </head>
 <body>
-<div class="panel" id="panel">
-  <button class="nav prev" id="prev" aria-label="ก่อนหน้า" hidden>&#10094;</button>
+<main class="panel" id="panel" role="region" aria-label="แบนเนอร์ประชาสัมพันธ์">
+  <button type="button" class="nav prev" id="prev" aria-label="ก่อนหน้า" hidden>&#10094;</button>
   <div class="viewport" id="viewport">
     <div class="track" id="track" aria-live="off">
       <div class="slide sk"></div><div class="slide sk"></div><div class="slide sk"></div>
     </div>
   </div>
-  <button class="nav next" id="next" aria-label="ถัดไป" hidden>&#10095;</button>
-</div>
+  <button type="button" class="nav next" id="next" aria-label="ถัดไป" hidden>&#10095;</button>
+</main>
 
 <script>
 var $ = function (s) { return document.querySelector(s); };

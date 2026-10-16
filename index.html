@@ -3,807 +3,177 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CMUCOOP SUPPORT</title>
+<title>เมนูหลัก · CMUCOOP SUPPORT</title>
 <link rel="icon" type="image/png" href="logo.png">
 <script src="gas-shim.js"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <base target="_top">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <style>
+
 :root{
-  --ink:#2a1f47; --steel:#6a5f88; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
-  --accent:#9966FF; --accent-text:#6a3fd1; --accent-soft:#f0e8ff; --ok:#1a7f4b; --warn:#b7791f; --old:#8a97a5; --bad:#b42318;
+  --ink:#24193d; --steel:#54496e; --bg:#f5f2fc; --panel:#fff; --line:#d6c8ef; --border-ui:#7e6f9d;
+  --accent:#6838e3; --accent-text:#5629c4; --accent-soft:#efe8ff; --ok:#136a3c; --warn:#854d0e; --old:#525f6d; --bad:#b42318;
+  --grad:linear-gradient(135deg,#5225c2,#6838e3 60%,#7849f0); --shadow:0 4px 16px rgba(86,41,196,.12); --r:16px;
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Thai',Tahoma,sans-serif}
-button,input,select{font:inherit;color:inherit}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 'Sarabun','Noto Sans Thai',Tahoma,sans-serif;-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+body{padding-bottom:env(safe-area-inset-bottom)}
+button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.skip-link{position:fixed;top:-100px;left:16px;z-index:9999;background:var(--ink);color:#fff;padding:10px 18px;border-radius:0 0 12px 12px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:top .15s}
+.skip-link:focus{top:0;outline:3px solid #ffca28;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:focus-visible{outline:3px solid var(--accent-text);outline-offset:2px}
+.top :focus-visible,.phead :focus-visible{outline:3px solid #fff;outline-offset:2px}
 
-/* ---------- แถบสถานะด้านบน ---------- */
-.top{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;align-items:center;gap:16px;padding:10px 18px;flex-wrap:wrap}
-.top h1{font-size:18px;margin:0;font-weight:700;white-space:nowrap}
-.status{flex:1;min-width:260px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.1);border-radius:8px;padding:6px 12px}
-.status b{font-weight:600}
-.status small{display:block;opacity:.85}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;background:var(--old)}
-.dot.ok{background:#3ddc84}.dot.warn{background:#f5b942}.dot.old{background:var(--old)}.dot.none{background:transparent;border:2px solid var(--old)}
-.dot.busy{background:#fff;animation:pulse 1s infinite}
-@keyframes pulse{50%{opacity:.25}}
-@media (prefers-reduced-motion:reduce){.dot.busy{animation:none}}
-
-/* ---------- เลย์เอาต์ ---------- */
-.layout{display:grid;grid-template-columns:300px 1fr;gap:16px;padding:16px 18px;align-items:start}
-@media (max-width:860px){.layout{grid-template-columns:1fr}}
-aside,.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
-aside{padding:12px;max-height:calc(100vh - 100px);overflow:auto;position:sticky;top:70px}
-@media (max-width:860px){aside{position:static;max-height:none}}
-.gh{margin:12px 0 6px;font-weight:700}
-.gh:first-child{margin-top:0}
-.gh small{display:block;font-weight:400;color:var(--steel);font-size:12.5px}
-.cats{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-.cat{width:100%;text-align:left;display:grid;grid-template-columns:14px 1fr;column-gap:8px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px}
-.cat:hover{border-color:var(--accent-text)}
-.cat.on{border-color:var(--accent-text);background:var(--accent-soft)}
-.cat .dot{margin-top:6px;grid-row:1 / span 3}
-.cat .dot.ok{background:var(--ok)}.cat .dot.warn{background:var(--warn)}
-.cn{font-weight:600}.cm{font-size:13px;color:var(--steel)}
-.btn{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:7px 14px;font-weight:600}
-.btn:hover{filter:brightness(1.1)}
-.btn.ghost{background:#fff;color:var(--accent-text)}
-.btn.small{padding:4px 10px;font-weight:500}
-.btn[disabled]{opacity:.5;cursor:default}
-
-main{display:grid;gap:14px;min-width:0}
-.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line)}
-.tab{border:0;background:none;padding:8px 16px;border-bottom:3px solid transparent;margin-bottom:-2px;font-weight:600;color:var(--steel)}
-.tab.on{color:var(--accent-text);border-bottom-color:var(--accent-text)}
-.card{padding:14px 16px}
-.card h3{margin:0 0 8px;font-size:16px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.muted{color:var(--steel);font-size:14px}
 .hidden{display:none!important}
-
-/* ---------- ฟอร์มเพิ่มรายการ ---------- */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.grid .wide{grid-column:span 2}
-label{display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500}
-input[type=text],input[type=search],input[type=password],select{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;color:var(--ink)}
+.muted{color:var(--steel);font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .addbar{margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+label{display:grid;gap:4px;font-size:13.5px;color:var(--ink);font-weight:600}
+input[type=text],input[type=search],input[type=password],select{width:100%;border-radius:12px;padding:10px 12px;border:1.5px solid var(--border-ui);background:#fbf9ff;color:var(--ink);min-height:42px}
+input:focus,select:focus{border-color:var(--accent-text);outline:3px solid rgba(104,56,227,.25);outline-offset:0}
+input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}
 
-/* ---------- ตารางข้อมูล ---------- */
-.tablewrap{overflow:auto;max-height:60vh;border:1px solid var(--line);border-radius:8px;background:#fff}
-table.dt{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
-.dt th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:600;padding:6px 8px;text-align:center;z-index:1}
-.dt td{border-bottom:1px solid #e6ebf0;padding:3px 8px}
-.dt td.n{text-align:right;font-variant-numeric:tabular-nums}
-.dt td.code{color:var(--steel);white-space:nowrap}
-.dt td.nm{min-width:240px}
-.dt tr:hover td{background:#f8f4ff}
-.dt tr.flash td{animation:flash 2.2s}
-@keyframes flash{0%,60%{background:#fff0b3}100%{background:transparent}}
-.empty{text-align:center;color:var(--steel);padding:22px!important}
+.btn{border:1.5px solid var(--accent);background:var(--accent);color:#fff;border-radius:999px;padding:9px 18px;min-height:42px;font-weight:600;transition:transform .1s,filter .15s;box-shadow:0 2px 8px rgba(104,56,227,.28);display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+.btn:hover{filter:brightness(1.08)}
+.btn:active,.mcard:active{transform:scale(.98)}
+.btn.ghost{background:#fff;color:var(--accent-text);border-color:var(--border-ui);box-shadow:none}
+.btn.ghost:hover{border-color:var(--accent-text);background:var(--accent-soft)}
+.btn.danger{background:#fff;border-color:var(--bad);color:var(--bad);box-shadow:none}
+.btn.small{min-height:36px;padding:6px 14px;font-weight:600;font-size:14px}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
 
-/* ---------- ปุ่มจัดการในตาราง / หน้าต่างย่อย ---------- */
-.dt td.act{white-space:nowrap;text-align:center}
-.dt td.act .btn{margin:0 2px}
-.btn.danger{background:#fff;border-color:var(--bad);color:var(--bad)}
-.modalwrap{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}
-.modal{background:#fff;border-radius:12px;padding:18px 20px;width:min(720px,100%);max-height:92vh;overflow:auto;display:grid;gap:12px}
-.modal h3{margin:0}
-.pdfnote{font-size:14px;color:var(--steel)}
-.bchint{display:grid;gap:3px;font-size:14px;margin-top:8px}
-.bchint:empty{display:none}
-.bchint .bad{color:var(--bad)}.bchint .good{color:var(--ok)}
-.bchint a{color:var(--accent-text);cursor:pointer;margin-left:6px;text-decoration:underline}
+.phead{position:sticky;top:0;z-index:20;background:var(--grad);color:#fff;display:flex;align-items:center;gap:10px 12px;padding:calc(12px + env(safe-area-inset-top)) 18px 12px;border-radius:0 0 22px 22px;box-shadow:0 6px 20px rgba(86,41,196,.28);flex-wrap:wrap}
+.phead h1{font-size:18px;margin:0;font-weight:700;flex:1;min-width:200px;letter-spacing:.2px}
+.phead .me{font-size:14px;font-weight:500}
+.phead .btn.ghost{border-color:rgba(255,255,255,.75);color:#fff;background:rgba(255,255,255,.14)}
+.phead .btn.ghost:hover{background:rgba(255,255,255,.24)}
 
-/* ---------- แท็บปริ้น / ประวัติ ---------- */
-.plist{margin:8px 0 12px;max-height:52vh;overflow:auto;display:grid;gap:4px}
-.pitem{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:6px 10px;background:#fff;color:var(--ink);font-size:15px;font-weight:400}
-.pitem input{margin-top:6px}
-.pgroup{font-weight:700;margin-top:10px;display:flex;gap:10px;align-items:center;color:var(--ink);font-size:15px}
-.logt{width:100%;border-collapse:collapse;font-size:14px}
-.logt th,.logt td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
-.logt th{background:var(--bg)}
+#portal{min-height:100vh;background:linear-gradient(180deg,#ece3ff 0,var(--bg) 320px);animation:pgin .25s ease}
+@keyframes pgin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#portal{animation:none}}
+.pwrap{max-width:var(--portal-w,760px);margin:0 auto;padding:28px 18px calc(40px + env(safe-area-inset-bottom));display:grid;gap:18px}
+.cardrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.pwrap h2{margin:0;font-size:22px;font-weight:700;color:var(--ink)}
 
-select{border:1px solid var(--line);border-radius:6px;padding:7px 9px;background:#fff;width:100%}
-.layout.single{grid-template-columns:1fr}
-.me{font-size:14px;opacity:.95}
-.top .btn.ghost{border-color:rgba(255,255,255,.5);background:transparent;color:#fff}
-.loginwrap{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(var(--card-w,240px),100%),1fr));gap:14px}
+@media (max-width:360px){.menu{grid-template-columns:1fr}}
+.menu.fixcols{grid-template-columns:repeat(var(--card-cols),minmax(0,1fr))}
+@media (max-width:520px){.menu.fixcols{grid-template-columns:repeat(var(--card-cols-m),minmax(0,1fr))}}
+
+.mcard{display:flex;align-items:center;justify-content:center;text-align:center;min-height:var(--card-h,96px);padding:20px 22px;border-radius:20px;background:#fff;border:1.5px solid var(--line);box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s,border-color .15s;text-decoration:none;color:inherit;width:100%}
+.mcard:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(86,41,196,.22);border-color:var(--accent-text);background:#fff}
+.mcard b{display:block;font-size:var(--card-fs,18px);color:var(--accent-text);text-align:center;overflow-wrap:anywhere;line-height:1.35}
+
+.modalwrap{position:fixed;inset:0;background:rgba(20,12,38,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}
+.modal{background:#fff;border-radius:22px;box-shadow:0 20px 50px rgba(36,25,61,.35);padding:20px 22px;width:min(720px,100%);max-height:92vh;overflow:auto;display:grid;gap:12px;border:1px solid var(--line)}
+.modal h3{margin:0;font-size:19px;color:var(--ink)}
+
+.loginwrap{position:fixed;inset:0;background:var(--grad);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
 body:not(.locked) .loginwrap{display:none}
-body.locked .top,body.locked .layout,body.locked #printArea,body.locked .page{display:none!important}
-.logincard{width:min(360px,100%);background:#fff;border:1px solid var(--line);border-radius:12px;padding:24px;display:grid;gap:14px}
-.logincard h2{margin:0;font-size:19px}
-.err{color:var(--bad);font-size:14px;min-height:20px}
-.logt td .btn{margin-right:6px}
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+body.locked #portal{display:none!important}
+.logincard{width:min(380px,100%);background:#fff;border:1px solid var(--line);border-radius:28px;padding:30px 26px;box-shadow:0 20px 50px rgba(36,25,61,.35);display:grid;gap:14px}
+.logincard h2{margin:0;text-align:center;font-size:22px;color:var(--accent-text)}
+.logincard .btn{width:100%;min-height:46px;font-size:16px}
+.err{color:var(--bad);font-size:14px;min-height:20px;font-weight:600}
+
+#toast{position:fixed;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 20px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.35);z-index:150;opacity:0;pointer-events:none;transition:opacity .2s;font-weight:600;max-width:92vw;text-align:center}
 #toast.show{opacity:1}#toast.err{background:var(--bad)}
 
-/* ---------- เมนูหลัก / หน้าอื่น ๆ (สลับด้วย body[data-nav]) ---------- */
-.page{display:none}
-body[data-nav="portal"] #portal,body[data-nav="settings"] #settingsPage,
-body[data-nav="sound"] #soundPage,body[data-nav="assets"] #assetsPage,body[data-nav="music"] #musicPage{display:block}
-body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:none}
-.phead{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 18px;flex-wrap:wrap}
-.phead h1{font-size:18px;margin:0;font-weight:700;flex:1;min-width:200px}
-.phead .btn.ghost{border-color:rgba(255,255,255,.5);background:transparent;color:#fff}
-.pwrap{max-width:980px;margin:0 auto;padding:22px 18px 40px;display:grid;gap:16px}
-.pwrap h2{margin:0;font-size:20px}
-.menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
-.mcard{text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px 22px;display:grid;gap:6px}
-.mcard:hover{border-color:var(--accent-text);background:var(--accent-soft)}
-.mcard b{font-size:18px}
-.mcard span{color:var(--steel);font-size:14px}
-.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-.bitem{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;display:grid;align-content:start}
-.bthumb{aspect-ratio:4/3;background:#f5f0fc;display:flex;align-items:center;justify-content:center}
-.bthumb img{width:100%;height:100%;object-fit:contain;display:block}
-.bitem.off .bthumb{opacity:.4}
-.bmeta{padding:8px 10px 2px;font-size:14px;min-width:0}
-.bmeta .bl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
-.tag{display:inline-block;background:#fdf0d5;color:var(--warn);border-radius:10px;padding:0 8px;font-size:12px;font-weight:600}
-.bact{display:flex;gap:6px;flex-wrap:wrap;padding:8px 10px 10px}
-.bact .btn{padding:3px 9px}
-.cardrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-.cardrow h3{margin:0}
-
-.stab{border:0;background:none;padding:8px 16px;border-bottom:3px solid transparent;margin-bottom:-2px;font-weight:600;color:var(--steel)}
-.stab.on{color:var(--accent-text);border-bottom-color:var(--accent-text)}
-.kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
-.kb{display:flex;flex-direction:column;gap:6px}
-.kl{font-size:13px;font-weight:600;color:var(--steel);min-height:38px;text-align:center}
-.kbtn{padding:14px 0;font-size:20px;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:10px}
-.kbtn:hover{filter:brightness(1.15)}
-.sbox{padding:10px;text-align:center;font-weight:600;border-radius:8px;background:#f0f4f8;color:var(--steel)}
-.sbox.ok{background:#d4edda;color:#155724}
-.shist{max-height:200px;overflow:auto;display:grid;gap:4px}
-.shist div{display:flex;justify-content:space-between;gap:10px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:5px 10px;font-size:14px}
-.sgrid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media (max-width:560px){.sgrid2{grid-template-columns:1fr}}
-.sub{font-weight:600;color:var(--accent-text);margin:0 0 6px}
-/* ---------- พื้นที่พิมพ์ ---------- */
-#printArea{display:none}
-@font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
-@font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
-.psec{font-family:var(--pfont,'Bai Jamjuree'),'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}
-table.pt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10pt;line-height:1.15}
-.pt th,.pt td{border:1px solid #7f7f7f;padding:.6mm 1mm;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
-.pt th{background:#d0d0d0;font-weight:700}
-.pt thead th{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding:1mm .5mm}
-.ptop .co{font-size:14pt;font-weight:700;text-align:center;padding-bottom:1mm}
-.ptop .l{font-size:14pt;text-align:left;padding:.3mm 0}
-.ptop .title{font-size:14pt;font-weight:700;padding-bottom:2mm}
-.pt tbody tr:nth-child(odd) td{background:#d9d9d9}
-.pt tbody tr:nth-child(even) td{background:#fff}
-.pt td.nm{text-align:left}
-.pt td.bc{white-space:nowrap;overflow-wrap:normal;font-size:10pt;padding-left:.4mm;padding-right:.4mm}
-.pt tbody td{height:7.4mm}
-.pt thead{display:table-header-group}
-.pt tr{page-break-inside:avoid}
-.foot{margin-top:4mm;font-size:10pt;color:#444}
-@media print{
-  @page{size:A4 portrait;margin:2mm}
-  html,body{background:#fff}
-  body > *:not(#printArea){display:none!important}
-  #printArea{display:block}
-  .psec{page-break-after:always}
-  .psec:last-child{page-break-after:auto}
-  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-}
-
-/* ================= รูปแบบแอพ (ธีมม่วง C40 M60 = #9966FF) ================= */
-:root{--grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff);--shadow:0 4px 16px rgba(106,63,209,.12);--r:16px}
-html,body{-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
-.top,.phead{background:var(--grad);padding:calc(12px + env(safe-area-inset-top)) 18px 12px;border-radius:0 0 22px 22px;box-shadow:0 6px 20px rgba(106,63,209,.3)}
-.top .status,.status{background:rgba(255,255,255,.18);border-radius:14px}
-.top h1,.phead h1{letter-spacing:.2px}
-aside,.card,.mcard,.logincard,.bitem{border-radius:var(--r);border-color:transparent;box-shadow:var(--shadow)}
-.modal{border-radius:22px;box-shadow:0 20px 50px rgba(42,31,71,.35)}
-.modalwrap{backdrop-filter:blur(3px)}
-.btn{border-radius:999px;padding:9px 18px;min-height:40px;transition:transform .1s,filter .15s;box-shadow:0 2px 8px rgba(153,102,255,.3)}
-.btn:active,.kbtn:active,.mcard:active,.cat:active{transform:scale(.97)}
-.btn.ghost,.btn.danger{box-shadow:none}
-.btn.small{min-height:32px;padding:5px 13px}
-.top .btn.ghost,.phead .btn.ghost{border-color:rgba(255,255,255,.6);color:#fff;background:rgba(255,255,255,.12)}
-input[type=text],input[type=search],input[type=password],select{border-radius:12px;padding:10px 12px;border:1.5px solid var(--line);background:#fbf9ff}
-input:focus,select:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(153,102,255,.2)}
-:focus-visible{outline-color:var(--accent)}
-.tabs{border-bottom:0;background:#fff;padding:5px;border-radius:999px;box-shadow:var(--shadow);width:fit-content;max-width:100%;overflow-x:auto}
-.tab,.stab{border:0;border-radius:999px;margin:0;padding:9px 18px;white-space:nowrap}
-.tab.on,.stab.on{background:var(--grad);color:#fff;border:0}
-.cat{border-radius:12px;border-color:transparent;background:#faf7ff}
-.cat.on{background:var(--accent-soft);border-color:var(--accent)}
-.mcard{padding:22px;transition:transform .15s,box-shadow .15s}
-.mcard:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(106,63,209,.22);background:#fff}
-.mcard b{color:var(--accent-text)}
-.kbtn{border-radius:16px;background:var(--grad);box-shadow:0 4px 12px rgba(153,102,255,.35);padding:18px 0}
-.tablewrap{border-radius:var(--r);border-color:var(--line);box-shadow:var(--shadow);border:0}
-.dt th{background:#4b3a8c}
-.logt th{background:var(--accent-soft)}
-.loginwrap{background:var(--grad)}
-.logincard h2{color:var(--accent-text)}
-.shist div{border-radius:10px}
-.sbox{border-radius:14px}
-#toast{border-radius:999px;background:#2a1f47;box-shadow:0 6px 20px rgba(0,0,0,.3);bottom:calc(18px + env(safe-area-inset-bottom))}
-.pwrap,.layout{padding-bottom:calc(32px + env(safe-area-inset-bottom))}
 @media (max-width:860px){
-  .top,.phead{padding-left:14px;padding-right:14px}
-  .layout{padding:12px}
-  .card{padding:14px}
-  .menu{grid-template-columns:1fr 1fr}
-  .tablewrap{max-height:none}
-}
-@media (max-width:480px){.menu{grid-template-columns:1fr}}
-
-/* ---------- เมนูหลักแบบแอพ ---------- */
-#portal{min-height:100vh;background:linear-gradient(180deg,#ece3ff 0,var(--bg) 320px)}
-#portal .pwrap{max-width:var(--portal-w,720px);padding-top:28px}
-#portal .pwrap h2{font-size:22px;font-weight:700;color:var(--ink)}
-#portal .mcard{display:flex;align-items:center;justify-content:center;text-align:center;min-height:var(--card-h,96px);padding:20px 22px;border-radius:20px;background:#fff}
-#portal .mcard b{display:block;font-size:var(--card-fs,18px);color:var(--accent-text);text-align:center}
-#portal .mcard:hover{transform:translateY(-3px)}
-#portal .menu{grid-template-columns:repeat(auto-fit,minmax(min(var(--card-w,240px),100%),1fr))}
-@media (max-width:360px){#portal .menu{grid-template-columns:1fr}}
-#portal .menu.fixcols{grid-template-columns:repeat(var(--card-cols),minmax(0,1fr))}
-@media (max-width:520px){#portal .menu.fixcols{grid-template-columns:repeat(var(--card-cols-m),minmax(0,1fr))}}
-#portal .mcard b{overflow-wrap:anywhere}
-
-/* ================= App Shell ทุกหน้า ================= */
-body{background:var(--bg);padding-bottom:env(safe-area-inset-bottom)}
-.page,.layout{animation:pgin .28s ease}
-@keyframes pgin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){.page,.layout{animation:none}}
-.top,.phead{position:sticky;top:0;gap:10px}
-.pwrap{max-width:1000px}
-.layout{max-width:1280px;margin:0 auto}
-.card h3,.pwrap h2{color:var(--ink)}
-.card{background:#fff}
-.pitem{border-radius:12px;border-color:var(--line);background:#fbf9ff}
-.pitem:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
-input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}
-.logt th{color:var(--accent-text)}
-.dt td{border-bottom-color:#efe9fa}
-.tag{border-radius:999px}
-.bthumb{border-radius:0}
-.bitem{overflow:hidden}
-.err{font-weight:600}
-.logincard{border-radius:28px;padding:30px 26px;box-shadow:0 20px 50px rgba(42,31,71,.35)}
-.logincard h2{text-align:center;font-size:22px}
-.logincard .btn{width:100%;min-height:46px;font-size:16px}
-.cat .cn{color:var(--ink)}
-
-/* ---------- มือถือ / แท็บเล็ต : แถบเมนูล่างแบบแอพ ---------- */
-@media (max-width:860px){
-  body{font-size:15px}
-  .top,.phead{border-radius:0 0 20px 20px;flex-wrap:wrap}
-  .top h1,.phead h1{flex:1 1 100%;min-width:0;font-size:17px}
-  .phead .me,.top .me{flex:1 1 100%;font-size:13px;opacity:.9}
-  .top .status{flex:1 1 100%;min-width:0}
-  .top .btn.small,.phead .btn.small{flex:1 1 auto;padding:6px 10px;min-height:34px;font-size:13px}
-  .layout,.pwrap{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
-  /* แท็บเป็นแถบล่างติดจอ */
-  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;width:auto;max-width:none;border-radius:22px 22px 0 0;
-        padding:8px 10px calc(8px + env(safe-area-inset-bottom));justify-content:space-around;gap:4px;
-        box-shadow:0 -6px 24px rgba(106,63,209,.2);overflow:visible}
-  .tabs .tab,.tabs .stab{flex:1;text-align:center;padding:10px 4px;font-size:13px;white-space:normal;line-height:1.25;border-radius:14px}
-  /* หมวดเป็นชิปเลื่อนแนวนอน */
-  aside{position:static;max-height:none;padding:10px;overflow:visible}
-  aside .cats{display:flex;overflow-x:auto;gap:8px;padding-bottom:6px;scrollbar-width:thin}
-  aside .cat{flex:0 0 auto;min-width:150px;max-width:220px}
-  /* หน้าต่างย่อยเป็น bottom sheet */
+  .phead{padding-left:14px;padding-right:14px;border-radius:0 0 20px 20px}
+  .phead h1{flex:1 1 100%;min-width:0;font-size:17px}
+  .phead .me{flex:1 1 100%;font-size:13.5px}
+  .phead .btn.small{flex:1 1 auto;padding:6px 12px;min-height:36px;font-size:13.5px}
   .modalwrap{align-items:flex-end;padding:0}
-  .modal{width:100%;max-height:90vh;border-radius:24px 24px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));animation:sheet .25s ease}
-  @keyframes sheet{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .modal{width:100%;max-height:90vh;border-radius:24px 24px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
   input[type=text],input[type=search],input[type=password],select{font-size:16px}
-  #q{width:100%!important}
-  .row{gap:8px}
-  .bgrid{grid-template-columns:repeat(2,1fr)}
-  .kgrid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr))}
-  #toast{bottom:calc(84px + env(safe-area-inset-bottom))}
-}
-@media (max-width:420px){.bgrid{grid-template-columns:1fr}}
-.dt td.act{white-space:nowrap;min-width:150px}
-.dt td.act .btn{margin:0 5px}
-.dt td.act .btn+.btn{margin-left:8px}
-td.act{white-space:nowrap;min-width:170px}
-.actw{display:flex;flex-wrap:nowrap;align-items:center;gap:8px}
-.actw .btn{margin:0!important;white-space:nowrap}
-.cnav{display:flex;gap:6px;overflow-x:auto;padding:5px;background:#fff;border-radius:999px;box-shadow:var(--shadow);width:fit-content;max-width:100%}
-.cnav button{border:0;background:none;border-radius:999px;padding:9px 16px;font-weight:600;color:var(--steel);white-space:nowrap}
-.cnav button.on{background:var(--grad);color:#fff}
-/* ---------- สิทธิ์การ์ดรายคน / ประวัติการใช้งาน ---------- */
-.uform{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 16px}
-.uform .full{grid-column:1/-1}
-.uform .ulink{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
-.uform .ulink.hidden{display:none}
-.permwrap{display:grid;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;background:#fbf9ff}
-@media (max-width:760px){.uform{grid-template-columns:1fr}}
-.permbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 16px}
-.permbox label{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:14px;color:var(--ink);line-height:1.3}
-#settingsPage .pwrap{max-width:1100px}
-.hirow-time{white-space:nowrap}
-/* ---------- รายการสินทรัพย์ ---------- */
-#assetsPage,#assetsPage .pwrap,#assetsPage .card{min-width:0;max-width:100%}
-#assetsPage .pwrap{max-width:1200px}
-#assetsPage{overflow-x:hidden}
-.astwrap{overflow:auto;max-width:100%;border:1px solid var(--line);border-radius:14px;max-height:72vh}
-.ast{border-collapse:separate;border-spacing:0;width:100%;min-width:1500px;font-size:14px}
-.ast th{background:var(--accent-soft);color:var(--accent-text);padding:9px 10px;text-align:center;font-weight:700;border:1px solid var(--line);white-space:nowrap}
-.ast td{padding:8px 10px;border-bottom:1px solid #efe9fa;white-space:nowrap;vertical-align:middle}
-.ast td.num{text-align:right}
-.ast td.wrap{white-space:normal;min-width:200px}
-.ast tr:hover td{background:#f8f4ff}
-.athumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:#f0e8ff;display:block}
-.asLive{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--accent-soft)}
-.asLive a.btn{text-decoration:none}
-.ast td.ce{cursor:text}.ast td.ce:focus{outline:2px solid var(--accent,#8b5cf6);outline-offset:-2px;background:#fff;white-space:normal}
-.ast td.ce.sv{background:#fff7d6}.ast td.ce.ok{background:#e6f7ea}.ast td.ce.er{background:#fde4e4}
-.asbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-.asbar input[type=search]{flex:1;min-width:180px}
-.asprev{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:10px}
-
-/* ---------- ขอเพลง / คิวเพลง ---------- */
-.mu-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.mu-head h3{margin:0}
-.mu-chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:1px 10px;font-size:12.5px;font-weight:600;background:#eceff3;color:var(--steel);white-space:nowrap}
-.mu-chip i{width:8px;height:8px;border-radius:50%;background:var(--old);display:inline-block}
-.mu-chip.ok{background:#e3f6ec;color:var(--ok)}.mu-chip.ok i{background:var(--ok)}
-.mu-chip.warn{background:#fdf0d5;color:var(--warn)}.mu-chip.warn i{background:var(--warn)}
-.mu-chip.bad{background:#fde7e4;color:var(--bad)}.mu-chip.bad i{background:var(--bad)}
-.mu-chip.wait{background:var(--accent-soft);color:var(--accent-text)}.mu-chip.wait i{background:var(--accent)}
-.mu-now{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-.mu-nowinfo{flex:1;min-width:200px}
-.mu-art{width:128px;aspect-ratio:16/9;border-radius:8px;background:var(--accent-soft) center/cover no-repeat;display:grid;place-items:center;font-size:26px;flex:none}
-.mu-title{font-weight:700;font-size:16.5px;line-height:1.35;overflow-wrap:anywhere}
-.mu-sub{color:var(--steel);font-size:13.5px}
-.mu-prog{margin-top:8px}
-.mu-bar{height:8px;border-radius:999px;background:#e3e7ee;overflow:hidden}
-.mu-bar i{display:block;height:100%;width:0;border-radius:999px;background:var(--accent)}
-.mu-bar.paused i{background:var(--warn)}
-.mu-bar.unk i{width:100%;background:repeating-linear-gradient(45deg,#d5dae3 0 8px,#e3e7ee 8px 16px)}
-.mu-ptime{display:flex;justify-content:space-between;color:var(--steel);font-size:12.5px;margin-top:3px;font-variant-numeric:tabular-nums}
-.mu-eq{display:inline-flex;gap:2px;align-items:flex-end;height:14px;margin-right:6px;vertical-align:-1px}
-.mu-eq b{width:3px;height:3px;background:var(--ok);border-radius:1px;animation:mueq 1s infinite ease-in-out}
-.mu-eq b:nth-child(2){animation-delay:.25s}.mu-eq b:nth-child(3){animation-delay:.5s}
-@keyframes mueq{0%,100%{height:3px}50%{height:14px}}
-@media (prefers-reduced-motion:reduce){.mu-eq b{animation:none;height:10px}}
-.mu-prev{display:flex;gap:10px;align-items:center;margin-top:10px;padding:8px;border:1px dashed var(--line);border-radius:10px}
-.mu-prev .mu-art{width:96px}
-.mu-prev.bad{border-color:var(--bad);color:var(--bad)}
-.mu-opt{display:flex;gap:8px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);white-space:nowrap}
-#muMaxUser{width:auto;min-width:64px;padding:4px 8px}
-.mu-tabs{display:flex;gap:6px}
-.mu-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:3px 14px;font-weight:600;color:var(--steel)}
-.mu-tab.on{background:var(--accent-soft);border-color:var(--accent-text);color:var(--accent-text)}
-.mu-list{display:grid;gap:8px}
-.mu-item{display:grid;grid-template-columns:26px 96px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff}
-.mu-item.playing{border-color:var(--ok);background:#f3fbf6}
-.mu-item.dim{opacity:.7}
-.mu-item .mu-art{width:96px;font-size:20px}
-.mu-item .mu-title{font-size:15px}
-.mu-num{font-weight:700;color:var(--steel);text-align:center}
-.mu-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-.mu-act .btn.danger{border-color:var(--bad);background:#fff;color:var(--bad)}
-.mu-empty{padding:18px 8px;text-align:center}
-@media (max-width:640px){
-  .mu-item{grid-template-columns:22px 72px 1fr}
-  .mu-item .mu-art{width:72px}
-  .mu-item .mu-act{grid-column:1 / -1;justify-content:flex-start}
-  .mu-art{width:100px}
 }
 </style>
-
 </head>
-<body class="locked" data-nav="portal">
+<body class="locked">
+<a href="#mainContent" class="skip-link">ข้ามไปยังเนื้อหาหลัก</a>
 
 <!-- ========== เมนูหลัก (หลังเข้าสู่ระบบ) ========== -->
-<div id="portal" class="page">
+<div id="portal">
   <header class="phead">
     <h1>CMUCOOP SUPPORT</h1>
-    <span class="me" id="pMe"></span>
-    <button class="btn ghost small js-logout">ออกจากระบบ</button>
+    <span class="me" id="pMe" aria-live="polite"></span>
+    <button type="button" class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
+    <button type="button" class="btn ghost small js-logout">ออกจากระบบ</button>
   </header>
-  <div class="pwrap">
-    <div class="cardrow" style="margin:0"><h2>เลือกระบบที่ต้องการใช้งาน</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="portalSize" title="ปรับขนาดการ์ด" aria-label="ปรับขนาดการ์ด" style="padding:0;width:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button></span></div>
-    <div class="menu">
-      <button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b></button>
-      <button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b></button>
-      <button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b></button>
-      <button class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b></button>
-      <button class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b></button>
-      <button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
+  <main id="mainContent" class="pwrap" tabindex="-1">
+    <div class="cardrow" style="margin:0">
+      <h2 id="portalHeading">เลือกระบบที่ต้องการใช้งาน</h2>
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn ghost small" id="portalSize" title="ปรับขนาดการ์ด" aria-label="ปรับขนาดการ์ดเมนูหลัก" aria-haspopup="dialog" style="padding:6px 12px;display:inline-flex;align-items:center;gap:6px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+          <span>ขนาดการ์ด</span>
+        </button>
+      </span>
     </div>
-  </div>
-</div>
-
-<!-- ========== ตั้งค่า (แอดมิน) : รวมทุกการตั้งค่าไว้ที่เดียว ========== -->
-<div id="settingsPage" class="page">
-  <header class="phead">
-    <h1>ตั้งค่า</h1>
-    <span class="me" id="stMe"></span>
-    <button class="btn ghost small" id="stHome">← เมนูหลัก</button>
-    <button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
-    <button class="btn ghost small js-logout">ออกจากระบบ</button>
-  </header>
-  <div class="pwrap">
-    <nav class="cnav" id="stNav">
-      <button class="on" data-sp="cards">การ์ดเมนูหลัก</button>
-      <button data-sp="banner">Banner</button>
-      <button data-sp="users">ผู้ใช้งาน</button>
-      <button data-sp="sound">เสียงประกาศ</button>
-      <button data-sp="tv">หน้าจอ TV</button>
-      <button data-sp="history">ประวัติการใช้งาน</button>
+    <nav aria-labelledby="portalHeading">
+      <div class="menu" id="portalMenu">
+        <button type="button" class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b></button>
+        <button type="button" class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b></button>
+        <button type="button" class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b></button>
+        <button type="button" class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b></button>
+        <button type="button" class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b></button>
+        <button type="button" class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
+      </div>
     </nav>
-
-    <section class="stp" id="st-cards" style="display:grid;gap:16px">
-      <div class="card">
-        <h3>สร้างการ์ดลิงก์ใหม่</h3>
-        <div class="muted" style="margin-bottom:8px">การ์ดจะขึ้นที่เมนูหลักของทุกคน กดแล้วเปิดลิงก์ในแท็บเดิม · เลือกว่าผู้ใช้คนไหนเห็นได้ที่แท็บ "ผู้ใช้งาน"</div>
-        <div class="grid">
-          <label>ชื่อการ์ด<input type="text" id="ncTitle" maxlength="40" autocomplete="off"></label>
-          <label class="wide">ลิงก์<input type="text" id="ncLink" placeholder="https://..." autocomplete="off"></label>
-        </div>
-        <div class="addbar"><button class="btn" id="ncAdd">+ สร้างการ์ด</button></div>
-      </div>
-      <div class="card">
-        <div class="cardrow"><h3>จัดการการ์ดเมนูหลัก</h3><button class="btn ghost small" id="sortReset">กลับค่าเริ่มต้น</button></div>
-        <div class="muted" style="margin-bottom:8px">▲ ▼ เลื่อนลำดับ · แก้ชื่อในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดลิงก์แก้ปลายทางได้ (ล้างช่อง = ใช้ลิงก์เดิม) · การ์ดที่สร้างเองลบได้ · ใช้กับผู้ใช้ทุกคน (การ์ดที่ผู้ใช้ไม่มีสิทธิ์จะไม่แสดงตามเดิม)</div>
-        <div id="sortList" style="display:grid;gap:6px"></div>
-        <div class="addbar"><button class="btn" id="sortSave">บันทึก</button></div>
-      </div>
-    </section>
-
-    <section class="stp hidden" id="st-banner" style="display:grid;gap:16px">
-    <div class="card">
-      <h3>เพิ่ม Banner</h3>
-      <div class="row">
-        <input type="file" id="bFiles" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
-        <input type="text" id="bLink" placeholder="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." style="flex:1;min-width:240px" autocomplete="off">
-        <button class="btn" id="bUpload" disabled>อัปโหลด</button>
-      </div>
-      <div class="muted" id="bUpHint" style="margin-top:6px"></div>
-    </div>
-
-    <div class="card">
-      <div class="cardrow"><h3>Banner ทั้งหมด</h3><span class="muted" id="bCount"></span></div>
-      <div class="bgrid" id="bGrid"><div class="muted">กำลังโหลด…</div></div>
-      <div class="muted" style="margin-top:8px">ลำดับบนหน้าเว็บเรียงจากซ้ายไปขวาตามลำดับที่เห็นนี้ · ปุ่ม "ซ่อน" ซ่อนรูปจากหน้าเว็บโดยไม่ลบไฟล์ · ปุ่ม "ลบ" ลบไฟล์รูปออกจากระบบถาวร</div>
-    </div>
-
-    <div class="card">
-      <h3>ความเร็วการหมุน Banner</h3>
-      <div class="row">
-        <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แต่ละรูปค้างไว้
-          <input type="number" id="bSpeed" min="1" max="60" step="0.5" value="4" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
-          วินาที</label>
-        <button class="btn" id="bSpeedSave">บันทึกความเร็ว</button>
-      </div>
-      <div class="muted" style="margin-top:6px">ตั้งได้ 1–60 วินาที · รูปใหม่และความเร็วที่เปลี่ยนจะขึ้นบนหน้าเว็บเองภายใน 1 นาที (หรือเมื่อรีเฟรช) · ถ้ามีรูปไม่เกินจำนวนที่แสดงพร้อมกัน รูปจะอยู่นิ่ง ไม่หมุน</div>
-    </div>
-
-    <div class="card">
-      <h3>จำนวนรูปต่อหน้า</h3>
-      <div class="row">
-        <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แสดงพร้อมกัน
-          <input type="number" id="bPer" min="0" max="6" step="1" value="0" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
-          รูป</label>
-        <button class="btn" id="bPerSave">บันทึกจำนวนรูป</button>
-      </div>
-      <div class="muted" style="margin-top:6px">0 = อัตโนมัติ (ระบบเลือกจำนวนรูปให้เต็มกรอบที่ฝังเว็บมากที่สุด แนะนำ) · 1–6 = กำหนดเอง · รูปจะย่อ/ขยายพอดีกรอบเสมอ ไม่ถูกตัด</div>
-    </div>
-
-    <div class="card">
-      <h3>ความสูงการแสดงผล</h3>
-      <div class="row">
-        <label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">สูง
-          <input type="number" id="bHeight" min="30" max="100" step="5" value="80" style="width:90px;border:1px solid var(--line);border-radius:6px;padding:7px 9px">
-          % ของกรอบที่ฝังเว็บ</label>
-        <button class="btn" id="bHeightSave">บันทึกความสูง</button>
-      </div>
-      <div class="muted" style="margin-top:6px">ตั้งได้ 30–100 · ยิ่งน้อยรูปยิ่งเตี้ยลง (รูปย่อตามสัดส่วน ไม่ถูกตัด) และอยู่กึ่งกลางกรอบ · 100 = เต็มความสูงกรอบ</div>
-    </div>
-
-    <div class="card">
-      <h3>หน้าแสดง Banner</h3>
-      <div class="row">
-        <input type="text" id="bUrl" readonly style="flex:1;min-width:260px">
-        <button class="btn ghost small" id="bCopyUrl">คัดลอกลิงก์</button>
-        <a class="btn small" id="bOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <input type="text" id="bEmbed" readonly style="flex:1;min-width:260px">
-        <button class="btn ghost small" id="bCopyEmbed">คัดลอกโค้ดฝังเว็บ</button>
-      </div>
-    </div>
-    </section>
-
-    <section class="stp hidden" id="st-users" style="display:grid;gap:16px">
-    <div class="card">
-      <h3>รหัสกู้คืนแอดมิน</h3>
-      <div class="muted" id="recInfo" style="margin-bottom:8px"></div>
-      <div class="addbar" style="margin-top:0"><button class="btn ghost" id="recIssue">ออกรหัสกู้คืนใหม่</button></div>
-      <div class="muted" style="margin-top:6px">ใช้ที่หน้าเข้าสู่ระบบ > "ลืมรหัสผ่าน" เพื่อตั้งรหัสผ่านแอดมินใหม่ · เมื่อออกรหัสใหม่ รหัสกู้คืนเดิมจะใช้ไม่ได้ทันที · ระบบแสดงรหัสให้เห็นครั้งเดียวและเก็บเฉพาะค่าแฮช กรุณาจดเก็บไว้ในที่ปลอดภัย</div>
-    </div>
-
-    <div class="card">
-      <h3>ผู้ใช้งานระบบ</h3>
-      <div style="overflow:auto">
-        <table class="logt"><thead><tr><th>รหัสผู้ใช้</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การ์ดที่ใช้ได้</th><th></th></tr></thead>
-        <tbody id="userBody"></tbody></table>
-      </div>
-      <h3 id="uFormTitle" style="margin-top:18px">เพิ่มผู้ใช้</h3>
-      <div class="uform" id="uForm">
-        <label>รหัสผู้ใช้<input type="text" id="uName" autocomplete="off"></label>
-        <label>ชื่อที่แสดง (ไม่บังคับ)<input type="text" id="uDisp" autocomplete="off"></label>
-        <label>รหัสผ่าน<input type="password" id="uPass" autocomplete="new-password" disabled></label>
-        <label class="full ulink" id="uLinkRow">
-          <input type="checkbox" id="uLink" checked> ไม่ต้องตั้งรหัสผ่าน — ให้ระบบสร้างลิงก์เข้าใช้งานให้</label>
-        <label class="full">สิทธิ์
-          <select id="uRole">
-            <option value="viewer">ผู้ใช้งาน (ปริ้นรายงานได้เท่านั้น)</option>
-            <option value="admin">แอดมิน (ทำได้ทุกอย่าง)</option>
-          </select></label>
-        <div class="full permwrap">
-          <div class="muted">การ์ดที่ผู้ใช้นี้ใช้งาน/มองเห็นได้ (แอดมินใช้ได้ทุกการ์ด)</div>
-          <div class="permbox" id="uPermBox"></div>
-        </div>
-      </div>
-      <div class="addbar">
-        <button class="btn" id="uSave">เพิ่มผู้ใช้</button>
-        <button class="btn ghost hidden" id="uCancel">ยกเลิกการแก้ไข</button>
-        <span class="muted" id="uHint"></span>
-      </div>
-    </div>
-    </section>
-
-    <section class="stp hidden" id="st-history" style="display:grid;gap:16px">
-    <nav class="cnav" id="hiNav"></nav>
-    <div class="card">
-      <div class="asbar">
-        <input type="search" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off">
-        <button class="btn ghost small" id="hiReload">โหลดใหม่</button>
-        <button class="btn ghost small" id="hiClear" style="color:#c0392b">🗑 ล้างประวัติ</button>
-        <span class="muted" id="hiCount"></span>
-      </div>
-      <div style="overflow:auto"><table class="logt">
-        <thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
-        <tbody id="hiBody"></tbody></table></div>
-      <div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
-    </div>
-    </section>
-
-    <section class="stp hidden" id="st-tv" style="display:grid;gap:16px">
-      <div class="card">
-        <h3>หน้าจอหลักสำหรับ TV (แบนเนอร์ + นาฬิกา + ตัวรับเสียง)</h3>
-        <div class="row">
-          <input type="text" id="sTv" readonly style="flex:1;min-width:260px">
-          <button class="btn ghost small" id="sTvCopy">คัดลอกลิงก์</button>
-          <a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
-        </div>
-        <div class="muted" style="margin-top:6px">หน้ารวมที่ไม่ต้องใช้ Google Site · เปิดลิงก์นี้บนเครื่อง TV แล้วกดปุ่ม ON ในกรอบตัวรับเสียง 1 ครั้ง · ใช้แทนลิงก์หน้ารับสัญญาณด้านบนได้เลย (ไม่ต้องเปิดทั้งสองหน้าพร้อมกัน เสียงจะซ้อนกัน)</div>
-      </div>
-      <div class="card">
-        <h3>ตั้งค่าหน้าจอ TV</h3>
-        <div class="muted" style="margin-bottom:8px">ปรับข้อความ สี และขนาดของหน้า tv.html · เมื่อกดบันทึก เครื่อง TV จะอัปเดตเองภายใน 1 นาที ไม่ต้องรีเฟรช</div>
-        <div class="grid">
-          <label>ชื่อร้าน<input type="text" id="tvShop" maxlength="80" autocomplete="off"></label>
-          <label>ข้อความต้อนรับ<input type="text" id="tvHelloMain" maxlength="60" autocomplete="off"></label>
-          <label>ข้อความต้อนรับ (บรรทัดเล็ก)<input type="text" id="tvHelloSub" maxlength="100" autocomplete="off"></label>
-          <label>ข้อความใต้แบนเนอร์ (ไหลวน แสดงทีละข้อความเดียว)<input type="text" id="tvCaption" maxlength="120" autocomplete="off"></label>
-          <label>สีพื้นหลัง<input type="color" id="tvBg" style="height:38px;padding:2px 4px"></label>
-          <label>ความกว้างหน้า (px) 480–3840<input type="number" id="tvWidth" min="480" max="3840" step="10"></label>
-          <label>ความสูงแบนเนอร์ (px) 60–2000<input type="number" id="tvBannerH" min="60" max="2000" step="10"></label>
-          <label>ความสูงกรอบตัวรับเสียง (px) 150–2000<input type="number" id="tvReceiverH" min="150" max="2000" step="10"></label>
-          <label>ความกว้างแบนเนอร์ (px) 0 = เต็มหน้า<input type="number" id="tvBannerW" min="0" max="3840" step="10"></label>
-          <label>ความกว้างกรอบตัวรับเสียง (px) 0 = เต็มหน้า<input type="number" id="tvReceiverW" min="0" max="3840" step="10"></label>
-          <label>ระยะห่างรวมระหว่างส่วน (px) 0–200<input type="number" id="tvGap" min="0" max="200" step="2"></label>
-          <label>ระยะห่างขอบด้านบนสุด (px) 0–600<input type="number" id="tvPadTop" min="0" max="600" step="2"></label>
-          <label>ขนาดโลโก้ (px) 20–600<input type="number" id="tvLogoSize" min="20" max="600" step="2"></label>
-          <label>ระยะห่างโลโก้กับข้อความ (px) 0–200<input type="number" id="tvHeadGap" min="0" max="200" step="2"></label>
-          <label>ห่างเหนือแบนเนอร์ (px)<input type="number" id="tvGapBanner" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
-          <label>ห่างเหนือข้อความไหล (px)<input type="number" id="tvGapCaption" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
-          <label>ห่างเหนือกรอบตัวรับเสียง (px)<input type="number" id="tvGapReceiver" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
-          <label>ห่างเหนือท้ายหน้า (px)<input type="number" id="tvGapFoot" min="0" max="200" step="2" placeholder="ว่าง = ใช้ค่ารวม"></label>
-          <label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label>
-          <label>การเรียงแถวข้อความด้านบน<select id="tvHeadLayout"><option value="side">โลโก้ข้างซ้าย ข้อความเรียงลง</option><option value="stack">เรียงลงทั้งหมด (โลโก้บน)</option><option value="row">เรียงออกข้างทั้งหมด (โลโก้+ข้อความ)</option><option value="topRow">โลโก้บน ข้อความเรียงออกข้าง</option></select></label>
-          <label>ขนาดตัวอักษรนาฬิกา (px) 10–200<input type="number" id="tvFontClock" min="10" max="200" step="1"></label>
-          <label>ขนาดตัวอักษรชื่อร้าน (px) 10–200<input type="number" id="tvFontShop" min="10" max="200" step="1"></label>
-          <label>ขนาดตัวอักษรข้อความต้อนรับ (px) 10–200<input type="number" id="tvFontHello" min="10" max="200" step="1"></label>
-          <label>ขนาดตัวอักษรข้อความใต้แบนเนอร์ (px) 10–200<input type="number" id="tvFontCaption" min="10" max="200" step="1"></label>
-          <label>ความเร็วข้อความใต้แบนเนอร์ไหล (px/วินาที) 10–400<input type="number" id="tvCapSpeed" min="10" max="400" step="5"></label>
-        </div>
-        <div class="row" style="margin-top:10px;gap:18px">
-          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowLogo"> แสดงโลโก้</label>
-          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowClock"> แสดงนาฬิกา</label>
-          <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="tvShowBanner"> แสดงแบนเนอร์</label>
-        </div>
-        <div class="muted" style="margin-top:6px">ช่องข้อความเว้นว่างได้ = ไม่แสดงบรรทัดนั้น · ตัวรับเสียงต้องเปิดไว้เสมอ จึงไม่มีตัวเลือกซ่อน</div>
-        <div class="addbar"><button class="btn" id="tvSave">บันทึก</button> <button class="btn ghost" id="tvReset">คืนค่าเริ่มต้น</button></div>
-      </div>
-    </section>
-
-    <section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
-      <div class="card">
-        <h3>หน้ารับสัญญาณสำหรับ TV</h3>
-        <div class="row">
-          <input type="text" id="sRecv" readonly style="flex:1;min-width:260px">
-          <button class="btn ghost small" id="sRecvCopy">คัดลอกลิงก์</button>
-          <a class="btn small" id="sRecvOpen" href="#" target="_blank" rel="noopener">เปิดดู</a>
-        </div>
-        <div class="muted" style="margin-top:6px">เปิดลิงก์นี้บนเครื่อง TV แล้วกดปลดล็อกลำโพง 1 ครั้ง · เสียงที่เพิ่ม/แก้ไขที่นี่จะถูกใช้บน TV เองภายใน 1 นาที</div>
-      </div>
-      <div class="card">
-        <h3>ความดังเสียงประกาศ</h3>
-        <div class="row"><label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">🔔 ความดังประกาศ
-          <input type="range" id="muAVol" min="10" max="100" step="5" value="100" style="flex:1"> <b id="muAVolTxt" style="min-width:48px">100%</b></label></div>
-        <div class="muted" style="margin-top:6px">ใช้กับเสียงประกาศทุกแบบ (ปุ่ม ตามเวลา เรียกพนักงาน งดรับเงิน) ปรับแยกจากความดังเพลงในหน้า "ขอเพลง / คิวเพลง" · ขั้นต่ำ 10% · TV ปรับตามภายในไม่กี่วินาที ประกาศที่กำลังเล่นอยู่จะใช้ค่าใหม่ครั้งถัดไป</div>
-      </div>
-      <nav class="cnav" id="cfgNav">
-        <button class="on" data-cp="btn">ระบบปุ่มประกาศ</button>
-        <button data-cp="sch">ตารางเวลาประกาศ</button>
-        <button data-cp="timed">ไฟล์เสียงตามเวลา</button>
-        <button data-cp="other">เสียงอื่นๆ</button>
-      </nav>
-
-      <div class="card cpanel" id="cp-btn">
-        <div class="cardrow"><h3>ระบบปุ่มประกาศ</h3><button class="btn small" id="sAddBtn">+ เพิ่มปุ่ม</button></div>
-        <div class="muted" style="margin-bottom:8px">ปุ่มเลขในแท็บ "ปุ่มประกาศ" · แต่ละปุ่มจะเล่นไฟล์เสียงอะไร</div>
-        <div style="overflow:auto"><table class="logt"><thead><tr><th>ปุ่ม (รหัส)</th><th>ชื่อปุ่ม</th><th>ไฟล์เสียงที่เล่น</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyBtn"></tbody></table></div>
-      </div>
-
-      <div class="cpanel hidden" id="cp-sch" style="display:grid;gap:14px">
-        <div class="card">
-          <div class="cardrow"><h3>ตารางเวลาประกาศอัตโนมัติ</h3><button class="btn small" id="sAddSch">+ เพิ่มเวลา</button></div>
-          <div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง TV จะเล่นเสียงที่เลือกเองอัตโนมัติ · แก้ไขได้ทั้งเวลา และเลข/ไฟล์เสียงที่จะประกาศ</div>
-          <div style="overflow:auto"><table class="logt"><thead><tr><th>เวลา</th><th>เลขเสียงที่ประกาศ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodySch"></tbody></table></div>
-        </div>
-        <div class="card">
-          <h3>ประกาศซ้ำช่วงกลางวัน (09:00–19:00)</h3>
-          <div class="muted" style="margin-bottom:8px">เล่นเสียงที่เลือกซ้ำตามช่วงนาทีที่กำหนด</div>
-          <div class="row">
-            <label style="width:150px">สถานะ<select id="dtOn"><option value="ใช้งาน">เปิดใช้งาน</option><option value="ปิด">ปิด</option></select></label>
-            <label style="min-width:220px;flex:1">เสียงที่จะเล่น (เลข / ไฟล์)<select id="dtKey"></select></label>
-            <label style="width:150px">ทุกกี่นาที<input type="text" id="dtInt" inputmode="numeric" autocomplete="off"></label>
-            <button class="btn" id="dtSave" style="align-self:end">บันทึก</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card cpanel hidden" id="cp-timed">
-        <div class="cardrow"><h3>ไฟล์เสียงตามเวลา</h3><button class="btn small" id="sAddTimed">+ เพิ่มไฟล์เสียง</button></div>
-        <div class="muted" style="margin-bottom:8px">คลังไฟล์ที่ใช้ในตารางเวลา (เล่นพร้อมเสียงเปิด-ปิด) · เพิ่ม/เปลี่ยนไฟล์ที่นี่ แล้วไปเลือกใช้ในแท็บ "ตารางเวลาประกาศ"</div>
-        <div style="overflow:auto"><table class="logt"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyTimed"></tbody></table></div>
-      </div>
-
-      <div class="card cpanel hidden" id="cp-other">
-        <div class="cardrow"><h3>เสียงอื่นๆ</h3>
-          <div class="row">
-            <select id="sFilter" style="width:auto"></select>
-            <button class="btn small" id="sAdd">+ เพิ่มรายการ</button>
-            <button class="btn ghost small" id="sImport">นำเข้าไฟล์เสียงเดิมจาก GitHub</button>
-          </div>
-        </div>
-        <div class="muted" style="margin-bottom:6px">เสียงเปิด-ปิด · เสียงอ่านชื่อพนักงาน · สถานที่ · แคชเชียร์ · ประเภทงดรับ</div>
-        <div class="muted" id="sImpMsg" style="margin-bottom:6px"></div>
-        <div style="overflow:auto">
-          <table class="logt"><thead><tr><th>ประเภท</th><th>รหัส</th><th>ชื่อที่แสดง</th><th>ค่าเพิ่มเติม</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBody"></tbody></table>
-        </div>
-      </div>
-    </section>
-  </div>
+  </main>
 </div>
 
-<div class="modalwrap hidden" id="sizeModal">
+<div class="modalwrap hidden" id="sizeModal" role="dialog" aria-modal="true" aria-labelledby="sizeModalTitle">
   <div class="modal" style="width:min(460px,100%)">
-    <h3>ปรับขนาดการ์ด</h3>
-    <div class="muted">เห็นผลทันที · ตั้งค่านี้เป็นของบัญชีนี้ในเครื่องนี้ (ไม่กระทบผู้ใช้คนอื่น)</div>
-    <div><b>ขนาดการ์ด</b><div class="row" id="szCardBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div></div>
-    <div><b>ขนาดตัวอักษร</b><div class="row" id="szFontBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div></div>
-    <div><b>จำนวนการ์ดต่อแถว</b><div class="row" id="szColBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div><div class="muted" style="margin-top:4px">"อัตโนมัติ" = ตามความกว้างการ์ดและหน้าจอ · บนมือถือจอแคบจะแสดงไม่เกิน 2 การ์ดต่อแถว</div></div>
+    <h3 id="sizeModalTitle">ปรับขนาดการ์ด</h3>
+    <div class="muted">เห็นผลทันที · ตั้งค่านี้ผูกกับบัญชีของคุณ</div>
+    <div role="group" aria-labelledby="szCardLbl"><b id="szCardLbl">ขนาดการ์ด</b><div class="row" id="szCardBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div></div>
+    <div role="group" aria-labelledby="szFontLbl"><b id="szFontLbl">ขนาดตัวอักษร</b><div class="row" id="szFontBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div></div>
+    <div role="group" aria-labelledby="szColLbl"><b id="szColLbl">จำนวนการ์ดต่อแถว</b><div class="row" id="szColBtns" style="margin-top:6px;gap:6px;flex-wrap:wrap"></div><div class="muted" style="margin-top:4px">"อัตโนมัติ" = ตามความกว้างการ์ดและหน้าจอ · บนมือถือจอแคบจะแสดงไม่เกิน 2 การ์ดต่อแถว</div></div>
     <div class="addbar">
-      <button class="btn" id="sizeClose">เสร็จ</button>
-      <button class="btn ghost" id="sizeReset">กลับค่าเริ่มต้น</button>
+      <button type="button" class="btn" id="sizeClose">เสร็จ</button>
+      <button type="button" class="btn ghost" id="sizeReset">กลับค่าเริ่มต้น</button>
     </div>
   </div>
 </div>
 
-<div class="modalwrap hidden" id="recModal">
-  <div class="modal" style="width:min(520px,100%)">
-    <h3>รหัสกู้คืนใหม่</h3>
-    <div class="muted">จดรหัสนี้เก็บไว้ในที่ปลอดภัย รหัสจะแสดงครั้งเดียว ปิดหน้าต่างแล้วดูย้อนหลังไม่ได้ (ถ้าลืมให้ออกรหัสใหม่) · รหัสกู้คืนเดิมใช้ไม่ได้แล้ว</div>
-    <input type="text" id="recCode" readonly style="font-size:20px;letter-spacing:1px;text-align:center">
-    <div class="addbar">
-      <button class="btn" id="recCopy">คัดลอกรหัส</button>
-      <button class="btn ghost" id="recClose">ปิด</button>
-    </div>
-  </div>
-</div>
-
-<div class="modalwrap hidden" id="linkModal">
-  <div class="modal" style="width:min(560px,100%)">
-    <h3 id="lkTitle">ลิงก์เข้าใช้งาน</h3>
-    <div class="muted">ส่งลิงก์นี้ให้ผู้ใช้ เปิดแล้วเข้าระบบได้ทันที ลิงก์จะแสดงครั้งเดียว ถ้าลืมให้กด "ลิงก์ใหม่" ในตารางผู้ใช้ (ลิงก์เดิมจะใช้ไม่ได้)</div>
-    <input type="text" id="lkUrl" readonly>
-    <div class="addbar">
-      <button class="btn" id="lkCopy">คัดลอกลิงก์</button>
-      <button class="btn ghost" id="lkClose">ปิด</button>
-    </div>
-  </div>
-</div>
-
-
-<div class="modalwrap hidden" id="schModal">
-  <div class="modal" style="width:min(460px,100%)">
-    <h3 id="schTitle">เพิ่มเวลาประกาศ</h3>
-    <div class="grid">
-      <label>เวลา<input type="time" id="schTime"></label>
-      <label>สถานะ<select id="schStatus"><option value="ใช้งาน">ใช้งาน</option><option value="ปิด">ปิด (ไม่เล่น)</option></select></label>
-      <label class="wide">เสียงที่จะประกาศ (เลข / ไฟล์)<select id="schKey"></select></label>
-    </div>
-    <div class="addbar"><button class="btn" id="schSave">บันทึก</button><button class="btn ghost" id="schCancel">ยกเลิก</button></div>
-  </div>
-</div>
-
-<div class="modalwrap hidden" id="sndModal">
-  <div class="modal" style="width:min(520px,100%)">
-    <h3 id="sdTitle">เพิ่มรายการ</h3>
-    <label>ประเภท<select id="sdType"></select></label>
-    <div class="muted" id="sdHint"></div>
-    <div class="grid">
-      <label>รหัส<input type="text" id="sdCode" autocomplete="off"></label>
-      <label>ชื่อที่แสดง<input type="text" id="sdLabel" autocomplete="off"></label>
-      <label>ค่าเพิ่มเติม<input type="text" id="sdValue" autocomplete="off"></label>
-      <label>สถานะ<select id="sdStatus"><option value="ใช้งาน">ใช้งาน</option><option value="ปิด">ปิด (ซ่อน)</option></select></label>
-    </div>
-    <div id="sdFileRow">
-      <label>ไฟล์เสียง (MP3, WAV, M4A, AAC, OGG ไม่เกิน 8 MB)<input type="file" id="sdFile" accept="audio/*"></label>
-      <div class="muted" id="sdCur"></div>
-    </div>
-    <div class="addbar">
-      <button class="btn" id="sdSave">บันทึก</button>
-      <button class="btn ghost" id="sdCancel">ยกเลิก</button>
-    </div>
-  </div>
-</div>
-
-
-<div class="loginwrap" id="login">
+<div class="loginwrap" id="login" role="region" aria-labelledby="loginTitle">
   <div class="logincard">
-    <h2>CMUCOOP SUPPORT</h2>
-    <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
-    <label>รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
-    <div class="err" id="lgErr" role="alert"></div>
-    <button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
-    <a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
+    <h2 id="loginTitle">CMUCOOP SUPPORT</h2>
+    <label for="lgUser">รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
+    <label for="lgPass">รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
+    <div class="err" id="lgErr" role="alert" aria-live="assertive"></div>
+    <button type="button" class="btn" id="lgBtn">เข้าสู่ระบบ</button>
+    <a href="#" id="lgForgot" role="button" aria-expanded="false" aria-controls="rcBox" style="font-size:14px;text-align:center;color:var(--accent-text);font-weight:600">ลืมรหัสผ่าน</a>
     <div id="rcBox" class="hidden" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
-      <label>รหัสผู้ใช้แอดมิน<input type="text" id="rcUser" autocomplete="off"></label>
-      <label>รหัสกู้คืน<input type="password" id="rcCode" autocomplete="off"></label>
-      <label>รหัสผ่านใหม่<input type="password" id="rcPass" autocomplete="new-password"></label>
-      <button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
+      <label for="rcUser">รหัสผู้ใช้แอดมิน<input type="text" id="rcUser" autocomplete="off"></label>
+      <label for="rcCode">รหัสกู้คืน<input type="password" id="rcCode" autocomplete="off"></label>
+      <label for="rcPass">รหัสผ่านใหม่<input type="password" id="rcPass" autocomplete="new-password"></label>
+      <button type="button" class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
     </div>
   </div>
 </div>
 
-
-<div class="modalwrap hidden" id="pwModal">
+<div class="modalwrap hidden" id="pwModal" role="dialog" aria-modal="true" aria-labelledby="pwModalTitle">
   <div class="modal" style="width:min(380px,100%)">
-    <h3>เปลี่ยนรหัสผ่าน</h3>
-    <label>รหัสผ่านเดิม<input type="password" id="pwOld" autocomplete="current-password"></label>
-    <label>รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)<input type="password" id="pwNew" autocomplete="new-password"></label>
-    <label>ยืนยันรหัสผ่านใหม่<input type="password" id="pwNew2" autocomplete="new-password"></label>
-    <div class="err" id="pwErr" role="alert"></div>
+    <h3 id="pwModalTitle">เปลี่ยนรหัสผ่าน</h3>
+    <label for="pwOld">รหัสผ่านเดิม<input type="password" id="pwOld" autocomplete="current-password"></label>
+    <label for="pwNew">รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)<input type="password" id="pwNew" autocomplete="new-password"></label>
+    <label for="pwNew2">ยืนยันรหัสผ่านใหม่<input type="password" id="pwNew2" autocomplete="new-password"></label>
+    <div class="err" id="pwErr" role="alert" aria-live="assertive"></div>
     <div class="addbar" style="margin-top:0">
-      <button class="btn" id="pwSave">บันทึก</button>
-      <button class="btn ghost" id="pwCancel">ยกเลิก</button>
+      <button type="button" class="btn" id="pwSave">บันทึก</button>
+      <button type="button" class="btn ghost" id="pwCancel">ยกเลิก</button>
     </div>
   </div>
 </div>
 
-
-<div id="toast" role="status"></div>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 /* ============================ ตัวช่วย ============================ */
@@ -831,31 +201,11 @@ function call(fn) {
 var toastTimer;
 function toast(msg, isErr) {
   var t = $('#toast');
+  t.setAttribute('role', isErr ? 'alert' : 'status');
   t.textContent = msg; t.className = 'show' + (isErr ? ' err' : '');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { t.className = ''; }, 3500);
 }
-/* ปิดปุ่มระหว่างรอ + แสดงข้อผิดพลาดเป็น toast */
-async function busy(btn, fn) {
-  btn.disabled = true;
-  try { return await fn(); } catch (e) { toast(e.message, true); } finally { btn.disabled = false; }
-}
-function copyField(sel, msg) {
-  var el = $(sel); el.focus(); el.select();
-  try { document.execCommand('copy'); toast(msg); } catch (e) { toast('คัดลอกไม่สำเร็จ กรุณาคัดลอกเอง', true); }
-}
-/* แสดงวันที่แบบ พ.ศ. เหมือนในชีต */
-function pad2(n) { return String(n).padStart(2, '0'); }
-function thDate(ts) {
-  var d = new Date(ts + 7 * 3600000);
-  return pad2(d.getUTCDate()) + '/' + pad2(d.getUTCMonth() + 1) + '/' + (d.getUTCFullYear() + 543);
-}
-function thTime(ts) {
-  var d = new Date(ts + 7 * 3600000);
-  return pad2(d.getUTCHours()) + ':' + pad2(d.getUTCMinutes());
-}
-function fmt(ts) { return thDate(ts) + ' เวลา ' + thTime(ts) + ' น.'; }
-
 
 /* ============================ สถานะ ============================ */
 var S = { token: '', me: null, initSp: '' };
@@ -873,196 +223,49 @@ var S = { token: '', me: null, initSp: '' };
   }
 })();
 
-/* ============================ ผู้ใช้งาน (แอดมิน) ============================ */
-var ROLE_TH = { admin: 'แอดมิน', viewer: 'ผู้ใช้งาน (ปริ้น/ดูประวัติ)' };
-var editingUser = '';
-async function loadUsers() {
-  $('#userBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
-  try {
-    var rows = await call('listUsers');
-    $('#userBody').innerHTML = rows.map(function (u) {
-      return '<tr><td>' + esc(u.username) + '</td><td>' + esc(u.name) + '</td><td>' + esc(ROLE_TH[u.role] || u.role) + (u.link ? ' 🔗' : '') + '</td><td>' + esc(permText(u)) + '</td><td class="act"><div class="actw">' +
-        '<button class="btn ghost small" data-a="link" data-u="' + esc(u.username) + '">' + (u.link ? 'ลิงก์ใหม่' : 'สร้างลิงก์') + '</button> ' +
-        '<button class="btn ghost small" data-a="edit" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '" data-r="' + esc(u.role) + '" data-p="' + esc(JSON.stringify(u.perms || {})) + '">แก้ไข</button> ' +
-        (S.me && u.username === S.me.user ? '' : '<button class="btn ghost small" data-a="del" data-u="' + esc(u.username) + '">ลบ</button>') +
-        '</div></td></tr>';
-    }).join('');
-  } catch (e) { toast(e.message, true); }
-}
-function resetUserForm() {
-  editingUser = '';
-  ['#uName', '#uDisp', '#uPass'].forEach(function (s) { $(s).value = ''; });
-  $('#uRole').value = 'viewer'; setPermBox(PERM_DEFAULT); syncPerms();
-  $('#uLink').checked = true; $('#uPass').disabled = true; $('#uLinkRow').classList.remove('hidden');
-  $('#uFormTitle').textContent = 'เพิ่มผู้ใช้'; $('#uSave').textContent = 'เพิ่มผู้ใช้';
-  $('#uCancel').classList.add('hidden'); $('#uHint').textContent = '';
-}
-function showLink(url, name) {
-  var m = String(url || '').match(/[?&](u=[^&#]+&k=[^&#]+)/);
-  if (m) url = pageUrl('?' + m[1], url);
-  $('#lkTitle').textContent = 'ลิงก์เข้าใช้งานของ ' + name;
-  $('#lkUrl').value = url;
-  $('#linkModal').classList.remove('hidden');
-}
-/* ----- รหัสกู้คืนแอดมิน ----- */
-async function loadRecovery() {
-  try {
-    var r = await call('recoveryInfo');
-    $('#recInfo').textContent = r.custom ? 'ใช้รหัสกู้คืนที่ออกใหม่เมื่อ ' + fmt(r.ts) + (r.by ? ' โดย ' + r.by : '') : 'ยังใช้รหัสกู้คืนเดิมที่ตั้งไว้ในโค้ด';
-  } catch (e) { $('#recInfo').textContent = ''; }
-}
-$('#recIssue').addEventListener('click', function () {
-  if (!confirm('ออกรหัสกู้คืนใหม่?\n\nรหัสกู้คืนเดิมจะใช้ไม่ได้ทันที')) return;
-  busy(this, async function () {
-    var r = await call('issueRecoveryCode');
-    $('#recCode').value = r.code; $('#recModal').classList.remove('hidden');
-    loadRecovery();
-  });
-});
-$('#recCopy').addEventListener('click', function () { copyField('#recCode', 'คัดลอกรหัสแล้ว'); });
-$('#recClose').addEventListener('click', function () { $('#recModal').classList.add('hidden'); $('#recCode').value = ''; });
-$('#lkCopy').addEventListener('click', function () { copyField('#lkUrl', 'คัดลอกลิงก์แล้ว'); });
-$('#lkClose').addEventListener('click', function () { $('#linkModal').classList.add('hidden'); $('#lkUrl').value = ''; });
-$('#uLink').addEventListener('change', function () {
-  $('#uPass').disabled = this.checked; if (this.checked) $('#uPass').value = '';
-});
-$('#userBody').addEventListener('click', async function (e) {
-  var b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.a === 'edit') {
-    editingUser = b.dataset.u;
-    $('#uName').value = b.dataset.u; $('#uDisp').value = b.dataset.n; $('#uPass').value = ''; $('#uPass').disabled = false;
-    $('#uRole').value = b.dataset.r; setPermBox(JSON.parse(b.dataset.p || '{}')); syncPerms();
-    $('#uLink').checked = false; $('#uLinkRow').classList.add('hidden');
-    $('#uFormTitle').textContent = 'แก้ไขผู้ใช้: ' + b.dataset.u; $('#uSave').textContent = 'บันทึกการแก้ไข';
-    $('#uCancel').classList.remove('hidden'); $('#uHint').textContent = 'เว้นรหัสผ่านว่างไว้ถ้าไม่ต้องการเปลี่ยน';
-    $('#uName').focus();
-  } else if (b.dataset.a === 'link') {
-    if (!confirm('ออกลิงก์ใหม่ให้ ' + b.dataset.u + ' ?\nลิงก์เดิมจะใช้ไม่ได้ทันที')) return;
-    try { var lr = await call('regenUserLink', b.dataset.u); loadUsers(); showLink(lr.link, b.dataset.u); }
-    catch (err) { toast(err.message, true); }
-  } else if (b.dataset.a === 'del') {
-    if (!confirm('ลบผู้ใช้ ' + b.dataset.u + ' ?')) return;
-    try { await call('deleteUser', b.dataset.u); toast('ลบผู้ใช้แล้ว'); loadUsers(); }
-    catch (err) { toast(err.message, true); }
-  }
-});
-/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
-
-/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่แอดมินสร้างเอง */
-var PERM_LABELS = {
-  barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค',
-  sound: 'ระบบเสียงประกาศ',
-  music: 'ขอเพลง / คิวเพลง',
-  stock: 'สินค้าค้างสต็อก (ดู)',
-  stock_edit: 'สินค้าค้างสต็อก: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)',
-  market: 'เช็คราคาตลาด (ดู)',
-  market_edit: 'เช็คราคาตลาด: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)'
-};
-var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };
-function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
-function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
-function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
-function renderPermBox() {
-  $('#uPermBox').innerHTML = permKeys().map(function (k) {
-    return '<label><input type="checkbox" data-pk="' + esc(k) + '"> ' + esc(permLabel(k)) + '</label>';
-  }).join('');
-}
-function setPermBox(p) {
-  document.querySelectorAll('#uPermBox input').forEach(function (i) { i.checked = p[i.dataset.pk] === undefined ? permDef(i.dataset.pk) : !!p[i.dataset.pk]; });
-}
-function getPermBox() {
-  var p = {}; document.querySelectorAll('#uPermBox input').forEach(function (i) { p[i.dataset.pk] = i.checked; }); return p;
-}
-function syncPerms() {                                      // แอดมินใช้ได้ทุกการ์ดเสมอ
-  var a = $('#uRole').value === 'admin';
-  document.querySelectorAll('#uPermBox input').forEach(function (i) { if (a) i.checked = true; i.disabled = a; });
-  syncStockEdit();
-}
-function syncStockEdit() {                                  // แก้ไขสินค้าค้างสต็อก/เช็คราคาตลาดได้ ต้องมีสิทธิ์ดูก่อน
-  if ($('#uRole').value === 'admin') return;
-  [['stock', 'stock_edit'], ['market', 'market_edit']].forEach(function (pair) {
-    var s = document.querySelector('#uPermBox input[data-pk="' + pair[0] + '"]'),
-        e = document.querySelector('#uPermBox input[data-pk="' + pair[1] + '"]');
-    if (!s || !e) return;
-    if (!s.checked) e.checked = false;
-    e.disabled = !s.checked;
-  });
-}
-$('#uPermBox').addEventListener('change', syncStockEdit);
-function permText(u) {
-  if (u.role === 'admin') return 'ทุกการ์ด';
-  var on = function (k) { return u.perms && u.perms[k] !== undefined ? !!u.perms[k] : permDef(k); };
-  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && k !== 'market_edit' && on(k); }).map(function (k) {
-    if (k === 'stock') return 'สินค้าค้างสต็อก (' + (on('stock_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
-    if (k === 'market') return 'เช็คราคาตลาด (' + (on('market_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
-    return permLabel(k);
-  });
-  return t.length ? t.join(' · ') : 'ไม่มี';
-}
-$('#uRole').addEventListener('change', syncPerms);
-$('#uCancel').addEventListener('click', resetUserForm);
-$('#uSave').addEventListener('click', function () {
-  var p = { original: editingUser, username: $('#uName').value.trim(), name: $('#uDisp').value.trim(),
-            password: $('#uPass').value, role: $('#uRole').value, perms: getPermBox(),
-            linkMode: !editingUser && $('#uLink').checked };
-  busy(this, async function () {
-    var r = await call('saveUser', p);
-    if (r.relogin) { showLogin('เปลี่ยนรหัสผู้ใช้ของคุณแล้ว กรุณาเข้าสู่ระบบใหม่'); }
-    else {
-      toast('บันทึกผู้ใช้แล้ว');
-      var nm = p.username;
-      resetUserForm(); loadUsers();
-      if (r.link) showLink(r.link, nm);
-    }
-  });
-});
-
-
 /* ============================ เข้าสู่ระบบ / ออกจากระบบ ============================ */
-function setNav(n) {                               // 'portal' = เมนูหลัก , 'settings' = ตั้งค่า
-  if (n) document.body.dataset.nav = n; else document.body.dataset.nav = 'portal';
-}
 function showLogin(msg) {
   S.token = ''; S.me = null;
   try { sessionStorage.removeItem('pm_tok'); } catch (e) {}
   document.body.classList.add('locked');
-  setNav('portal');
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
 function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return true; if (!S.me.perms) return false; return !!S.me.perms[k]; }
 function goPortal() {
   var admin = S.me && S.me.role === 'admin';
-  setNav('portal');
   $('#pMe').textContent = S.me.name + ' (' + (admin ? 'แอดมิน' : 'ผู้ใช้งาน') + ')';
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
   ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket'].forEach(function (x) {
-    var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่แอดมินติ๊กให้ผู้ใช้คนนี้
+    var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));
   });
 }
 async function startApp(me) {
   S.me = me;
+  if (S.initSp && me.role === 'admin') {
+    var sp = S.initSp; S.initSp = '';
+    var u = pageUrl('settings.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/settings.html');
+    location.href = u + '#sp=' + encodeURIComponent(sp) + '&t=' + encodeURIComponent(S.token);
+    return;
+  }
   document.body.classList.remove('locked');
   goPortal();
   loadCardOrder();
-  if (S.initSp && me.role === 'admin') {
-    var sp = S.initSp; S.initSp = '';
-    openSettings(sp);
-  }
 }
 
-/* ----- ลำดับการ์ดเมนูหลัก (แอดมินจัดได้) ----- */
+/* ----- ลำดับการ์ดเมนูหลัก (แอดมินจัดได้ในหน้า settings.html) ----- */
 var CARD_DEF = [
-  { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
-  { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
+  { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' },
+  { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
+  { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' },
+  { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' },
+  { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
-var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
-var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่แอดมินแก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
-var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่แอดมินสร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
-function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
+var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; });
+var CARD_TITLES = {};
+var CUSTOM = [];
 function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
 function cardDef(k) { return CARD_DEF.filter(function (c) { return c.k === k; })[0]; }
 function cardEl(k) { var d = cardDef(k); return d ? document.getElementById(d.id) : document.querySelector('#portal .mcard[data-ck="' + k + '"]'); }
@@ -1077,13 +280,13 @@ function applyCardTitles() {
     if (b) b.textContent = cardTitle(d.k);
   });
 }
-function renderCustomCards() {                                                   // วาดการ์ดลิงก์ที่แอดมินสร้างเองลงเมนูหลัก
+function renderCustomCards() {
   var menu = document.querySelector('#portal .menu');
   menu.querySelectorAll('.mcard[data-ck]').forEach(function (x) { x.remove(); });
   CUSTOM.forEach(function (c) {
+    if (!hasPerm(c.k)) return;
     var a = document.createElement('a'), b = document.createElement('b');
     a.className = 'mcard'; a.dataset.ck = c.k; a.href = c.u;
-    a.style.cssText = 'text-decoration:none;color:inherit';
     b.textContent = c.t; a.appendChild(b); menu.appendChild(a);
   });
 }
@@ -1091,16 +294,24 @@ function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); apply
 function loadCardOrder() {
   function ok(fn, def) { return call(fn).catch(function () { return def; }); }
   Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', [])]).then(function (r) {
-    CARD_ORDER = Array.isArray(r[0]) ? r[0].slice() : CARD_DEF.map(function (c) { return c.k; }); CARD_DEF.forEach(function (c) { if (CARD_ORDER.indexOf(c.k) < 0) { var si = CARD_ORDER.indexOf('settings'); if (si >= 0) CARD_ORDER.splice(si, 0, c.k); else CARD_ORDER.push(c.k); } }); CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
+    CARD_ORDER = Array.isArray(r[0]) ? r[0].slice() : CARD_DEF.map(function (c) { return c.k; });
+    CARD_DEF.forEach(function (c) {
+      if (CARD_ORDER.indexOf(c.k) < 0) {
+        var si = CARD_ORDER.indexOf('settings');
+        if (si >= 0) CARD_ORDER.splice(si, 0, c.k); else CARD_ORDER.push(c.k);
+      }
+    });
+    CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
     refreshCards();
   });
 }
-/* ----- บันทึกการใช้งานลงประวัติ (ส่งแบบไม่รอผล ไม่หน่วงหน้าจอ) ----- */
+
+/* ----- บันทึกการใช้งานลงประวัติ ----- */
 var USE_LAST = {};
 function logUse(area, action, detail) {
   if (!S.token) return;
   var k = area + '|' + action + '|' + (detail || ''), t = Date.now();
-  if (USE_LAST[k] && t - USE_LAST[k] < 1500) return;              // กันกดซ้ำรัว ๆ
+  if (USE_LAST[k] && t - USE_LAST[k] < 1500) return;
   USE_LAST[k] = t;
   try {
     if (window.API_URL && navigator.sendBeacon) {
@@ -1114,99 +325,15 @@ document.querySelector('#portal .menu').addEventListener('click', function (e) {
   var el = e.target.closest('.mcard'); if (!el) return;
   if (el.dataset.ck) { logUse('card', 'เปิดการ์ด', cardTitle(el.dataset.ck)); return; }
   var d = CARD_DEF.filter(function (c) { return c.id === el.id; })[0];
-  if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));                  // รวมการ์ดที่เป็นลิงก์ออกภายนอก
+  if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));
 });
 
-/* ----- ตั้งค่า > การ์ดเมนูหลัก : จัดลำดับ + แก้ชื่อ/ลิงก์ + สร้าง/ลบการ์ดลิงก์ ----- */
-function stCardsLoad() {
-  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CUSTOM_WORK = {};
-  CUSTOM.forEach(function (c) { CUSTOM_WORK[c.k] = { t: c.t, u: c.u }; });
-  renderSortList();
-}
-function renderSortList() {
-  var last = CARD_WORK.length - 1;
-  $('#sortList').innerHTML = CARD_WORK.map(function (k, i) {
-    var cu = isCustom(k), d = cu ? null : cardDef(k), title, link, ph, del = '';
-    if (cu) {
-      var w = CUSTOM_WORK[k]; if (!w) return '';
-      title = '<input type="text" data-ck="' + esc(k) + '" value="' + esc(w.t) + '" maxlength="40" placeholder="ชื่อการ์ด" style="flex:1;min-width:0">';
-      link = '<div class="muted" style="margin-top:6px">ลิงก์ (เปิดในแท็บเดิม)</div><input type="text" data-cu="' + esc(k) + '" value="' + esc(w.u) + '" maxlength="500" placeholder="https://..." autocomplete="off" style="width:100%;font-size:13px">';
-      del = ' <button class="btn danger small" data-del="' + esc(k) + '">ลบ</button>';
-    } else {
-      if (!d) return '';
-      var cur = CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k);
-      title = '<input type="text" data-k="' + esc(k) + '" value="' + esc(cur) + '" maxlength="40" placeholder="' + esc(d.t) + '" style="flex:1;min-width:0">';
-      link = '';
-    }
-    return '<div class="pitem" style="display:block"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
-      '<span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><b>' + (i + 1) + '.</b> ' + title + '</span><span style="white-space:nowrap">' +
-      '<button class="btn ghost small" data-m="-1" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button> ' +
-      '<button class="btn ghost small" data-m="1" data-i="' + i + '"' + (i === last ? ' disabled' : '') + '>▼</button>' + del + '</span></div>' + link + '</div>';
-  }).join('');
-}
-$('#sortList').addEventListener('input', function (e) {
-  var inp = e.target.closest('input'); if (!inp) return;
-  if (inp.dataset.k) CARD_WORK_T[inp.dataset.k] = inp.value;
-  else if (inp.dataset.ck && CUSTOM_WORK[inp.dataset.ck]) CUSTOM_WORK[inp.dataset.ck].t = inp.value;
-  else if (inp.dataset.cu && CUSTOM_WORK[inp.dataset.cu]) CUSTOM_WORK[inp.dataset.cu].u = inp.value;
-});
-$('#sortList').addEventListener('click', function (e) {
-  var del = e.target.closest('button[data-del]');
-  if (del) {
-    var w = CUSTOM_WORK[del.dataset.del];
-    if (!confirm('ลบการ์ด "' + (w ? w.t : '') + '" ?\n\n(มีผลเมื่อกด "บันทึก")')) return;
-    CARD_WORK = CARD_WORK.filter(function (k) { return k !== del.dataset.del; }); delete CUSTOM_WORK[del.dataset.del]; renderSortList(); return;
-  }
-  var b = e.target.closest('button[data-m]'); if (!b || b.disabled) return;
-  var i = Number(b.dataset.i), j = i + Number(b.dataset.m), t = CARD_WORK[i];
-  CARD_WORK[i] = CARD_WORK[j]; CARD_WORK[j] = t; renderSortList();
-});
-$('#sortReset').addEventListener('click', function () {
-  CARD_WORK = CARD_DEF.map(function (c) { return c.k; }).concat(CARD_WORK.filter(isCustom));
-  CARD_WORK_T = {};
-  CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; });      // คืนชื่อเริ่มต้น
-  renderSortList();
-});
-$('#sortSave').addEventListener('click', function () {
-  var titles = {}, bad = '', cl = [];                     // ส่งเฉพาะที่ต่างจากค่าเริ่มต้น
-  CARD_WORK.forEach(function (k) {
-    if (isCustom(k)) {
-      var w = CUSTOM_WORK[k]; if (!w) return;
-      var t = String(w.t).replace(/\s+/g, ' ').trim(), u = String(w.u).trim();
-      if (!t) bad = bad || 'การ์ดลิงก์ที่ยังไม่ได้ตั้งชื่อ';
-      else if (!/^https?:\/\/\S+$/i.test(u)) bad = bad || t;
-      cl.push({ k: k, t: t, u: u });
-      return;
-    }
-    var d = cardDef(k); if (!d) return;
-    var tt = (CARD_WORK_T[k] !== undefined ? CARD_WORK_T[k] : cardTitle(k)).replace(/\s+/g, ' ').trim();
-    if (tt && tt !== d.t) titles[k] = tt;
-  });
-  if (bad) { toast('ข้อมูลของการ์ด "' + bad + '" ไม่ถูกต้อง (ต้องมีชื่อ และลิงก์ขึ้นต้นด้วย http:// หรือ https:// ไม่มีช่องว่าง)', true); return; }
-  busy(this, async function () {
-    if (CUSTOM.length || cl.length) CUSTOM = await call('setCustomCards', cl);
-    CARD_ORDER = await call('setCardOrder', CARD_WORK);
-    CARD_TITLES = await call('setCardTitles', titles);
-    refreshCards(); stCardsLoad(); toast('บันทึกการตั้งค่าการ์ดแล้ว');
-  });
-});
-$('#ncAdd').addEventListener('click', function () {
-  var t = $('#ncTitle').value.replace(/\s+/g, ' ').trim(), u = $('#ncLink').value.trim();
-  if (!t) { toast('กรุณากรอกชื่อการ์ด', true); return; }
-  if (!/^https?:\/\/\S+$/i.test(u)) { toast('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https:// และไม่มีช่องว่าง', true); return; }
-  busy(this, async function () {
-    CUSTOM = await call('setCustomCards', CUSTOM.map(function (c) { return { k: c.k, t: c.t, u: c.u }; }).concat([{ t: t, u: u }]));
-    CARD_ORDER = await call('getCardOrder');
-    $('#ncTitle').value = ''; $('#ncLink').value = '';
-    refreshCards(); stCardsLoad(); toast('สร้างการ์ดแล้ว: ' + t);
-  });
-});
-/* ----- ปรับขนาดการ์ดเมนูหลัก (ผูกกับบัญชีบนเซิร์ฟเวอร์ ตามไปทุกเครื่อง; เก็บสำเนาในเครื่องไว้ให้ขึ้นเร็ว) ----- */
+/* ----- ปรับขนาดการ์ดเมนูหลัก ----- */
 var SZ_NAMES = ['เล็ก', 'ปกติ', 'กลาง', 'ใหญ่', 'ใหญ่มาก', 'ใหญ่มากๆ'];
 var SZ_CARD = [{ w: 190, h: 72 }, { w: 240, h: 96 }, { w: 290, h: 118 }, { w: 340, h: 140 }, { w: 400, h: 170 },
-  { w: '100%', h: 'max(180px, calc((100vh - 250px) / 2))', pw: '960px' }];     // ใหญ่มากๆ = คอลัมน์เดียว สูงครึ่งจอ เห็นพร้อมกันแค่ 2 การ์ด
+  { w: '100%', h: 'max(180px, calc((100vh - 250px) / 2))', pw: '960px' }];
 var SZ_FONT = [14, 18, 22, 26, 30, 36];
-var SZ = { c: 1, f: 1, n: 0 };                      // ลำดับระดับ (1 = ปกติ) ; n = จำนวนการ์ดต่อแถว (0 = อัตโนมัติ)
+var SZ = { c: 1, f: 1, n: 0 };
 function szKey() { return 'pm_cardsz2_' + ((S.me && (S.me.user || S.me.name)) || ''); }
 function szApply() {
   var st = $('#portal').style, c = SZ_CARD[SZ.c];
@@ -1217,16 +344,17 @@ function szApply() {
   if (SZ.n > 0) {
     menu.classList.add('fixcols');
     st.setProperty('--card-cols', SZ.n); st.setProperty('--card-cols-m', Math.min(SZ.n, 2));
-    st.setProperty('--portal-w', Math.max(c.pw ? parseInt(c.pw, 10) : 720, SZ.n * base + (SZ.n - 1) * 14 + 40) + 'px');
+    st.setProperty('--portal-w', Math.max(c.pw ? parseInt(c.pw, 10) : 760, SZ.n * base + (SZ.n - 1) * 14 + 40) + 'px');
   } else {
     menu.classList.remove('fixcols');
-    st.setProperty('--portal-w', c.pw || Math.max(720, c.w * 2 + 64) + 'px');   // กว้างพอให้วาง 2 คอลัมน์ได้
+    st.setProperty('--portal-w', c.pw || Math.max(760, c.w * 2 + 64) + 'px');
   }
 }
 function szRender() {
   function btns(g, names) {
     return names.map(function (n, i) {
-      return '<button class="btn small' + (SZ[g] === i ? '' : ' ghost') + '" data-g="' + g + '" data-i="' + i + '">' + n + '</button>';
+      var on = SZ[g] === i;
+      return '<button type="button" class="btn small' + (on ? '' : ' ghost') + '" aria-pressed="' + (on ? 'true' : 'false') + '" data-g="' + g + '" data-i="' + i + '">' + n + '</button>';
     }).join('');
   }
   $('#szCardBtns').innerHTML = btns('c', SZ_NAMES); $('#szFontBtns').innerHTML = btns('f', SZ_NAMES);
@@ -1242,27 +370,28 @@ function loadCardSize() {
     }
   } catch (e) {}
   szApply();
-  call('getCardSize').then(function (v) {                 // ค่าของบัญชีบนเซิร์ฟเวอร์เป็นหลัก
+  call('getCardSize').then(function (v) {
     if (v) {
       SZ = { c: v.c, f: v.f, n: v.n }; szApply();
       try { localStorage.setItem(szKey(), JSON.stringify(SZ)); } catch (e) {}
       if (!$('#sizeModal').classList.contains('hidden')) szRender();
-    } else if (hadLocal) call('setCardSize', SZ).catch(function () {});     // ค่าเก่าที่เคยตั้งไว้ในเครื่อง → ผูกเข้าบัญชี
+    } else if (hadLocal) call('setCardSize', SZ).catch(function () {});
   }).catch(function () {});
 }
 var szTimer = null;
 function szSave() {
   try { localStorage.setItem(szKey(), JSON.stringify(SZ)); } catch (e) {}
   clearTimeout(szTimer);
-  szTimer = setTimeout(function () { call('setCardSize', SZ).catch(function () {}); }, 600);   // รอให้เลือกเสร็จก่อนค่อยบันทึกขึ้นบัญชี
+  szTimer = setTimeout(function () { call('setCardSize', SZ).catch(function () {}); }, 600);
 }
-$('#portalSize').addEventListener('click', function () { szRender(); $('#sizeModal').classList.remove('hidden'); });
+$('#portalSize').addEventListener('click', function () { szRender(); $('#sizeModal').classList.remove('hidden'); $('#sizeClose').focus(); });
 $('#sizeModal').addEventListener('click', function (e) {
+  if (e.target === $('#sizeModal')) { $('#sizeModal').classList.add('hidden'); $('#portalSize').focus(); return; }
   var b = e.target.closest('button[data-g]'); if (!b) return;
   SZ[b.dataset.g] = Number(b.dataset.i); szApply(); szRender(); szSave();
 });
 $('#sizeReset').addEventListener('click', function () { SZ = { c: 1, f: 1, n: 0 }; szApply(); szRender(); szSave(); });
-$('#sizeClose').addEventListener('click', function () { $('#sizeModal').classList.add('hidden'); });
+$('#sizeClose').addEventListener('click', function () { $('#sizeModal').classList.add('hidden'); $('#portalSize').focus(); });
 
 async function doLogin() {
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
@@ -1279,8 +408,10 @@ async function doLogin() {
 }
 $('#lgBtn').addEventListener('click', doLogin);
 $('#lgForgot').addEventListener('click', function (e) {
-  e.preventDefault(); $('#rcBox').classList.toggle('hidden');
-  if (!$('#rcBox').classList.contains('hidden')) { $('#rcUser').value = $('#lgUser').value.trim(); $('#rcCode').focus(); }
+  e.preventDefault();
+  var open = $('#rcBox').classList.toggle('hidden');
+  this.setAttribute('aria-expanded', open ? 'false' : 'true');
+  if (!open) { $('#rcUser').value = $('#lgUser').value.trim(); $('#rcCode').focus(); }
 });
 $('#rcBtn').addEventListener('click', async function () {
   this.disabled = true; $('#lgErr').textContent = '';
@@ -1289,6 +420,7 @@ $('#rcBtn').addEventListener('click', async function () {
     $('#lgUser').value = $('#rcUser').value.trim();
     ['#rcCode', '#rcPass'].forEach(function (x) { $(x).value = ''; });
     $('#rcBox').classList.add('hidden');
+    $('#lgForgot').setAttribute('aria-expanded', 'false');
     $('#lgErr').textContent = 'ตั้งรหัสผ่านใหม่แล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่';
     $('#lgPass').focus();
   } catch (e) { $('#lgErr').textContent = e.message; }
@@ -1296,11 +428,13 @@ $('#rcBtn').addEventListener('click', async function () {
 });
 $('#lgPass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
 $('#lgUser').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#lgPass').focus(); });
+
 function closePw() { $('#pwModal').classList.add('hidden'); ['#pwOld', '#pwNew', '#pwNew2'].forEach(function (x) { $(x).value = ''; }); $('#pwErr').textContent = ''; }
-document.querySelectorAll('#btnPw,.js-pw').forEach(function (b) {
+document.querySelectorAll('.js-pw').forEach(function (b) {
   b.addEventListener('click', function () { $('#pwModal').classList.remove('hidden'); $('#pwOld').focus(); });
 });
 $('#pwCancel').addEventListener('click', closePw);
+$('#pwModal').addEventListener('click', function (e) { if (e.target === $('#pwModal')) closePw(); });
 async function savePw() {
   var o = $('#pwOld').value, n = $('#pwNew').value;
   if (!o) { $('#pwErr').textContent = 'กรุณากรอกรหัสผ่านเดิม'; return; }
@@ -1313,15 +447,22 @@ async function savePw() {
 }
 $('#pwSave').addEventListener('click', savePw);
 $('#pwModal').addEventListener('keydown', function (e) { if (e.key === 'Enter') savePw(); });
-document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    if (!$('#sizeModal').classList.contains('hidden')) { $('#sizeModal').classList.add('hidden'); $('#portalSize').focus(); }
+    if (!$('#pwModal').classList.contains('hidden')) closePw();
+  }
+});
+
+document.querySelectorAll('.js-logout').forEach(function (b) {
   b.addEventListener('click', async function () {
     try { await call('logout'); } catch (e) {}
     showLogin('');
   });
 });
 
-
-/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยกในแท็บเดิม เปลี่ยนเป็น URL ใหม่) + Banner (หน้าแอดมิน) ============================ */
+/* ============================ เปิดหน้าการ์ดแยกเป็น URL ใหม่ (รวมถึง settings.html) ============================ */
 function openCardPage(file, perm) {
   if (!hasPerm(perm)) return;
   var u = pageUrl(file, 'https://cmucoop-support.github.io/CMUCOOP-SP/' + file);
@@ -1332,436 +473,7 @@ $('#mSound').addEventListener('click', function () { openCardPage('sound.html', 
 $('#mMusic').addEventListener('click', function () { openCardPage('music.html', 'music'); });
 $('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
 $('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
-
-/* ----- ตั้งค่า (แอดมิน) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
-var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'tv', 'history'];
-$('#mSettings').addEventListener('click', function () { openSettings('cards'); });
-$('#stHome').addEventListener('click', goPortal);
-function openSettings(p) {
-  if (!S.me || S.me.role !== 'admin') return;
-  setNav('settings');
-  $('#stMe').textContent = S.me.name + ' (แอดมิน)';
-  stPanel(p || 'cards');
-}
-function stPanel(p) {
-  document.querySelectorAll('#stNav button').forEach(function (b) { b.classList.toggle('on', b.dataset.sp === p); });
-  ST_PANELS.forEach(function (k) { $('#st-' + k).classList.toggle('hidden', k !== p); });
-  if (p === 'cards') stCardsLoad();
-  else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
-  else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
-  else if (p === 'sound') sndLoadAdmin();
-  else if (p === 'tv') tvLoad();
-  else if (p === 'history') openHistory();
-}
-$('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
-
-var B = { list: [], busy: false };
-var BANNER_HINT = 'รองรับ JPG, PNG, WEBP, GIF · ระบบย่อรูปให้ด้านยาวไม่เกิน 1600 px ก่อนอัปโหลด (GIF ไม่ย่อ) · เลือกได้หลายไฟล์พร้อมกัน';
-
-async function loadBanners() {
-  try {
-    var r = await call('listBanners');
-    B.list = r.banners || [];
-    r.displayUrl = pageUrl('banner.html', r.displayUrl);
-    $('#bUrl').value = r.displayUrl;
-    $('#bSpeed').value = r.speed || 4;
-    $('#bPer').value = r.perView == null ? 0 : r.perView;
-    $('#bHeight').value = r.heightPct || 80;
-    $('#bOpen').href = r.displayUrl;
-    $('#bEmbed').value = '<iframe src="' + r.displayUrl + '" style="width:100%;height:640px;border:0" loading="lazy"></iframe>';
-    renderBanners();
-  } catch (e) { $('#bGrid').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }
-}
-function renderBanners() {
-  var shown = B.list.filter(function (b) { return b.show; }).length;
-  $('#bCount').textContent = B.list.length ? B.list.length + ' รูป (แสดงอยู่ ' + shown + ')' : '';
-  if (!B.list.length) { $('#bGrid').innerHTML = '<div class="muted">ยังไม่มี Banner กดเลือกไฟล์รูปด้านบนแล้วกด "อัปโหลด"</div>'; return; }
-  $('#bGrid').innerHTML = B.list.map(function (b, i) {
-    var last = i === B.list.length - 1;
-    return '<div class="bitem' + (b.show ? '' : ' off') + '" data-id="' + esc(b.id) + '">' +
-      '<div class="bthumb"><img loading="lazy" src="' + esc(b.url) + '" alt="' + esc(b.title) + '"></div>' +
-      '<div class="bmeta"><b>' + (i + 1) + '. ' + esc(b.title || '(ไม่มีชื่อ)') + '</b> ' + (b.show ? '' : '<span class="tag">ซ่อนอยู่</span>') +
-      (b.link ? '<div class="muted bl" title="' + esc(b.link) + '">ลิงก์: ' + esc(b.link) + '</div>' : '') + '</div>' +
-      '<div class="bact">' +
-        '<button class="btn ghost small" data-a="left" title="เลื่อนไปก่อน (ซ้าย)"' + (i === 0 ? ' disabled' : '') + '>◀</button>' +
-        '<button class="btn ghost small" data-a="right" title="เลื่อนไปหลัง (ขวา)"' + (last ? ' disabled' : '') + '>▶</button>' +
-        '<button class="btn ghost small" data-a="toggle">' + (b.show ? 'ซ่อน' : 'แสดง') + '</button>' +
-        '<button class="btn ghost small" data-a="edit">แก้ไข</button>' +
-        '<button class="btn danger small" data-a="del">ลบ</button>' +
-      '</div></div>';
-  }).join('');
-}
-function bannerById(id) { return B.list.filter(function (b) { return b.id === id; })[0]; }
-async function bannerDo(promise, okMsg) {
-  try { await promise; if (okMsg) toast(okMsg); } catch (e) { toast(e.message, true); }
-  await loadBanners();
-}
-$('#bGrid').addEventListener('click', function (e) {
-  var btn = e.target.closest('button[data-a]'); if (!btn || btn.disabled) return;
-  var id = btn.closest('.bitem').dataset.id, b = bannerById(id), a = btn.dataset.a;
-  if (!b) return;
-  if (a === 'left') bannerDo(call('moveBanner', id, -1));
-  else if (a === 'right') bannerDo(call('moveBanner', id, 1));
-  else if (a === 'toggle') bannerDo(call('updateBanner', id, { show: !b.show }), b.show ? 'ซ่อนแล้ว' : 'แสดงแล้ว');
-  else if (a === 'edit') {
-    var t = prompt('ชื่อ Banner', b.title); if (t === null) return;
-    var l = prompt('ลิงก์เมื่อกดที่รูป (เว้นว่าง = ไม่มีลิงก์)', b.link); if (l === null) return;
-    bannerDo(call('updateBanner', id, { title: t.trim(), link: l.trim() }), 'บันทึกแล้ว');
-  } else if (a === 'del') {
-    if (!confirm('ลบ Banner นี้?\n\n' + (b.title || id) + '\n\n(ไฟล์รูปจะถูกลบถาวร)')) return;
-    bannerDo(call('deleteBanner', id), 'ลบแล้ว');
-  }
-});
-/* รูปที่โหลดจาก Drive ไม่ขึ้น (โดเมนปิดการแชร์สาธารณะ) → ขอผ่านสคริปต์แทน */
-$('#bGrid').addEventListener('error', function (e) {
-  var im = e.target; if (!im || im.tagName !== 'IMG' || im.dataset.fb) return;
-  im.dataset.fb = '1';
-  call('adminBannerImage', im.closest('.bitem').dataset.id).then(function (d) { im.src = d; }).catch(function () {});
-}, true);
-
-$('#bFiles').addEventListener('change', function () {
-  var n = this.files.length;
-  $('#bUpload').disabled = !n || B.busy;
-  $('#bUpHint').textContent = n ? 'เลือกแล้ว ' + n + ' ไฟล์ — กด "อัปโหลด" เพื่อเพิ่มเข้า Banner' : BANNER_HINT;
-});
-function prepImage(file) {
-  return new Promise(function (res, rej) {
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return rej(new Error('ชนิดไฟล์ไม่รองรับ'));
-    var fr = new FileReader();
-    fr.onerror = function () { rej(new Error('อ่านไฟล์ไม่ได้')); };
-    fr.onload = function () {
-      var url = fr.result;
-      if (file.type === 'image/gif') {
-        if (file.size > 6 * 1024 * 1024) return rej(new Error('GIF ใหญ่เกิน 6 MB'));
-        return res({ mime: file.type, data: url.split(',')[1] });
-      }
-      var im = new Image();
-      im.onerror = function () { rej(new Error('เปิดรูปไม่ได้')); };
-      im.onload = function () {
-        var k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight));
-        var c = document.createElement('canvas');
-        c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);   // PNG โปร่งใส → พื้นขาว
-        g.drawImage(im, 0, 0, c.width, c.height);
-        res({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.9).split(',')[1] });
-      };
-      im.src = url;
-    };
-    fr.readAsDataURL(file);
-  });
-}
-$('#bUpload').addEventListener('click', async function () {
-  var files = Array.prototype.slice.call($('#bFiles').files), link = $('#bLink').value.trim();
-  if (!files.length || B.busy) return;
-  if (link && !/^https?:\/\/\S+$/i.test(link)) { toast('ลิงก์ต้องขึ้นต้นด้วย http:// หรือ https://', true); return; }
-  B.busy = true; this.disabled = true;
-  var ok = 0, fail = [];
-  for (var i = 0; i < files.length; i++) {
-    if (!S.token) break;                                   // หมดเวลาการใช้งานระหว่างอัปโหลด
-    $('#bUpHint').textContent = 'กำลังอัปโหลด ' + (i + 1) + '/' + files.length + ' : ' + files[i].name;
-    try {
-      var img = await prepImage(files[i]);
-      await call('addBanner', { name: files[i].name, mime: img.mime, data: img.data, link: link });
-      ok++;
-    } catch (e) { fail.push(files[i].name + ' (' + e.message + ')'); }
-  }
-  B.busy = false;
-  $('#bFiles').value = ''; $('#bUpload').disabled = true; $('#bUpHint').textContent = BANNER_HINT;
-  if (ok) { $('#bLink').value = ''; }
-  if (fail.length) toast('อัปโหลดสำเร็จ ' + ok + ' ไม่สำเร็จ ' + fail.length + ': ' + fail.join(', '), true);
-  else if (ok) toast('เพิ่ม Banner แล้ว ' + ok + ' รูป');
-  if (S.token) loadBanners();
-});
-$('#bSpeedSave').addEventListener('click', function () {
-  var v = Number($('#bSpeed').value);
-  if (!(v >= 1 && v <= 60)) { toast('ความเร็วต้องอยู่ระหว่าง 1–60 วินาที', true); return; }
-  busy(this, async function () { var r = await call('setBannerSpeed', v); $('#bSpeed').value = r.speed; toast('บันทึกความเร็วแล้ว ' + r.speed + ' วินาทีต่อรูป'); });
-});
-$('#bPerSave').addEventListener('click', function () {
-  var v = Number($('#bPer').value);
-  if (!(v >= 0 && v <= 6) || v % 1) { toast('ใส่เลขจำนวนเต็ม 0–6 (0 = อัตโนมัติ)', true); return; }
-  busy(this, async function () {
-    var r = await call('setBannerPerView', v);
-    $('#bPer').value = r.perView;
-    toast(r.perView ? 'บันทึกแล้ว แสดง ' + r.perView + ' รูปต่อหน้า' : 'บันทึกแล้ว: อัตโนมัติ (เต็มกรอบ)');
-  });
-});
-$('#bHeightSave').addEventListener('click', function () {
-  var v = Number($('#bHeight').value);
-  if (!(v >= 30 && v <= 100) || v % 1) { toast('ใส่เลขจำนวนเต็ม 30–100', true); return; }
-  busy(this, async function () { var r = await call('setBannerHeight', v); $('#bHeight').value = r.heightPct; toast('บันทึกแล้ว ความสูง ' + r.heightPct + '% ของกรอบ'); });
-});
-$('#bCopyUrl').addEventListener('click', function () { copyField('#bUrl', 'คัดลอกลิงก์แล้ว'); });
-$('#bCopyEmbed').addEventListener('click', function () { copyField('#bEmbed', 'คัดลอกโค้ดแล้ว'); });
-
-
-/* ============================ ตั้งค่าเสียงประกาศ (แอดมิน) ============================ */
-var SND = { client: null, all: [], edit: null, editSch: null };
-var MU = { avol: 100, avDrag: false, MQ: 'cmucoop/audio/control/music_v1' };
-var SND_TYPES = ['ปุ่ม', 'เสียงตามเวลา', 'ระบบ', 'พนักงาน', 'สถานที่', 'แคชเชียร์', 'ประเภทงดรับ', 'เวลา', 'ตั้งค่า'];
-var SND_HINT = {
-  'ปุ่ม': 'ปุ่มเสียงในหน้าส่งสัญญาณ · รหัสเช่น 1, 2, 1_1 (ไม่ซ้ำกัน)',
-  'เสียงตามเวลา': 'เสียงที่เล่นพร้อมเสียงเปิด-ปิด ใช้ในตารางเวลาและปุ่มเสียงพิเศษ',
-  'ระบบ': 'รหัส intro = เสียงเปิด · outro = เสียงปิด',
-  'พนักงาน': 'รหัส = รหัสพนักงาน · ชื่อที่แสดง = ชื่อ · ไฟล์ = เสียงอ่านรหัสนั้น',
-  'สถานที่': 'รหัส = ชื่อสถานที่ · ไฟล์ = เสียงอ่านชื่อสถานที่',
-  'แคชเชียร์': 'รหัส = ชื่อช่อง เช่น แคชเชียร์ 1 · ไฟล์ = เสียงอ่านชื่อช่อง',
-  'ประเภทงดรับ': 'รหัส = ประเภท เช่น งดรับเงินสด · ไฟล์ = เสียงประกาศประเภทนั้น',
-  'เวลา': 'ตารางเวลาอัตโนมัติบน TV · รหัส = เวลา HH:MM · ค่าเพิ่มเติม = รหัสเสียงที่จะเล่น (เช่น 1930)',
-  'ตั้งค่า': 'รหัส daytime = ประกาศรหัส 3 ช่วง 09:00-19:00 · ค่าเพิ่มเติม = ทุกกี่นาที (เช่น 30) · สถานะ ปิด = ไม่ประกาศ'
-};
-function sndNeedFile(t) { return t !== 'เวลา' && t !== 'ตั้งค่า'; }
-
-function sndEnsureMqtt() {
-  if (SND.client || typeof mqtt === 'undefined') return;
-  try { SND.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt'); } catch (e) {}
-}
-function muNotify() {
-  try { if (SND.client && SND.client.connected) SND.client.publish(MU.MQ, JSON.stringify({ mode: 'refresh' })); } catch (e) {}
-}
-/* ----- ตั้งค่าเสียง (แอดมิน) ----- */
-var SND_OTHER = ['ระบบ', 'พนักงาน', 'สถานที่', 'แคชเชียร์', 'ประเภทงดรับ'];
-$('#sFilter').innerHTML = '<option value="">ทุกประเภท</option>' + SND_OTHER.map(function (t) { return '<option>' + t + '</option>'; }).join('');
-$('#sdType').innerHTML = SND_TYPES.map(function (t) { return '<option>' + t + '</option>'; }).join('');
-async function sndLoadAdmin() {
-  $('#sBody').innerHTML = '<tr><td colspan="7" class="muted">กำลังโหลด…</td></tr>';
-  sndEnsureMqtt();
-  call('musicList').then(function (r) {                  // ความดังเสียงประกาศ
-    if (!MU.avDrag) { MU.avol = r.avol; $('#muAVol').value = r.avol; $('#muAVolTxt').textContent = r.avol + '%'; }
-  }).catch(function () {});
-  try {
-    var r = await call('listSounds');
-    r.receiverUrl = pageUrl('receiver.html', r.receiverUrl);
-    SND.all = r.rows; $('#sRecv').value = r.receiverUrl; $('#sRecvOpen').href = r.receiverUrl;
-    sndRenderAdmin();
-  } catch (e) { toast(e.message, true); }
-}
-function sndFile(x) { return x.id ? '<button class="btn ghost small" data-a="play" data-i="' + esc(x.id) + '">▶ ฟัง</button> ' + esc(x.file) : '<span class="tag">ยังไม่มีไฟล์</span>'; }
-function sndSt(x) { return '<td>' + (x.on ? 'ใช้งาน' : 'ปิด') + '</td>'; }
-function sndActs(x) { return '<td class="act"><div class="actw"><button class="btn ghost small" data-a="edit" data-r="' + x.row + '">แก้ไข</button><button class="btn danger small" data-a="del" data-r="' + x.row + '">ลบ</button></div></td>'; }
-function sndFill(sel, list, fn, cols, empty) { $(sel).innerHTML = list.map(fn).join('') || '<tr><td colspan="' + cols + '" class="muted">' + empty + '</td></tr>'; }
-function sndSoundByKey(k) { return SND.all.filter(function (x) { return (x.type === 'ปุ่ม' || x.type === 'เสียงตามเวลา') && x.code === k; })[0]; }
-function sndTypeOpts(t) {
-  return SND.all.filter(function (y) { return y.type === t; }).map(function (y) {
-    return '<option value="' + esc(y.code) + '">' + esc(y.code) + ' · ' + esc(y.label) + (y.file ? ' — ' + esc(y.file) : '') + '</option>'; }).join('');
-}
-function sndKeyOptions(cur) {
-  var h = '<optgroup label="ปุ่มประกาศ">' + sndTypeOpts('ปุ่ม') + '</optgroup><optgroup label="เสียงตามเวลา">' + sndTypeOpts('เสียงตามเวลา') + '</optgroup>';
-  if (cur && !sndSoundByKey(cur)) h = '<option value="' + esc(cur) + '">' + esc(cur) + ' (ไม่พบเสียง)</option>' + h;
-  return h;
-}
-function sndRenderAdmin() {
-  var A = SND.all, by = function (t) { return A.filter(function (x) { return x.type === t; }); };
-  sndFill('#sBodyBtn', by('ปุ่ม'), function (x) {
-    return '<tr><td><b>' + esc(x.code) + '</b></td><td>' + esc(x.label) + '</td><td>' + sndFile(x) + '</td>' + sndSt(x) + sndActs(x) + '</tr>';
-  }, 5, 'ยังไม่มีปุ่ม');
-  var sch = by('เวลา').sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; });
-  sndFill('#sBodySch', sch, function (x) {
-    var s = sndSoundByKey(x.value);
-    return '<tr><td><b>' + esc(x.code) + ' น.</b></td><td><b>' + esc(x.value) + '</b>' + (s ? ' · ' + esc(s.label) : ' <span class="tag">ไม่พบเสียงรหัสนี้</span>') +
-      '</td><td>' + (s ? sndFile(s) : '-') + '</td>' + sndSt(x) + sndActs(x) + '</tr>';
-  }, 5, 'ยังไม่มีเวลาที่ตั้งไว้');
-  sndFill('#sBodyTimed', by('เสียงตามเวลา'), function (x) {
-    return '<tr><td><b>' + esc(x.code) + '</b></td><td>' + esc(x.label) + '</td><td>' + sndFile(x) + '</td>' + sndSt(x) + sndActs(x) + '</tr>';
-  }, 5, 'ยังไม่มีไฟล์เสียง');
-  var f = $('#sFilter').value, oth = A.filter(function (x) { return SND_OTHER.indexOf(x.type) >= 0 && (!f || x.type === f); });
-  sndFill('#sBody', oth, function (x) {
-    return '<tr><td>' + esc(x.type) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.label) + '</td><td>' + esc(x.value) + '</td><td>' + sndFile(x) + '</td>' + sndSt(x) + sndActs(x) + '</tr>';
-  }, 7, 'ไม่มีรายการ');
-  var d = A.filter(function (x) { return x.type === 'ตั้งค่า' && x.code === 'daytime'; })[0];
-  $('#dtOn').value = d && !d.on ? 'ปิด' : (d ? 'ใช้งาน' : 'ปิด'); $('#dtInt').value = d ? d.value : '30';
-  var dk = A.filter(function (x) { return x.type === 'ตั้งค่า' && x.code === 'daytimeKey'; })[0], kv = dk && dk.value ? dk.value : '3';
-  $('#dtKey').innerHTML = sndKeyOptions(kv); $('#dtKey').value = kv;
-}
-function sndCfgPanel(p) {
-  document.querySelectorAll('#cfgNav button').forEach(function (b) { b.classList.toggle('on', b.dataset.cp === p); });
-  ['btn', 'sch', 'timed', 'other'].forEach(function (k) { $('#cp-' + k).classList.toggle('hidden', k !== p); });
-}
-$('#cfgNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-cp]'); if (b) sndCfgPanel(b.dataset.cp); });
-
-async function sndReload() { await sndLoadAdmin(); }
-$('#dtSave').addEventListener('click', function () {
-  var d = SND.all.filter(function (x) { return x.type === 'ตั้งค่า' && x.code === 'daytime'; })[0];
-  busy(this, async function () {
-    await call('saveSound', { row: d ? d.row : 0, type: 'ตั้งค่า', code: 'daytime', label: d ? d.label : 'ประกาศช่วง 09:00-19:00 (เล่นเสียงรหัส 3) ค่าเพิ่มเติม = ทุกกี่นาที',
-                              value: $('#dtInt').value.trim(), status: $('#dtOn').value });
-    var dk = SND.all.filter(function (x) { return x.type === 'ตั้งค่า' && x.code === 'daytimeKey'; })[0];
-    await call('saveSound', { row: dk ? dk.row : 0, type: 'ตั้งค่า', code: 'daytimeKey', label: 'เสียงที่เล่นในช่วงประกาศซ้ำกลางวัน (ค่าเพิ่มเติม = รหัสเสียง)', value: $('#dtKey').value, status: 'ใช้งาน' });
-    toast('บันทึกแล้ว'); await sndReload();
-  });
-});
-/* ----- แก้ไขตารางเวลา ----- */
-function sndOpenSch(x) {
-  SND.editSch = x || null;
-  $('#schTitle').textContent = x ? 'แก้ไขเวลาประกาศ ' + x.code : 'เพิ่มเวลาประกาศ';
-  var sel = '<optgroup label="เสียงตามเวลา">' + sndTypeOpts('เสียงตามเวลา') + '</optgroup><optgroup label="ปุ่มประกาศ">' + sndTypeOpts('ปุ่ม') + '</optgroup>';
-  if (x && !sndSoundByKey(x.value)) sel = '<option value="' + esc(x.value) + '">' + esc(x.value) + ' (ไม่พบเสียง)</option>' + sel;
-  $('#schKey').innerHTML = sel;
-  $('#schTime').value = x ? x.code : ''; $('#schKey').value = x ? x.value : $('#schKey').options[0] ? $('#schKey').options[0].value : '';
-  $('#schStatus').value = x && !x.on ? 'ปิด' : 'ใช้งาน';
-  $('#schModal').classList.remove('hidden');
-}
-$('#sAddSch').addEventListener('click', function () { sndOpenSch(null); });
-$('#schCancel').addEventListener('click', function () { $('#schModal').classList.add('hidden'); });
-$('#schSave').addEventListener('click', function () {
-  var key = $('#schKey').value, e0 = SND.editSch;
-  busy(this, async function () {
-    await call('saveSound', { row: e0 ? e0.row : 0, type: 'เวลา', code: $('#schTime').value, label: 'เล่นเสียงรหัส ' + key, value: key, status: $('#schStatus').value });
-    $('#schModal').classList.add('hidden'); toast('บันทึกแล้ว');
-    await sndReload();
-  });
-});
-$('#sAddBtn').addEventListener('click', function () { sndOpenEdit(null, 'ปุ่ม'); });
-$('#sAddTimed').addEventListener('click', function () { sndOpenEdit(null, 'เสียงตามเวลา'); });
-$('#sFilter').addEventListener('change', sndRenderAdmin);
-$('#sRecvCopy').addEventListener('click', function () { copyField('#sRecv', 'คัดลอกลิงก์แล้ว'); });
-/* ----- ตั้งค่า > หน้าจอ TV ----- */
-var TVC = { def: null };
-function tvFill(c) {
-  $('#tvShop').value = c.shop; $('#tvHelloMain').value = c.helloMain; $('#tvHelloSub').value = c.helloSub; $('#tvCaption').value = c.caption;
-  $('#tvBg').value = c.bg; $('#tvWidth').value = c.width; $('#tvBannerH').value = c.bannerH; $('#tvReceiverH').value = c.receiverH;
-  $('#tvBannerW').value = c.bannerW; $('#tvReceiverW').value = c.receiverW; $('#tvGap').value = c.gap; $('#tvFont').value = c.font;
-  $('#tvPadTop').value = c.padTop; $('#tvLogoSize').value = c.logoSize; $('#tvHeadGap').value = c.headGap;
-  ['Banner','Caption','Receiver','Foot'].forEach(function (k) { var v = c['gap' + k]; $('#tvGap' + k).value = v === null || v === undefined ? '' : v; }); $('#tvHeadLayout').value = c.headLayout;
-  $('#tvFontClock').value = c.fontClock; $('#tvFontShop').value = c.fontShop; $('#tvFontHello').value = c.fontHello; $('#tvFontCaption').value = c.fontCaption; $('#tvCapSpeed').value = c.capSpeed;
-  $('#tvShowLogo').checked = !!c.showLogo; $('#tvShowClock').checked = !!c.showClock; $('#tvShowBanner').checked = !!c.showBanner;
-}
-async function tvLoad() {
-  var tvUrl = pageUrl('tv.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/tv.html'); $('#sTv').value = tvUrl; $('#sTvOpen').href = tvUrl;
-  try { var r = await call('getTvConfig'); TVC.def = r.def; tvFill(r.cfg); } catch (e) { toast(e.message, true); }
-}
-$('#tvSave').addEventListener('click', function () {
-  busy(this, async function () {
-    await call('setTvConfig', {
-      shop: $('#tvShop').value, helloMain: $('#tvHelloMain').value, helloSub: $('#tvHelloSub').value, caption: $('#tvCaption').value,
-      bg: $('#tvBg').value, width: $('#tvWidth').value, bannerH: $('#tvBannerH').value, receiverH: $('#tvReceiverH').value,
-      bannerW: $('#tvBannerW').value, receiverW: $('#tvReceiverW').value, gap: $('#tvGap').value, font: $('#tvFont').value, padTop: $('#tvPadTop').value, logoSize: $('#tvLogoSize').value, headGap: $('#tvHeadGap').value,
-      gapBanner: $('#tvGapBanner').value, gapCaption: $('#tvGapCaption').value, gapReceiver: $('#tvGapReceiver').value, gapFoot: $('#tvGapFoot').value, headLayout: $('#tvHeadLayout').value,
-      fontClock: $('#tvFontClock').value, fontShop: $('#tvFontShop').value, fontHello: $('#tvFontHello').value, fontCaption: $('#tvFontCaption').value, capSpeed: $('#tvCapSpeed').value,
-      showLogo: $('#tvShowLogo').checked, showClock: $('#tvShowClock').checked, showBanner: $('#tvShowBanner').checked
-    });
-    toast('บันทึกการตั้งค่าหน้าจอ TV แล้ว');
-  });
-});
-$('#tvReset').addEventListener('click', function () { if (TVC.def) { tvFill(TVC.def); toast('คืนค่าเริ่มต้นในฟอร์มแล้ว กด "บันทึก" เพื่อใช้งาน'); } });
-$('#sTvCopy').addEventListener('click', function () { copyField('#sTv', 'คัดลอกลิงก์แล้ว'); });
-function sndRow(r) { return SND.all.filter(function (x) { return x.row === Number(r); })[0]; }
-
-$('#st-sound').addEventListener('click', async function (e) {
-  var b = e.target.closest('button[data-a]'); if (!b) return;
-  if (b.dataset.a === 'play') {
-    b.disabled = true;
-    try { var d = await call('adminSoundAudio', b.dataset.i); new Audio(d).play(); } catch (err) { toast(err.message, true); }
-    b.disabled = false;
-  } else if (b.dataset.a === 'edit') { var rx = sndRow(b.dataset.r); if (rx && rx.type === 'เวลา') sndOpenSch(rx); else sndOpenEdit(rx); }
-  else if (b.dataset.a === 'del') {
-    var x = sndRow(b.dataset.r); if (!x) return;
-    if (!confirm('ลบรายการนี้?\n\n' + x.type + ' · ' + x.code + (x.label ? ' (' + x.label + ')' : '') + '\n\n(ไฟล์เสียงจะถูกลบถาวร)')) return;
-    try { await call('deleteSound', x.row, x.code); toast('ลบแล้ว'); await sndReload(); }
-    catch (err) { toast(err.message, true); }
-  }
-});
-function sndTypeUi() {
-  var t = $('#sdType').value;
-  $('#sdHint').textContent = SND_HINT[t] || '';
-  $('#sdFileRow').classList.toggle('hidden', !sndNeedFile(t));
-}
-$('#sdType').addEventListener('change', sndTypeUi);
-function sndOpenEdit(x, preset) {
-  SND.edit = x || null;
-  $('#sdTitle').textContent = x ? 'แก้ไข: ' + x.type + ' ' + x.code : 'เพิ่มรายการ';
-  $('#sdType').value = x ? x.type : (preset || $('#sFilter').value || 'ปุ่ม');
-  $('#sdCode').value = x ? x.code : ''; $('#sdLabel').value = x ? x.label : '';
-  $('#sdValue').value = x ? x.value : ''; $('#sdStatus').value = x && !x.on ? 'ปิด' : 'ใช้งาน';
-  $('#sdFile').value = '';
-  $('#sdCur').textContent = x && x.id ? 'ไฟล์ปัจจุบัน: ' + x.file + ' (เลือกไฟล์ใหม่เพื่อเปลี่ยน)' : '';
-  sndTypeUi();
-  $('#sndModal').classList.remove('hidden');
-  $('#sdCode').focus();
-}
-$('#sAdd').addEventListener('click', function () { sndOpenEdit(null); });
-$('#sdCancel').addEventListener('click', function () { $('#sndModal').classList.add('hidden'); });
-function sndReadFile(f) {
-  return new Promise(function (res, rej) {
-    var fr = new FileReader();
-    fr.onerror = function () { rej(new Error('อ่านไฟล์ไม่ได้')); };
-    fr.onload = function () { res({ name: f.name, mime: f.type || 'audio/mpeg', data: String(fr.result).split(',')[1] }); };
-    fr.readAsDataURL(f);
-  });
-}
-$('#sdSave').addEventListener('click', function () {
-  var p = { row: SND.edit ? SND.edit.row : 0, type: $('#sdType').value, code: $('#sdCode').value.trim(), label: $('#sdLabel').value.trim(),
-            value: $('#sdValue').value.trim(), status: $('#sdStatus').value };
-  var f = sndNeedFile(p.type) ? $('#sdFile').files[0] : null;
-  busy(this, async function () {
-    if (f) { if (f.size > 8 * 1024 * 1024) throw new Error('ไฟล์ใหญ่เกิน 8 MB'); p.file = await sndReadFile(f); }
-    await call('saveSound', p);
-    $('#sndModal').classList.add('hidden'); toast('บันทึกแล้ว');
-    await sndReload();
-  });
-});
-$('#sImport').addEventListener('click', async function () {
-  if (!confirm('นำเข้าไฟล์เสียงเดิมจากเว็บ GitHub เข้าระบบ?\n(เฉพาะรายการที่ยังไม่มีไฟล์ ใช้เวลาหลายนาที กรุณาอย่าปิดหน้านี้)')) return;
-  this.disabled = true; var done = 0, miss = [], r;
-  try {
-    do {
-      $('#sImpMsg').textContent = 'กำลังนำเข้า… สำเร็จแล้ว ' + done + ' ไฟล์';
-      r = await call('soundImportLegacy'); done += r.done; miss = r.missing;
-    } while (r.remaining > 0);
-    $('#sImpMsg').textContent = 'นำเข้าเสร็จ: สำเร็จ ' + done + ' ไฟล์' + (miss.length ? ' · ไม่พบไฟล์ ' + miss.length + ' รายการ (' + miss.join(', ') + ') ให้อัปโหลดเอง' : '');
-    await sndReload();
-  } catch (e) { toast(e.message, true); $('#sImpMsg').textContent = ''; }
-  this.disabled = false;
-});
-
-
-$('#muAVol').addEventListener('input', function () { MU.avDrag = true; $('#muAVolTxt').textContent = this.value + '%'; });
-$('#muAVol').addEventListener('change', async function () {
-  var v = Number(this.value);
-  try { var r = await call('musicSetAnnounceVolume', v); MU.avol = r.avol; toast('ตั้งความดังเสียงประกาศ ' + r.avol + '%'); muNotify(); }
-  catch (e) { toast(e.message, true); }
-  MU.avDrag = false;
-});
-
-/* ============================ ประวัติการใช้งาน ============================ */
-var HI = { cat: 'all', cats: [], rows: [] };
-function openHistory() { HI.cat = 'all'; $('#hiQ').value = ''; loadHistory(); }
-async function loadHistory() {
-  $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">กำลังโหลด…</td></tr>';
-  try {
-    var r = await call('getActivity', HI.cat, 300);
-    HI.cats = r.cats; HI.rows = r.rows; renderHistory();
-  } catch (e) { $('#hiBody').innerHTML = '<tr><td colspan="5" class="muted">' + esc(e.message) + '</td></tr>'; toast(e.message, true); }
-}
-function renderHistory() {
-  $('#hiNav').innerHTML = HI.cats.map(function (c) {
-    return '<button class="' + (c.key === HI.cat ? 'on' : '') + '" data-hc="' + esc(c.key) + '">' + esc(c.label) + ' (' + c.count + ')</button>';
-  }).join('');
-  var q = $('#hiQ').value.trim().toLowerCase();
-  var rows = HI.rows.filter(function (r) { return !q || [r.who, r.g, r.cat, r.action, r.detail].join(' ').toLowerCase().indexOf(q) >= 0; });
-  $('#hiCount').textContent = 'แสดง ' + rows.length + (q ? ' / ' + HI.rows.length : '') + ' รายการ';
-  $('#hiBody').innerHTML = rows.map(function (r) {
-    return '<tr><td class="hirow-time">' + (r.ts ? fmt(r.ts) : '') + '</td><td>' + esc(r.who) + '</td><td>' + esc(r.g) + (r.cat ? ' / ' + esc(r.cat) : '') +
-      '</td><td>' + esc(r.action) + '</td><td>' + esc(r.detail) + '</td></tr>';
-  }).join('') || '<tr><td colspan="5" class="muted">ยังไม่มีประวัติ</td></tr>';
-}
-$('#hiNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-hc]'); if (b) { HI.cat = b.dataset.hc; loadHistory(); } });
-$('#hiQ').addEventListener('input', renderHistory);
-$('#hiReload').addEventListener('click', loadHistory);
-$('#hiClear').addEventListener('click', async function () {
-  if (!S.me || S.me.role !== 'admin') return;
-  var c = HI.cats.filter(function (x) { return x.key === HI.cat; })[0], label = c ? c.label : 'ทั้งหมด';
-  var all = HI.cat === 'all';
-  if (!confirm('ล้างประวัติการใช้งาน' + (all ? 'ทั้งหมด' : 'หมวด "' + label + '"') + ' ?\n\n(ลบแล้วกู้คืนไม่ได้)')) return;
-  var btn = $('#hiClear'); btn.disabled = true;
-  try {
-    var r = await call('clearActivity', HI.cat);
-    toast('ล้างประวัติแล้ว ' + r.removed + ' รายการ');
-    await loadHistory();
-  } catch (e) { toast(e.message, true); }
-  btn.disabled = false;
-});
-
+$('#mSettings').addEventListener('click', function () { openCardPage('settings.html', 'settings'); });
 
 /* ============================ เริ่มต้น ============================ */
 function linkParams() {
@@ -1772,7 +484,7 @@ function linkParams() {
 }
 (async function init() {
   var q = await linkParams();
-  if (q.u && q.k) {                               // เข้าด้วยลิงก์ที่แอดมินออกให้
+  if (q.u && q.k) {
     try {
       var r = await call('loginByLink', q.u, q.k);
       S.token = r.token;
@@ -1780,7 +492,7 @@ function linkParams() {
       await startApp(r); return;
     } catch (e) { showLogin(e.message); return; }
   }
-  if (S.token) {                                  // กู้เซสชันเดิมเมื่อรีเฟรชหน้า
+  if (S.token) {
     try { var me = await call('whoami'); await startApp(me); return; } catch (e) {}
   }
   showLogin('');

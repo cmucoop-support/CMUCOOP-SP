@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#a07ab8">
+<meta name="theme-color" content="#6c4685">
 <link rel="icon" type="image/png" href="logo.png">
 <script src="gas-shim.js"></script>
 <title>ร้านสหกรณ์ มช. (CMU CO-OP)</title>
@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#a07ab8; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
+  :root { --bg:#6c4685; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
           --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
   html,body { margin:0; }
@@ -43,16 +43,17 @@
              text-shadow:0 1px 2px rgba(58,32,80,.35); }
   .caption .track { display:inline-block; will-change:transform; animation:marq linear infinite; animation-duration:var(--dur,20s); }
   @keyframes marq { from { transform:translateX(var(--cw,100%)); } to { transform:translateX(-100%); } }
+  @media (prefers-reduced-motion:reduce) { .caption .track { animation:none; transform:none; } }
 
-  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; opacity:.9; }
-  .foot button { font:inherit; color:#fff; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45);
-                 border-radius:999px; padding:4px 12px; cursor:pointer; }
+  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:13px; font-weight:600; background:rgba(24,12,40,.42); padding:6px 14px; border-radius:999px; }
+  .foot button { font:inherit; color:#fff; background:rgba(255,255,255,.2); border:1.5px solid rgba(255,255,255,.7);
+                 border-radius:999px; padding:5px 14px; min-height:34px; cursor:pointer; font-weight:600; }
   .foot button:hover { background:rgba(255,255,255,.3); }
   .foot button:focus-visible { outline:3px solid #fff; outline-offset:2px; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main id="mainContent" class="wrap">
 
   <header class="head" id="head" data-layout="side">
     <img class="logo" id="logo" src="logo.png" alt="โลโก้ร้านสหกรณ์ มช.">
@@ -70,11 +71,11 @@
   <!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
   <iframe id="receiver" class="frame" src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ" allow="autoplay; fullscreen"></iframe>
 
-  <div class="foot">
+  <footer class="foot">
     <span>CMUCOOP</span>
     <button type="button" id="copyLink">คัดลอกลิงก์หน้านี้</button>
-  </div>
-</div>
+  </footer>
+</main>
 
 <script>
 /* ค่าเริ่มต้น (ใช้ตอนโหลดหน้า/เมื่อติดต่อเซิร์ฟเวอร์ไม่ได้) — ค่าจริงตั้งได้ที่ ระบบหลัก > ตั้งค่า > หน้าจอ TV */
