@@ -7,9 +7,8 @@
 <title>สินค้าค้างสต็อก · CMUCOOP</title>
 <link href="logo.png" rel="icon" type="image/png"/>
 <script src="gas-shim.js"></script>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="fonts.css" rel="stylesheet"/>
+<script src="vendor/chart.umd.min.js"></script>
 <style>
 :root{
   --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
@@ -239,52 +238,14 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<style id="cmucoop-accessible-design">
-/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
-:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
-html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
-:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
-:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
-:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
-:where(button,input,select,textarea){font-family:inherit}
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
-:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
-:where(a){text-underline-offset:3px}
-:where(a:hover){text-decoration-thickness:2px}
-:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
-:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
-:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
-:where(.top h1,.appbar h1){letter-spacing:-.025em}
-:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
-:where(table){border-collapse:separate;border-spacing:0}
-:where(th){font-weight:700}
-:where(th,td){vertical-align:middle}
-:where(.num){font-variant-numeric:tabular-nums}
-:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
-:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-/* Dedicated keyboard-only bypass navigation */
-.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
-.wcag-skip:focus{transform:translateY(0)}
-/* Desktop-quality spacing, adaptive on phones and zoom */
-@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
-@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
-@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
-
-:root{--bg:#f6f3fb;--panel:#ffffff;--ink:#281d44;--steel:#554a70;--line:#d8cee9;--accent:#7541d1;--accent-text:#6231ba;--accent-soft:#eee6ff}
-:where(.top){box-shadow:0 3px 20px rgba(25,13,51,.12)}
-:where(.panel,.card,.box){border-color:var(--line)}
-:where(button){border-radius:10px}
-:where(button:hover:not(:disabled)){filter:brightness(.97)}
-</style></head>
+<link href="app.css" rel="stylesheet"/></head>
 <body><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>สินค้าค้างสต็อก</h1>
 <div class="info" id="info">กำลังโหลดข้อมูล…</div>
 <div class="acts">
-<button class="btn exportMain small hidden" id="bUpload">⬆ อัปโหลดข้อมูล</button>
-<button class="btn exportMain small" id="bXlsx">⬇ ดาวน์โหลดข้อมูล</button>
+<button class="btn exportMain small hidden" id="bUpload"> อัปโหลดข้อมูล</button>
+<button class="btn exportMain small" id="bXlsx"> ดาวน์โหลดข้อมูล</button>
 <button class="btn onDark small hidden" id="bNames">ตั้งค่า</button>
 <button class="btn onDark small" id="bReload">รีเฟรช</button>
 <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
@@ -339,7 +300,7 @@ html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-sm
 <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
 <div class="card" style="grid-column:1/-1"><div class="cardhead"><h3>แนวโน้มมูลค่าทุนตามวันที่อัปโหลด <small id="trNote"></small></h3>
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-<select aria-label="รูปแบบการแสดงกราฟแนวโน้ม" id="trMode" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 30–60 วัน T3</option></select>
+<select aria-label="รูปแบบการแสดงกราฟแนวโน้ม" id="trMode" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 31–60 วัน T3</option></select>
 <button class="btn ghost small hidden" id="bTrendHist" type="button">ลบประวัติสถิติย้อนหลัง</button>
 </div></div>
 <div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
@@ -556,7 +517,8 @@ var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, f
 var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
 var nf0 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }), nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 var money = function (n) { return nf0.format(Math.round(n || 0)); };
-var qtyF = function (n) { return nf0.format(Math.round((n || 0) * 100) / 100); };
+var nfQty = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
+var qtyF = function (n) { return nfQty.format(Math.round((n || 0) * 100) / 100); };
 
 /* ---------- ส่วนอ่านไฟล์ Excel (ฟังก์ชันล้วน ไม่แตะหน้าจอ) ---------- */
 /*PARSE-START*/
@@ -568,14 +530,20 @@ var COLS = {
 function brKey(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }   // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
 function normH(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }
 function pad(n) { n = Number(n); return (n < 10 ? '0' : '') + n; }
+function calendarDate(year, month, day) {
+  year = Number(year); month = Number(month); day = Number(day);
+  if (year > 2400) year -= 543;
+  var d = new Date(Date.UTC(year, month - 1, day));
+  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day ? year + '-' + pad(month) + '-' + pad(day) : '';
+}
 function isoDate(v) {
   if (v === null || v === undefined || v === '') return '';
   if (typeof v === 'number') return (v > 20000 && v < 80000) ? new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10) : '';
   if (v instanceof Date) return isNaN(v) ? '' : v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
   var s = String(v).trim(), m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[0];
+  if (m) return calendarDate(m[1], m[2], m[3]);
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) { var y = +m[3]; if (y > 2400) y -= 543; return y + '-' + pad(m[2]) + '-' + pad(m[1]); }
+  if (m) return calendarDate(m[3], m[2], m[1]);
   return '';
 }
 function toNum(v) {
@@ -603,7 +571,7 @@ function findHeader(grid) {
 function reportDate(grid) {
   for (var i = 0; i < Math.min(grid.length, 8); i++) {
     var t = String((grid[i] || [])[0] || ''), m = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) { var y = +m[3]; if (y > 2400) y -= 543; return y + '-' + pad(m[2]) + '-' + pad(m[1]); }
+    if (m) return calendarDate(m[3], m[2], m[1]);
   }
   return '';
 }
@@ -656,6 +624,7 @@ function parseSheets(sheets, branch) {                // branch (ไม่บั
         String(I.note !== undefined && r[I.note] != null ? r[I.note] : '').trim(), rep,
         bw === 'B' ? 'B' : (bw ? '-' : ''), I.profit !== undefined ? optNum(r[I.profit]) : null, I.pct !== undefined ? optNum(r[I.pct]) : null,
         I.sales !== undefined ? optNum(r[I.sales]) : null, I.net !== undefined ? optNum(r[I.net]) : null]);
+      kept++;
     }
     info.read += read;
     info.sheets.push({ name: nm, read: read, kept: kept, rep: rep });
@@ -698,8 +667,9 @@ function toast(msg, isErr) {
 }
 async function busy(btn, fn) {
   btn.disabled = true;
-  try { await fn(); } catch (e) { if (e.message !== 'SESSION_EXPIRED') toast(e.message, true); }
-  btn.disabled = false;
+  try { await fn(); return true; }
+  catch (e) { if (e.message !== 'SESSION_EXPIRED') toast(e.message, true); return false; }
+  finally { btn.disabled = false; }
 }
 
 /* ---------- เซสชัน ---------- */
@@ -712,12 +682,18 @@ function initToken() {
 }
 function showLogin(msg) {
   TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
+  D.me = null;
+  $('#main').hidden = true;
+  $('#empty').classList.add('hidden');
+  document.querySelectorAll('.overlay').forEach(function (el) { el.classList.add('hidden'); });
+  ['#bUpload', '#bNames', '#bHist', '#bTrendHist', '#bClear'].forEach(function (s) { if ($(s)) $(s).classList.add('hidden'); });
   $('#login').classList.remove('hidden');
   $('#lgMsg').textContent = msg || 'เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก';
   $('#lgErr').textContent = ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
 $('#lgBtn').addEventListener('click', function () {
+  if (this.disabled) return;
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
   var b = this; b.disabled = true; $('#lgErr').textContent = '';
@@ -732,12 +708,12 @@ $('#lgBtn').addEventListener('click', function () {
 var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], zero: [], cut: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };
 var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
 var DELETED_GROUPS = {}; // หมวดที่ถูกลบในเซสชันนี้
-var DELETED_HIST_DAYS = (function () { try { return JSON.parse(localStorage.getItem('cmucoop_del_hist_days') || '{}') || {}; } catch (e) { return {}; } })();
-var DELETED_PREV_GRPS = (function () { try { return JSON.parse(localStorage.getItem('cmucoop_del_prev_grps') || '{}') || {}; } catch (e) { return {}; } })();
+var DELETED_HIST_DAYS = {};
+var DELETED_PREV_GRPS = {};
 function saveDelHistState() {
   try {
-    localStorage.setItem('cmucoop_del_hist_days', JSON.stringify(DELETED_HIST_DAYS));
-    localStorage.setItem('cmucoop_del_prev_grps', JSON.stringify(DELETED_PREV_GRPS));
+    localStorage.removeItem('cmucoop_del_hist_days');
+    localStorage.removeItem('cmucoop_del_prev_grps');
   } catch (e) {}
 }
 function gOn(g) { return !Object.keys(F.gm).length || !!F.gm[g]; }                 // ไม่ได้เลือกหมวดเลย = ทุกหมวด
@@ -754,12 +730,12 @@ function tagOn(x) {
 var F = { st: {}, tag: '', tags: {}, hide: {}, gm: {}, br: '', q: '', deductTab: 'waste', deductCollapsed: true, gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
 var PAGE = 100;
 var ST_DEF = [
-  { k: 'DS', t: 'ค้างเกิน 60 วัน DS' }, { k: 'T3', t: '30–60 วัน T3' }, { k: 'T2', t: '15–30 วัน T2' },
+  { k: 'DS', t: 'ค้างเกิน 60 วัน DS' }, { k: 'T3', t: '31–60 วัน T3' }, { k: 'T2', t: '16–30 วัน T2' },
   { k: 'T1', t: 'ไม่เกิน 15 วัน T1' }, { k: 'NA', t: 'ไม่มีข้อมูลการเคลื่อนไหว' }
 ];
 var ST_COLOR = { DS: '#c0392b', T3: '#946200', T2: '#3b7a28', T1: '#176b3f', NA: '#5a6573' };
 var ST_SYM = { DS: '▲', T3: '◆', T2: '●', T1: '■', NA: '○' };
-var ST_NAME = { DS: 'DS ค้างเกิน 60 วัน', T3: 'T3 30–60 วัน', T2: 'T2 15–30 วัน', T1: 'T1 ไม่เกิน 15 วัน', NA: 'ไม่มีข้อมูลเคลื่อนไหว' };
+var ST_NAME = { DS: 'DS ค้างเกิน 60 วัน', T3: 'T3 31–60 วัน', T2: 'T2 16–30 วัน', T1: 'T1 ไม่เกิน 15 วัน', NA: 'ไม่มีข้อมูลเคลื่อนไหว' };
 
 function fmtDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? (+m[3]) + '/' + (+m[2]) + '/' + (+m[1] + 543) : '–'; }
 function fmtTs(ts) { return new Date(ts).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', calendar: 'buddhist' }); }
@@ -835,9 +811,10 @@ function thaiDayIso(ts) {
 function dayKey(ts) { return thaiDayIso(ts); }
 function dailyHistory(hist) {                                           // รวมรอบอัปโหลดเป็นรายวัน (ไม่แตกย่อยหลายรอบในวันเดียวกัน · ยึดรายการล่าสุดของวันนั้น)
   var byDay = {}, order = [];
-  (hist || []).forEach(function (x) {
-    if (!x || !x.ts || !x.sum) return;
+  (Array.isArray(hist) ? hist : []).forEach(function (x) {
+    if (!x || !x.ts || !x.sum || !x.sum.st) return;
     var dk = dayKey(x.ts);
+    if (!dk) return;
     if (DELETED_HIST_DAYS['*'] && x.ts <= DELETED_HIST_DAYS['*']) return;
     if (DELETED_HIST_DAYS[dk] && x.ts <= DELETED_HIST_DAYS[dk]) return;
     var prev = byDay[dk];
@@ -858,10 +835,12 @@ function dailyHistory(hist) {                                           // ร�
 }
 
 /* ค้าง (วัน) = จำนวนวันตั้งแต่ "ขายล่าสุด" ถึงวันนี้ (เวลาไทย) — คำนวณใหม่ทุกครั้งที่เปิดหน้า · ไม่มีวันที่ขายล่าสุด → ใช้ค่าเดิมจากไฟล์ */
-var TODAY_MS = (function () { var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); })();
+var TODAY_MS = Date.parse(thaiDayIso() + 'T00:00:00Z');
 function daysSince(iso, fallback) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
-  if (!m) return fallback;
+  var normalized = m && calendarDate(m[1], m[2], m[3]);
+  if (!normalized) return fallback;
+  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
   return Math.max(0, Math.round((TODAY_MS - Date.UTC(+m[1], +m[2] - 1, +m[3])) / 86400000));
 }
 function stByDays(d, fallback) {                                      // สถานะจากค้าง(วัน): ≤15 = T1 · ≤30 = T2 · ≤60 = T3 · เกิน 60 = DS · ไม่มีข้อมูลวัน → ใช้ค่าเดิมจากไฟล์
@@ -869,7 +848,7 @@ function stByDays(d, fallback) {                                      // สถ�
   return d <= 15 ? 'T1' : (d <= 30 ? 'T2' : (d <= 60 ? 'T3' : 'DS'));
 }
 function toItem(a) {
-  var dy = daysSince(a[8], a[9]), st = stByDays(dy, a[10]), origQ = a[20] !== undefined ? Number(a[20]) : a[4];
+  var dy = D.ver === 'prev' ? a[9] : daysSince(a[8], a[9]), st = D.ver === 'prev' ? a[10] : stByDays(dy, a[10]), origQ = a[20] !== undefined ? Number(a[20]) : a[4];
   return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], origQty: origQ, cutQty: Math.max(0, Math.round((origQ - a[4]) * 100) / 100),
     sold: a[5], avg: a[6], recv: a[7], last: a[8], days: dy, st: st, sk: st || 'NA',
     cost: a[11], price: a[12], note: a[13], rep: a[14], below: a[15], profit: a[16], pct: a[17], sales: a[18], net: a[19],
@@ -877,6 +856,7 @@ function toItem(a) {
 }
 function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.cur) || null : null; }   // เมตาของหมวดตามฉบับที่กำลังดู
 function applyData(r) {
+  TODAY_MS = Date.parse(thaiDayIso() + 'T00:00:00Z');
   D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = dailyHistory(r.history || []);
   Object.keys(DELETED_GROUPS).forEach(function (g) { delete D.gm[g]; delete D.names[g]; });
   Object.keys(DELETED_PREV_GRPS).forEach(function (g) {
@@ -924,9 +904,9 @@ function applyData(r) {
   [['lost', D.lost], ['exp', D.exp], ['pend', D.pend], ['waste', D.waste]].forEach(function (p) {
     (p[1] || []).forEach(function (e) {
       var ck = codeKey(e.code); if (!ck) return;
-      var hitBrs = {};
-      (e.hit || []).forEach(function (h) { if (h.br) hitBrs[brKey(h.br)] = (hitBrs[brKey(h.br)] || 0) + (h.qty || 0); });
-      (adjIdx[ck] || (adjIdx[ck] = [])).push({ k: p[0], ek: e.k, br: brKey(e.br), qty: e.qty, hitBrs: hitBrs, note: e.note || '' });
+      var hitRows = {};
+      (e.hit || []).forEach(function (h) { var key = h.g + '|' + brKey(h.br); hitRows[key] = (hitRows[key] || 0) + (h.qty || 0); });
+      (adjIdx[ck] || (adjIdx[ck] = [])).push({ k: p[0], ek: e.k, br: brKey(e.br), hitRows: hitRows, note: e.note || '' });
     });
   });
   D.items.concat(D.zero, D.cut).forEach(function (x) {
@@ -935,9 +915,9 @@ function applyData(r) {
     if (x.hard && D.hard[ck].note) x.tn.hard = D.hard[ck].note;
     (adjIdx[ck] || []).forEach(function (e) {
       var matchBr = !e.br || e.br === bk;
-      var hq = e.hitBrs[bk];
-      if (matchBr && (e.br === bk || hq !== undefined || !Object.keys(e.hitBrs).length)) {
-        var qAdd = hq !== undefined ? hq : (e.qty == null ? 0 : e.qty);
+      var hq = e.hitRows[x.g + '|' + bk];
+      if (matchBr && (hq !== undefined || !Object.keys(e.hitRows).length)) {
+        var qAdd = hq !== undefined ? hq : 0;
         x.tg[e.k] = Math.round(((x.tg[e.k] || 0) + qAdd) * 100) / 100;
         x.tk[e.k] = e.ek;
         if (e.note && (x.tn[e.k] || '').indexOf(e.note) < 0) x.tn[e.k] = (x.tn[e.k] ? x.tn[e.k] + ' / ' : '') + e.note;
@@ -960,11 +940,7 @@ function applyData(r) {
   D.cut.forEach(function (x, i) { x.i = 200000 + i; });
   if (D.names && D.names.__BR_CFG__) {
     try {
-      var srvCfg = normBrCfg(JSON.parse(D.names.__BR_CFG__));
-      srvCfg.branches.forEach(function (b) { if (b && BR_CFG.branches.indexOf(b) < 0 && !BR_CFG.delBranches[brKey(b)]) BR_CFG.branches.push(b); });
-      Object.keys(srvCfg.brGroups).forEach(function (bk) {
-        BR_CFG.brGroups[bk] = Object.assign({}, srvCfg.brGroups[bk], BR_CFG.brGroups[bk] || {});
-      });
+      BR_CFG = normBrCfg(JSON.parse(D.names.__BR_CFG__));
       saveBrCfgLocal();
     } catch (e) {}
   }
@@ -1047,8 +1023,8 @@ function renderVerTabs() {
   $('#verTabs').innerHTML = '<button type="button" class="tab' + (D.ver === 'cur' ? ' on' : '') + '" data-v="cur" role="tab" aria-selected="' + (D.ver === 'cur') + '">ฉบับปัจจุบัน ' + nc + ' หมวด</button>' +
     '<button type="button" class="tab' + (D.ver === 'prev' ? ' on' : '') + '" data-v="prev" role="tab" aria-selected="' + (D.ver === 'prev') + '"' + (np || D.ver === 'prev' ? '' : ' disabled title="ยังไม่มีฉบับก่อนหน้า — จะมีเมื่อมีการอัปโหลดทับหมวดเดิม"') + '>ฉบับก่อนหน้า ' + np + ' หมวด</button>';
   $('#verNote').innerHTML = D.ver === 'prev'
-    ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> — เก็บไว้หมวดละ 1 ฉบับก่อนการอัปโหลดทับครั้งล่าสุด ไม่ใช่ข้อมูลปัจจุบัน'
-    : (np ? 'มีฉบับก่อนหน้า ' + np + ' หมวด — กดแท็บฉบับก่อนหน้าเพื่อเทียบ หรือกดจัดการประวัติย้อนหลังด้านบนเพื่อลบข้อมูลเก่าที่บันทึกทิ้งไว้' : 'ยังไม่มีฉบับก่อนหน้า ระบบจะเก็บไว้ให้อัตโนมัติเมื่ออัปโหลดทับหมวดเดิม');
+    ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> · วันค้างและสถานะตามไฟล์ที่บันทึกไว้ · เก็บหมวดละ 1 ฉบับก่อนการอัปโหลดทับครั้งล่าสุด'
+    : 'วันค้างและช่วงอายุคำนวณถึงวันนี้ (เวลาไทย) · ' + (np ? 'มีฉบับก่อนหน้า ' + np + ' หมวดสำหรับเปรียบเทียบ' : 'ระบบจะเก็บฉบับก่อนหน้าให้อัตโนมัติเมื่ออัปโหลดทับหมวดเดิม');
 }
 function roNote() { return D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:underline">สิทธิ์: ดูอย่างเดียว</b>' : ''; }
 function renderInfo() {
@@ -1071,10 +1047,14 @@ function fillSelects() {
   b.value = F.br;
 }
 
+var LOAD_SEQ = 0;
 async function load(ver) {
+  var loadId = ++LOAD_SEQ;
   if (!TOKEN) { showLogin(''); return; }
   try {
     var r = await call('stockGet', ver || VIEW);
+    if (loadId !== LOAD_SEQ) return;
+    if (!r || !r.me || !Array.isArray(r.rows)) throw new Error('รูปแบบข้อมูลสินค้าค้างสต็อกไม่ถูกต้อง กรุณาลองโหลดใหม่');
     if (Array.isArray(r.barcodes)) {
       BC_CACHE = r.barcodes;
       buildBcIndex(BC_CACHE);
@@ -1090,8 +1070,10 @@ async function load(ver) {
         }
       } catch (e2) {}
     }
+    if (loadId !== LOAD_SEQ) return;
     applyData(r);
   } catch (e) {
+    if (loadId !== LOAD_SEQ) return;
     if (e.message === 'SESSION_EXPIRED') return;
     if (/ไม่มีสิทธิ์/.test(e.message)) { showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดสินค้าค้างสต็อก — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น'); return; }
     $('#info').textContent = 'โหลดข้อมูลไม่สำเร็จ'; toast(e.message, true);
@@ -1347,7 +1329,7 @@ function renderTopChart(S) {
 var TR_PAL = ['#c0392b', '#2e6fd8', '#1a7f4b', '#d99a1f', '#7a4fd1', '#0e9aa7', '#d6457f', '#6b7a1c', '#e0703a', '#4b5fa8', '#8a5a2b', '#3d8f6e'];
 var TR_MODE = 'total';
 function renderTrend() {
-  var h = dailyHistory(D.history || []), mode = TR_MODE, box = $('#boxTrend');
+  var h = dailyHistory(D.history || []), mode = TR_MODE, box = $('#boxTrend'), singleDay = h.length === 1;
   $('#trMode').value = mode;
   box.style.height = mode === 'total' ? '' : '380px';
   if (!h.length) { $('#trNote').textContent = ''; noData('boxTrend', 'chTrend', 'ยังไม่มีประวัติการอัปโหลดสำหรับแสดงแนวโน้มรายวัน'); return; }
@@ -1355,7 +1337,7 @@ function renderTrend() {
   var opt = function (tip) {
     return { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12 } },
+        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 10, boxHeight: 10, padding: 16 } },
         tooltip: { callbacks: {
           afterTitle: function (items) {
             if (!items || !items.length) return '';
@@ -1365,16 +1347,16 @@ function renderTrend() {
           label: tip
         } }
       },
-      scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return nf0.format(v); } } } } };
+      scales: { x: { offset: true, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: 'มูลค่าทุน (บาท)' }, ticks: { callback: function (v) { return nf0.format(v); } } } } };
   };
   if (mode === 'total') {
-    $('#trNote').textContent = 'แสดงรายวัน ยึดรายการล่าสุดของวัน · รวม ' + h.length + ' วัน';
+    $('#trNote').textContent = singleDay ? 'บันทึก ณ วันอัปโหลด 1 วัน · แสดงกราฟแท่งจนกว่าจะมีข้อมูลหลายวัน' : 'บันทึก ณ วันอัปโหลด · ใช้รอบล่าสุดของแต่ละวัน · รวม ' + h.length + ' วัน';
     ensureCanvas('boxTrend', 'chTrend');
-    chart('chTrend', { type: 'line', data: { labels: lab, datasets: [
-      { label: 'ค้างเกิน 60 วัน (DS)', data: h.map(function (x) { return Math.round((x.sum.st.DS && x.sum.st.DS.cost) || 0); }), borderColor: ST_COLOR.DS, backgroundColor: ST_COLOR.DS, tension: .25, pointRadius: 4, pointStyle: 'circle' },
-      { label: '30–60 วัน (T3)', data: h.map(function (x) { return Math.round((x.sum.st.T3 && x.sum.st.T3.cost) || 0); }), borderColor: ST_COLOR.T3, backgroundColor: ST_COLOR.T3, borderDash: [6, 4], tension: .25, pointRadius: 5, pointStyle: 'rectRot' }
+    chart('chTrend', { type: singleDay ? 'bar' : 'line', data: { labels: lab, datasets: [
+      { label: 'ค้างเกิน 60 วัน (DS)', data: h.map(function (x) { return Math.round((x.sum.st.DS && x.sum.st.DS.cost) || 0); }), borderColor: ST_COLOR.DS, backgroundColor: ST_COLOR.DS, tension: .25, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'circle', maxBarThickness: 72, borderRadius: 5 },
+      { label: '31–60 วัน (T3)', data: h.map(function (x) { return Math.round((x.sum.st.T3 && x.sum.st.T3.cost) || 0); }), borderColor: ST_COLOR.T3, backgroundColor: ST_COLOR.T3, borderDash: singleDay ? [] : [6, 4], tension: .25, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'circle', maxBarThickness: 72, borderRadius: 5 }
     ] }, options: opt(function (c) { var x = h[c.dataIndex].sum.st[c.datasetIndex ? 'T3' : 'DS'] || { n: 0 }; return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท · ' + x.n + ' รายการ'; }) },
-    'กราฟเส้นแนวโน้มมูลค่าทุนตามวันที่อัปโหลด รวม ' + h.length + ' วัน',
+    (singleDay ? 'กราฟแท่ง' : 'กราฟเส้นแนวโน้ม') + 'มูลค่าทุนตามวันที่อัปโหลด รวม ' + h.length + ' วัน',
     ['วันที่', 'มูลค่าทุน DS (บาท)', 'มูลค่าทุน T3 (บาท)'],
     h.map(function (x, i) { return [lab[i], money((x.sum.st.DS && x.sum.st.DS.cost) || 0), money((x.sum.st.T3 && x.sum.st.T3.cost) || 0)]; }));
     return;
@@ -1385,14 +1367,14 @@ function renderTrend() {
   var gs = Object.keys(set), val = function (x, g) { var o = x.gs && x.gs[g] && x.gs[g][key]; return o ? o[1] : (x.gs ? 0 : null); };
   gs.sort(function (a, b) { return (val(h[h.length - 1], b) || 0) - (val(h[h.length - 1], a) || 0); });
   gs = gs.filter(function (g) { return h.some(function (x) { return (val(x, g) || 0) > 0; }); });
-  $('#trNote').textContent = 'แสดงรายวัน ยึดรายการล่าสุดของวัน · ' + h.length + ' วัน · แยกตามหมวด ' + gs.length + ' หมวด';
+  $('#trNote').textContent = 'บันทึก ณ วันอัปโหลด · ใช้รอบล่าสุดของวัน · ' + h.length + ' วัน · ' + gs.length + ' หมวด' + (singleDay ? ' · แสดงกราฟแท่ง' : '');
   if (!gs.length) { noData('boxTrend', 'chTrend', 'ไม่มีมูลค่าในช่วงอายุนี้'); return; }
   ensureCanvas('boxTrend', 'chTrend');
-  chart('chTrend', { type: 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
+  chart('chTrend', { type: singleDay ? 'bar' : 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
     var c = TR_PAL[i % TR_PAL.length];
-    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, borderDash: i % 2 ? [5, 3] : [], tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 4 };
+    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, borderDash: !singleDay && i % 2 ? [5, 3] : [], tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'circle', maxBarThickness: 72, borderRadius: 5 };
   }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) },
-  'กราฟเส้นแนวโน้มมูลค่าทุนแยกตามหมวด (' + key + ') รวม ' + gs.length + ' หมวด',
+  (singleDay ? 'กราฟแท่ง' : 'กราฟเส้นแนวโน้ม') + 'มูลค่าทุนแยกตามหมวด (' + key + ') รวม ' + gs.length + ' หมวด',
   ['หมวดสินค้า'].concat(lab),
   gs.map(function (g) { return [gl(g)].concat(h.map(function (x) { var v = val(x, g); return v === null ? '–' : money(v); })); }));
 }
@@ -1416,8 +1398,8 @@ function thead(cols, sort) {
 var GT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'n', t: 'รายการ', num: 1 }, { k: 'pcs', t: 'ชิ้น', num: 1 }, { k: 'vc', t: 'มูลค่าทุน (บาท)', num: 1 }, { k: 'vp', t: 'มูลค่าขาย (บาท)', num: 1 }, { k: 'share', t: 'สัดส่วนมูลค่าทุน' }, { k: 'avg', t: 'อายุเฉลี่ย (วัน)', num: 1 },
   { k: 'dds', t: 'DS เทียบฉบับก่อนหน้า (บาท)', num: 1 }];
 function dsDelta(g) {                                                  // มูลค่าทุน DS ของฉบับปัจจุบัน − ฉบับก่อนหน้า (จากยอดสรุปที่เก็บไว้ ไม่ขึ้นกับตัวกรอง)
-  var m = D.gm[g]; if (!m || !m.cur || !m.prev || !m.cur.sum || !m.prev.sum) return null;
-  return m.cur.sum.st.DS.cost - m.prev.sum.st.DS.cost;
+  var m = D.gm[g]; if (!m || !m.cur || !m.prev || !m.cur.sum || !m.prev.sum || !m.cur.sum.st || !m.prev.sum.st) return null;
+  return ((m.cur.sum.st.DS || {}).cost || 0) - ((m.prev.sum.st.DS || {}).cost || 0);
 }
 function renderGroupTable(G) {
   var m = {};
@@ -1436,7 +1418,7 @@ function renderGroupTable(G) {
     return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '" tabindex="0" role="button" aria-pressed="' + (F.gm[r.g] ? 'true' : 'false') + '" aria-label="กรองหมวด ' + esc(gl(r.g)) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
       '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
-  }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
+  }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
 }
 var DT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'code', t: 'รหัส' }, { k: 'name', t: 'ชื่อสินค้า' }, { k: 'br', t: 'สาขา' }, { k: 'qty', t: 'คงเหลือ', num: 1 }, { k: 'cost', t: 'ต้นทุน/หน่วย', num: 1 }, { k: 'vc', t: 'มูลค่าทุน', num: 1 },
   { k: 'price', t: 'ราคาขาย', num: 1 }, { k: 'recv', t: 'รับเข้า' }, { k: 'last', t: 'ขายล่าสุด' }, { k: 'days', t: 'ค้าง วัน', num: 1 }, { k: 'sk', t: 'ช่วงอายุสินค้า' }, { k: 'note', t: 'หมายเหตุ' }];
@@ -1624,7 +1606,8 @@ async function syncNamesAndCfg(nextNames) {
   try {
     D.names = await call('stockSetNames', payload);
   } catch (e) {
-    D.names = payload;
+    try { BR_CFG = normBrCfg(JSON.parse(D.names.__BR_CFG__ || '{}')); saveBrCfgLocal(); } catch (ignored) {}
+    throw e;
   }
 }
 async function addCategoryFlow(codeRaw, nameRaw, brRaw, btn) {
@@ -1640,7 +1623,9 @@ async function addCategoryFlow(codeRaw, nameRaw, brRaw, btn) {
     return false;
   }
   var bk = brKey(br);
-  await busy(btn || $('#nmAddBtn'), async function () {
+  return await busy(btn || $('#nmAddBtn'), async function () {
+    var result = await call('stockGroupAdd', code, name, br);
+    if (result && result.names) D.names = result.names;
     delete DELETED_GROUPS[code];
     if (BR_CFG.delBrGroups[bk]) delete BR_CFG.delBrGroups[bk][code];
     if (!BR_CFG.brGroups[bk]) BR_CFG.brGroups[bk] = {};
@@ -1653,14 +1638,10 @@ async function addCategoryFlow(codeRaw, nameRaw, brRaw, btn) {
       nextNames[bk + ':' + code] = name;
       if (!nextNames[code]) nextNames[code] = name;
     }
-    try {
-      await call('stockGroupAdd', code, name, br);
-    } catch (e) {}
     await syncNamesAndCfg(nextNames);
     toast('เพิ่มหมวด ' + gl(code, br) + ' ในสาขา ' + br + ' แล้ว');
     await load(VIEW);
   });
-  return true;
 }
 async function deleteCategoryFlow(g, brRaw, btn) {
   g = String(g || '').trim().toUpperCase();
@@ -1670,6 +1651,8 @@ async function deleteCategoryFlow(g, brRaw, btn) {
   var scopeTxt = br ? 'ของสาขา ' + br : 'ทุกสาขา';
   if (!confirm('ยืนยันลบหมวด "' + gl(g, br) + '" ' + scopeTxt + (cnt ? ' · มีสินค้า ' + nf0.format(cnt) + ' รายการ' : '') + ' ?')) return;
   await busy(btn || $('#nmSave'), async function () {
+    var result = await call('stockGroupDelete', g, br);
+    if (result && result.names) D.names = result.names;
     if (bk) {
       if (!BR_CFG.delBrGroups[bk]) BR_CFG.delBrGroups[bk] = {};
       BR_CFG.delBrGroups[bk][g] = 1;
@@ -1684,9 +1667,6 @@ async function deleteCategoryFlow(g, brRaw, btn) {
       delete nextNames[g];
       Object.keys(nextNames).forEach(function (k) { if (k.slice(-1 - g.length) === ':' + g) delete nextNames[k]; });
     }
-    try {
-      await call('stockGroupDelete', g, br);
-    } catch (e) {}
     await syncNamesAndCfg(nextNames);
     delete F.gm[g];
     toast('ลบหมวด ' + g + ' ' + scopeTxt + ' เรียบร้อยแล้ว');
@@ -1746,7 +1726,7 @@ $('#dotPop').addEventListener('keydown', function (e) {
 $('#fGrpMenu').addEventListener('click', function (e) {
   e.stopPropagation();
   var del = e.target.closest('[data-gdel]');
-  if (del) { deleteCategoryFlow(del.dataset.gdel, del); return; }
+  if (del) { deleteCategoryFlow(del.dataset.gdel, F.br, del); return; }
   var act = e.target.closest('[data-gact]');
   if (act) {
     if (act.dataset.gact === 'all') { F.gm = {}; D.groups.forEach(function (g) { F.gm[g] = true; }); }
@@ -2133,7 +2113,7 @@ $('#bReload').addEventListener('click', function () { busy(this, load); });
 var XL_HEAD = ['ลำดับ', 'กลุ่ม', 'รหัส', 'ชื่อสินค้า', 'สาขา', 'คงเหลือ', 'รวมขาย', 'เฉลี่ยขาย', 'รับเข้า', 'ขายล่าสุด', 'ค้าง(วัน)', 'สถานะ', 'ต้นทุน', 'ราคา', 'ต่ำกว่าทุน', 'กำไร฿', 'กำไร%', 'ยอดขาย', 'กำไรสุทธิ V', 'หมายเหตุ'];
 var XL_WIDTH = [6.5, 5.8984375, 19.5, 37.796875, 7.59765625, 8.09765625, 8.09765625, 8.796875, 10.5, 11.5, 8.5, 7.59765625, 7.59765625, 7.59765625, 9.19921875, 7.59765625, 7.59765625, 8.19921875, 13.09765625, 28];
 var XL_SHOP = 'ร้านสหกรณ์มหาวิทยาลัยเชียงใหม่ จำกัด';
-var XL_NOTE = 'หมายเหตุ : T1 คือ ขายออกไม่เกิน 15 วัน, T2 ขายออกระหว่าง 15-30 วัน, T3 ขายออกระหว่าง 30-60 วัน, DS สินค้าที่ขายไม่ออกนานเกิน 60 วัน';
+var XL_NOTE = 'หมายเหตุ : T1 คือ ขายออกไม่เกิน 15 วัน, T2 ขายออกระหว่าง 16-30 วัน, T3 ขายออกระหว่าง 31-60 วัน, DS สินค้าที่ขายไม่ออกนานเกิน 60 วัน';
 var XL_DSLABEL = 'สินค้าที่ไม่มีความเคลื่อนไหว (ค้างสต็อก) นานเกิน 60 วัน';
 var XL_HEAD_RGB = 'FFC04F15';        // ส้มเข้มของหัวตาราง (accent2 ลดความสว่าง 25% ตามต้นฉบับ)
 var XL_S = { title: 1, head: 2, c: 3, code: 4, left: 5, date: 6, plain: 7, bL: 8, bCw: 9, bC: 10, bW: 11, bCn: 12, bCv: 13, b: 14 };   // ลำดับ cellXfs ใน styles.xml ด้านล่าง
@@ -2328,7 +2308,8 @@ function synthTitle(rep) {
   return 'รายงานวิเคราะห์การขายสินค้า' + (m ? ' ปี ' + (+m[1] + 543) + ' ข้อมูลวันที่ ' + m[3] + '/' + m[2] + '/' + (+m[1] + 543) : '');
 }
 $('#bXlsx').addEventListener('click', function () {
-  if (!D.items.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
+  if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return; }
+  if (!D.items.length && !D.zero.length && !D.cut.length && !D.lost.length && !D.exp.length && !D.pend.length && !D.waste.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
   var gsN = function (l) { var o = {}; l.forEach(function (x) { o[x.g] = 1; }); return Object.keys(o).length; };
   $('#exN1').textContent = nf0.format(LAST_RAW.length) + ' รายการ · ' + gsN(LAST_RAW) + ' หมวด';
   $('#exN2').textContent = nf0.format(D.items.length) + ' รายการ · ' + D.groups.length + ' หมวด';
@@ -2401,7 +2382,7 @@ var UP = null;          // { branch:'…',  groups:{G01:{g,rep,title,rows,file}}
 function loadXlsx() {
   if (typeof XLSX !== 'undefined') return Promise.resolve();
   return new Promise(function (res, rej) {
-    var s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    var s = document.createElement('script'); s.src = 'vendor/xlsx.full.min.js';
     s.onload = res; s.onerror = function () { rej(new Error('โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่')); }; document.head.appendChild(s);
   });
 }
@@ -3023,9 +3004,9 @@ function openHistDlg() {
 async function deleteHistDayFlow(dk, ts, btn) {
   if (!confirm('ยืนยันลบประวัติสถิติแนวโน้มของวันที่ ' + fmtDate(dk) + ' ?')) return;
   await busy(btn, async function () {
+    await call('stockHistoryDelete', { mode: 'hist_item', dayKey: dk, ts: Number(ts) || 0 });
     DELETED_HIST_DAYS[dk] = Math.max(Number(ts) || Date.now(), Date.now());
     saveDelHistState();
-    try { await call('stockHistoryDelete', { mode: 'hist_item', dayKey: dk, ts: Number(ts) || 0 }); } catch (e) {}
     toast('ลบสถิติวันที่ ' + fmtDate(dk) + ' แล้ว');
     await load(VIEW);
   });
@@ -3033,9 +3014,9 @@ async function deleteHistDayFlow(dk, ts, btn) {
 async function clearAllHistFlow(btn) {
   if (!confirm('ยืนยันลบประวัติสถิติแนวโน้มทั้งหมด ?')) return;
   await busy(btn, async function () {
+    await call('stockHistoryDelete', { mode: 'all_hist' });
     DELETED_HIST_DAYS['*'] = Date.now();
     saveDelHistState();
-    try { await call('stockHistoryDelete', { mode: 'all_hist' }); } catch (e) {}
     toast('ลบสถิติแนวโน้มทั้งหมดแล้ว');
     await load(VIEW);
   });
@@ -3044,10 +3025,10 @@ async function deletePrevGroupFlow(gs, btn) {
   var msg = gs.length === 1 ? 'ยืนยันลบข้อมูลย้อนหลังฉบับก่อนหน้าของหมวด ' + gl(gs[0]) + ' ?' : 'ยืนยันลบข้อมูลย้อนหลังฉบับก่อนหน้าของทุกหมวด (' + gs.length + ' หมวด) ?';
   if (!confirm(msg)) return;
   await busy(btn, async function () {
+    await call('stockHistoryDelete', { mode: 'prev_group', groups: gs });
     var nowTs = Date.now();
     gs.forEach(function (g) { DELETED_PREV_GRPS[g] = nowTs; if (D.gm[g]) D.gm[g].prev = null; });
     saveDelHistState();
-    try { await call('stockHistoryDelete', { mode: 'prev_group', groups: gs }); } catch (e) {}
     toast('ลบข้อมูลย้อนหลังเรียบร้อยแล้ว');
     if (VIEW === 'prev' && !nPrev()) VIEW = 'cur';
     await load(VIEW);
@@ -3128,7 +3109,7 @@ function renderAnalysis(S, N, G) {
     var dBadge = diffDS > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffDS) + ' บาท · +' + nf2.format(pctDS) + '%</span>' : (diffDS < 0 ? '<span class="an-badge down">ลดลง ' + money(diffDS) + ' บาท · ' + nf2.format(pctDS) + '%</span>' : '<span class="an-badge flat">ทรงตัว</span>');
     var t3Badge = diffT3 > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffT3) + ' บาท · +' + nf2.format(pctT3) + '%</span>' : (diffT3 < 0 ? '<span class="an-badge down">ลดลง ' + money(diffT3) + ' บาท · ' + nf2.format(pctT3) + '%</span>' : '<span class="an-badge flat">ทรงตัว</span>');
     trendLines.push('เทียบวันอัปโหลดล่าสุด <b>' + fmtDate(last.dayKey) + '</b> กับวันก่อนหน้า <b>' + fmtDate(prev.dayKey) + '</b>: มูลค่าค้างเกิน 60 วัน DS ' + dBadge + anBtn('ds_all', 'สินค้าค้างเกิน 60 วัน DS ทั้งหมด', dsItems));
-    trendLines.push('สินค้ากลุ่มเฝ้าระวัง 30–60 วัน T3 ล่าสุดอยู่ที่ <b>' + money(curT3) + ' บาท</b> ' + t3Badge + (diffT3 > 0 ? ' — มีโอกาสไหลเข้าสู่ DS ในรอบถัดไปมากขึ้น' : ' — แนวโน้มสินค้าใหม่ที่จะไหลเข้า DS ชะลอตัวลง') + anBtn('t3_all', 'สินค้ากลุ่มเฝ้าระวัง 30–60 วัน T3', t3Items));
+    trendLines.push('สินค้ากลุ่มเฝ้าระวัง 31–60 วัน T3 ล่าสุดอยู่ที่ <b>' + money(curT3) + ' บาท</b> ' + t3Badge + (diffT3 > 0 ? ' — มีโอกาสไหลเข้าสู่ DS ในรอบถัดไปมากขึ้น' : ' — แนวโน้มสินค้าใหม่ที่จะไหลเข้า DS ชะลอตัวลง') + anBtn('t3_all', 'สินค้ากลุ่มเฝ้าระวัง 31–60 วัน T3', t3Items));
     if (h.length >= 3) {
       var netSpan = curDS - fstDS;
       trendLines.push('ภาพรวมตลอด <b>' + h.length + ' วัน</b> ที่มีการอัปโหลด ตั้งแต่ ' + fmtDate(first.dayKey) + ': มูลค่าทุน DS สุทธิ ' + (netSpan > 0 ? '<b style="color:var(--bad)">เพิ่มขึ้น +' + money(netSpan) + ' บาท</b>' : (netSpan < 0 ? '<b style="color:var(--ok)">ลดลง ' + money(netSpan) + ' บาท</b>' : '<b>คงที่</b>')));
@@ -3308,7 +3289,7 @@ function parseAdjIn(txt, defQ) {                                      // 1 บ�
     ln = ln.trim(); if (!ln) return;
     var t = ln.split(/[\s,;]+/).filter(Boolean), q = defQ;
     if (t.length > 2) { bad.push(ln); return; }
-    if (t.length === 2) { q = Number(t[1].replace(/,/g, '')); if (!(q > 0)) { bad.push(ln); return; } }
+    if (t.length === 2) { q = Number(t[1].replace(/,/g, '')); if (!Number.isFinite(q) || !(q > 0)) { bad.push(ln); return; } }
     items.push({ code: t[0], qty: q });
   });
   return { items: items, bad: bad };
@@ -3316,7 +3297,7 @@ function parseAdjIn(txt, defQ) {                                      // 1 บ�
 $('#lsAdd').addEventListener('click', function () {
   var K = AKI[AK], defQ = Number($('#lsQty').value);
   if (!$('#lsIn').value.trim()) { $('#lsErr').textContent = 'กรุณากรอกบาร์โค้ด' + K.verb; return; }
-  if (!(defQ > 0)) { $('#lsErr').textContent = 'จำนวนเริ่มต้นต้องมากกว่า 0'; return; }
+  if (!Number.isFinite(defQ) || !(defQ > 0)) { $('#lsErr').textContent = 'จำนวนเริ่มต้นต้องเป็นตัวเลขที่มากกว่า 0'; return; }
   var pr = parseAdjIn($('#lsIn').value, defQ);
   if (pr.bad.length) { $('#lsErr').textContent = 'รูปแบบบรรทัดไม่ถูกต้อง (ต้องเป็น "บาร์ จำนวน" บรรทัดละ 1 รายการ): ' + pr.bad.slice(0, 3).join(' | ') + (pr.bad.length > 3 ? ' …' : ''); return; }
   if (!pr.items.length) { $('#lsErr').textContent = 'กรุณากรอกบาร์โค้ด' + K.verb; return; }

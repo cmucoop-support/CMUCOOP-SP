@@ -9,9 +9,8 @@
 <script src="gas-shim.js"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <base target="_top"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<link href="fonts.css" rel="stylesheet"/>
+<script src="vendor/mqtt.min.js"></script>
 <style>
 :root{
   --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
@@ -402,52 +401,14 @@ td.act{white-space:nowrap;min-width:170px}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<style id="cmucoop-accessible-design">
-/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
-:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
-html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
-:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
-:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
-:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
-:where(button,input,select,textarea){font-family:inherit}
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
-:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
-:where(a){text-underline-offset:3px}
-:where(a:hover){text-decoration-thickness:2px}
-:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
-:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
-:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
-:where(.top h1,.appbar h1){letter-spacing:-.025em}
-:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
-:where(table){border-collapse:separate;border-spacing:0}
-:where(th){font-weight:700}
-:where(th,td){vertical-align:middle}
-:where(.num){font-variant-numeric:tabular-nums}
-:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
-:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-/* Dedicated keyboard-only bypass navigation */
-.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
-.wcag-skip:focus{transform:translateY(0)}
-/* Desktop-quality spacing, adaptive on phones and zoom */
-@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
-@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
-@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
-
-:root{--bg:#f6f3fb;--panel:#ffffff;--ink:#281d44;--steel:#554a70;--line:#d8cee9;--accent:#7541d1;--accent-text:#6231ba;--accent-soft:#eee6ff}
-:where(.top){box-shadow:0 3px 20px rgba(25,13,51,.12)}
-:where(.panel,.card,.box){border-color:var(--line)}
-:where(button){border-radius:10px}
-:where(button:hover:not(:disabled)){filter:brightness(.97)}
-</style></head>
+<link href="app.css" rel="stylesheet"/></head>
 <body class="locked" data-nav="sound"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== ระบบเสียงประกาศ ========== -->
 <div class="page" id="soundPage">
 <header class="phead" role="banner">
 <h1>ระบบเสียงประกาศ</h1>
 <span class="me" id="sMe"></span>
-<button class="btn ghost small hidden" id="sGoCfg">⚙ ตั้งค่าเสียง</button>
+<button class="btn ghost small hidden" id="sGoCfg"> ตั้งค่าเสียง</button>
 <button class="btn ghost small" id="sHome">← เมนูหลัก</button>
 <button class="btn ghost small js-logout">ออกจากระบบ</button>
 </header>
@@ -581,7 +542,6 @@ var S = { token: '', me: null };
   }
   if (S.token) {
     try { var cm = sessionStorage.getItem('pm_me'); if (cm) S.me = JSON.parse(cm); } catch (e) {}
-    document.body.classList.remove('locked');
   }
 })();
 
@@ -589,9 +549,12 @@ function setNav(n) {
   document.body.dataset.nav = n || 'sound';
 }
 function showLogin(msg) {
+  if (SND && SND.client) { SND.client.end(true); SND.client = null; }
+  if (SND) { SND.cfg = null; SND.hist = []; }
   S.token = ''; S.me = null;
   try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   document.body.classList.add('locked');
+  document.querySelectorAll('.modalwrap,.overlay').forEach(function (dialog) { dialog.classList.add('hidden'); });
   if ($('#login')) $('#login').classList.remove('hidden');
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
@@ -620,20 +583,20 @@ function sndNeedFile(t) { return t !== 'เวลา' && t !== 'ตั้งค�
 function sndStatus(t, ok) { var el = $('#sStatus'); el.textContent = t; el.className = 'sbox' + (ok ? ' ok' : ''); }
 function sndConnect() {
   if (SND.client) { sndStatus(SND.client.connected ? 'ออนไลน์ พร้อมส่งสัญญาณ' : 'กำลังเชื่อมต่อระบบส่งสัญญาณ…', SND.client.connected); return; }
-  if (typeof mqtt === 'undefined') { sndStatus('⚠️ โหลดระบบส่งสัญญาณไม่สำเร็จ ลองรีเฟรชหน้านี้', false); return; }
+  if (typeof mqtt === 'undefined') { sndStatus(' โหลดระบบส่งสัญญาณไม่สำเร็จ ลองรีเฟรชหน้านี้', false); return; }
   SND.client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
   SND.client.on('connect', function () { sndStatus('ออนไลน์ พร้อมส่งสัญญาณ', true); });
-  SND.client.on('offline', function () { sndStatus('⚠️ ขาดการเชื่อมต่อ กำลังเชื่อมต่อใหม่…', false); });
+  SND.client.on('offline', function () { sndStatus(' ขาดการเชื่อมต่อ กำลังเชื่อมต่อใหม่…', false); });
 }
 function sndRenderHist() {
   $('#sHist').innerHTML = SND.hist.map(function (x) {
-    return '<div><span>✅ <b>' + esc(x.t) + '</b></span><span class="muted">' + new Date(x.ts).toLocaleTimeString('th-TH') + '</span></div>';
+    return '<div><span> <b>' + esc(x.t) + '</b></span><span class="muted">' + new Date(x.ts).toLocaleTimeString('th-TH') + '</span></div>';
   }).join('') || '<div class="muted">ยังไม่มีประวัติการส่ง</div>';
 }
 function sndPublish(topic, payload, label) {
   if (!SND.client || !SND.client.connected) { toast('ยังเชื่อมต่อระบบส่งสัญญาณไม่ได้ กรุณารอสักครู่', true); return; }
   SND.client.publish(topic, JSON.stringify(payload));
-  sndStatus('📡 ส่งสัญญาณ [' + label + '] สำเร็จ', true);
+  sndStatus(' ส่งสัญญาณ [' + label + '] สำเร็จ', true);
   setTimeout(function () { sndStatus('ออนไลน์ พร้อมส่งสัญญาณ', true); }, 1500);
   SND.hist.unshift({ t: label, ts: Date.now() }); SND.hist = SND.hist.slice(0, 30); sndRenderHist();
   call('soundLog', 'ส่งสัญญาณ', label).catch(function () {});
@@ -646,7 +609,7 @@ function sndRender() {
     return '<div class="kb"><span class="kl">' + esc(b.label) + '</span><button class="kbtn" data-k="' + esc(b.code) + '" data-l="' + esc(b.label) + '">' + esc(b.code.replace('_', '.')) + '</button></div>';
   }).join('') || '<div class="muted">ยังไม่มีเสียง — ให้แอดมินนำเข้าหรืออัปโหลดไฟล์เสียงในแท็บ "ตั้งค่าเสียง"</div>';
   $('#sTimed').innerHTML = c.timed.map(function (b) {
-    return '<button class="btn ghost" data-k="' + esc(b.code) + '" data-l="' + esc(b.label) + '" data-io="1">🔊 ' + esc(b.label) + '</button>';
+    return '<button class="btn ghost" data-k="' + esc(b.code) + '" data-l="' + esc(b.label) + '" data-io="1"> ' + esc(b.label) + '</button>';
   }).join('') || '<div class="muted">ยังไม่มีเสียงพิเศษ</div>';
   $('#sCashier').innerHTML = sndOpts(c.cashiers);
   $('#sNotice').innerHTML = sndOpts(c.notices);
@@ -659,12 +622,17 @@ function sndRender() {
 }
 async function openSound() {
   if (!hasPerm('sound')) return;
+  var token = S.token;
   setNav('sound');
   var admin = S.me.role === 'admin';
   $('#sMe').textContent = S.me.name;
   $('#sGoCfg').classList.toggle('hidden', !admin);
   sndTab('send'); sndConnect(); sndRenderHist();
-  try { SND.cfg = await call('getSoundConfig'); sndRender(); } catch (e) { toast(e.message, true); }
+  try {
+    var config = await call('getSoundConfig');
+    if (token !== S.token || !S.me) return;
+    SND.cfg = config; sndRender();
+  } catch (e) { if (token === S.token) toast(e.message, true); }
 }
 function sndTab(t) {
   document.querySelectorAll('#sTabs .stab').forEach(function (x) { x.classList.toggle('on', x.dataset.st === t); });
@@ -717,6 +685,7 @@ async function startApp(me) {
   await openSound();
 }
 async function doLogin() {
+  if ($('#lgBtn').disabled) return;
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
   $('#lgBtn').disabled = true; $('#lgErr').textContent = '';
@@ -773,15 +742,8 @@ function linkParams() {
     } catch (e) { showLogin(e.message); return; }
   }
   if (S.token) {                                  // กู้เซสชันเดิมทันทีโดยไม่กะพริบหน้าล็อกอิน
-    if (S.me && S.me.role) {
-      await startApp(S.me);
-      call('whoami').then(function (me) {
-        S.me = me;
-        try { sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
-      }).catch(function () {});
-      return;
-    }
-    try { var me = await call('whoami'); await startApp(me); return; } catch (e) {}
+    try { var me = await call('whoami'); await startApp(me); return; }
+    catch (e) { showLogin(e.message); return; }
   }
   showLogin('');
 })();

@@ -9,8 +9,7 @@
 <script src="gas-shim.js"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <base target="_top"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="fonts.css" rel="stylesheet"/>
 <style>
 :root{
   --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
@@ -401,45 +400,7 @@ td.act{white-space:nowrap;min-width:170px}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<style id="cmucoop-accessible-design">
-/* CMUCOOP Design System 2026 — premium minimal layout, original violet identity retained */
-:root{color-scheme:light;--ui-radius:16px;--ui-ring:#e1cfff;--ui-shadow:0 8px 30px rgba(42,31,71,.075);--ui-max:1440px}
-html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-:where(button,input,select,textarea,a,[role="button"],[tabindex]):focus-visible{outline:3px solid #a87cf8!important;outline-offset:3px!important;box-shadow:0 0 0 5px rgba(255,255,255,.8)!important}
-:where(button,[role="button"],input[type="submit"],input[type="button"]){touch-action:manipulation}
-:where(button,[role="button"]){min-height:40px;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
-:where(button,[role="button"]):not(:disabled):active{transform:scale(.985)}
-:where(button,input,select,textarea){font-family:inherit}
-:where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),select,textarea){max-width:100%;min-height:42px;border-radius:11px}
-:where(input,select,textarea):disabled{cursor:not-allowed;opacity:.72}
-:where(a){text-underline-offset:3px}
-:where(a:hover){text-decoration-thickness:2px}
-:where(.panel,.card,.box,.modal-content,.dialog-content,.section,.state){box-shadow:var(--ui-shadow)}
-:where(.panel,.card,.box,.modal-content,.dialog-content){border-radius:var(--ui-radius)}
-:where(.top,.appbar){backdrop-filter:saturate(145%);-webkit-backdrop-filter:saturate(145%)}
-:where(.top h1,.appbar h1){letter-spacing:-.025em}
-:where(.muted,.hint,.subtle){font-size:max(14px, .875rem)}
-:where(table){border-collapse:separate;border-spacing:0}
-:where(th){font-weight:700}
-:where(th,td){vertical-align:middle}
-:where(.num){font-variant-numeric:tabular-nums}
-:where([aria-disabled="true"]){cursor:not-allowed;opacity:.65}
-:where(.sr-only){position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-/* Dedicated keyboard-only bypass navigation */
-.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:3px solid #7a4be0;padding:11px 18px;border-radius:12px;font-weight:700;text-decoration:none}
-.wcag-skip:focus{transform:translateY(0)}
-/* Desktop-quality spacing, adaptive on phones and zoom */
-@media(max-width:768px){body{font-size:16px}:where(.top,.appbar){gap:10px;padding-inline:clamp(12px,3vw,22px)}:where(.panel,.card,.box){max-width:100%}:where(table){font-size:14px}:where(button,input,select,textarea){font-size:16px}:where(.status){min-width:0;max-width:100%}}
-@media(max-width:480px){:where(.top,.appbar){position:relative}:where(.panel,.card,.box){border-radius:14px}:where(button){min-height:44px}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
-@media(forced-colors:active){:where(button,a,input,select,textarea):focus-visible{outline:3px solid Highlight!important}:where(.panel,.card,.box){border:1px solid CanvasText}}
-
-:root{--bg:#f6f3fb;--panel:#ffffff;--ink:#281d44;--steel:#554a70;--line:#d8cee9;--accent:#7541d1;--accent-text:#6231ba;--accent-soft:#eee6ff}
-:where(.top){box-shadow:0 3px 20px rgba(25,13,51,.12)}
-:where(.panel,.card,.box){border-color:var(--line)}
-:where(button){border-radius:10px}
-:where(button:hover:not(:disabled)){filter:brightness(.97)}
-</style></head>
+<link href="app.css" rel="stylesheet"/></head>
 <body class="locked" data-nav="portal"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== เมนูหลัก (หลังเข้าสู่ระบบ) ========== -->
 <div class="page" id="portal">
@@ -451,12 +412,12 @@ html{scroll-behavior:smooth} body{font-size:16px;line-height:1.6;-webkit-font-sm
 <div class="pwrap" id="wcag-main" role="main">
 <div class="cardrow" style="margin:0"><h2>เลือกระบบที่ต้องการใช้งาน</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><button aria-label="ปรับขนาดการ์ด" class="btn ghost small" id="portalSize" style="padding:0;width:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center" title="ปรับขนาดการ์ด"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="18"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" x2="21" y1="16.5" y2="21"></line></svg></button></span></div>
 <div class="menu">
-<button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b></button>
-<button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b></button>
-<button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b></button>
-<button class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b></button>
-<button class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b></button>
-<button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b></button>
+<button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b><span>จัดการรายการสินค้าและพิมพ์รายงานบาร์โค้ด</span></button>
+<button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b><span>ควบคุมเสียงประกาศและเรียกพนักงาน</span></button>
+<button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b><span>จัดการคำขอและลำดับการเล่นเพลง</span></button>
+<button class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b><span>ติดตามอายุสินค้า มูลค่าคงเหลือ และแนวโน้ม</span></button>
+<button class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b><span>สำรวจราคา เปรียบเทียบ และส่งออกรายงาน</span></button>
+<button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b><span>ผู้ใช้งาน สิทธิ์ และการตั้งค่าระบบ</span></button>
 </div>
 </div>
 </div>
@@ -560,7 +521,6 @@ var S = { token: '', me: null, initSp: '' };
   }
   if (S.token) {
     try { var cm = sessionStorage.getItem('pm_me'); if (cm) S.me = JSON.parse(cm); } catch (e) {}
-    document.body.classList.remove('locked');
   }
 })();
 
@@ -571,6 +531,7 @@ function showLogin(msg) {
   S.token = ''; S.me = null;
   try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   document.body.classList.add('locked');
+  document.querySelectorAll('.modalwrap,.overlay').forEach(function (dialog) { dialog.classList.add('hidden'); });
   if ($('#login')) $('#login').classList.remove('hidden');
   setNav('portal');
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
@@ -728,6 +689,7 @@ $('#sizeReset').addEventListener('click', function () { SZ = { c: 1, f: 1, n: 0 
 $('#sizeClose').addEventListener('click', function () { $('#sizeModal').classList.add('hidden'); });
 
 async function doLogin() {
+  if ($('#lgBtn').disabled) return;
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
   $('#lgBtn').disabled = true; $('#lgErr').textContent = '';
@@ -799,15 +761,8 @@ function linkParams() {
     } catch (e) { showLogin(e.message); return; }
   }
   if (S.token) {                                  // กู้เซสชันเดิมทันทีโดยไม่กะพริบหน้าล็อกอิน
-    if (S.me && S.me.role) {
-      await startApp(S.me);
-      call('whoami').then(function (me) {
-        S.me = me;
-        try { sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
-      }).catch(function () {});
-      return;
-    }
-    try { var me = await call('whoami'); await startApp(me); return; } catch (e) {}
+    try { var me = await call('whoami'); await startApp(me); return; }
+    catch (e) { showLogin(e.message); return; }
   }
   showLogin('');
 })();

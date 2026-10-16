@@ -1,6 +1,6 @@
 /* gas-shim.js — ให้หน้าเว็บ (GitHub Pages) เรียกฟังก์ชันฝั่งหลังบ้าน (Cloudflare Worker) ได้ด้วยรูปแบบเดิม google.script.run.xxx()
  * แก้ API_URL เป็นลิงก์ของ Worker (https://ชื่อworker.ชื่อบัญชี.workers.dev) เท่านั้น */
-window.API_URL = 'https://cmucoop-api.cmucoopcashier.workers.dev';
+window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.dev';
 
 (function () {
   function post(fn, args) {
@@ -31,12 +31,18 @@ window.API_URL = 'https://cmucoop-api.cmucoopcashier.workers.dev';
   function runner(ok, fail) {
     return new Proxy({}, {
       get: function (_, name) {
+        // A runner is a callback builder, not a Promise. Avoid an accidental RPC
+        // named "then" when it is inspected by Promise.resolve or browser tools.
+        if (name === 'then') return undefined;
         if (name === 'withSuccessHandler') return function (f) { return runner(f, fail); };
         if (name === 'withFailureHandler') return function (f) { return runner(ok, f); };
         if (typeof name !== 'string') return undefined;
         return function () {
           var args = Array.prototype.slice.call(arguments);
-          post(name, args).then(function (d) { if (ok) ok(d); }, function (e) { if (fail) fail({ message: e.message }); else console.error(e); });
+          return post(name, args).then(function (d) { if (typeof ok === 'function') ok(d); }, function (e) {
+            if (typeof fail === 'function') fail({ message: e.message });
+            else console.error(e);
+          }).catch(function (e) { console.error('เกิดข้อผิดพลาดระหว่างแสดงผลข้อมูล', e); });
         };
       }
     });
