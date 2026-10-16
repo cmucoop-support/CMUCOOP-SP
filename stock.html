@@ -11,20 +11,16 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root{
-  --ink:#24193d; --steel:#54496e; --bg:#f5f2fc; --panel:#fff; --line:#d6c8ef; --border-ui:#7e6f9d;
-  --accent:#6838e3; --accent-text:#5629c4; --accent-soft:#efe8ff;
-  --ok:#136a3c; --warn:#854d0e; --bad:#b42318; --old:#525f6d;
-  --c-DS:#b42318; --c-T3:#8c5100; --c-T2:#236837; --c-T1:#136a3c; --c-NA:#525f6d;
+  --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
+  --accent:#7a4be0; --accent-text:#6a3fd1; --accent-soft:#f0e8ff;
+  --ok:#176b3f; --warn:#7d5d0f; --bad:#b42318; --old:#6b7684;
+  --c-DS:#c0392b; --c-T3:#946200; --c-T2:#3b7a28; --c-T1:#176b3f; --c-NA:#5a6573;
 }
-.skip-link{position:fixed;top:-100px;left:16px;z-index:9999;background:var(--ink);color:#fff;padding:10px 18px;border-radius:0 0 12px 12px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:top .15s}
-.skip-link:focus{top:0;outline:3px solid #ffca28;outline-offset:2px}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Thai',Tahoma,sans-serif}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:3px solid var(--accent-text);outline-offset:2px}
-.top :focus-visible{outline:3px solid #fff;outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .hidden{display:none!important}
 .muted{color:var(--steel);font-size:14px}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -60,7 +56,7 @@ input[type=text],input[type=search],input[type=password],input[type=number],sele
 .chip.on{border-color:var(--accent-text);background:var(--accent-soft);color:var(--ink)}
 .chip:hover{border-color:var(--accent-text)}
 .pill{display:inline-flex;gap:8px;align-items:center;background:var(--accent-soft);border:1px solid var(--accent);border-radius:999px;padding:3px 6px 3px 12px;font-size:14px}
-.pill button{border:0;background:#fff;border-radius:50%;width:22px;height:22px;line-height:20px;padding:0;color:var(--accent-text);font-weight:700}
+.pill button{border:0;background:#fff;border-radius:50%;width:24px;height:24px;min-width:24px;min-height:24px;line-height:22px;padding:0;color:var(--accent-text);font-weight:700}
 
 /* ---------- KPI ---------- */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
@@ -84,13 +80,15 @@ table{border-collapse:collapse;width:100%;font-size:13.5px}
 th,td{padding:3px 8px;border-bottom:1px solid #e6ebf0;text-align:left;vertical-align:top}
 th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:600;padding:6px 8px;text-align:center;white-space:nowrap;cursor:pointer;user-select:none;z-index:1}   /* = .dt th ของหน้าหลัก */
 th.num{text-align:center}
-th[aria-sort="ascending"]::after{content:" ▲";font-size:11px}
-th[aria-sort="descending"]::after{content:" ▼";font-size:11px}
+th[aria-sort="ascending"]::after{content:" ▲";font-size:12px}
+th[aria-sort="descending"]::after{content:" ▼";font-size:12px}
 tbody tr:hover td{background:#f8f4ff}
 tfoot td{font-weight:700;background:var(--accent-soft);position:sticky;bottom:0}
 tr.sel td{background:var(--accent-soft)}
-th.nosort{cursor:default}
-tr.click{cursor:pointer}
+th.nosort,th:not([data-k]){cursor:default}
+tr.click{cursor:default}
+.g-row-btn{border:0;background:none;padding:2px 4px;margin:-2px -4px;font:inherit;font-weight:600;color:var(--accent-text);text-align:left;cursor:pointer;border-radius:6px;min-height:24px;text-decoration:underline;text-underline-offset:.18em}
+.g-row-btn[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
 .badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;color:#fff;background:var(--c-NA);white-space:nowrap}
 .badge.DS{background:var(--c-DS)}.badge.T3{background:var(--c-T3)}.badge.T2{background:var(--c-T2)}.badge.T1{background:var(--c-T1)}
 .bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle;margin-right:6px;min-width:2px}
@@ -110,9 +108,9 @@ tr.click{cursor:pointer}
 .dlg h2{margin:0 0 4px;font-size:19px}
 .dlg .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;justify-content:flex-end}
 .err{color:var(--bad);min-height:20px;font-size:14px;margin-top:6px}
-.drop{border:2px dashed var(--accent);border-radius:12px;background:var(--accent-soft);padding:26px 14px;text-align:center;margin-top:12px;cursor:pointer}
+.drop{display:block;width:100%;font:inherit;color:var(--ink);border:2px dashed var(--accent);border-radius:12px;background:var(--accent-soft);padding:26px 14px;text-align:center;margin-top:12px;cursor:pointer}
 .drop.over{background:#e4d5ff}
-.drop.off{opacity:.55;cursor:not-allowed;border-color:var(--line);background:#f3f3f3}
+.drop.off{cursor:not-allowed;border-color:var(--field-line);background:#f3f1f8;color:var(--steel)}
 .brpick{display:grid;gap:8px;margin-top:12px}
 .brpick label{font-weight:600;font-size:14px}
 .drop b{display:block;font-size:16px}
@@ -134,10 +132,11 @@ tr.click{cursor:pointer}
 .tab[disabled]{opacity:.45;cursor:default}
 .tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent-text);white-space:nowrap}
 .tag.new{background:#e6f6ec;color:var(--ok)}.tag.old{background:#fdecea;color:var(--bad)}
-.tag.hard{background:#fff1d6;color:#9a5b00;border:1px solid #f0c36d;margin-left:6px;font-size:11.5px;padding:0 8px}
-.tag.t-lost{background:#fdecea;color:#b3261e;border-color:#f2b8b5}.tag.t-exp{background:#f3e8fd;color:#6a1b9a;border-color:#d9b8f2}.tag.t-pend{background:#e3f0fd;color:#0b5394;border-color:#aecdf2}.tag.t-waste{background:#eceff1;color:#455a64;border-color:#b8c4ca}
+.tag.hard{background:#fff1d6;color:#7d4900;border:1px solid #e0b054;margin-left:6px;font-size:12px;padding:1px 8px}
+button.tag.hard{min-height:24px;cursor:pointer}
+.tag.t-lost{background:#fdecea;color:#b3261e;border-color:#f2b8b5}.tag.t-exp{background:#f3e8fd;color:#6a1b9a;border-color:#d9b8f2}.tag.t-pend{background:#e3f0fd;color:#0b5394;border-color:#aecdf2}.tag.t-waste{background:#eceff1;color:#37474f;border-color:#b8c4ca}
 .tagnote{font-size:12px;color:var(--steel);margin-top:2px;white-space:normal}.tag.hard[data-hardnote]{cursor:pointer}
-.tag.t-lost,.tag.t-exp,.tag.t-pend,.tag.t-waste{border:1px solid;margin-left:6px;font-size:11.5px;padding:0 8px}
+.tag.t-lost,.tag.t-exp,.tag.t-pend,.tag.t-waste{border:1px solid;margin-left:6px;font-size:12px;padding:1px 8px}
 .up{color:var(--bad)}.down{color:var(--ok)}
 .opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-top:8px;cursor:pointer;background:#fff;color:var(--ink);font-size:15px;font-weight:400}
 .opt input{margin-top:6px}
@@ -148,7 +147,7 @@ textarea{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9
 @media print{.top .acts,.filters,.pager,.btn{display:none!important}.tscroll{max-height:none}}
 
 /* ================= ธีมม่วงเดียวกับเว็บหลัก (index.html) ================= */
-:root{--grad:linear-gradient(135deg,#5225c2,#6838e3 60%,#7849f0);--shadow:0 4px 16px rgba(86,41,196,.12);--r:16px}
+:root{--grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff);--shadow:0 4px 16px rgba(106,63,209,.12);--r:16px}
 html,body{-webkit-tap-highlight-color:transparent}
 .top{background:var(--grad);padding:calc(12px + env(safe-area-inset-top)) 18px 12px;border-radius:0 0 22px 22px;box-shadow:0 6px 20px rgba(106,63,209,.3)}
 .top h1{letter-spacing:.2px}
@@ -157,10 +156,9 @@ html,body{-webkit-tap-highlight-color:transparent}
 .btn{border-radius:999px;padding:9px 18px;min-height:40px;transition:transform .1s,filter .15s;box-shadow:0 2px 8px rgba(153,102,255,.3)}
 .btn:active{transform:scale(.97)}
 .btn.ghost{box-shadow:none}
-.btn.small{min-height:36px;padding:6px 14px}
+.btn.small{min-height:32px;padding:5px 13px}
 .btn.onDark{border-color:rgba(255,255,255,.6);color:#fff;background:rgba(255,255,255,.12);box-shadow:none}
-input[type=text],input[type=search],input[type=password],input[type=number],select,textarea{border-radius:12px;padding:10px 12px;border:1.5px solid var(--border-ui);background:#fbf9ff;min-height:42px}
-.btn.ghost,.chip,.chk-pill,.mgrp-btn{border-color:var(--border-ui)}
+input[type=text],input[type=search],input[type=password],input[type=number],select,textarea{border-radius:12px;padding:10px 12px;border:1.5px solid var(--line);background:#fbf9ff}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(153,102,255,.2)}
 :focus-visible{outline-color:var(--accent)}
 input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px}
@@ -190,7 +188,7 @@ tfoot td{background:var(--accent-soft)}
 .chk-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1.5px solid var(--line);border-radius:999px;background:#fff;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;user-select:none;transition:border-color .15s,background .15s}
 .chk-pill:hover{border-color:var(--accent)}
 .chk-pill:has(input:checked){border-color:var(--accent-text);background:var(--accent-soft);color:var(--accent-text);font-weight:600}
-.chk-pill input[type=checkbox]{width:16px;height:16px;margin:0;cursor:pointer}
+.chk-pill input[type=checkbox]{width:24px;height:24px;margin:0;cursor:pointer}
 .grp-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;position:relative}
 .mgrp-wrap{position:relative;flex:1 1 260px;max-width:480px}
 .mgrp-btn{width:100%;border-radius:12px;padding:10px 14px;border:1.5px solid var(--line);background:#fbf9ff;color:var(--ink);text-align:left;display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:500;min-height:42px}
@@ -199,17 +197,17 @@ tfoot td{background:var(--accent-soft)}
 .mgrp-btn.open .arr{transform:rotate(180deg)}
 .mgrp-menu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:80;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(42,31,71,.2);padding:8px;max-height:320px;overflow:auto;display:grid;gap:2px}
 .mgrp-top{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px;flex-wrap:wrap}
-.mgrp-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;font-size:13.5px;user-select:none}
+.mgrp-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px;font-size:13.5px;user-select:none}
 .mgrp-item:hover{background:#f8f4ff}
 .mgrp-item.on{background:var(--accent-soft);font-weight:600}
 .mgrp-item label{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0;color:var(--ink);font-weight:inherit}
 .dot-btn{min-width:34px;min-height:30px;padding:2px 10px!important;font-size:18px;line-height:1;font-weight:700;border-radius:8px!important}
 .dot-pop{position:fixed;z-index:120;background:#fff;border:1.5px solid var(--line);border-radius:14px;box-shadow:0 12px 32px rgba(42,31,71,.22);padding:10px 12px;min-width:250px;max-width:320px;display:grid;gap:6px}
 .dot-pop-hd{font-size:12.5px;color:var(--steel);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:2px;font-weight:600}
-.dot-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 6px;border-radius:8px;cursor:pointer;font-size:13.5px}
+.dot-opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 6px;border-radius:8px;font-size:13.5px}
 .dot-opt:hover{background:#f8f4ff}
 .dot-opt label{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;font-weight:500}
-.dot-opt .mini-act{border:0;background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:2px 7px;font-size:11.5px;font-weight:600}
+.dot-opt .mini-act{border:0;background:var(--accent-soft);color:var(--accent-text);border-radius:6px;padding:3px 9px;min-height:26px;font-size:12px;font-weight:600}
 .dot-opt .mini-act:hover{filter:brightness(.95)}
 tr.row-cut td{background:#fff9f9}
 tr.row-zero td{color:var(--steel);background:#fafafa}
@@ -224,10 +222,10 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .an-badge.up{background:#fdecea;color:var(--bad)}
 .an-badge.down{background:#e6f6ec;color:var(--ok)}
 .an-badge.flat{background:#eef1f5;color:var(--steel)}
-.an-vbtn{padding:1px 9px!important;min-height:22px!important;font-size:12px!important;margin-left:5px;vertical-align:baseline;line-height:1.3}
+.an-vbtn{padding:3px 10px!important;min-height:26px!important;min-width:32px;font-size:12.5px!important;margin-left:5px;vertical-align:baseline;line-height:1.3}
 .an-vbtn.on{background:var(--accent);color:#fff}
 .an-listbox{margin-top:14px;border:1.5px solid #d9c8ff;border-radius:14px;padding:12px 14px;background:#faf7ff;display:grid;gap:8px}
-.bc-btn{border:1px solid #b99aff;background:#f3ecff;color:#5b2fc9;margin-left:6px;font-size:11.5px;padding:1px 8px;cursor:pointer;font-weight:600;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
+.bc-btn{border:1px solid #b99aff;background:#f3ecff;color:#5b2fc9;margin-left:6px;font-size:12px;padding:2px 10px;min-height:26px;cursor:pointer;font-weight:600;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
 .bc-btn:hover{background:#e4d5ff;border-color:#7a4be0}
 .bc-btn.bc-pack{background:#e6f4ea;color:#137333;border-color:#a8dab5}
 .bc-btn.bc-pack:hover{background:#ceead6;border-color:#137333}
@@ -236,13 +234,13 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .top .btn.exportMain{background:#fff;color:var(--accent-text,#5b3fd0);border:2px solid #fff;font-weight:800;font-size:15px;padding:7px 18px;min-height:38px;box-shadow:0 3px 12px rgba(0,0,0,.3)}
 .top .btn.exportMain:hover{background:#f3ecff;transform:translateY(-1px)}
 </style>
+<link rel="stylesheet" href="a11y.css">
 </head>
 <body>
-<a href="#mainContent" class="skip-link">ข้ามไปยังเนื้อหาหลัก</a>
 
-<header class="top">
+<header class="top" role="banner">
   <h1>สินค้าค้างสต็อก</h1>
-  <div class="info" id="info" role="status" aria-live="polite">กำลังโหลดข้อมูล…</div>
+  <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
     <button class="btn exportMain small hidden" id="bUpload">&#11014; อัปโหลดข้อมูล</button>
     <button class="btn exportMain small" id="bXlsx">&#11015; ดาวน์โหลดข้อมูล</button>
@@ -252,7 +250,7 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   </div>
 </header>
 
-<main class="wrap" id="mainContent" tabindex="-1">
+<div class="wrap" id="app" role="main">
 
   <div class="card empty hidden" id="empty">
     <h2>ยังไม่มีข้อมูลสินค้าค้างสต็อก</h2>
@@ -261,7 +259,7 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 
   <div id="main" class="wrap" style="padding:0" hidden>
     <section class="card" style="padding-bottom:0">
-      <div class="tabs" id="verTabs" role="tablist" aria-label="เลือกฉบับข้อมูล"></div>
+      <div class="tabs" id="verTabs" role="tablist"></div>
       <div class="muted" id="verNote" style="padding:8px 0 10px"></div>
     </section>
     <section class="card filters">
@@ -271,8 +269,8 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
           <span>หมวดสินค้า</span>
           <div class="grp-bar">
             <div class="mgrp-wrap" id="fGrpWrap">
-              <button type="button" class="mgrp-btn" id="fGrpBtn" aria-haspopup="listbox" aria-expanded="false" aria-controls="fGrpMenu" aria-label="เลือกหมวดสินค้า"><span id="fGrpLabel">ทุกหมวด</span><span class="arr" aria-hidden="true">&#9662;</span></button>
-              <div class="mgrp-menu hidden" id="fGrpMenu"></div>
+              <button type="button" class="mgrp-btn" id="fGrpBtn" aria-haspopup="true" aria-expanded="false" aria-controls="fGrpMenu" aria-label="เลือกหมวดสินค้า"><span id="fGrpLabel">ทุกหมวด</span><span class="arr" aria-hidden="true">&#9662;</span></button>
+              <div class="mgrp-menu hidden" id="fGrpMenu" role="group" aria-label="ตัวเลือกหมวดสินค้า"></div>
             </div>
             <select id="fGrp" class="hidden"></select>
           </div>
@@ -299,16 +297,16 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     <section class="kpis" id="kpis"></section>
 
     <section class="charts">
-      <div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup" role="img" aria-label="กราฟมูลค่าทุนทั้งหมดแยกตามหมวด"></canvas></div></div>
-      <div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus" role="img" aria-label="กราฟสัดส่วนมูลค่าทุนตามช่วงอายุสินค้า"></canvas></div></div>
-      <div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge" role="img" aria-label="กราฟช่วงอายุสินค้าที่ค้าง"></canvas></div></div>
-      <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop" role="img" aria-label="กราฟ 10 อันดับสินค้ามูลค่าค้างสูงสุด"></canvas></div></div>
+      <div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
+      <div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
+      <div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
+      <div class="card"><h3>10 อันดับสินค้ามูลค่าค้างสูงสุด</h3><div class="cbox" id="boxTop"><canvas id="chTop"></canvas></div></div>
       <div class="card" style="grid-column:1/-1"><div class="cardhead"><h3>แนวโน้มมูลค่าทุนตามวันที่อัปโหลด <small id="trNote"></small></h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="trMode" aria-label="เลือกรูปแบบกราฟแนวโน้ม" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 30–60 วัน T3</option></select>
+          <select id="trMode" aria-label="รูปแบบการแสดงกราฟแนวโน้ม" style="max-width:320px"><option value="total">รวมทั้งร้าน DS + T3</option><option value="gDS">แยกตามหมวด — ค้างเกิน 60 วัน DS</option><option value="gT3">แยกตามหมวด — 30–60 วัน T3</option></select>
           <button type="button" class="btn ghost small hidden" id="bTrendHist">ลบประวัติสถิติย้อนหลัง</button>
         </div></div>
-        <div class="cbox" id="boxTrend"><canvas id="chTrend" role="img" aria-label="กราฟแนวโน้มมูลค่าทุนตามวันที่อัปโหลด"></canvas></div></div>
+        <div class="cbox" id="boxTrend"><canvas id="chTrend"></canvas></div></div>
     </section>
 
     <section class="card">
@@ -329,11 +327,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
     </section>
 
     <section class="card" id="deductCard" hidden>
-      <div class="cardhead" id="deductHead" style="cursor:pointer;user-select:none;margin-bottom:0">
+      <div class="cardhead" id="deductHead" style="user-select:none;margin-bottom:0">
         <h3>สรุปรายการที่หักออกจากค้างสต็อก <small id="deductNote"></small></h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <div class="tabs hidden" id="deductTabs" role="tablist"></div>
-          <button type="button" class="btn ghost small" id="bToggleDeduct">ขยายดูข้อมูล &#9662;</button>
+          <button type="button" class="btn ghost small" id="bToggleDeduct" aria-expanded="false" aria-controls="deductBody">ขยายดูข้อมูล &#9662;</button>
         </div>
       </div>
       <div id="deductBody" class="hidden" style="margin-top:8px">
@@ -350,41 +348,41 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
       <div id="anListBox" class="an-listbox hidden"></div>
     </section>
   </div>
-</main>
+</div>
 
 <!-- เข้าสู่ระบบ (หน้าตาเดียวกับหน้าหลัก) -->
-<div class="loginwrap hidden" id="login" role="region" aria-labelledby="loginTitle">
+<div class="loginwrap hidden" id="login">
   <div class="logincard">
-    <h2 id="loginTitle">เข้าสู่ระบบ · สินค้าค้างสต็อก</h2>
+    <h2>เข้าสู่ระบบ</h2>
     <div class="muted" id="lgMsg">เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก</div>
     <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
     <label>รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
-    <div class="err" id="lgErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="lgErr"></div>
     <div class="row"><button class="btn" id="lgBtn">เข้าสู่ระบบ</button></div>
   </div>
 </div>
 
 <!-- อัปโหลด -->
-<div class="overlay hidden" id="upDlg" role="dialog" aria-modal="true" aria-labelledby="upDlgTitle">
+<div class="overlay hidden" id="upDlg">
   <div class="dlg wide">
-    <h2 id="upDlgTitle">อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
+    <h2>อัปโหลดไฟล์ Excel สินค้าค้างสต็อก</h2>
     <div class="muted">ใช้ไฟล์รายงานวิเคราะห์การขายรูปแบบเดิม (1 ชีต = 1 หมวด) · <b>อัปโหลดแยกสาขา: เลือกสาขาก่อน แล้วค่อยเลือกไฟล์</b> · ระบบแทนที่เฉพาะข้อมูลของสาขาที่เลือก (ในหมวดที่อยู่ในไฟล์) สาขาอื่นและหมวดอื่นไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า" 1 ฉบับ · <b>อัปเดตเฉพาะรายการที่เปลี่ยน</b> (รายการที่ข้อมูลเหมือนเดิมไม่ถูกแตะ หมวดที่ไม่มีอะไรเปลี่ยนจะข้ามทั้งหมวด) · จำนวนที่บันทึกไว้ใน "ของหาย" "สินค้าหมดอายุ" "รอปรับข้อมูล" และ "ของเสีย" ยังถูกหักออกจากค้างสต็อกเสมอ จนกว่าจะยกเลิก</div>
     <div class="brpick">
       <label>ขั้นที่ 1 · เลือกสาขาที่จะอัปโหลด<select id="upBr"></select></label>
       <label class="hidden" id="upBrNewW">ชื่อสาขาใหม่ (ต้องตรงกับค่าในคอลัมน์ "สาขา" ของไฟล์)<input type="text" id="upBrNew" maxlength="20" autocomplete="off"></label>
     </div>
-    <div class="drop off" id="drop" role="button" tabindex="0" aria-label="ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ Excel"><b>ขั้นที่ 2 · ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></div>
+    <button type="button" class="drop off" id="drop" aria-disabled="true"><b>ขั้นที่ 2 · ลากไฟล์มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</b><span class="muted">.xlsx · .xls · .csv</span></button>
     <input type="file" id="upFile" accept=".xlsx,.xls,.csv" class="hidden" multiple>
-    <div class="err" id="upErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="upErr"></div>
     <div class="pv hidden" id="pv"></div>
     <div class="row"><button class="btn ghost" id="upCancel">ปิด</button><button class="btn hidden" id="upSave">บันทึกหมวดที่เลือก</button></div>
   </div>
 </div>
 
 <!-- ส่งออก Excel -->
-<div class="overlay hidden" id="exDlg" role="dialog" aria-modal="true" aria-labelledby="exDlgTitle">
+<div class="overlay hidden" id="exDlg">
   <div class="dlg">
-    <h2 id="exDlgTitle">ส่งออกเป็นไฟล์ Excel</h2>
+    <h2>ส่งออกเป็นไฟล์ Excel</h2>
     <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
     <label class="opt"><input type="radio" name="exMode" value="filter" checked><span><b>ตามตัวกรองที่เลือกอยู่</b><br><span class="muted" id="exN1"></span></span></label>
     <label class="opt"><input type="radio" name="exMode" value="all"><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br><span class="muted" id="exN2"></span></span></label>
@@ -398,13 +396,13 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
       <label class="chk-pill"><input type="checkbox" data-exx="zero" checked><span>คงเหลือ 0</span></label>
       <label class="chk-pill"><input type="checkbox" data-exx="neg" checked><span>ติดลบ</span></label>
     </div>
-    <div class="err" id="exErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="exErr"></div>
     <div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
   </div>
 </div>
 
 <!-- ของหาย / สินค้าหมดอายุ (ใช้หน้าต่างเดียวกัน · จำเฉพาะจำนวน) -->
-<div class="overlay hidden" id="lostDlg" role="dialog" aria-modal="true" aria-labelledby="lsTitle">
+<div class="overlay hidden" id="lostDlg">
   <div class="dlg wide">
     <h2 id="lsTitle">รายการของหาย</h2>
     <div class="muted" id="lsDesc"></div>
@@ -417,10 +415,10 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
       </div>
       <div class="row" style="margin-top:0"><button class="btn" id="lsAdd">เพิ่ม</button></div>
     </div>
-    <div class="err" id="lsErr" role="alert" aria-live="assertive"></div>
-    <div class="cardhead" style="margin-top:10px"><div class="muted" id="lsSum"></div><input type="search" id="lsQ" aria-label="ค้นหา บาร์ ชื่อ หรือหมายเหตุ" placeholder="ค้นหา บาร์ / ชื่อ / หมายเหตุ" autocomplete="off" style="max-width:260px"></div>
+    <div class="err" id="lsErr"></div>
+    <div class="cardhead" style="margin-top:10px"><div class="muted" id="lsSum"></div><input type="search" id="lsQ" placeholder="ค้นหา บาร์ / ชื่อ / หมายเหตุ" autocomplete="off" style="max-width:260px"></div>
     <div class="tscroll" style="max-height:360px"><table class="pvt">
-      <thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">สาขา</th><th class="nosort">หักจากสต็อก (หมวด · สาขา · ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" scope="col" id="lsThAct">จัดการ</th></tr></thead>
+      <thead><tr><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">สาขา</th><th class="nosort">หักจากสต็อก (หมวด · สาขา · ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก</th><th class="nosort">หมายเหตุ</th><th class="nosort">บันทึกเมื่อ</th><th class="nosort" id="lsThAct"></th></tr></thead>
       <tbody id="lsTb"></tbody>
     </table></div>
     <div class="row"><button class="btn ghost hidden" id="lsCancelAll" style="color:var(--bad)">ยกเลิกทั้งหมด</button><button class="btn ghost" id="lsClose">ปิด</button></div>
@@ -428,23 +426,23 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 </div>
 
 <!-- ล้างข้อมูล (แอดมิน + ใส่รหัส) -->
-<div class="overlay hidden" id="clDlg" role="dialog" aria-modal="true" aria-labelledby="clDlgTitle">
+<div class="overlay hidden" id="clDlg">
   <div class="dlg">
-    <h2 id="clDlgTitle">ล้างข้อมูลสินค้าค้างสต็อก</h2>
+    <h2>ล้างข้อมูลสินค้าค้างสต็อก</h2>
     <div class="muted">เฉพาะแอดมิน · ต้องใส่รหัสผ่านของคุณเพื่อยืนยัน (บัญชีที่เข้าทางลิงก์ใช้รหัสกู้คืนแอดมินแทนได้)</div>
     <label class="opt"><input type="radio" name="clMode" value="branch" checked><span><b>ล้างทั้งสาขา</b> (ทุกหมวด)<br><select id="clBr"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
     <label class="opt"><input type="radio" name="clMode" value="group"><span><b>ล้างทั้งหมวด</b> (ทุกสาขา)<br><select id="clG"></select><span class="muted">เก็บเป็น "ฉบับก่อนหน้า" กู้คืนได้</span></span></label>
     <label class="opt"><input type="radio" name="clMode" value="all"><span><b>ล้างข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา)<br><span class="muted"><b style="color:var(--bad)">ย้อนกลับไม่ได้</b> · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย · ชื่อหมวดคงไว้</span></span></label>
     <label style="display:block;margin-top:10px">รหัสผ่านยืนยัน<input type="password" id="clPw" autocomplete="current-password"></label>
-    <div class="err" id="clErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="clErr"></div>
     <div class="row"><button class="btn ghost" id="clCancel">ยกเลิก</button><button class="btn" id="clGo" style="background:var(--bad)">ล้างข้อมูล</button></div>
   </div>
 </div>
 
 <!-- ตั้งค่า (เพิ่มสาขา / เลือกสาขา / เพิ่มหมวด-ลบหมวด-ตั้งชื่อหมวดอิงตามสาขา / จัดการประวัติย้อนหลัง / ล้างข้อมูล) -->
-<div class="overlay hidden" id="nmDlg" role="dialog" aria-modal="true" aria-labelledby="nmDlgTitle">
+<div class="overlay hidden" id="nmDlg">
   <div class="dlg wide">
-    <h2 id="nmDlgTitle">ตั้งค่าหมวดและสาขา</h2>
+    <h2>ตั้งค่า</h2>
     <div class="muted">เพิ่มสาขาและจัดการหมวดสินค้าโดยอิงตามสาขาที่เลือก · แต่ละสาขาสามารถมีหมวดและชื่อหมวดของตัวเองได้</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#f3ecff;border:1px solid #d9c8ff;border-radius:12px">
       <label style="font-size:13px;font-weight:600;color:var(--ink);flex:1 1 180px">สาขาที่กำลังตั้งค่าหมวด<select id="nmBr"></select></label>
@@ -464,15 +462,15 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
       <button type="button" class="btn ghost small hidden" id="bHist">จัดการประวัติย้อนหลัง</button>
       <button type="button" class="btn ghost small hidden" id="bClear" style="color:var(--bad)">ล้างข้อมูล</button>
     </div>
-    <div class="err" id="nmErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="nmErr"></div>
     <div class="row"><button class="btn ghost" id="nmCancel">ปิด</button><button class="btn" id="nmSave">บันทึกตั้งค่าหมวด</button></div>
   </div>
 </div>
 
 <!-- จัดการประวัติข้อมูลและสถิติย้อนหลัง -->
-<div class="overlay hidden" id="histDlg" role="dialog" aria-modal="true" aria-labelledby="histDlgTitle">
+<div class="overlay hidden" id="histDlg">
   <div class="dlg wide">
-    <h2 id="histDlgTitle">จัดการประวัติข้อมูลและสถิติย้อนหลัง</h2>
+    <h2>จัดการประวัติข้อมูลและสถิติย้อนหลัง</h2>
     <div class="muted">สามารถลบประวัติสถิติแนวโน้มรายวัน หรือลบข้อมูลย้อนหลังฉบับก่อนหน้าของแต่ละหมวดที่บันทึกทิ้งไว้ได้โดยไม่กระทบข้อมูลสต็อกปัจจุบัน</div>
     <div style="margin-top:12px">
       <div class="cardhead">
@@ -494,12 +492,12 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
         <tbody id="hsPrevTb"></tbody>
       </table></div>
     </div>
-    <div class="err" id="hsErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="hsErr"></div>
     <div class="row"><button class="btn ghost" id="hsClose">ปิด</button></div>
   </div>
 </div>
 <!-- ดูรายการเชื่อมโยง บาร์กระจาย / บาร์แพ็ค (แสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา) -->
-<div class="overlay hidden" id="bcDlg" role="dialog" aria-modal="true" aria-labelledby="bcTitle">
+<div class="overlay hidden" id="bcDlg">
   <div class="dlg wide" style="width:min(1080px,100%)">
     <div class="cardhead" style="margin-bottom:4px">
       <h2 id="bcTitle" style="margin:0">รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค</h2>
@@ -513,16 +511,16 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
   </div>
 </div>
 <!-- ค้นหาเพื่อเชื่อมบาร์กระจาย/บาร์แพ็คเองในสาขาที่ไม่พบข้อมูล -->
-<div class="overlay hidden" id="bcLinkDlg" role="dialog" aria-modal="true" aria-labelledby="bcLinkTitle" style="z-index:95">
+<div class="overlay hidden" id="bcLinkDlg" style="z-index:95">
   <div class="dlg" style="width:min(760px,100%)">
     <h2 id="bcLinkTitle" style="margin:0 0 4px">เชื่อมรายการ</h2>
     <div class="muted" id="bcLinkSub" style="margin-bottom:10px"></div>
-    <input type="search" id="bcLinkQ" aria-label="ค้นหาจากรหัสหรือชื่อสินค้า" placeholder="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" autocomplete="off">
+    <input type="search" id="bcLinkQ" placeholder="ค้นหาจากรหัส / ชื่อสินค้า ในค้างสต็อกของสาขานี้" autocomplete="off">
     <div id="bcLinkRes" class="tscroll" style="max-height:340px;margin-top:10px"></div>
     <div class="row"><button class="btn ghost" id="bcLinkClose">ปิด</button></div>
   </div>
 </div>
-<div id="dotPop" class="dot-pop hidden"></div>
+<div id="dotPop" class="dot-pop hidden" role="dialog" aria-label="จัดการแท็กสินค้า"></div>
 
 <script>
 /* =============================================================================
@@ -668,8 +666,12 @@ function call(fn) {
 var toastT = null;
 function toast(msg, isErr) {
   var t = $('#toast'); if (t) t.remove();
-  t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', isErr ? 'alert' : 'status'); t.setAttribute('aria-live', isErr ? 'assertive' : 'polite'); t.className = 'toast' + (isErr ? ' err2' : ''); t.textContent = msg; document.body.appendChild(t);
-  clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, isErr ? 6000 : 2800);
+  t = document.createElement('div'); t.id = 'toast'; t.className = 'toast' + (isErr ? ' err2' : '');
+  t.setAttribute('role', isErr ? 'alert' : 'status');
+  t.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
+  t.setAttribute('aria-atomic', 'true');
+  t.textContent = msg; document.body.appendChild(t);
+  clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, isErr ? 10000 : 6000);
 }
 async function busy(btn, fn) {
   btn.disabled = true;
@@ -732,7 +734,8 @@ var ST_DEF = [
   { k: 'DS', t: 'ค้างเกิน 60 วัน DS' }, { k: 'T3', t: '30–60 วัน T3' }, { k: 'T2', t: '15–30 วัน T2' },
   { k: 'T1', t: 'ไม่เกิน 15 วัน T1' }, { k: 'NA', t: 'ไม่มีข้อมูลการเคลื่อนไหว' }
 ];
-var ST_COLOR = { DS: '#c0392b', T3: '#d99a1f', T2: '#7fb069', T1: '#1a7f4b', NA: '#8a97a5' };
+var ST_COLOR = { DS: '#c0392b', T3: '#946200', T2: '#3b7a28', T1: '#176b3f', NA: '#5a6573' };
+var ST_SYM = { DS: '▲', T3: '◆', T2: '●', T1: '■', NA: '○' };
 var ST_NAME = { DS: 'DS ค้างเกิน 60 วัน', T3: 'T3 30–60 วัน', T2: 'T2 15–30 วัน', T1: 'T1 ไม่เกิน 15 วัน', NA: 'ไม่มีข้อมูลเคลื่อนไหว' };
 
 function fmtDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? (+m[3]) + '/' + (+m[2]) + '/' + (+m[1] + 543) : '–'; }
@@ -993,7 +996,7 @@ function renderRepCard() {                                              // ป�
       var b = v.br[k] || {}, bAll = allPool(true).filter(function (x) { return x.g === g && brKey(x.br) === brKey(k); }).length || b.count || 0;
       return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(bAll) + ' รายการ' + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
     }).join('<br>');
-    var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:2px 8px;min-height:24px;font-size:12px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
+    var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:3px 10px;min-height:28px;font-size:12.5px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
     return '<div class="ghist-item">' +
       '<div><b>' + esc(gl(g)) + '</b> · สินค้าทั้งหมด' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
       '<div class="muted">อัปเดตล่าสุด: <b>' + (v.ts ? esc(fmtTs(v.ts)) : '–') + '</b>' + (cur && v.ts && d >= 30 ? ' <b style="color:var(--bad)">· ผ่านมา ' + d + ' วัน</b>' : '') + (v.who ? ' · โดย <b>' + esc(v.who) + '</b>' : '') + (v.file ? ' · ไฟล์ ' + esc(v.file) : '') + '</div>' +
@@ -1002,7 +1005,7 @@ function renderRepCard() {                                              // ป�
       '</div>';
   }).join('');
   box.innerHTML = '<div class="ghist-head"><span>ประวัติข้อมูลล่าสุดของหมวดที่เลือก · ' + sel.length + ' หมวด' + (D.ver === 'prev' ? ' · ฉบับก่อนหน้า' : '') + '</span>' +
-    (edit ? '<button type="button" class="btn ghost small" id="bOpenHistInBox" style="padding:2px 10px;min-height:26px;font-size:12.5px">จัดการประวัติและสถิติย้อนหลัง</button>' : '') +
+    (edit ? '<button type="button" class="btn ghost small" id="bOpenHistInBox" style="padding:4px 12px;min-height:28px;font-size:12.5px">จัดการประวัติและสถิติย้อนหลัง</button>' : '') +
     '</div><div class="ghist-grid">' + cards + '</div>';
   box.classList.remove('hidden');
 }
@@ -1015,12 +1018,12 @@ function renderVerTabs() {
     ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> — เก็บไว้หมวดละ 1 ฉบับก่อนการอัปโหลดทับครั้งล่าสุด ไม่ใช่ข้อมูลปัจจุบัน'
     : (np ? 'มีฉบับก่อนหน้า ' + np + ' หมวด — กดแท็บฉบับก่อนหน้าเพื่อเทียบ หรือกดจัดการประวัติย้อนหลังด้านบนเพื่อลบข้อมูลเก่าที่บันทึกทิ้งไว้' : 'ยังไม่มีฉบับก่อนหน้า ระบบจะเก็บไว้ให้อัตโนมัติเมื่ออัปโหลดทับหมวดเดิม');
 }
-function roNote() { return D.me && !D.me.edit ? ' · <b style="color:#ffd27a">สิทธิ์: ดูอย่างเดียว</b>' : ''; }
+function roNote() { return D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:underline">สิทธิ์: ดูอย่างเดียว</b>' : ''; }
 function renderInfo() {
   var m = D.meta, el = $('#info');
   if (!m) { el.innerHTML = D.me ? 'ผู้ใช้: ' + esc(D.me.name) + roNote() : ''; return; }
   var days = Math.floor((Date.now() - m.ts) / 86400000);
-  el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffd27a">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
+  el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffffff;text-decoration:underline">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffffff;text-decoration:underline">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
     (m.file ? '<br>ไฟล์ ' + esc(m.file) : '') + roNote() + brStatus();
 }
 function brStatus() {                                // อัปเดตล่าสุดรายสาขา (จากเมตาที่เก็บไว้ต่อหมวด) · เกิน 30 วันขึ้นเตือน
@@ -1028,7 +1031,7 @@ function brStatus() {                                // อัปเดตล่
   Object.keys(D.gm).forEach(function (g) { var v = gView(g); if (v && v.br) Object.keys(v.br).forEach(function (k) { var b = v.br[k]; if (b && b.ts && (!bl[k] || b.ts > bl[k].ts)) bl[k] = b; }); });
   var ks = Object.keys(bl).sort();
   if (!ks.length) return '';
-  return '<br>รายสาขา: ' + ks.map(function (k) { var d = Math.floor((Date.now() - bl[k].ts) / 86400000); return esc(k) + ' ' + esc(fmtTs(bl[k].ts)) + (D.ver === 'cur' && d >= 30 ? ' <b style="color:#ffd27a">(' + d + ' วัน)</b>' : ''); }).join(' · ');
+  return '<br>รายสาขา: ' + ks.map(function (k) { var d = Math.floor((Date.now() - bl[k].ts) / 86400000); return esc(k) + ' ' + esc(fmtTs(bl[k].ts)) + (D.ver === 'cur' && d >= 30 ? ' <b style="color:#ffffff;text-decoration:underline">(' + d + ' วัน)</b>' : ''); }).join(' · ');
 }
 function fillSelects() {
   var b = $('#fBr');
@@ -1109,7 +1112,7 @@ function renderChips(N) {
   $('#chips').innerHTML = '<button type="button" class="chip' + (allOn ? ' on' : '') + '" data-st="" aria-pressed="' + (allOn ? 'true' : 'false') + '">ทุกช่วงอายุ <b>' + nf0.format(N.length) + ' รายการ</b></button>' +
     ST_DEF.map(function (s) {
       var on = !!F.st[s.k];
-      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '"></i>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
+      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span aria-hidden="true" style="color:' + ST_COLOR[s.k] + ';font-size:12px;line-height:1">' + (ST_SYM[s.k] || '●') + '</span>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
     }).join('');
 }
 function renderTagSel() {                                               // แท็กสินค้าแบบติ๊ก/ไม่ติ๊ก เติมคำว่า "รายการ" ต่อท้ายจำนวน
@@ -1155,8 +1158,8 @@ function renderGSelect() {                                              // ร�
     var topHtml = '<div class="mgrp-top">' +
       '<span class="muted" style="font-size:12.5px">' + (sel.length ? 'เลือกอยู่ ' + sel.length + ' หมวด' : (F.br ? 'สาขา ' + esc(F.br) + ' · ทุกหมวด' : 'แสดงทุกหมวด')) + '</span>' +
       '<div style="display:flex;gap:6px">' +
-        '<button type="button" class="btn ghost small" data-gact="all" style="padding:2px 8px;min-height:26px;font-size:12px">เลือกทั้งหมด</button>' +
-        (sel.length ? '<button type="button" class="btn ghost small" data-gact="clear" style="padding:2px 8px;min-height:26px;font-size:12px">ล้างที่เลือก</button>' : '') +
+        '<button type="button" class="btn ghost small" data-gact="all" style="padding:3px 10px;min-height:28px;font-size:12.5px">เลือกทั้งหมด</button>' +
+        (sel.length ? '<button type="button" class="btn ghost small" data-gact="clear" style="padding:3px 10px;min-height:28px;font-size:12.5px">ล้างที่เลือก</button>' : '') +
       '</div></div>';
     var itemsHtml = D.groups.length ? D.groups.map(function (k) {
       var on = !!F.gm[k];
@@ -1195,14 +1198,36 @@ function kpi(cls, l, v, u, s) { return '<div class="kpi ' + cls + '"><div class=
 
 /* ----- กราฟ ----- */
 var CH = {};
-function chart(id, cfg) {
+function setChartA11y(canvasId, label, headers, rows) {
+  var cv = $('#' + canvasId);
+  if (!cv) return;
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', label || 'กราฟสรุปข้อมูล');
+  var box = cv.parentNode;
+  if (!box) return;
+  var tblId = canvasId + '_tbl', old = $('#' + tblId);
+  if (old) old.remove();
+  if (headers && rows && rows.length) {
+    var wrap = document.createElement('div');
+    wrap.id = tblId;
+    wrap.className = 'sr-only';
+    wrap.innerHTML = '<table><caption>' + esc(label) + '</caption><thead><tr>' +
+      headers.map(function (h) { return '<th scope="col">' + esc(h) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return i === 0 ? '<th scope="row">' + esc(c) + '</th>' : '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      '</tbody></table>';
+    box.appendChild(wrap);
+  }
+}
+function chart(id, cfg, label, headers, rows) {
   if (typeof Chart === 'undefined') { var b = $('#' + id).parentNode; b.innerHTML = '<div class="cnote">โหลดไลบรารีกราฟไม่สำเร็จ ลองรีเฟรชหน้านี้</div>'; return; }
   if (CH[id]) CH[id].destroy();
   CH[id] = new Chart($('#' + id), cfg);
+  setChartA11y(id, label, headers, rows);
 }
 if (typeof Chart !== 'undefined') { Chart.defaults.font.family = "'Sarabun','Noto Sans Thai',Tahoma,sans-serif"; Chart.defaults.font.size = 13; Chart.defaults.color = '#2a1f47'; }
 function ensureCanvas(boxId, canvasId) {                                      // ใช้ซ้ำหลังแสดงข้อความแทนกราฟ
-  var box = $('#' + boxId); if (!box.querySelector('canvas')) box.innerHTML = '<canvas id="' + canvasId + '"></canvas>';
+  var box = $('#' + boxId); if (!box.querySelector('canvas')) box.innerHTML = '<canvas id="' + canvasId + '" role="img" aria-label="กราฟสรุปข้อมูล"></canvas>';
 }
 function noData(boxId, canvasId, msg) {                                        // แสดงข้อความแทนกราฟ (และเลิกใช้กราฟเดิม)
   if (CH[canvasId]) { CH[canvasId].destroy(); delete CH[canvasId]; }
@@ -1223,7 +1248,9 @@ function renderGroupChart(G) {
       onClick: function (e, els) { if (els.length) { gToggle(arr[els[0].index].g); render(); } },
       onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
     }
-  });
+  }, 'กราฟแท่งแสดงมูลค่าทุนแยกตามหมวดสินค้า ' + arr.length + ' หมวด สูงสุดคือ ' + gl(arr[0].g) + ' ' + money(arr[0].vc) + ' บาท',
+  ['หมวดสินค้า', 'มูลค่าทุน (บาท)', 'จำนวนรายการ'],
+  arr.map(function (o) { return [gl(o.g), money(o.vc), nf0.format(o.n)]; }));
 }
 var PCT_PLUGIN = { id: 'pctLabels', afterDatasetsDraw: function (ch) {         // เขียน % บนชิ้นของโดนัท (ชิ้นเล็กกว่า 4% ไม่เขียน — ดูในคำอธิบายด้านล่างแทน)
   var ds = ch.data.datasets[0], tot = ds.data.reduce(function (a, b) { return a + b; }, 0), c = ch.ctx, meta = ch.getDatasetMeta(0);
@@ -1245,10 +1272,12 @@ function renderStatusChart(N) {
       maintainAspectRatio: false, cutout: '55%',
       plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (c) { var k = keys[c.dataIndex]; return ' ' + money(m[k].vc) + ' บาท (' + pc(k) + ') · ' + m[k].n + ' รายการ'; } } } }
     }
-  });
+  }, 'กราฟวงกลมสัดส่วนมูลค่าทุนตามช่วงอายุสินค้า รวม ' + money(tot) + ' บาท (' + keys.map(function (k) { return ST_NAME[k] + ' ' + pc(k); }).join(', ') + ')',
+  ['ช่วงอายุสินค้า', 'มูลค่าทุน (บาท)', 'สัดส่วน', 'จำนวนรายการ'],
+  keys.map(function (k) { return [ST_NAME[k], money(m[k].vc), pc(k), nf0.format(m[k].n)]; }));
 }
 var BUCKETS = [[0, 15, '≤15'], [16, 30, '16–30'], [31, 60, '31–60'], [61, 90, '61–90'], [91, 120, '91–120'], [121, 180, '121–180'], [181, 365, '181–365'], [366, 1e9, '>365'], [null, null, 'ไม่ทราบ']];
-var BUCKET_COLOR = ['#1a7f4b', '#7fb069', '#d99a1f', '#e67e22', '#d35400', '#c0392b', '#a93226', '#7b241c', '#8a97a5'];
+var BUCKET_COLOR = ['#176b3f', '#3b7a28', '#946200', '#b85d00', '#a84300', '#c0392b', '#a93226', '#7b241c', '#5a6573'];
 function renderAgeChart(S) {
   var vals = BUCKETS.map(function () { return { n: 0, vc: 0 }; });
   S.forEach(function (x) {
@@ -1267,7 +1296,9 @@ function renderAgeChart(S) {
       maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return ' ' + money(c.parsed.y) + ' บาท · ' + vals[keep[c.dataIndex]].n + ' รายการ'; } } } },
       scales: { y: { ticks: { callback: function (v) { return nf0.format(v); } } }, x: { grid: { display: false }, title: { display: true, text: 'จำนวนวันที่ค้าง' } } }
     }
-  });
+  }, 'กราฟแท่งช่วงอายุสินค้าที่ค้างสต็อก แบ่งตามจำนวนวันที่ค้าง ' + keep.length + ' ช่วง',
+  ['ช่วงวันที่ค้าง (วัน)', 'มูลค่าทุน (บาท)', 'จำนวนรายการ'],
+  keep.map(function (i) { return [BUCKETS[i][2], money(vals[i].vc), nf0.format(vals[i].n)]; }));
 }
 function renderTopChart(S) {
   var arr = S.slice().sort(function (a, b) { return b.vc - a.vc; }).slice(0, 10);
@@ -1281,7 +1312,9 @@ function renderTopChart(S) {
       plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (c) { return arr[c[0].dataIndex].name; }, label: function (c) { var x = arr[c.dataIndex]; return [' ' + money(x.vc) + ' บาท', ' คงเหลือ ' + qtyF(x.qty) + ' × ต้นทุน ' + nf2.format(x.cost), ' หมวด ' + x.g + ' · สาขา ' + x.br + (x.days !== null ? ' · ค้าง ' + x.days + ' วัน' : '')]; } } } },
       scales: { x: { ticks: { callback: function (v) { return nf0.format(v); } } }, y: { grid: { display: false } } }
     }
-  });
+  }, 'กราฟ 10 อันดับสินค้าที่มีมูลค่าทุนค้างสูงสุด อันดับ 1 คือ ' + arr[0].name + ' ' + money(arr[0].vc) + ' บาท',
+  ['อันดับ', 'ชื่อสินค้า', 'หมวด', 'สาขา', 'คงเหลือ', 'มูลค่าทุน (บาท)'],
+  arr.map(function (x, i) { return [String(i + 1), x.name, x.g, x.br, qtyF(x.qty), money(x.vc)]; }));
 }
 var TR_PAL = ['#c0392b', '#2e6fd8', '#1a7f4b', '#d99a1f', '#7a4fd1', '#0e9aa7', '#d6457f', '#6b7a1c', '#e0703a', '#4b5fa8', '#8a5a2b', '#3d8f6e'];
 var TR_MODE = 'total';
@@ -1310,9 +1343,12 @@ function renderTrend() {
     $('#trNote').textContent = 'แสดงรายวัน ยึดรายการล่าสุดของวัน · รวม ' + h.length + ' วัน';
     ensureCanvas('boxTrend', 'chTrend');
     chart('chTrend', { type: 'line', data: { labels: lab, datasets: [
-      { label: 'ค้างเกิน 60 วัน (DS)', data: h.map(function (x) { return Math.round((x.sum.st.DS && x.sum.st.DS.cost) || 0); }), borderColor: ST_COLOR.DS, backgroundColor: ST_COLOR.DS, tension: .25, pointRadius: 4 },
-      { label: '30–60 วัน (T3)', data: h.map(function (x) { return Math.round((x.sum.st.T3 && x.sum.st.T3.cost) || 0); }), borderColor: ST_COLOR.T3, backgroundColor: ST_COLOR.T3, tension: .25, pointRadius: 4 }
-    ] }, options: opt(function (c) { var x = h[c.dataIndex].sum.st[c.datasetIndex ? 'T3' : 'DS'] || { n: 0 }; return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท · ' + x.n + ' รายการ'; }) });
+      { label: 'ค้างเกิน 60 วัน (DS)', data: h.map(function (x) { return Math.round((x.sum.st.DS && x.sum.st.DS.cost) || 0); }), borderColor: ST_COLOR.DS, backgroundColor: ST_COLOR.DS, tension: .25, pointRadius: 4, pointStyle: 'circle' },
+      { label: '30–60 วัน (T3)', data: h.map(function (x) { return Math.round((x.sum.st.T3 && x.sum.st.T3.cost) || 0); }), borderColor: ST_COLOR.T3, backgroundColor: ST_COLOR.T3, borderDash: [6, 4], tension: .25, pointRadius: 5, pointStyle: 'rectRot' }
+    ] }, options: opt(function (c) { var x = h[c.dataIndex].sum.st[c.datasetIndex ? 'T3' : 'DS'] || { n: 0 }; return ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท · ' + x.n + ' รายการ'; }) },
+    'กราฟเส้นแนวโน้มมูลค่าทุนตามวันที่อัปโหลด รวม ' + h.length + ' วัน',
+    ['วันที่', 'มูลค่าทุน DS (บาท)', 'มูลค่าทุน T3 (บาท)'],
+    h.map(function (x, i) { return [lab[i], money((x.sum.st.DS && x.sum.st.DS.cost) || 0), money((x.sum.st.T3 && x.sum.st.T3.cost) || 0)]; }));
     return;
   }
   var key = mode === 'gDS' ? 'DS' : 'T3', withGs = h.filter(function (x) { return x.gs; }).length, set = {};
@@ -1326,8 +1362,11 @@ function renderTrend() {
   ensureCanvas('boxTrend', 'chTrend');
   chart('chTrend', { type: 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
     var c = TR_PAL[i % TR_PAL.length];
-    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 4 };
-  }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) });
+    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, borderDash: i % 2 ? [5, 3] : [], tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 4 };
+  }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) },
+  'กราฟเส้นแนวโน้มมูลค่าทุนแยกตามหมวด (' + key + ') รวม ' + gs.length + ' หมวด',
+  ['หมวดสินค้า'].concat(lab),
+  gs.map(function (g) { return [gl(g)].concat(h.map(function (x) { var v = val(x, g); return v === null ? '–' : money(v); })); }));
 }
 $('#trMode').addEventListener('change', function () { TR_MODE = this.value; renderTrend(); });
 
@@ -1366,7 +1405,7 @@ function renderGroupTable(G) {
   $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือก/ยกเลิกได้หลายหมวด';
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
     var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้า' + (D.gm[r.g] && D.gm[r.g].prev && D.gm[r.g].prev.ts ? ' (บันทึกเมื่อ ' + esc(fmtTs(D.gm[r.g].prev.ts)) + ')' : '') + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
-    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
+    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td><button type="button" class="g-row-btn" data-g="' + esc(r.g) + '" aria-pressed="' + (F.gm[r.g] ? 'true' : 'false') + '" aria-label="กรองหมวด ' + esc(gl(r.g)) + '">' + esc(gl(r.g)) + '</button></td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
       '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
   }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
@@ -1378,13 +1417,13 @@ function sortedItems(S) { return sortBy(S.slice(), F.ds.k, F.ds.d, function (x, 
 var LAST_S = [], LAST_RAW = [];
 function fmtQtyCell(x) {
   if (x.isFullCut) {
-    return '0 <span class="tag old" style="font-size:11px;margin-left:4px" title="ถูกตัดออกจากสต็อกแล้ว เดิม ' + qtyF(x.origQty || x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
+    return '0 <span class="tag old" style="font-size:12px;margin-left:4px" title="ถูกตัดออกจากสต็อกแล้ว เดิม ' + qtyF(x.origQty || x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
   }
   if (x.cutQty > 0) {
-    return qtyF(x.qty) + ' <span class="muted" style="font-size:11.5px;display:block" title="เดิม ' + qtyF(x.origQty) + ' ชิ้น · หักออก ' + qtyF(x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
+    return qtyF(x.qty) + ' <span class="muted" style="font-size:12px;display:block" title="เดิม ' + qtyF(x.origQty) + ' ชิ้น · หักออก ' + qtyF(x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
   }
   if (x.isZero) {
-    return (x.qty < 0 ? '<span style="color:var(--bad)">' + qtyF(x.qty) + '</span>' : '0') + ' <span class="tag" style="background:#eef1f5;color:var(--steel);font-size:11px;margin-left:4px">' + (x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0') + '</span>';
+    return (x.qty < 0 ? '<span style="color:var(--bad)">' + qtyF(x.qty) + '</span>' : '0') + ' <span class="tag" style="background:#eef1f5;color:var(--steel);font-size:12px;margin-left:4px">' + (x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0') + '</span>';
   }
   return qtyF(x.qty);
 }
@@ -1402,7 +1441,7 @@ function renderTable(S) {
     var rowCls = x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : '');
     var actCell = '';
     if (canLost) {
-      actCell = '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" aria-label="จัดการรายการ ' + esc(x.code) + '" aria-haspopup="menu" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" title="จัดการแท็กสินค้า (หาย / หมดอายุ / ของเสีย / รอปรับ / ขายยาก)">&#8943;</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>';
+      actCell = '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '" title="จัดการแท็กสินค้า (หาย / หมดอายุ / ของเสีย / รอปรับ / ขายยาก)">&#8943;</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>';
     }
     return '<tr' + rowCls + '><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + tagHtml(x) + '</td><td>' + esc(x.br) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
       '</td><td>' + fmtDate(x.recv) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + actCell + '</tr>';
@@ -1413,10 +1452,12 @@ function renderTable(S) {
 
 /* ---------- เมนูจุด 3 จุด (⋯) หลังรายการสินค้า แบบติ๊ก/ไม่ติ๊ก ---------- */
 var DOT_CTX = null;
-function closeDotPop() {
-  var pop = $('#dotPop');
+function closeDotPop(restoreFocus) {
+  var pop = $('#dotPop'), oldBtn = DOT_CTX && DOT_CTX.btn;
+  if (oldBtn && oldBtn.isConnected) oldBtn.setAttribute('aria-expanded', 'false');
   if (pop) { pop.classList.add('hidden'); pop.innerHTML = ''; }
   DOT_CTX = null;
+  if (restoreFocus && oldBtn && oldBtn.isConnected) { try { oldBtn.focus(); } catch (e) {} }
 }
 function findRowItem(code, br, g) {
   var ck = codeKey(code), bk = brKey(br);
@@ -1463,6 +1504,9 @@ function openDotPop(btn, code, br, g) {
   var top = (rect.bottom + ph + 12 > window.innerHeight) ? Math.max(12, rect.top - ph - 6) : (rect.bottom + 6);
   pop.style.left = left + 'px';
   pop.style.top = top + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  var firstInput = pop.querySelector('input,button');
+  if (firstInput) setTimeout(function () { try { firstInput.focus(); } catch (e) {} }, 20);
 }
 $('#dotPop').addEventListener('change', function (e) {
   var cb = e.target.closest('input[data-dottag]'); if (!cb || !DOT_CTX) return;
@@ -1623,10 +1667,14 @@ async function deleteCategoryFlow(g, brRaw, btn) {
 }
 
 /* ---------- เหตุการณ์ของตัวกรอง/ตาราง ---------- */
-function closeGrpMenu() {
+function closeGrpMenu(restoreFocus) {
   var m = $('#fGrpMenu'), b = $('#fGrpBtn');
   if (m) m.classList.add('hidden');
-  if (b) b.classList.remove('open');
+  if (b) {
+    b.classList.remove('open');
+    b.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) { try { b.focus(); } catch (e) {} }
+  }
 }
 $('#fGrpBtn').addEventListener('click', function (e) {
   e.stopPropagation();
@@ -1634,6 +1682,38 @@ $('#fGrpBtn').addEventListener('click', function (e) {
   var open = m.classList.contains('hidden');
   m.classList.toggle('hidden', !open);
   this.classList.toggle('open', open);
+  this.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    var first = m.querySelector('input[type=checkbox],button');
+    if (first) setTimeout(function () { try { first.focus(); } catch (err) {} }, 20);
+  }
+});
+$('#fGrpWrap').addEventListener('keydown', function (e) {
+  var m = $('#fGrpMenu');
+  if (!m || m.classList.contains('hidden')) {
+    if (e.key === 'ArrowDown' && e.target === $('#fGrpBtn')) { e.preventDefault(); $('#fGrpBtn').click(); }
+    return;
+  }
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeGrpMenu(true); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    var items = Array.prototype.slice.call(m.querySelectorAll('input[type=checkbox],button'));
+    if (!items.length) return;
+    e.preventDefault();
+    var idx = items.indexOf(document.activeElement);
+    var next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
+    items[next].focus();
+  }
+});
+$('#dotPop').addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDotPop(true); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    var items = Array.prototype.slice.call(this.querySelectorAll('input[type=checkbox],button'));
+    if (!items.length) return;
+    e.preventDefault();
+    var idx = items.indexOf(document.activeElement);
+    var next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
+    items[next].focus();
+  }
 });
 $('#fGrpMenu').addEventListener('click', function (e) {
   e.stopPropagation();
@@ -1868,7 +1948,7 @@ function renderBcPairDlg() {
       var x = m.x;
       var badgeStyle = m.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
       var rowCls = m.isClicked ? ' class="sel"' : (x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : ''));
-      var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" aria-label="จัดการรายการ ' + esc(x.code) + '" aria-haspopup="menu" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '">&#8943;</button>' : '–') + '</td>' : '';
+      var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '">&#8943;</button>' : '–') + '</td>' : '';
       return '<tr' + rowCls + '>' +
         '<td><span class="tag" style="' + badgeStyle + '">' + esc(m.role) + '</span></td>' +
         '<td>' + esc(gl(x.g, x.br)) + '</td>' +
@@ -2298,7 +2378,7 @@ function loadXlsx() {
   });
 }
 function upBranch() { var s = $('#upBr').value; return s === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim().slice(0, 20) : s; }
-function setDropState() { $('#drop').classList.toggle('off', !upBranch()); }
+function setDropState() { var off = !upBranch(); $('#drop').classList.toggle('off', off); $('#drop').setAttribute('aria-disabled', off ? 'true' : 'false'); }
 function fillUpBr() {                                // สาขาที่รู้จัก = สาขาในข้อมูลที่โหลดอยู่ + สาขาที่บันทึกไว้ในเมตาของแต่ละหมวด
   var set = {};
   D.branches.forEach(function (k) { if (k) set[k] = 1; });
@@ -2571,7 +2651,7 @@ function renderNmGrid() {
     var val = (D.names && D.names[bk + ':' + g]) || (D.names && D.names[g]) || '';
     return '<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:#fff">' +
       '<b style="min-width:48px">' + esc(g) + '</b>' +
-      '<input type="text" aria-label="ชื่อหมวด ' + esc(g) + '" data-g="' + esc(g) + '" maxlength="40" value="' + esc(val) + '" placeholder="ชื่อหมวด · ' + nf0.format(cnt[g] || 0) + ' รายการ" style="flex:1">' +
+      '<input type="text" data-g="' + esc(g) + '" maxlength="40" value="' + esc(val) + '" placeholder="ชื่อหมวด · ' + nf0.format(cnt[g] || 0) + ' รายการ" style="flex:1">' +
       '<button type="button" class="btn ghost small" style="color:var(--bad);padding:4px 10px" data-nmdel="' + esc(g) + '" title="ลบหมวด ' + esc(g) + ' ออกจากสาขา ' + esc(br) + '">ลบ</button>' +
     '</div>';
   }).join('') || '<div class="muted">สาขา ' + esc(br) + ' ยังไม่มีหมวดสินค้า — เพิ่มหมวดใหม่ด้านบนได้เลย</div>';
@@ -2729,7 +2809,11 @@ function tagHtml(x) {
     h += '<button type="button" class="bc-btn bc-pack" data-bcview="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="คลิกเพื่อดูข้อมูลสินค้าค้างสต็อกของบาร์แพ็คและบาร์กระจาย">มีบาร์แพ็ค</button>';
   }
   if (x.hard) {
-    h += '<span class="tag hard"' + (D.me && D.me.edit ? ' data-hardnote="' + esc(x.code) + '"' : '') + ' title="ติดแท็กสินค้าขายยาก' + (D.me && D.me.edit ? ' — คลิกเพื่อแก้หมายเหตุ' : '') + '">ขายยาก</span>';
+    if (D.me && D.me.edit) {
+      h += '<button type="button" class="tag hard" data-hardnote="' + esc(x.code) + '" aria-label="แก้หมายเหตุสินค้าขายยาก ' + esc(x.name || x.code) + '" title="ติดแท็กสินค้าขายยาก — คลิกเพื่อแก้หมายเหตุ">ขายยาก</button>';
+    } else {
+      h += '<span class="tag hard" title="ติดแท็กสินค้าขายยาก">ขายยาก</span>';
+    }
   }
   Object.keys(x.tg || {}).forEach(function (k) { var q = x.tg[k]; h += '<span class="tag t-' + k + '" title="' + esc(TAGS[k].t + (q ? ' ' + qtyF(q) + ' ชิ้น หักออกจากค้างสต็อกแล้ว' : ' ทั้งหมด')) + '">' + esc(TAGS[k].t) + (q ? ' ' + qtyF(q) : '') + '</span>'; });
   Object.keys(TAGS).forEach(function (k) { if (tn[k]) nl.push(TAGS[k].t + ': ' + tn[k]); });
@@ -2835,7 +2919,7 @@ function renderLostBtn() {
   var collapsed = !!F.deductCollapsed;
   if ($('#deductBody')) $('#deductBody').classList.toggle('hidden', collapsed);
   if ($('#deductTabs')) $('#deductTabs').classList.toggle('hidden', collapsed);
-  if ($('#bToggleDeduct')) $('#bToggleDeduct').innerHTML = collapsed ? 'ขยายดูข้อมูล &#9662;' : 'ย่อพับเก็บ &#9652;';
+  if ($('#bToggleDeduct')) { $('#bToggleDeduct').innerHTML = collapsed ? 'ขยายดูข้อมูล &#9662;' : 'ย่อพับเก็บ &#9652;'; $('#bToggleDeduct').setAttribute('aria-expanded', collapsed ? 'false' : 'true'); }
   if ($('#deductHead')) $('#deductHead').style.marginBottom = collapsed ? '0' : '';
   if ($('#deductTabs')) {
     $('#deductTabs').innerHTML = activeTabs.map(function (tb) {
@@ -2986,7 +3070,7 @@ function renderAnListBox() {
       '<thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">คงเหลือ</th><th class="nosort">ต้นทุน/หน่วย</th><th class="nosort">มูลค่าทุน</th><th class="nosort">ราคาขาย</th><th class="nosort">รับเข้า</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง วัน</th><th class="nosort">ช่วงอายุสินค้า</th><th class="nosort">หมายเหตุ</th>' + (canEdit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead>' +
       '<tbody>' + showRows.map(function (x) {
         var rowCls = x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : '');
-        var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" aria-label="จัดการรายการ ' + esc(x.code) + '" aria-haspopup="menu" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '">&#8943;</button>' : '–') + '</td>' : '';
+        var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '">&#8943;</button>' : '–') + '</td>' : '';
         return '<tr' + rowCls + '><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + tagHtml(x) + '</td><td>' + esc(x.br) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) + '</td><td>' + fmtDate(x.recv) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + actCell + '</tr>';
       }).join('') + '</tbody></table></div>' +
     (list.length > 200 ? '<div class="muted">แสดง 200 รายการแรกเรียงตามมูลค่าทุนสูงสุด</div>' : '');
@@ -3228,10 +3312,9 @@ $('#lsTb').addEventListener('click', function (e) {
 });
 
 /* ---------- เริ่มทำงาน ---------- */
-$('#drop').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && !this.classList.contains('off')) { e.preventDefault(); $('#upFile').click(); } });
-$('#bHome').addEventListener('click', function (e) { if (TOKEN) { e.preventDefault(); location.href = 'index.html#t=' + encodeURIComponent(TOKEN); } });
 initToken();
 load();
 </script>
+<script src="a11y.js"></script>
 </body>
 </html>

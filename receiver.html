@@ -6,18 +6,18 @@
 <base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#9966FF">
+<meta name="theme-color" content="#7a4be0">
 <title>ระบบรับสัญญาณเสียงประกาศ</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#24193d; --steel:#54496e; --bg:#f5f2fc; --accent:#6838e3; --ok:#136a3c; --bad:#b42318; --old:#525f6d;
-          --grad:linear-gradient(135deg,#5225c2,#6838e3 60%,#7849f0); }
-  :focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+  :root { --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --accent:#7a4be0; --accent-text:#6a3fd1; --ok:#176b3f; --bad:#b42318; --old:#6b7684;
+          --grad:linear-gradient(135deg,#6a3fd1,#7a4be0 55%,#8250f0); }
   * { box-sizing:border-box; }
   html,body { height:100%; margin:0; }
   body { font-family:'Sarabun','Noto Sans Thai',Tahoma,sans-serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
   .appbar { background:var(--grad); color:#fff; padding:calc(14px + env(safe-area-inset-top)) 22px 16px; border-radius:0 0 22px 22px;
             box-shadow:0 6px 20px rgba(106,63,209,.3); font-size:20px; font-weight:700; }
+  .appbar h1 { margin:0; font-size:20px; font-weight:700; }
   .center { flex:1; display:grid; place-items:center; padding:24px; overflow:auto; }
   .state { width:min(420px,90vw); background:#fff; border-radius:28px; padding:48px 24px; text-align:center;
            box-shadow:0 8px 28px rgba(106,63,209,.15); border:4px solid var(--old); transition:.25s; margin:0 auto; }
@@ -25,9 +25,13 @@
   .state.on { border-color:var(--ok); } .state.on span { color:var(--ok); }
   .state.error { border-color:var(--bad); } .state.error span { color:var(--bad); font-size:clamp(44px,11vw,76px); }
   .state.playing { animation:pulse 1.4s infinite; }
-  @keyframes pulse { 50% { box-shadow:0 0 0 14px rgba(19,106,60,.18); } }
-  @media (prefers-reduced-motion:reduce) { .state.playing { animation:none; } }
-  .loadinfo { margin-top:14px; text-align:center; font-size:13px; color:var(--steel); min-height:18px; }
+  @keyframes pulse { 50% { box-shadow:0 0 0 14px rgba(26,127,75,.16); } }
+  .loadinfo { margin-top:14px; text-align:center; font-size:14px; color:var(--steel); min-height:20px; }
+  .audiobar { margin-top:12px; text-align:center; }
+  .btn-audio { font:inherit; font-size:14px; font-weight:600; color:var(--accent-text); background:#fff; border:1.5px solid var(--accent-text);
+               border-radius:999px; padding:8px 18px; min-height:38px; cursor:pointer; box-shadow:0 2px 8px rgba(106,63,209,.12); }
+  .btn-audio:hover { background:#f0e8ff; }
+  .btn-audio.on { background:#e6f6ec; color:var(--ok); border-color:var(--ok); }
   .hidden { display:none !important; }
   .musicbox { width:min(640px,92vw); margin:18px auto 0; background:#fff; border-radius:20px; padding:14px; box-shadow:0 8px 28px rgba(106,63,209,.15); }
   .mtitle { font-weight:700; font-size:18px; margin-bottom:8px; }
@@ -36,16 +40,25 @@
   .msub { margin-top:8px; font-size:14px; color:var(--steel); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<link rel="stylesheet" href="a11y.css">
 </head>
 <body>
-<header class="appbar" role="banner">ระบบรับสัญญาณเสียงประกาศ</header>
-<main id="mainContent" class="center"><div><div id="state" class="state off" role="button" tabindex="0" aria-live="polite" aria-label="สถานะระบบรับสัญญาณ กดเพื่อปลดล็อกเสียง"><span id="stateText">OFF</span></div>
-<div id="loadInfo" class="loadinfo" role="status" aria-live="polite">กำลังเริ่มระบบ…</div>
-<div id="musicBox" class="musicbox hidden" aria-live="polite">
-  <div class="mtitle" id="musicTitle"></div>
-  <div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
-  <div class="msub" id="musicSub"></div>
-</div></div></main>
+<header class="appbar" role="banner"><h1>ระบบรับสัญญาณเสียงประกาศ</h1></header>
+<main class="center" role="main"><div>
+  <div id="state" class="state off" role="status" aria-live="polite" aria-atomic="true">
+    <span class="sr-only" id="stateSr">สถานะระบบรับสัญญาณ: ปิด (OFF)</span>
+    <span id="stateText" aria-hidden="true">OFF</span>
+  </div>
+  <div id="loadInfo" class="loadinfo" role="status" aria-live="polite">กำลังเริ่มระบบ…</div>
+  <div class="audiobar">
+    <button type="button" class="btn-audio" id="btnUnlockAudio" aria-pressed="false">🔊 กดปุ่มนี้ 1 ครั้งเพื่อเปิดเสียงอัตโนมัติ</button>
+  </div>
+  <div id="musicBox" class="musicbox hidden" role="region" aria-label="เครื่องเล่นเพลง">
+    <div class="mtitle" id="musicTitle"></div>
+    <div class="mwrap" id="musicWrap"><div id="ytPlayer"></div></div>
+    <div class="msub" id="musicSub" aria-live="polite"></div>
+  </div>
+</div></main>
 
 <script>
 var topicFile = 'cmucoop/audio/control/signal_key_v1';
@@ -61,11 +74,12 @@ function sleep(sec) { return new Promise(function (r) { setTimeout(r, sec * 1000
 /* ---------- สถานะ ON / OFF / ERROR ---------- */
 var st = { cfgOk: false, cfgErr: false, mqtt: false, mqttErr: false, playing: 0 };
 function render() {
-  var box = $('#state'), k = 'off', t = 'OFF';
-  if (st.cfgErr || st.mqttErr) { k = 'error'; t = 'ERROR'; }
-  else if (st.cfgOk && st.mqtt) { k = 'on'; t = 'ON'; }
+  var box = $('#state'), k = 'off', t = 'OFF', desc = 'ปิด (OFF)';
+  if (st.cfgErr || st.mqttErr) { k = 'error'; t = 'ERROR'; desc = 'เกิดข้อผิดพลาด (ERROR)'; }
+  else if (st.cfgOk && st.mqtt) { k = 'on'; t = 'ON'; desc = st.playing > 0 ? 'เปิดใช้งาน กำลังเล่นเสียงประกาศ (ON)' : 'เปิดใช้งาน พร้อมรับสัญญาณ (ON)'; }
   box.className = 'state ' + k + (k === 'on' && st.playing > 0 ? ' playing' : '');
   $('#stateText').textContent = t;
+  if ($('#stateSr')) $('#stateSr').textContent = 'สถานะระบบรับสัญญาณ: ' + desc;
 }
 function setStatus(type, state) {
   var was = !!st['p' + type], now = state === 'playing';
@@ -84,7 +98,14 @@ function enableAudioContext() {
   if (audioUnlocked) return;
   audioUnlocked = true;
   var a = new Audio(); a.volume = 0.01; a.play().catch(function () {});
+  var btn = $('#btnUnlockAudio');
+  if (btn) {
+    btn.classList.add('on');
+    btn.setAttribute('aria-pressed', 'true');
+    btn.textContent = '✅ เปิดระบบเสียงอัตโนมัติแล้ว';
+  }
 }
+$('#btnUnlockAudio').addEventListener('click', enableAudioContext);
 ['click', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, enableAudioContext); });
 render();
 
@@ -166,10 +187,7 @@ function musicApplyVol() {                                  // ความด�
   }
 }
 
-/* ---------- ปิดเสียงตอน YouTube เล่นโฆษณา ----------
- * YouTube ไม่มี API บอกสถานะโฆษณาโดยตรง จึงเทียบรหัสวิดีโอที่กำลังเล่นกับรหัสเพลงที่ขอไว้
- * ถ้าไม่ตรง = กำลังเล่นโฆษณา → ปิดเสียง จนกลับมาเป็นรหัสเพลงจริงจึงเปิดเสียง
- * เริ่มเพลงใหม่ทุกครั้งจะปิดเสียงไว้ก่อน จนยืนยันได้ว่าเป็นตัวเพลง (กันโฆษณานำหน้าดังหลุด) */
+/* ---------- ปิดเสียงตอน YouTube เล่นโฆษณา ---------- */
 var AD_MAX_MS = 180000, AD_UNKNOWN_MS = 5000;
 function expectedVideoId() {
   if (!MUS.cur) return '';
@@ -187,9 +205,9 @@ function adCheck() {
   if (!MUS.cur || !/^yt/.test(MUS.cur.kind) || !MUS.yt || !MUS.yt.getVideoData || MUS.held) return;
   var vid = '', exp = expectedVideoId(), ad;
   try { vid = (MUS.yt.getVideoData() || {}).video_id || ''; } catch (e) { return; }
-  if (exp && vid) ad = vid !== exp;                                   // รหัสไม่ตรง = โฆษณา
-  else ad = MUS.adMuted && (Date.now() - MUS.adSince) < AD_UNKNOWN_MS; // อ่านรหัสไม่ได้: ปิดไว้ไม่เกิน 5 วินาที แล้วปล่อยเสียง
-  if (ad && MUS.adMuted && (Date.now() - MUS.adSince) > AD_MAX_MS) ad = false;   // กันค้างเงียบถาวรถ้าตรวจพลาด
+  if (exp && vid) ad = vid !== exp;
+  else ad = MUS.adMuted && (Date.now() - MUS.adSince) < AD_UNKNOWN_MS;
+  if (ad && MUS.adMuted && (Date.now() - MUS.adSince) > AD_MAX_MS) ad = false;
   setAdMute(ad);
 }
 setInterval(adCheck, 400);
@@ -208,7 +226,7 @@ function musicStart(item) {
   if (isYt) {
     var list = item.kind === 'ytlist';
     if (!MUS.ytReady) { MUS.ytWant = item; return; }
-    MUS.adMuted = true; MUS.adSince = Date.now();            // ปิดเสียงไว้ก่อนจนยืนยันว่าเป็นตัวเพลง
+    MUS.adMuted = true; MUS.adSince = Date.now();
     if (MUS.yt && MUS.yt.loadVideoById) {
       if (list) MUS.yt.loadPlaylist({ listType: 'playlist', list: item.ref, index: 0 });
       else MUS.yt.loadVideoById(item.ref);
@@ -229,10 +247,10 @@ function musicStart(item) {
     var a = new Audio(item.ref); MUS.au = a; a.volume = MUS.vol / 100;
     a.onended = function () { musicEnd(true); };
     a.onerror = function () { musicEnd(false); };
-    if (MUS.userPaused) return;                              // แอดมินสั่งหยุดไว้ก่อนเพลงเริ่ม: รอสั่งเล่นต่อ
+    if (MUS.userPaused) return;
     a.play().catch(function (err) {
-      if (err && err.name === 'NotAllowedError') {          // เบราว์เซอร์ยังไม่ให้เล่นเอง: รอแตะจอ 1 ครั้ง
-        $('#musicSub').textContent = 'แตะหน้าจอ 1 ครั้งเพื่อเริ่มเล่นเพลง';
+      if (err && err.name === 'NotAllowedError') {
+        $('#musicSub').textContent = 'แตะหน้าจอหรือกดปุ่มเปิดเสียง 1 ครั้งเพื่อเริ่มเล่นเพลง';
         document.addEventListener('click', function once() { document.removeEventListener('click', once); if (MUS.au === a && !MUS.held) a.play(); });
       } else musicEnd(false);
     });
@@ -243,7 +261,6 @@ function musicEnd(ok) {
   MUS.cur = null; MUS.userPaused = false; musicStopMedia();
   google.script.run.withSuccessHandler(musicTick).withFailureHandler(musicTick).musicTvEnd(c.id, !!ok);
 }
-/* หยุดเพลงระหว่างมีประกาศ (นับซ้อนได้) และเล่นต่อเมื่อประกาศจบ */
 function musicHold() {
   MUS.held++;
   if (MUS.held !== 1) return;
@@ -256,12 +273,11 @@ function musicRelease() {
   if (MUS.held) return;
   if (MUS.next) { var n = MUS.next; MUS.next = null; musicStart(n); return; }
   if (!MUS.cur) return;
-  if (MUS.userPaused) { $('#musicSub').textContent = '⏸ หยุดเพลงโดยผู้ดูแล'; return; }   // ประกาศจบแล้วแต่แอดมินสั่งหยุดอยู่ → ไม่เล่นต่อเอง
+  if (MUS.userPaused) { $('#musicSub').textContent = '⏸ หยุดเพลงโดยผู้ดูแล'; return; }
   $('#musicSub').textContent = musicSubText();
   if (MUS.au) MUS.au.play().catch(function () {});
   if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) MUS.yt.playVideo();
 }
-/* หยุด/เล่นต่อตามที่แอดมินสั่งจากหน้าขอเพลง (ซ้อนกับการหยุดระหว่างประกาศได้: เล่นต่อเมื่อไม่มีทั้งสองอย่าง) */
 function musicApplyPause(p) {
   p = !!p; if (p === MUS.userPaused) return;
   MUS.userPaused = p;
@@ -276,13 +292,12 @@ function musicApplyPause(p) {
     if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) { try { MUS.yt.playVideo(); } catch (e) {} }
   }
 }
-/* ตำแหน่งที่เพลงเล่นถึง ส่งขึ้นเซิร์ฟเวอร์พร้อมการเช็กคิวทุก 5 วินาที เพื่อให้หน้าขอเพลงแสดงแถบความคืบหน้า */
 function musicProg() {
   var c = MUS.cur; if (!c) return {};
   try {
     if (MUS.au) return { pos: MUS.au.currentTime || 0, dur: isFinite(MUS.au.duration) ? MUS.au.duration : 0, mv: !MUS.au.paused && !MUS.au.ended };
     if (/^yt/.test(c.kind) && MUS.yt && MUS.yt.getCurrentTime) {
-      if (MUS.adMuted) return {};                           // กำลังเล่นโฆษณา: เวลาของโฆษณาไม่ใช่เวลาของเพลง ไม่รายงาน
+      if (MUS.adMuted) return {};
       var o = { pos: MUS.yt.getCurrentTime() || 0, dur: MUS.yt.getDuration() || 0, mv: MUS.yt.getPlayerState() === 1 };
       if (c.kind === 'ytlist') { var l = MUS.yt.getPlaylist() || []; if (l.length > 1) { o.idx = MUS.yt.getPlaylistIndex() + 1; o.n = l.length; } }
       return o;
@@ -290,11 +305,10 @@ function musicProg() {
   } catch (e) {}
   return {};
 }
-/* ข้ามไปเพลงถัดไปในเพลย์ลิสต์ (ถ้าเป็นเพลงสุดท้ายก็จบรายการนั้นเลย) */
 function musicNextTrack() {
   if (!MUS.cur || MUS.cur.kind !== 'ytlist' || !MUS.yt) return;
   if (musicYtLast()) { musicEnd(true); return; }
-  try { MUS.adMuted = true; MUS.adSince = Date.now(); musicApplyVol(); MUS.yt.nextVideo(); } catch (e) { musicEnd(false); return; }   // ปิดเสียงไว้ก่อนจนยืนยันว่าเป็นตัวเพลง เหมือนตอนเริ่มเพลง
+  try { MUS.adMuted = true; MUS.adSince = Date.now(); musicApplyVol(); MUS.yt.nextVideo(); } catch (e) { musicEnd(false); return; }
   if (MUS.userPaused || MUS.held) setTimeout(function () { try { MUS.yt.pauseVideo(); } catch (e) {} }, 400);
 }
 function musicApply(r) {
@@ -309,11 +323,11 @@ function musicApply(r) {
   }
   if (r.action === 'play') { MUS.userPaused = !!r.paused; if (MUS.held > 0) MUS.next = r.item; else musicStart(r.item); return; }
   if (r.cmd && r.cmd.cmd === 'nexttrack' && r.cmd.seq > MUS.cmdSeq) { MUS.cmdSeq = r.cmd.seq; musicNextTrack(); return; }
-  musicApplyPause(r.paused);                               // keep: ซิงก์สถานะหยุด/เล่นต่อ
+  musicApplyPause(r.paused);
 }
 var lastPing = 0;
 function musicTick() {
-  if (MUS.held > 0) {                                      // ระหว่างประกาศไม่เริ่มเพลงใหม่ แต่ยังส่งสัญญาณชีพให้หน้าขอเพลงรู้ว่า TV ออนไลน์
+  if (MUS.held > 0) {
     if (Date.now() - lastPing > 20000) { lastPing = Date.now(); try { google.script.run.withFailureHandler(function () {}).musicTvPing(); } catch (e) {} }
     return;
   }
@@ -341,7 +355,6 @@ function playId(id) {
     });
   });
 }
-/* ครอบงานประกาศทุกแบบ: กันเล่นซ้อน, หยุดเพลงชั่วคราว, คืนสถานะเมื่อจบ */
 async function runAnnouncement(type, body) {
   if (isPlayingBusy) return;
   isPlayingBusy = true;
@@ -397,7 +410,6 @@ function checkInternalSchedule() {
   lastPlayedTimeStr = cur;
   var it = findItem(key);
   if (!it) return;
-  /* บันทึกประวัติการเล่นเสียงตามระบบ (หลายเครื่อง TV ส่งซ้ำได้ ฝั่งหลังบ้านรวมเหลือรายการเดียว) */
   try { google.script.run.withFailureHandler(function () {}).soundScheduleLog(cur, key, found ? 'ตามตารางเวลา' : 'ประกาศซ้ำช่วงกลางวัน', isPlayingBusy); } catch (e) {}
   triggerAnnouncement(it.id, true, it.label, 1, 0);
 }
@@ -432,5 +444,6 @@ client.on('message', function (topic, message) {
 loadCfg(true);
 setInterval(function () { loadCfg(false); }, 60000);
 </script>
+<script src="a11y.js"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#6c4685;--ink:#24193d;--per:3;--gap:18px}
+:root{--bg:#8b63a6;--ink:#2a1f47;--per:3;--gap:18px}
 @media (max-width:900px){:root{--per:2}}
 @media (max-width:560px){:root{--per:1}}
 *{box-sizing:border-box}
@@ -26,27 +26,31 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Th
 .slide.sk{background:linear-gradient(100deg,#f1ecf5 30%,#faf7fc 50%,#f1ecf5 70%);background-size:200% 100%;animation:sk 1.4s linear infinite;box-shadow:none}
 @keyframes sk{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.slide.sk{animation:none}}
-.nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1.5px solid #7e6f9d;background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:1px solid #d9c8ff;background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 .nav:hover{background:#f3ebf8}
-.nav:focus-visible{outline:3px solid #6b3f8c;outline-offset:2px}
+.nav:focus-visible{outline:3px solid #5b2fc7;outline-offset:2px}
 .nav.prev{left:6px}.nav.next{right:6px}
+.nav.pause{top:auto;bottom:8px;right:8px;transform:none;width:36px;height:36px;font-size:15px}
 .nav[hidden]{display:none}
-.msg{padding:48px 12px;text-align:center;color:#54496e;font-weight:600}
+.msg{padding:48px 12px;text-align:center;color:#5a4f78}
 html,body{height:100%;overflow:hidden}
 body{padding:0}
 .panel{position:absolute;left:8px;right:8px;top:8px;max-width:none;margin:0;padding:12px;display:flex;align-items:center}
 .viewport{width:100%;padding:6px 0}
 </style>
+<link rel="stylesheet" href="a11y.css">
 </head>
 <body>
-<main class="panel" id="panel" role="region" aria-label="แบนเนอร์ประชาสัมพันธ์">
-  <button type="button" class="nav prev" id="prev" aria-label="ก่อนหน้า" hidden>&#10094;</button>
+<main class="panel" id="panel" role="main" aria-roledescription="แคร์รูเซล" aria-label="แบนเนอร์ประชาสัมพันธ์">
+  <h1 class="sr-only">แบนเนอร์ประชาสัมพันธ์</h1>
+  <button type="button" class="nav prev" id="prev" aria-label="แบนเนอร์ก่อนหน้า" hidden>&#10094;</button>
   <div class="viewport" id="viewport">
     <div class="track" id="track" aria-live="off">
       <div class="slide sk"></div><div class="slide sk"></div><div class="slide sk"></div>
     </div>
   </div>
-  <button type="button" class="nav next" id="next" aria-label="ถัดไป" hidden>&#10095;</button>
+  <button type="button" class="nav next" id="next" aria-label="แบนเนอร์ถัดไป" hidden>&#10095;</button>
+  <button type="button" class="nav pause" id="pauseBtn" aria-label="หยุดเลื่อนแบนเนอร์อัตโนมัติ" aria-pressed="false" hidden>&#10074;&#10074;</button>
 </main>
 
 <script>
@@ -57,9 +61,20 @@ var esc = function (s) {
   });
 };
 var track = $('#track'), panel = $('#panel');
-var timer = null, paused = false, moving = false, count = 0, speed = 4, sig = '', perSet = 0, hPct = 80, ar = 0.75, arSet = false, firstId = '';
-var ANIM = 600;
 var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var timer = null, userPaused = !!reduce, hoverPaused = false, paused = userPaused, moving = false, count = 0, speed = 4, sig = '', perSet = 0, hPct = 80, ar = 0.75, arSet = false, firstId = '';
+var ANIM = 600;
+
+function syncPauseState() {
+  paused = userPaused || hoverPaused;
+  track.setAttribute('aria-live', paused ? 'polite' : 'off');
+  var pb = $('#pauseBtn');
+  if (pb) {
+    pb.setAttribute('aria-pressed', userPaused ? 'true' : 'false');
+    pb.setAttribute('aria-label', userPaused ? 'เล่นแบนเนอร์เลื่อนอัตโนมัติ' : 'หยุดเลื่อนแบนเนอร์อัตโนมัติ');
+    pb.innerHTML = userPaused ? '&#9654;' : '&#10074;&#10074;';
+  }
+}
 
 /* วัดขนาดกรอบที่ฝังอยู่จริง แล้วจัดรูปให้เต็มกรอบ: perSet = 0 → เลือกจำนวนรูปที่เต็มกรอบที่สุดเอง, 1-6 → ตามที่แอดมินตั้ง */
 var M = 8, PAD = 12, GAP = 18, swPx = 300;
@@ -116,8 +131,9 @@ function restart() {
 }
 function updateNav() {
   var on = canLoop();
-  $('#prev').hidden = $('#next').hidden = !on;
+  $('#prev').hidden = $('#next').hidden = $('#pauseBtn').hidden = !on;
   track.classList.toggle('few', !on);
+  syncPauseState();
 }
 function render(data) {
   var list = (data && data.banners) || [];
@@ -127,12 +143,14 @@ function render(data) {
   count = list.length; firstId = count ? list[0].id : ''; arSet = false;
   moving = false; track.style.transition = 'none'; track.style.transform = 'none';
   if (!count) { track.innerHTML = '<div class="msg" style="flex:1">ยังไม่มี Banner</div>'; updateNav(); clearInterval(timer); return; }
-  track.innerHTML = list.map(function (b) {
-    var im = '<img src="' + esc(b.url) + '" alt="' + esc(b.title) + '" data-id="' + esc(b.id) + '" draggable="false">';
+  track.innerHTML = list.map(function (b, idx) {
+    var altTxt = (b.title && String(b.title).trim()) || ('แบนเนอร์ประชาสัมพันธ์ ' + (idx + 1));
+    var im = '<img src="' + esc(b.url) + '" alt="' + esc(altTxt) + '" data-id="' + esc(b.id) + '" draggable="false">';
     if (b.link) im = '<a href="' + esc(b.link) + '" target="_blank" rel="noopener">' + im + '</a>';
     return '<div class="slide">' + im + '</div>';
   }).join('');
   layout(); updateNav(); restart();
+  if (window.A11Y && A11Y.run) A11Y.run();
 }
 /* อ่านสัดส่วนจริงจากรูปแรก แล้วจัดขนาดช่องใหม่ */
 track.addEventListener('load', function (e) {
@@ -148,16 +166,27 @@ track.addEventListener('error', function (e) {
   google.script.run.withSuccessHandler(function (d) { im.src = d; }).withFailureHandler(function () {}).getBannerImage(im.dataset.id);
 }, true);
 
-$('#prev').addEventListener('click', function () { go(-1); restart(); });
-$('#next').addEventListener('click', function () { go(1); restart(); });
-['mouseenter', 'focusin'].forEach(function (ev) { panel.addEventListener(ev, function () { paused = true; }); });
-['mouseleave', 'focusout'].forEach(function (ev) { panel.addEventListener(ev, function () { paused = false; }); });
+$('#prev').addEventListener('click', function () { track.setAttribute('aria-live', 'polite'); go(-1); restart(); });
+$('#next').addEventListener('click', function () { track.setAttribute('aria-live', 'polite'); go(1); restart(); });
+$('#pauseBtn').addEventListener('click', function () {
+  userPaused = !userPaused;
+  syncPauseState();
+  restart();
+});
+['mouseenter', 'focusin'].forEach(function (ev) { panel.addEventListener(ev, function () { hoverPaused = true; syncPauseState(); }); });
+['mouseleave', 'focusout'].forEach(function (ev) {
+  panel.addEventListener(ev, function (e) {
+    if (ev === 'focusout' && e.relatedTarget && panel.contains(e.relatedTarget)) return;
+    hoverPaused = false;
+    syncPauseState();
+  });
+});
 
 /* ปัดซ้าย/ขวาบนมือถือ */
 var tx = null, swiped = false;
-$('#viewport').addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; swiped = false; paused = true; }, { passive: true });
+$('#viewport').addEventListener('touchstart', function (e) { tx = e.touches[0].clientX; swiped = false; hoverPaused = true; syncPauseState(); }, { passive: true });
 $('#viewport').addEventListener('touchend', function (e) {
-  paused = false;
+  hoverPaused = false; syncPauseState();
   if (tx === null) return;
   var dx = e.changedTouches[0].clientX - tx; tx = null;
   if (Math.abs(dx) > 40) { swiped = true; go(dx < 0 ? 1 : -1); restart(); }
@@ -166,6 +195,7 @@ $('#viewport').addEventListener('click', function (e) { if (swiped) { e.preventD
 
 window.addEventListener('resize', function () { applyPer(); updateNav(); restart(); });
 applyPer();
+syncPauseState();
 
 /* ดึงรายการใหม่ทุก 60 วินาที: เพิ่ม/ลบรูปหรือเปลี่ยนความเร็วแล้วขึ้นเอง ไม่ต้องรีเฟรช */
 function load(first) {
@@ -186,5 +216,6 @@ if (typeof google !== 'undefined' && google.script && google.script.run) {
   track.innerHTML = '<div class="msg" style="flex:1">เปิดหน้านี้ผ่านลิงก์เว็บแอป (?page=banner)</div>';
 }
 </script>
+<script src="a11y.js"></script>
 </body>
 </html>

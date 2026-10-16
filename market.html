@@ -12,21 +12,17 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
-  --ink:#24193d; --steel:#54496e; --bg:#f5f2fc; --panel:#fff; --line:#d6c8ef; --border-ui:#7e6f9d;
-  --accent:#6838e3; --accent-text:#5629c4; --accent-soft:#efe8ff;
-  --ok:#136a3c; --warn:#854d0e; --bad:#b42318; --old:#525f6d;
-  --grad:linear-gradient(135deg,#5225c2,#6838e3 60%,#7849f0);
-  --shadow:0 4px 16px rgba(86,41,196,.12); --r:16px;
+  --ink:#2a1f47; --steel:#5a4f78; --bg:#f4f0fb; --panel:#fff; --line:#e3daf3;
+  --accent:#7a4be0; --accent-text:#6a3fd1; --accent-soft:#f0e8ff;
+  --ok:#176b3f; --warn:#7d5d0f; --bad:#b42318; --old:#6b7684;
+  --grad:linear-gradient(135deg,#7a4be0,#9966FF 60%,#b894ff);
+  --shadow:0 4px 16px rgba(106,63,209,.12); --r:16px;
 }
-.skip-link{position:fixed;top:-100px;left:16px;z-index:9999;background:var(--ink);color:#fff;padding:10px 18px;border-radius:0 0 12px 12px;font-weight:700;text-decoration:none;box-shadow:0 4px 16px rgba(0,0,0,.35);transition:top .15s}
-.skip-link:focus{top:0;outline:3px solid #ffca28;outline-offset:2px}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Thai',Tahoma,sans-serif;-webkit-tap-highlight-color:transparent}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:3px solid var(--accent-text);outline-offset:2px}
-.top :focus-visible{outline:3px solid #fff;outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .hidden{display:none!important}
 .muted{color:var(--steel);font-size:13.5px}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -40,7 +36,7 @@ button{cursor:pointer}
 .btn:hover{filter:brightness(1.08)}
 .btn:active{transform:scale(.97)}
 .btn.ghost{background:#fff;color:var(--accent-text);box-shadow:none}
-.btn.small{min-height:36px;padding:6px 14px;font-weight:600;font-size:13.5px}
+.btn.small{min-height:32px;padding:5px 13px;font-weight:500;font-size:13.5px}
 .btn.onDark{border-color:rgba(255,255,255,.6);color:#fff;background:rgba(255,255,255,.12);box-shadow:none}
 .btn.exportMain{background:#fff;color:var(--accent-text);border:2px solid #fff;font-weight:700;font-size:14.5px;padding:6px 16px;min-height:36px;box-shadow:0 3px 12px rgba(0,0,0,.25)}
 .btn.exportMain:hover{background:#f3ecff;transform:translateY(-1px)}
@@ -54,8 +50,7 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center}
 .cardhead{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
 .cardhead h3{margin:0}
 
-input[type=text],input[type=search],input[type=password],input[type=number],input[type=date],select,textarea{width:100%;border-radius:12px;padding:8px 11px;border:1.5px solid var(--border-ui);background:#fbf9ff;color:var(--ink);min-height:40px}
-.btn.ghost,.chip{border-color:var(--border-ui)}
+input[type=text],input[type=search],input[type=password],input[type=number],input[type=date],select,textarea{width:100%;border-radius:12px;padding:8px 11px;border:1.5px solid var(--line);background:#fbf9ff;color:var(--ink)}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(153,102,255,.2)}
 input[type=checkbox]{accent-color:var(--accent);width:17px;height:17px}
 
@@ -99,8 +94,8 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .mt th,.mt td{padding:4px 3px;border:1px solid #e6dcf7;text-align:center;vertical-align:middle}
 .mt thead th{background:#ebe2fc;color:#2a1f47;font-weight:700;position:sticky;top:0;z-index:2;line-height:1.3;border-color:#d9c8ff;font-size:12px;word-break:keep-all}
 .mt td.nm{text-align:left;word-break:break-word;line-height:1.3}
-.mt td.code{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:11.5px}
-.mt td.chg{font-size:11px;white-space:pre-line;line-height:1.25}
+.mt td.code{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
+.mt td.chg{font-size:12px;white-space:pre-line;line-height:1.25}
 .mt tbody tr:nth-child(even) td{background:#fcfaff}
 .mt td.c-cost{background:#f0eafb!important;color:#2a1f47}
 .mt td.c-price{background:#e2d6fa!important;color:#3b1d8f;font-weight:600}
@@ -113,9 +108,9 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .mt td.rec-down{background:#d9ccf5!important;color:#3b1d8f;font-weight:700}
 .mt td.rec-cons{background:#d6f0e0!important;color:#14532d;font-weight:600}
 .mt td.rec-inact{background:#e8e4f0!important;color:#5b5275}
-.mt td.mkt-dash{background:#e8e4f0!important;color:#6a5f88}
+.mt td.mkt-dash{background:#e8e4f0!important;color:#4e4369}
 .mt tbody tr:hover td{filter:brightness(.96)}
-.gbtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d9c8ff;background:#fff;color:#3c4043;border-radius:999px;padding:3px 7px;font-size:11.5px;max-width:100%;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s,box-shadow .15s}
+.gbtn{display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid #d9c8ff;background:#fff;color:#3c4043;border-radius:999px;padding:3px 8px;min-height:26px;font-size:12px;max-width:100%;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s,box-shadow .15s}
 .gbtn svg{width:14px;height:14px;flex:none}
 .gbtn:hover{background:#f8f5ff;box-shadow:0 1px 4px rgba(106,63,209,.25)}
 
@@ -149,7 +144,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .logincard h2{margin:0;font-size:21px;text-align:center;color:var(--accent-text)}
 .logincard label{display:grid;gap:3px;font-size:13px;color:var(--steel);font-weight:500}
 .err{color:var(--bad);min-height:20px;font-size:14px;font-weight:600;margin-top:6px}
-.drop{border:2px dashed var(--accent);border-radius:14px;background:var(--accent-soft);padding:24px 14px;text-align:center;margin-top:12px;cursor:pointer}
+.drop{display:block;width:100%;font:inherit;color:var(--ink);border:2px dashed var(--accent);border-radius:14px;background:var(--accent-soft);padding:24px 14px;text-align:center;margin-top:12px;cursor:pointer}
 .drop.over{background:#e4d5ff}
 .drop b{display:block;font-size:15.5px}
 .pvk{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}
@@ -168,24 +163,24 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .empty{text-align:center;padding:42px 16px}
 .empty h2{margin:0 0 6px}
 </style>
+<link rel="stylesheet" href="a11y.css">
 </head>
 <body>
-<a href="#mainContent" class="skip-link">ข้ามไปยังเนื้อหาหลัก</a>
 
-<header class="top">
+<header class="top" role="banner">
   <h1>เช็คราคาตลาด</h1>
-  <div class="info" id="info" role="status" aria-live="polite">กำลังโหลดข้อมูล…</div>
+  <div class="info" id="info">กำลังโหลดข้อมูล…</div>
   <div class="acts">
-    <select id="brSel" title="เลือกสาขา" aria-label="เลือกสาขา" style="width:auto;min-width:150px;max-width:220px;padding:6px 10px;border-radius:999px;font-weight:600"></select>
+    <select id="brSel" title="เลือกสาขา" style="width:auto;min-width:150px;max-width:220px;padding:6px 10px;border-radius:999px;font-weight:600"></select>
     <button class="btn exportMain small hidden" id="bUpload">อัปโหลดข้อมูล</button>
     <button class="btn exportMain small" id="bXlsx">ดาวน์โหลด Excel</button>
     <button class="btn onDark small hidden" id="bNames">ตั้งค่าหมวด/ผู้สำรวจ</button>
     <button class="btn onDark small" id="bReload">รีเฟรช</button>
-    <a class="btn onDark small" href="index.html" id="bHome">← เมนูหลัก</a>
+    <a class="btn onDark small" href="index.html" id="bHome">เมนูหลัก</a>
   </div>
 </header>
 
-<main class="wrap" id="mainContent" tabindex="-1">
+<div class="wrap" id="app" role="main">
 
   <div class="card empty hidden" id="empty">
     <h2>ยังไม่มีข้อมูลสำรวจราคาตลาด</h2>
@@ -198,7 +193,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
   <div id="main" class="wrap" style="padding:0" hidden>
     <section class="card" style="display:grid;gap:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <div class="tabs" id="verTabs" role="tablist" aria-label="เลือกฉบับข้อมูล"></div>
+        <div class="tabs" id="verTabs" role="tablist"></div>
         <div id="cycleBadgeBox"></div>
       </div>
       <div class="cycle-bar" id="cycleBar"></div>
@@ -312,38 +307,38 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
       </div>
       <div class="sig-grid">
         <div class="sig-card">
-          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigSurveyor" aria-label="ลงชื่อผู้สำรวจราคาตลาด" placeholder="ชื่อผู้สำรวจ เช่น รัฐพล" style="max-width:160px;padding:3px 8px;text-align:center"></div>
+          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigSurveyor" placeholder="ชื่อผู้สำรวจ เช่น รัฐพล" style="max-width:160px;padding:3px 8px;text-align:center"></div>
           <div class="muted">ผู้สำรวจราคาตลาด</div>
         </div>
         <div class="sig-card">
-          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigChecker" aria-label="ลงชื่อผู้ตรวจสอบความถูกต้อง" placeholder="เว้นว่างไว้เซ็นจริงได้" style="max-width:160px;padding:3px 8px;text-align:center"></div>
+          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigChecker" placeholder="เว้นว่างไว้เซ็นจริงได้" style="max-width:160px;padding:3px 8px;text-align:center"></div>
           <div class="muted">ผู้ตรวจสอบความถูกต้อง</div>
         </div>
         <div class="sig-card">
-          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigApprover" aria-label="ลงชื่อผู้ปรับแก้ไขราคาสินค้า" placeholder="เว้นว่างไว้เซ็นจริงได้" style="max-width:160px;padding:3px 8px;text-align:center"></div>
+          <div class="sig-line"><span>ลงชื่อ</span><input type="text" id="sigApprover" placeholder="เว้นว่างไว้เซ็นจริงได้" style="max-width:160px;padding:3px 8px;text-align:center"></div>
           <div class="muted">ผู้ปรับแก้ไขราคาสินค้า</div>
         </div>
       </div>
     </section>
   </div>
-</main>
+</div>
 
 <!-- เข้าสู่ระบบ -->
-<div class="loginwrap hidden" id="login" role="region" aria-labelledby="loginTitle">
+<div class="loginwrap hidden" id="login">
   <div class="logincard">
-    <h2 id="loginTitle">เช็คราคาตลาด · CMUCOOP</h2>
+    <h2>เช็คราคาตลาด · CMUCOOP</h2>
     <div class="muted" id="lgMsg" style="text-align:center">เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก</div>
     <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
     <label>รหัสผ่าน<input type="password" id="lgPass" autocomplete="current-password"></label>
-    <div class="err" id="lgErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="lgErr"></div>
     <button class="btn" id="lgBtn" style="width:100%">เข้าสู่ระบบ</button>
   </div>
 </div>
 
 <!-- อัปโหลดไฟล์ Excel -->
-<div class="overlay hidden" id="upDlg" role="dialog" aria-modal="true" aria-labelledby="upDlgTitle">
+<div class="overlay hidden" id="upDlg">
   <div class="dlg wide">
-    <h2 id="upDlgTitle">อัปโหลดข้อมูลเช็คราคาตลาด (รอบทุก 15 วัน หรือไวกว่านั้น)</h2>
+    <h2>อัปโหลดข้อมูลเช็คราคาตลาด (รอบทุก 15 วัน หรือไวกว่านั้น)</h2>
     <div class="muted">
       รองรับทั้ง <b>1) ไฟล์สำรวจราคาตลาดรูปแบบตัวอย่าง (.xlsx)</b> และ <b>2) ไฟล์รายงานวิเคราะห์การขาย/สต็อกสินค้า (.xlsx / .xls / .csv)</b> ·
       เมื่ออัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม ระบบจะ<b>ตรวจจับราคาขายที่เปลี่ยนไปโดยอัตโนมัติ</b> (ขึ้นข้อความ <code>&gt; ปรับขึ้น เดิม X ขึ้น Y</code> หรือ <code>&lt; ปรับลง เดิม X ลง Y</code> พร้อมวันที่) และ<b>คงข้อมูลราคาท้องตลาดที่เคยสำรวจไว้</b> พร้อมเก็บข้อมูลชุดเดิมไว้ในแท็บ "ฉบับก่อนหน้า"
@@ -355,12 +350,12 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
       <label style="font-size:13px;font-weight:600;color:var(--steel)">รหัสหมวดเริ่มต้น (กรณีไฟล์ไม่มีรหัสหมวดในชื่อชีต)<input type="text" id="upDefGrp" placeholder="เช่น 34 หรือ G01" maxlength="12"></label>
       <label style="font-size:13px;font-weight:600;color:var(--steel)">ชื่อหมวดเริ่มต้น (ไม่บังคับ)<input type="text" id="upDefName" placeholder="เช่น ผลิตภัณฑ์ดูแลผ้า" maxlength="50"></label>
     </div>
-    <div class="drop" id="drop" role="button" tabindex="0" aria-label="ลากไฟล์ Excel มาวางที่นี่ หรือกดเพื่อเลือกไฟล์">
+    <button type="button" class="drop" id="drop">
       <b>ลากไฟล์ Excel มาวางที่นี่ หรือกดเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์พร้อมกัน)</b>
       <span class="muted">.xlsx · .xls · .csv</span>
-    </div>
+    </button>
     <input type="file" id="upFile" accept=".xlsx,.xls,.csv" class="hidden" multiple>
-    <div class="err" id="upErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="upErr"></div>
     <div id="pv" class="hidden" style="margin-top:12px;display:grid;gap:10px"></div>
     <div class="row">
       <button class="btn ghost" id="upCancel">ปิด</button>
@@ -370,9 +365,9 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 </div>
 
 <!-- ส่งออกไฟล์ Excel (.xlsx) -->
-<div class="overlay hidden" id="exDlg" role="dialog" aria-modal="true" aria-labelledby="exDlgTitle">
+<div class="overlay hidden" id="exDlg">
   <div class="dlg wide">
-    <h2 id="exDlgTitle">ดาวน์โหลดไฟล์ Excel สำรวจราคาท้องตลาด</h2>
+    <h2>ดาวน์โหลดไฟล์ Excel สำรวจราคาท้องตลาด</h2>
     <div class="muted">ส่งออกเป็นไฟล์ <code>.xlsx</code> รูปแบบเหมือนไฟล์ตัวอย่าง <code>34ผลิตภัณฑ์ดูแลผ้า.xlsx</code> ทุกประการ (หัวตาราง 4 แถว, สูตรคำนวณกำไร/Vat/ราคาที่กำไร 30%, สีไฮไลต์ตามรายการแนะนำ, ตารางสรุปท้ายชีต และช่องลงชื่อ) โดย<b>แถวบนสุดของหัวตารางแสดงวันที่อัปข้อมูลเข้าคู่กับวันที่ส่งออกข้อมูล</b></div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px;padding:12px;background:#faf7ff;border:1.5px solid #d9c8ff;border-radius:14px">
@@ -389,7 +384,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
     <label class="opt"><input type="radio" name="exMode" value="filter" checked><span><b>ส่งออกเฉพาะหมวด/รายการตามตัวกรองที่เลือกอยู่</b><br><span class="muted" id="exN1"></span></span></label>
     <label class="opt"><input type="radio" name="exMode" value="all"><span><b>ส่งออกทุกหมวดทั้งหมดในระบบ</b> (1 ชีต = 1 หมวด)<br><span class="muted" id="exN2"></span></span></label>
 
-    <div class="err" id="exErr" role="alert" aria-live="assertive"></div>
+    <div class="err" id="exErr"></div>
     <div class="row">
       <button class="btn ghost" id="exCancel">ยกเลิก</button>
       <button class="btn" id="exGo">ดาวน์โหลด .xlsx</button>
@@ -398,9 +393,9 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 </div>
 
 <!-- ตั้งค่าหมวดสินค้า & ผู้สำรวจ -->
-<div class="overlay hidden" id="nmDlg" role="dialog" aria-modal="true" aria-labelledby="nmDlgTitle">
+<div class="overlay hidden" id="nmDlg">
   <div class="dlg wide">
-    <h2 id="nmDlgTitle">ตั้งค่าหมวดสินค้าและข้อมูลผู้สำรวจ</h2>
+    <h2>ตั้งค่าหมวดสินค้าและข้อมูลผู้สำรวจ</h2>
     <div class="muted">ตั้งชื่อหมวดสินค้า (เช่น รหัส <code>34</code> = <code>ผลิตภัณฑ์ดูแลผ้า</code>) และกำหนดชื่อผู้สำรวจเริ่มต้นที่จะแสดงในท้ายรายงาน Excel</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
       <div style="flex:1 1 200px;font-size:13px;font-weight:600">สาขาที่กำลังตั้งค่าอยู่: <b id="nmBrCur" style="color:var(--accent-text)">–</b><div class="muted" style="font-weight:400">หมวดสินค้าและข้อมูลแยกกันตามสาขา · เลือกสาขาได้ที่แถบด้านบน</div></div>
@@ -463,8 +458,12 @@ function call(fn) {
 var toastT = null;
 function toast(msg, isErr) {
   var t = $('#toast'); if (t) t.remove();
-  t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', isErr ? 'alert' : 'status'); t.setAttribute('aria-live', isErr ? 'assertive' : 'polite'); t.className = 'toast' + (isErr ? ' err2' : ''); t.textContent = msg; document.body.appendChild(t);
-  clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, isErr ? 5500 : 3000);
+  t = document.createElement('div'); t.id = 'toast'; t.className = 'toast' + (isErr ? ' err2' : '');
+  t.setAttribute('role', isErr ? 'alert' : 'status');
+  t.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
+  t.setAttribute('aria-atomic', 'true');
+  t.textContent = msg; document.body.appendChild(t);
+  clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, isErr ? 10000 : 6000);
 }
 async function busy(btn, fn) {
   btn.disabled = true;
@@ -513,13 +512,13 @@ var DIRTY = false;
 
 var REC_OPTS = ['คงที่', 'ปรับขึ้น', 'ปรับลง', 'ฝากพิจารณา', 'สินค้าไม่เคลื่อนไหว'];
 var REC_META = [
-  { k: '', t: 'ทั้งหมด', c: '#9966FF' },
-  { k: 'ปรับขึ้น', t: 'ปรับขึ้น', c: '#ff7c80' },
-  { k: 'ปรับลง', t: 'ปรับลง', c: '#b4a7d6' },
-  { k: 'ฝากพิจารณา', t: 'ฝากพิจารณา', c: '#7fb069' },
-  { k: 'คงที่', t: 'คงที่', c: '#f5b942' },
-  { k: 'สินค้าไม่เคลื่อนไหว', t: 'สินค้าไม่เคลื่อนไหว', c: '#8a97a5' },
-  { k: '__LOW__', t: 'กำไรหลัง Vat < 12%', c: '#c0392b' }
+  { k: '', t: 'ทั้งหมด', c: '#7a4be0', s: '●' },
+  { k: 'ปรับขึ้น', t: 'ปรับขึ้น', c: '#b42318', s: '▲' },
+  { k: 'ปรับลง', t: 'ปรับลง', c: '#5b2fc7', s: '▼' },
+  { k: 'ฝากพิจารณา', t: 'ฝากพิจารณา', c: '#176b3f', s: '◆' },
+  { k: 'คงที่', t: 'คงที่', c: '#946200', s: '■' },
+  { k: 'สินค้าไม่เคลื่อนไหว', t: 'สินค้าไม่เคลื่อนไหว', c: '#5a6573', s: '○' },
+  { k: '__LOW__', t: 'กำไรหลัง Vat < 12%', c: '#c0392b', s: '!' }
 ];
 
 function brKey(s) { return String(s == null ? '' : s).replace(/[\s\u00a0]+/g, '').toLowerCase(); }
@@ -807,17 +806,17 @@ function renderAll() {
   var m = curGroupMeta(F.g);
   var cyc = cycleStatus(m && m.ts);
   var nextDueTs = m && m.ts ? (m.ts + 15 * 86400000) : 0;
-  $('#info').innerHTML = (D.ver === 'prev' ? '<b style="color:#ffd27a">[ฉบับก่อนหน้า]</b> · ' : '') +
+  $('#info').innerHTML = (D.ver === 'prev' ? '<b style="color:#ffffff;text-decoration:underline">[ฉบับก่อนหน้า]</b> · ' : '') +
     (D.br ? 'สาขา <b>' + esc(D.br) + '</b> · ' : '') + (m ? 'หมวด <b>' + esc(grpLabel(F.g)) + '</b> · อัปข้อมูลเข้าเมื่อ <b>' + esc(fmtTsTh(m.ts)) + '</b> โดย ' + esc(m.who || '–') +
       (m.file ? ' (' + esc(m.file) + ')' : '') : 'รวมทุกหมวด') +
-    (D.me && !D.me.edit ? ' · <b style="color:#ffd27a">สิทธิ์: ดูอย่างเดียว</b>' : '');
+    (D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:underline">สิทธิ์: ดูอย่างเดียว</b>' : '');
 
   /* แท็บฉบับปัจจุบัน / ฉบับก่อนหน้า */
   var nCur = Object.keys(D.groups).filter(function (g) { return D.groups[g] && D.groups[g].cur; }).length;
   var nPrev = Object.keys(D.groups).filter(function (g) { return D.groups[g] && D.groups[g].prev; }).length;
   $('#verTabs').innerHTML =
-    '<button type="button" class="tab' + (D.ver === 'cur' ? ' on' : '') + '" data-v="cur">ฉบับปัจจุบัน (' + nCur + ' หมวด)</button>' +
-    '<button type="button" class="tab' + (D.ver === 'prev' ? ' on' : '') + '" data-v="prev"' + (nPrev ? '' : ' disabled title="จะมีเมื่อมีการอัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม"') + '>ฉบับก่อนหน้า (' + nPrev + ' หมวด)</button>';
+    '<button type="button" class="tab' + (D.ver === 'cur' ? ' on' : '') + '" data-v="cur" role="tab" aria-selected="' + (D.ver === 'cur' ? 'true' : 'false') + '">ฉบับปัจจุบัน (' + nCur + ' หมวด)</button>' +
+    '<button type="button" class="tab' + (D.ver === 'prev' ? ' on' : '') + '" data-v="prev" role="tab" aria-selected="' + (D.ver === 'prev' ? 'true' : 'false') + '"' + (nPrev ? '' : ' disabled title="จะมีเมื่อมีการอัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม"') + '>ฉบับก่อนหน้า (' + nPrev + ' หมวด)</button>';
 
   $('#cycleBadgeBox').innerHTML = '<span class="cycle-badge ' + cyc.cls + '">' + esc(cyc.txt) + '</span>';
   $('#cycleBar').innerHTML =
@@ -843,8 +842,8 @@ function renderAll() {
   });
   $('#chips').innerHTML = REC_META.map(function (c) {
     var on = F.rec === c.k;
-    return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-rec="' + esc(c.k) + '">' +
-      '<i style="background:' + c.c + '"></i><span>' + esc(c.t) + '</span><b>' + nf0.format(recCounts[c.k] || 0) + '</b></button>';
+    return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-rec="' + esc(c.k) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+      '<span aria-hidden="true" style="color:' + c.c + ';font-size:12px;line-height:1">' + (c.s || '●') + '</span><span>' + esc(c.t) + '</span><b>' + nf0.format(recCounts[c.k] || 0) + '</b></button>';
   }).join('');
 
   /* คำนวณ KPI ของหมวดที่เลือก */
@@ -999,11 +998,11 @@ function renderTable() {
       '<td>' + money(x.profitInc) + '</td>' +
       '<td>' + pctF(x.marginInc) + '</td>' +
       '<td class="c-p30">' + money(x.price30) + '</td>' +
-      '<td class="c-mkt' + (oDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="8" value="' + esc(x.mktMin) + '" placeholder="-"></td>' +
-      '<td class="c-mkt' + (pDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="9" value="' + esc(x.mktMax) + '" placeholder="-"></td>' +
-      '<td class="' + rCls + '"><select class="in-cell" data-f="10">' + opts + '</select></td>' +
-      '<td class="' + rCls + '"><input type="text" class="in-cell" data-f="11" value="' + esc(x.recPrice) + '" placeholder="ราคา"></td>' +
-      '<td><input type="text" class="in-cell left" data-f="12" value="' + esc(x.editNote) + '" placeholder="หมายเหตุ"></td>' +
+      '<td class="c-mkt' + (oDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="8" aria-label="ราคาท้องตลาดต่ำสุด ' + esc(x.name) + '" value="' + esc(x.mktMin) + '" placeholder="-"></td>' +
+      '<td class="c-mkt' + (pDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="9" aria-label="ราคาท้องตลาดสูงสุด ' + esc(x.name) + '" value="' + esc(x.mktMax) + '" placeholder="-"></td>' +
+      '<td class="' + rCls + '"><select class="in-cell" data-f="10" aria-label="รายการแนะนำ ' + esc(x.name) + '">' + opts + '</select></td>' +
+      '<td class="' + rCls + '"><input type="text" class="in-cell" data-f="11" aria-label="ราคาแนะนำ ' + esc(x.name) + '" value="' + esc(x.recPrice) + '" placeholder="ราคา"></td>' +
+      '<td><input type="text" class="in-cell left" data-f="12" aria-label="หมายเหตุการแก้ไข ' + esc(x.name) + '" value="' + esc(x.editNote) + '" placeholder="หมายเหตุ"></td>' +
       gLink(x) +
     '</tr>';
   }).join('');
@@ -1408,7 +1407,7 @@ function renderNmGrid() {
     var g = D.groups[k], n = g && g.cur && g.cur.rows ? g.cur.rows.length : 0;
     return '<div style="display:flex;gap:6px;align-items:center;background:#faf7ff;border:1px solid var(--line);border-radius:10px;padding:6px 10px">' +
       '<b style="min-width:42px">' + esc(k) + '</b>' +
-      '<input type="text" aria-label="ชื่อหมวด ' + esc(k) + '" data-nmk="' + esc(k) + '" value="' + esc(D.names[k] || '') + '" style="flex:1;min-width:0">' +
+      '<input type="text" data-nmk="' + esc(k) + '" value="' + esc(D.names[k] || '') + '" style="flex:1;min-width:0">' +
       '<button type="button" class="btn ghost small" data-delg="' + esc(k) + '" style="color:var(--bad);border-color:var(--bad);flex:none" title="ลบหมวดนี้ (' + n + ' รายการ)">ลบ</button>' +
     '</div>';
   }).join('');
@@ -1898,18 +1897,9 @@ $('#exGo').addEventListener('click', function () {
   });
 });
 
-$('#drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('#upFile').click(); } });
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') {
-    ['#upDlg', '#exDlg', '#nmDlg'].forEach(function (sel) { if (!$(sel).classList.contains('hidden')) $(sel).classList.add('hidden'); });
-  }
-});
-['#upDlg', '#exDlg', '#nmDlg'].forEach(function (sel) {
-  var m = $(sel); if (m) m.addEventListener('click', function (e) { if (e.target === m) m.classList.add('hidden'); });
-});
-$('#bHome').addEventListener('click', function (e) { if (TOKEN) { e.preventDefault(); location.href = 'index.html#t=' + encodeURIComponent(TOKEN); } });
 initToken();
 load();
 </script>
+<script src="a11y.js"></script>
 </body>
 </html>

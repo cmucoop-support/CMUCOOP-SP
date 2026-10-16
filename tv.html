@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#6c4685">
+<meta name="theme-color" content="#8b63a6">
 <link rel="icon" type="image/png" href="logo.png">
 <script src="gas-shim.js"></script>
 <title>ร้านสหกรณ์ มช. (CMU CO-OP)</title>
@@ -11,11 +11,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   /* ===== ปรับขนาด/สีได้ตรงนี้ ===== */
-  :root { --bg:#6c4685; --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
+  :root { --bg:#8b63a6; --tv-fg:#ffffff; --btn-bg:rgba(26,15,46,.48); --btn-hover:rgba(26,15,46,.68); --btn-border:rgba(255,255,255,.78);
+          --w:760px; --banner-h:230px; --receiver-h:430px; --gap:14px; --pad-top:14px; --logo:84px; --head-gap:18px; --banner-w:100%; --receiver-w:100%; --font:'Sarabun';
           --f-clock:22px; --f-shop:22px; --f-hello:22px; --f-caption:22px; --cap-speed:80; }
   * { box-sizing:border-box; }
   html,body { margin:0; }
-  body { background:var(--bg); color:#fff; font-family:var(--font),'Sarabun','Noto Sans Thai',Tahoma,sans-serif; min-height:100vh;
+  body { background:var(--bg); color:var(--tv-fg); font-family:var(--font),'Sarabun','Noto Sans Thai',Tahoma,sans-serif; min-height:100vh;
          padding:max(var(--pad-top),env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); }
   .wrap { max-width:var(--w); margin:0 auto; display:flex; flex-direction:column; gap:0; }
   .wrap > * + * { margin-top:var(--gap); }
@@ -29,51 +30,60 @@
   .head[data-layout="row"] .txt, .head[data-layout="topRow"] .txt { display:flex; flex-wrap:wrap; justify-content:center; align-items:baseline; gap:4px 22px; }
   .head[data-layout="topRow"] { flex-direction:column; }
   .logo { width:var(--logo); height:var(--logo); border-radius:50%; background:#fff; object-fit:cover; flex:none; box-shadow:0 2px 10px rgba(58,32,80,.25); }
-  .txt { display:grid; gap:2px; font-weight:700; text-shadow:0 1px 2px rgba(58,32,80,.35); }
+  .txt { display:grid; gap:2px; font-weight:700; text-shadow:var(--tv-shadow,0 1px 2px rgba(58,32,80,.35)); }
   .clock { font-size:var(--f-clock); font-variant-numeric:tabular-nums; }
-  .shop  { font-size:var(--f-shop); }
+  .shop  { font-size:var(--f-shop); margin:0; font-weight:700; }
   .hello { font-size:var(--f-hello); }
-  .hello small { font-size:.62em; font-weight:600; opacity:.95; }
+  .hello small { font-size:.65em; font-weight:600; }
 
   .frame { width:100%; max-width:100%; margin-left:auto; margin-right:auto; border:0; display:block; border-radius:14px; background:#fff; }
   #banner { width:var(--banner-w); height:var(--banner-h); background:transparent; }
   #receiver { width:var(--receiver-w); height:var(--receiver-h); border-radius:16px; }
   /* ข้อความใต้แบนเนอร์: มีข้อความเดียว ไหลจากขอบขวาออกขอบซ้ายแล้วเริ่มใหม่ */
-  .caption { overflow:hidden; white-space:nowrap; font-size:var(--f-caption); font-weight:700; line-height:1.5; opacity:.97;
-             text-shadow:0 1px 2px rgba(58,32,80,.35); }
+  .caption { overflow:hidden; white-space:nowrap; font-size:var(--f-caption); font-weight:700; line-height:1.5;
+             text-shadow:var(--tv-shadow,0 1px 2px rgba(58,32,80,.35)); }
   .caption .track { display:inline-block; will-change:transform; animation:marq linear infinite; animation-duration:var(--dur,20s); }
+  .caption.paused .track { animation-play-state:paused !important; }
   @keyframes marq { from { transform:translateX(var(--cw,100%)); } to { transform:translateX(-100%); } }
-  @media (prefers-reduced-motion:reduce) { .caption .track { animation:none; transform:none; } }
+  @media (prefers-reduced-motion:reduce) {
+    .caption { white-space:normal; text-align:center; }
+    .caption .track { animation:none !important; transform:none !important; display:block; }
+  }
 
-  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:13px; font-weight:600; background:rgba(24,12,40,.42); padding:6px 14px; border-radius:999px; }
-  .foot button { font:inherit; color:#fff; background:rgba(255,255,255,.2); border:1.5px solid rgba(255,255,255,.7);
-                 border-radius:999px; padding:5px 14px; min-height:34px; cursor:pointer; font-weight:600; }
-  .foot button:hover { background:rgba(255,255,255,.3); }
-  .foot button:focus-visible { outline:3px solid #fff; outline-offset:2px; }
+  .foot { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px; font-weight:600; }
+  .foot-acts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .foot button { font:inherit; color:var(--tv-fg); background:var(--btn-bg); border:1.5px solid var(--btn-border);
+                 border-radius:999px; padding:5px 14px; min-height:32px; cursor:pointer; font-weight:600; }
+  .foot button:hover { background:var(--btn-hover); }
+  .foot button:focus-visible { outline:3px solid var(--tv-fg); outline-offset:2px; }
 </style>
+<link rel="stylesheet" href="a11y.css">
 </head>
 <body>
-<main id="mainContent" class="wrap">
+<main class="wrap" role="main">
 
-  <header class="head" id="head" data-layout="side">
+  <header class="head" id="head" data-layout="side" role="banner">
     <img class="logo" id="logo" src="logo.png" alt="โลโก้ร้านสหกรณ์ มช.">
     <div class="txt">
       <div class="clock" id="clock">--:--:--</div>
-      <div class="shop" id="shopName"></div>
+      <h1 class="shop" id="shopName"></h1>
       <div class="hello"><span id="helloMain"></span> <small id="helloSub"></small></div>
     </div>
   </header>
 
   <!-- แบนเนอร์ (จัดการรูปที่หน้าแอดมิน) -->
-  <iframe id="banner" class="frame" src="banner.html" title="แบนเนอร์" loading="eager"></iframe>
-  <div class="caption" id="caption"></div>
+  <iframe id="banner" class="frame" src="banner.html" title="แบนเนอร์ประชาสัมพันธ์" loading="eager"></iframe>
+  <div class="caption" id="caption" role="region" aria-label="ข้อความประกาศวิ่ง"></div>
 
   <!-- ตัวรับสัญญาณเสียงประกาศ/เพลง: ต้องอนุญาตเสียงอัตโนมัติ และกดปุ่มเปิดเสียงที่หน้านี้ 1 ครั้งหลังเปิดหน้าใหม่ -->
   <iframe id="receiver" class="frame" src="receiver.html" title="ระบบรับสัญญาณเสียงประกาศ" allow="autoplay; fullscreen"></iframe>
 
-  <footer class="foot">
+  <footer class="foot" role="contentinfo">
     <span>CMUCOOP</span>
-    <button type="button" id="copyLink">คัดลอกลิงก์หน้านี้</button>
+    <div class="foot-acts">
+      <button type="button" id="capToggle" aria-pressed="false" aria-label="หยุดข้อความวิ่งชั่วคราว">⏸ หยุดข้อความวิ่ง</button>
+      <button type="button" id="copyLink">คัดลอกลิงก์หน้านี้</button>
+    </div>
   </footer>
 </main>
 
@@ -87,14 +97,17 @@ var TEXT = {
 };
 var $ = function (id) { return document.getElementById(id); };
 /* ข้อความไหล: ข้อความเดียว เริ่มนอกขอบขวา เลื่อนพ้นขอบซ้ายแล้ววนเริ่มใหม่ */
-var capText = '', capSpeed = 80;
+var capText = '', capSpeed = 80, capPaused = false;
 function setCaption(t) {
   t = t || '';
-  var el = $('caption'); el.style.display = t ? '' : 'none';
+  var el = $('caption'), btn = $('capToggle');
+  el.style.display = t ? '' : 'none';
+  if (btn) btn.style.display = t ? '' : 'none';
   if (t === capText && el.firstChild) return;
   capText = t; el.textContent = '';
   if (!t) return;
   var tr = document.createElement('span'); tr.className = 'track'; tr.textContent = t; el.appendChild(tr);
+  el.classList.toggle('paused', capPaused);
   layoutCaption();
 }
 function layoutCaption() {
@@ -103,8 +116,58 @@ function layoutCaption() {
   tr.style.setProperty('--cw', cw + 'px');
   tr.style.setProperty('--dur', ((cw + w) / Math.max(10, capSpeed)).toFixed(2) + 's');
 }
+$('capToggle').addEventListener('click', function () {
+  capPaused = !capPaused;
+  $('caption').classList.toggle('paused', capPaused);
+  this.setAttribute('aria-pressed', capPaused ? 'true' : 'false');
+  this.setAttribute('aria-label', capPaused ? 'เล่นข้อความวิ่งต่อ' : 'หยุดข้อความวิ่งชั่วคราว');
+  this.textContent = capPaused ? '▶ เล่นข้อความวิ่ง' : '⏸ หยุดข้อความวิ่ง';
+});
 window.addEventListener('resize', layoutCaption);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutCaption);
+
+/* คำนวณสีตัวอักษร (#ffffff หรือ #1f1530) ที่มีความต่าง (contrast ratio) สูงสุดเทียบกับสีพื้นหลังที่แอดมินตั้ง */
+function parseColor(str) {
+  str = String(str || '').trim();
+  var m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str);
+  if (m) {
+    var h = m[1];
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+  }
+  var rgb = /rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(str);
+  if (rgb) return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
+  return null;
+}
+function relLum(c) {
+  function ch(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }
+  return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b);
+}
+function contrastRatio(l1, l2) {
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+function syncContrast(bgStr) {
+  var c = parseColor(bgStr) || parseColor(getComputedStyle(document.body).backgroundColor) || { r: 139, g: 99, b: 166 };
+  var bgLum = relLum(c);
+  var whiteLum = 1.0, darkLum = relLum({ r: 31, g: 21, b: 48 }); // #1f1530
+  var rWhite = contrastRatio(whiteLum, bgLum), rDark = contrastRatio(darkLum, bgLum);
+  var useDark = rDark > rWhite && rWhite < 4.5;
+  var r = document.documentElement.style;
+  if (useDark) {
+    r.setProperty('--tv-fg', '#1f1530');
+    r.setProperty('--tv-shadow', 'none');
+    r.setProperty('--btn-bg', 'rgba(255,255,255,.72)');
+    r.setProperty('--btn-hover', 'rgba(255,255,255,.9)');
+    r.setProperty('--btn-border', 'rgba(31,21,48,.65)');
+  } else {
+    r.setProperty('--tv-fg', '#ffffff');
+    r.setProperty('--tv-shadow', '0 1px 2px rgba(58,32,80,.35)');
+    r.setProperty('--btn-bg', 'rgba(26,15,46,.48)');
+    r.setProperty('--btn-hover', 'rgba(26,15,46,.68)');
+    r.setProperty('--btn-border', 'rgba(255,255,255,.78)');
+  }
+}
+
 /* โหลดฟอนต์ที่เลือกจาก Google Fonts (Tahoma / TH Sarabun New ใช้ฟอนต์ในเครื่อง) */
 var fontLoaded = {};
 function useFont(name) {
@@ -125,7 +188,9 @@ function applyCfg(c) {
   $('helloMain').parentNode.style.display = (T('helloMain') || T('helloSub')) ? '' : 'none';
   setCaption(T('caption'));
   var r = document.documentElement.style;
-  if (c.bg) r.setProperty('--bg', c.bg);
+  var bgVal = c.bg || '#8b63a6';
+  r.setProperty('--bg', bgVal);
+  syncContrast(bgVal);
   if (c.width) r.setProperty('--w', c.width + 'px');
   if (c.bannerH) r.setProperty('--banner-h', c.bannerH + 'px');
   if (c.receiverH) r.setProperty('--receiver-h', c.receiverH + 'px');
@@ -178,5 +243,6 @@ document.getElementById('copyLink').addEventListener('click', function () {
   document.body.removeChild(ta); done(ok);
 });
 </script>
+<script src="a11y.js"></script>
 </body>
 </html>
