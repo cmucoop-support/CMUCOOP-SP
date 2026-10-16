@@ -1381,10 +1381,19 @@ const stockNames = async C => {
   });
   return out;
 };
-function stockDayKey(ts) {
-  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ts || Date.now())); }
-  catch (e) { return new Date((ts || Date.now()) + 7 * 3600000).toISOString().slice(0, 10); }
+function thaiDayIso(ts) {
+  var date = new Date(ts == null ? Date.now() : ts);
+  if (!Number.isFinite(date.getTime())) return '';
+  try {
+    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+    var obj = {};
+    parts.forEach(function (part) { obj[part.type] = part.value; });
+    return obj.year + '-' + obj.month + '-' + obj.day;
+  } catch (e) {
+    return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+  }
 }
+function stockDayKey(ts) { return thaiDayIso(ts); }
 function stockDailyHistory(hist) {
   if (!Array.isArray(hist)) return [];
   const byDay = new Map();
