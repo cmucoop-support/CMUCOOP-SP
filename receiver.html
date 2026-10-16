@@ -38,6 +38,11 @@
   .mwrap { aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; }
   .mwrap iframe { width:100%; height:100%; display:block; }
   .msub { margin-top:8px; font-size:14px; color:var(--steel); }
+
+/* Critical a11y fallback styles */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+.skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
 <link rel="stylesheet" href="a11y.css">
@@ -45,10 +50,7 @@
 <body>
 <header class="appbar" role="banner"><h1>ระบบรับสัญญาณเสียงประกาศ</h1></header>
 <main class="center" role="main"><div>
-  <div id="state" class="state off" role="status" aria-live="polite" aria-atomic="true">
-    <span class="sr-only" id="stateSr">สถานะระบบรับสัญญาณ: ปิด (OFF)</span>
-    <span id="stateText" aria-hidden="true">OFF</span>
-  </div>
+  <div id="state" class="state off" role="status" aria-live="polite" aria-atomic="true" aria-label="สถานะระบบรับสัญญาณ: ปิด (OFF)"><span id="stateText">OFF</span></div>
   <div id="loadInfo" class="loadinfo" role="status" aria-live="polite">กำลังเริ่มระบบ…</div>
   <div class="audiobar">
     <button type="button" class="btn-audio" id="btnUnlockAudio" aria-pressed="false">🔊 กดปุ่มนี้ 1 ครั้งเพื่อเปิดเสียงอัตโนมัติ</button>
@@ -79,7 +81,7 @@ function render() {
   else if (st.cfgOk && st.mqtt) { k = 'on'; t = 'ON'; desc = st.playing > 0 ? 'เปิดใช้งาน กำลังเล่นเสียงประกาศ (ON)' : 'เปิดใช้งาน พร้อมรับสัญญาณ (ON)'; }
   box.className = 'state ' + k + (k === 'on' && st.playing > 0 ? ' playing' : '');
   $('#stateText').textContent = t;
-  if ($('#stateSr')) $('#stateSr').textContent = 'สถานะระบบรับสัญญาณ: ' + desc;
+  box.setAttribute('aria-label', 'สถานะระบบรับสัญญาณ: ' + desc);
 }
 function setStatus(type, state) {
   var was = !!st['p' + type], now = state === 'playing';

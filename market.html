@@ -162,6 +162,11 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .upGrid input,.upGrid select{height:42px;box-sizing:border-box}
 .empty{text-align:center;padding:42px 16px}
 .empty h2{margin:0 0 6px}
+
+/* Critical a11y fallback styles */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+.skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link rel="stylesheet" href="a11y.css">
 </head>
@@ -471,7 +476,7 @@ async function busy(btn, fn) {
   btn.disabled = false;
 }
 function showLogin(msg) {
-  TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); } catch (e) {}
+  TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   $('#login').classList.remove('hidden');
   $('#lgMsg').textContent = msg || 'เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก';
   $('#lgErr').textContent = ''; $('#lgPass').value = '';
@@ -482,7 +487,7 @@ $('#lgBtn').addEventListener('click', function () {
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
   var b = this; b.disabled = true; $('#lgErr').textContent = '';
   call('login', u, p).then(function (r) {
-    TOKEN = r.token; try { sessionStorage.setItem('pm_tok', TOKEN); } catch (e) {}
+    TOKEN = r.token; try { sessionStorage.setItem('pm_tok', TOKEN); sessionStorage.setItem('pm_me', JSON.stringify(r)); } catch (e) {}
     $('#login').classList.add('hidden'); load();
   }, function (e) { $('#lgErr').textContent = e.message; $('#lgPass').value = ''; }).then(function () { b.disabled = false; });
 });
@@ -718,7 +723,14 @@ async function load() {
   loadLocalState();
   var prefBr = ''; try { prefBr = localStorage.getItem(BR_KEY) || ''; } catch (e0) {}
   try {
-    var me = await call('whoami');
+    var me = null;
+    try { var cm = sessionStorage.getItem('pm_me'); if (cm) me = JSON.parse(cm); } catch (e) {}
+    if (!me || !me.role) {
+      me = await call('whoami');
+      try { sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
+    } else {
+      call('whoami').then(function (m) { try { sessionStorage.setItem('pm_me', JSON.stringify(m)); } catch (e) {} }).catch(function () {});
+    }
     var canView = me.role === 'admin' || (me.perms && me.perms.market);
     if (!canView) {
       showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดเช็คราคาตลาด — ติดต่อแอดมิน หรือเข้าสู่ระบบด้วยบัญชีอื่น');
@@ -843,7 +855,7 @@ function renderAll() {
   $('#chips').innerHTML = REC_META.map(function (c) {
     var on = F.rec === c.k;
     return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-rec="' + esc(c.k) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
-      '<span aria-hidden="true" style="color:' + c.c + ';font-size:12px;line-height:1">' + (c.s || '●') + '</span><span>' + esc(c.t) + '</span><b>' + nf0.format(recCounts[c.k] || 0) + '</b></button>';
+      '<i style="background:' + c.c + '" aria-hidden="true"></i><span>' + esc(c.t) + '</span><b>' + nf0.format(recCounts[c.k] || 0) + '</b></button>';
   }).join('');
 
   /* คำนวณ KPI ของหมวดที่เลือก */

@@ -86,9 +86,7 @@ tbody tr:hover td{background:#f8f4ff}
 tfoot td{font-weight:700;background:var(--accent-soft);position:sticky;bottom:0}
 tr.sel td{background:var(--accent-soft)}
 th.nosort,th:not([data-k]){cursor:default}
-tr.click{cursor:default}
-.g-row-btn{border:0;background:none;padding:2px 4px;margin:-2px -4px;font:inherit;font-weight:600;color:var(--accent-text);text-align:left;cursor:pointer;border-radius:6px;min-height:24px;text-decoration:underline;text-underline-offset:.18em}
-.g-row-btn[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink)}
+tr.click{cursor:pointer}
 .badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;color:#fff;background:var(--c-NA);white-space:nowrap}
 .badge.DS{background:var(--c-DS)}.badge.T3{background:var(--c-T3)}.badge.T2{background:var(--c-T2)}.badge.T1{background:var(--c-T1)}
 .bar{display:inline-block;height:8px;border-radius:4px;background:var(--accent);vertical-align:middle;margin-right:6px;min-width:2px}
@@ -233,6 +231,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 .bc-btn.bc-unit:hover{background:#d2e3fc;border-color:#1967d2}
 .top .btn.exportMain{background:#fff;color:var(--accent-text,#5b3fd0);border:2px solid #fff;font-weight:800;font-size:15px;padding:7px 18px;min-height:38px;box-shadow:0 3px 12px rgba(0,0,0,.3)}
 .top .btn.exportMain:hover{background:#f3ecff;transform:translateY(-1px)}
+
+/* Critical a11y fallback styles */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+.skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link rel="stylesheet" href="a11y.css">
 </head>
@@ -688,7 +691,7 @@ function initToken() {
   } else { try { TOKEN = sessionStorage.getItem('pm_tok') || ''; } catch (e) {} }
 }
 function showLogin(msg) {
-  TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); } catch (e) {}
+  TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   $('#login').classList.remove('hidden');
   $('#lgMsg').textContent = msg || 'เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก';
   $('#lgErr').textContent = ''; $('#lgPass').value = '';
@@ -699,7 +702,7 @@ $('#lgBtn').addEventListener('click', function () {
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
   var b = this; b.disabled = true; $('#lgErr').textContent = '';
   call('login', u, p).then(function (r) {
-    TOKEN = r.token; try { sessionStorage.setItem('pm_tok', TOKEN); } catch (e) {}
+    TOKEN = r.token; try { sessionStorage.setItem('pm_tok', TOKEN); sessionStorage.setItem('pm_me', JSON.stringify(r)); } catch (e) {}
     $('#login').classList.add('hidden'); load();
   }, function (e) { $('#lgErr').textContent = e.message; $('#lgPass').value = ''; }).then(function () { b.disabled = false; });
 });
@@ -1112,7 +1115,7 @@ function renderChips(N) {
   $('#chips').innerHTML = '<button type="button" class="chip' + (allOn ? ' on' : '') + '" data-st="" aria-pressed="' + (allOn ? 'true' : 'false') + '">ทุกช่วงอายุ <b>' + nf0.format(N.length) + ' รายการ</b></button>' +
     ST_DEF.map(function (s) {
       var on = !!F.st[s.k];
-      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><span aria-hidden="true" style="color:' + ST_COLOR[s.k] + ';font-size:12px;line-height:1">' + (ST_SYM[s.k] || '●') + '</span>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
+      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '" aria-hidden="true"></i>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
     }).join('');
 }
 function renderTagSel() {                                               // แท็กสินค้าแบบติ๊ก/ไม่ติ๊ก เติมคำว่า "รายการ" ต่อท้ายจำนวน
@@ -1203,20 +1206,16 @@ function setChartA11y(canvasId, label, headers, rows) {
   if (!cv) return;
   cv.setAttribute('role', 'img');
   cv.setAttribute('aria-label', label || 'กราฟสรุปข้อมูล');
-  var box = cv.parentNode;
-  if (!box) return;
-  var tblId = canvasId + '_tbl', old = $('#' + tblId);
+  var old = $('#' + canvasId + '_tbl');
   if (old) old.remove();
   if (headers && rows && rows.length) {
-    var wrap = document.createElement('div');
-    wrap.id = tblId;
-    wrap.className = 'sr-only';
-    wrap.innerHTML = '<table><caption>' + esc(label) + '</caption><thead><tr>' +
-      headers.map(function (h) { return '<th scope="col">' + esc(h) + '</th>'; }).join('') +
+    cv.innerHTML = '<table class="sr-only"><caption>' + esc(label) + '</caption><thead><tr>' +
+      headers.map(function (h) { return '<th scope="col" class="nosort">' + esc(h) + '</th>'; }).join('') +
       '</tr></thead><tbody>' +
-      rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return i === 0 ? '<th scope="row">' + esc(c) + '</th>' : '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
+      rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return i === 0 ? '<th scope="row" class="nosort">' + esc(c) + '</th>' : '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
       '</tbody></table>';
-    box.appendChild(wrap);
+  } else {
+    cv.innerHTML = '';
   }
 }
 function chart(id, cfg, label, headers, rows) {
@@ -1405,7 +1404,7 @@ function renderGroupTable(G) {
   $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือก/ยกเลิกได้หลายหมวด';
   $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
     var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้า' + (D.gm[r.g] && D.gm[r.g].prev && D.gm[r.g].prev.ts ? ' (บันทึกเมื่อ ' + esc(fmtTs(D.gm[r.g].prev.ts)) + ')' : '') + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
-    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '"><td><button type="button" class="g-row-btn" data-g="' + esc(r.g) + '" aria-pressed="' + (F.gm[r.g] ? 'true' : 'false') + '" aria-label="กรองหมวด ' + esc(gl(r.g)) + '">' + esc(gl(r.g)) + '</button></td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
+    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '" tabindex="0" role="button" aria-pressed="' + (F.gm[r.g] ? 'true' : 'false') + '" aria-label="กรองหมวด ' + esc(gl(r.g)) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
       '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td>' +
       (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
   }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td><td></td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';

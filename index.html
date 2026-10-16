@@ -393,6 +393,11 @@ td.act{white-space:nowrap;min-width:170px}
   .mu-item .mu-act{grid-column:1 / -1;justify-content:flex-start}
   .mu-art{width:100px}
 }
+
+/* Critical a11y fallback styles */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+.skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
+.skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 
 <link rel="stylesheet" href="a11y.css">
@@ -435,7 +440,7 @@ td.act{white-space:nowrap;min-width:170px}
 
 
 
-<div class="loginwrap" id="login">
+<div class="loginwrap hidden" id="login">
   <div class="logincard">
     <h2>CMUCOOP SUPPORT</h2>
     <label>รหัสผู้ใช้<input type="text" id="lgUser" autocomplete="username"></label>
@@ -524,6 +529,10 @@ var S = { token: '', me: null, initSp: '' };
   if (m || sp) {
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   }
+  if (S.token) {
+    try { var cm = sessionStorage.getItem('pm_me'); if (cm) S.me = JSON.parse(cm); } catch (e) {}
+    document.body.classList.remove('locked');
+  }
 })();
 
 
@@ -531,8 +540,9 @@ var S = { token: '', me: null, initSp: '' };
 function setNav(n) { document.body.dataset.nav = 'portal'; }
 function showLogin(msg) {
   S.token = ''; S.me = null;
-  try { sessionStorage.removeItem('pm_tok'); } catch (e) {}
+  try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   document.body.classList.add('locked');
+  if ($('#login')) $('#login').classList.remove('hidden');
   setNav('portal');
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
@@ -551,6 +561,8 @@ function goPortal() {
 async function startApp(me) {
   S.me = me;
   document.body.classList.remove('locked');
+  if ($('#login')) $('#login').classList.add('hidden');
+  try { if (me && me.role) sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
   goPortal();
   loadCardOrder();
   if (S.initSp && me.role === 'admin') {               // ลิงก์เก่า index.html#sp=... → ส่งต่อไปหน้าตั้งค่าใหม่
@@ -693,7 +705,7 @@ async function doLogin() {
   try {
     var r = await call('login', u, p);
     S.token = r.token;
-    try { sessionStorage.setItem('pm_tok', r.token); } catch (e) {}
+    try { sessionStorage.setItem('pm_tok', r.token); sessionStorage.setItem('pm_me', JSON.stringify(r)); } catch (e) {}
     $('#lgPass').value = '';
     await startApp(r);
   } catch (e) { $('#lgErr').textContent = e.message; $('#lgPass').value = ''; }
@@ -757,7 +769,15 @@ function linkParams() {
       await startApp(r); return;
     } catch (e) { showLogin(e.message); return; }
   }
-  if (S.token) {                                  // กู้เซสชันเดิมเมื่อรีเฟรชหน้า
+  if (S.token) {                                  // กู้เซสชันเดิมทันทีโดยไม่กะพริบหน้าล็อกอิน
+    if (S.me && S.me.role) {
+      await startApp(S.me);
+      call('whoami').then(function (me) {
+        S.me = me;
+        try { sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
+      }).catch(function () {});
+      return;
+    }
     try { var me = await call('whoami'); await startApp(me); return; } catch (e) {}
   }
   showLogin('');
