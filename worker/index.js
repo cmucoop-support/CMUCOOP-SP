@@ -59,12 +59,14 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS files (fid TEXT, n INTEGER, mime TEXT, data TEXT, PRIMARY KEY (fid, n))',
   'CREATE TABLE IF NOT EXISTS barcode_items (id INTEGER PRIMARY KEY AUTOINCREMENT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, ts INTEGER, who TEXT, perPack TEXT)',
   'CREATE INDEX IF NOT EXISTS bc_cat ON barcode_items(cat, pos)',
+  'CREATE TABLE IF NOT EXISTS barcode_stage (job TEXT, pos INTEGER, sheet TEXT, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, perPack TEXT, ts INTEGER, who TEXT, PRIMARY KEY(job,pos))',
   'CREATE TABLE IF NOT EXISTS barcode_cats (cat TEXT PRIMARY KEY)',
   'CREATE TABLE IF NOT EXISTS music_queue (id TEXT PRIMARY KEY, seq INTEGER, ts INTEGER, uname TEXT, who TEXT, kind TEXT, ref TEXT, url TEXT, title TEXT, thumb TEXT, status TEXT, t_start INTEGER, t_end INTEGER)',
   'CREATE INDEX IF NOT EXISTS mq_status ON music_queue(status, seq)',
   'CREATE TABLE IF NOT EXISTS backups (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT, ts INTEGER, name TEXT, hash TEXT, data TEXT)',
   'CREATE TABLE IF NOT EXISTS stock_data (n INTEGER PRIMARY KEY, data TEXT)',   // สินค้าค้างสต็อก (ระบบเก่า: รวมทุกหมวด) — ใช้เฉพาะย้ายข้อมูลเข้า stock_grp
-  'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))'   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
+  'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))',   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
+  'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
 let schemaReady = false;
 
@@ -76,7 +78,11 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
     try {
       if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)));
-        try { await env.DB.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); } catch (e) { /* มีคอลัมน์แล้ว */ }
+        try { await env.DB.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); }
+        catch (e) {
+          const columns = (await env.DB.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+          if (!columns.some(c => c.name === 'perPack')) throw e;
+        }
         schemaReady = true; }
       if (request.method === 'POST') return await rpc(C);
       if (request.method === 'GET') {
@@ -120,6 +126,17 @@ async function kvGet(C, k, def) { const r = await one(C, 'SELECT v FROM kv WHERE
 function kvSetStmt(C, k, v) { return stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, String(v)); }
 const kvSet = (C, k, v) => kvSetStmt(C, k, v).run();
 async function kvJson(C, k, def) { const v = await kvGet(C, k, null); if (v === null) return def; try { return JSON.parse(v); } catch (e) { return def; } }
+async function stateJson(C, k, def) {
+  const v = await kvGet(C, k, null);
+  if (v === null) return def;
+  try {
+    const parsed = JSON.parse(v);
+    if (Array.isArray(def) && !Array.isArray(parsed)) throw new Error('invalid array');
+    if (def && typeof def === 'object' && !Array.isArray(def) && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) throw new Error('invalid object');
+    return parsed;
+  }
+  catch (e) { throw new Error('ข้อมูลที่บันทึกไว้เสียหาย (' + k + ') กรุณาติดต่อผู้ดูแลก่อนทำรายการ'); }
+}
 async function kvMany(C, keys) {
   const rows = await all(C, 'SELECT k,v FROM kv WHERE k IN (' + keys.map(() => '?').join(',') + ')', ...keys), m = {};
   rows.forEach(r => { m[r.k] = r.v; });
@@ -140,12 +157,14 @@ const passArg = v => String(v === null || v === undefined ? '' : v);
 
 /* ---------- ประวัติ ---------- */
 async function appendLog(C, who, sheet, cat, action, detail) {
-  await run(C, 'INSERT INTO log(ts,who,sheet,cat,action,detail) VALUES(?,?,?,?,?,?)', now(), str(who), sheet, cat || '', action, detail || '');
-  const day = new Date(now() + 7 * 3600e3).toISOString().slice(0, 10);
-  if ((await kvGet(C, 'LOG_PRUNE_DAY', '')) !== day) {
-    await kvSet(C, 'LOG_PRUNE_DAY', day);
-    await run(C, 'DELETE FROM log WHERE ts<?', now() - LOG_DAYS * 86400000);
-  }
+  try {
+    await run(C, 'INSERT INTO log(ts,who,sheet,cat,action,detail) VALUES(?,?,?,?,?,?)', now(), str(who), sheet, cat || '', action, detail || '');
+    const day = new Date(now() + 7 * 3600e3).toISOString().slice(0, 10);
+    if ((await kvGet(C, 'LOG_PRUNE_DAY', '')) !== day) {
+      await run(C, 'DELETE FROM log WHERE ts<?', now() - LOG_DAYS * 86400000);
+      await kvSet(C, 'LOG_PRUNE_DAY', day);
+    }
+  } catch (e) { console.error('บันทึกประวัติไม่สำเร็จ', e); } // ห้ามรายงานว่าบันทึกหลักล้มเหลวทั้งที่บันทึกสำเร็จแล้ว
 }
 async function sysLogTo(C, who, sheet, action, detail) { try { await appendLog(C, who, sheet, '', action, detail); } catch (e) { /* ไม่ให้บันทึกประวัติทำงานหลักล้ม */ } }
 const sysLog = (C, who, action, detail) => sysLogTo(C, who, 'ระบบ', action, detail);
@@ -161,6 +180,7 @@ function userPerms(u) {
   PERM_KEYS.forEach(k => { out[k] = u.role === 'admin' ? true : (p[k] !== undefined ? !!p[k] : PERM_DEFAULT[k]); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = u.role === 'admin' ? true : p[k] !== false; });   // การ์ดกำหนดเอง: ไม่ได้ตั้ง = เห็นได้
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
+  if (!out.market) out.market_edit = false;
   return out;
 }
 function cleanPerms(p, role) {
@@ -168,6 +188,7 @@ function cleanPerms(p, role) {
   PERM_KEYS.forEach(k => { out[k] = role === 'admin' ? true : (p[k] === undefined ? PERM_DEFAULT[k] : !(p[k] === false || p[k] === 'false')); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = role === 'admin' ? true : !(p[k] === false || p[k] === 'false'); });
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
+  if (!out.market) out.market_edit = false;
   return out;
 }
 async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
@@ -515,7 +536,9 @@ function checkB64(data, maxBytes, label) {
   data = String(data || '').replace(/\s+/g, '');
   if (!data) throw new Error('ไม่พบข้อมูล' + label);
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error('ข้อมูลไฟล์ไม่ถูกต้อง');
-  if (Math.floor(data.length * 3 / 4) > maxBytes) throw new Error('ไฟล์ใหญ่เกิน ' + Math.round(maxBytes / 1048576) + ' MB');
+  let bytes;
+  try { bytes = atob(data).length; } catch (e) { throw new Error('ข้อมูลไฟล์ไม่ถูกต้อง'); }
+  if (bytes > maxBytes) throw new Error('ไฟล์ใหญ่เกิน ' + Math.round(maxBytes / 1048576) + ' MB');
   return data;
 }
 async function serveFile(C, fid) {
@@ -687,11 +710,20 @@ API.saveSound = async (C, token, p) => {
   list.forEach(x => { if (x.row === row) old = x; else if (x.type === type && x.code === code) throw new Error('มีรหัสนี้ในประเภท "' + type + '" แล้ว'); });
   if (row && !old) throw new Error('ไม่พบแถวที่ต้องการแก้ไข');
   let fid = old ? old.id : '', fname = old ? old.file : '';
-  if (data) { const nf = await saveFile(C, mime, data); if (old && old.id) await dropFile(C, old.id); fid = nf; fname = str(f.name).slice(0, 120) || ('sound.' + SOUND_EXT[mime]); }
-  if (SOUND_NOFILE[type]) { if (fid) await dropFile(C, fid); fid = ''; fname = ''; }
+  if (data) { fid = await saveFile(C, mime, data); fname = str(f.name).slice(0, 120) || ('sound.' + SOUND_EXT[mime]); }
+  if (SOUND_NOFILE[type]) { fid = ''; fname = ''; }
   let rid = row;
-  if (row) await run(C, 'UPDATE sounds SET type=?,code=?,label=?,fid=?,fname=?,value=?,enabled=?,ts=?,who=? WHERE rid=?', type, code, label, fid, fname, value, on ? 1 : 0, now(), me.name, row);
-  else rid = (await run(C, 'INSERT INTO sounds(type,code,label,fid,fname,value,enabled,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', type, code, label, fid, fname, value, on ? 1 : 0, now(), me.name)).meta.last_row_id;
+  try {
+    const ops = [row
+      ? stmt(C, 'UPDATE sounds SET type=?,code=?,label=?,fid=?,fname=?,value=?,enabled=?,ts=?,who=? WHERE rid=?', type, code, label, fid, fname, value, on ? 1 : 0, now(), me.name, row)
+      : stmt(C, 'INSERT INTO sounds(type,code,label,fid,fname,value,enabled,ts,who) VALUES(?,?,?,?,?,?,?,?,?)', type, code, label, fid, fname, value, on ? 1 : 0, now(), me.name)];
+    if (old && old.id && old.id !== fid) ops.push(stmt(C, 'DELETE FROM files WHERE fid=?', old.id));
+    const saved = await batch(C, ops);
+    if (!row) rid = saved[0].meta.last_row_id;
+  } catch (e) {
+    if (data && fid && (!old || old.id !== fid)) { try { await dropFile(C, fid); } catch (_) { /* เก็บไฟล์เดิมไว้ครบ */ } }
+    throw e;
+  }
   await soundLog(C, me.name, old ? 'แก้ไขเสียง' : 'เพิ่มเสียง', type + ' ' + code + (label ? ' (' + label + ')' : ''));
   return { ok: true, row: rid };
 };
@@ -1157,18 +1189,27 @@ API.barcodeBackupData = async (C, token, id) => {
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว', 'จำนวนต่อแพ็ค']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
 };
-const bcInsert = (C, pos, who, r) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', pos, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, str(r.perPack), now(), who);
-async function bcInsertAll(C, who, items, startPos) {
-  for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => bcInsert(C, startPos + i + j + 1, who, r)));
+async function bcStage(C, who, items, startPos) {
+  const job = uuid(), ts = now();
+  try {
+    await run(C, 'DELETE FROM barcode_stage WHERE ts<?', ts - 86400000);
+    for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => stmt(C,
+      'INSERT INTO barcode_stage(job,pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+      job, startPos + i + j + 1, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, str(r.perPack), ts, who)));
+    return job;
+  } catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) { /* ล้างรายการค้างในรอบถัดไป */ } throw e; }
 }
+const bcPublishStage = (C, job) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) SELECT pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who FROM barcode_stage WHERE job=? ORDER BY pos', job);
 API.barcodeRestore = async (C, token, id) => {
   const me = await auth(C, token, true);
   const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
   if (!b) throw new Error('ไม่พบสำเนานี้');
   const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4], perPack: a[5] || '' }));
   await bcSnapshot(C, 'ก่อนกู้คืน');
-  await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c))));
-  await bcInsertAll(C, me.name, items, 0);
+  const job = await bcStage(C, me.name, items, 0);
+  try {
+    await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c)), [bcPublishStage(C, job), stmt(C, 'DELETE FROM barcode_stage WHERE job=?', job)]));
+  } catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) {} throw e; }
   await bcLog(C, me, '', 'กู้คืนจากสำเนา', items.length + ' รายการ');
   return { ok: true, count: items.length, backups: await bcBackups(C) };
 };
@@ -1212,13 +1253,16 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
   const replace = mode !== 'append';
   await bcSnapshot(C, replace ? 'ก่อนนำเข้า (แทนที่)' : 'ก่อนนำเข้า (เพิ่ม)');
   let add = items, dup = 0, start = 0;
-  if (replace) await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')]);
-  else {
+  if (!replace) {
     const have = new Set((await all(C, 'SELECT cat,name,packBar,unitBar FROM barcode_items')).map(r => [r.cat, r.name, r.packBar, r.unitBar].join('\u0001')));
     add = items.filter(x => { const k = [x.cat, x.name, x.packBar, x.unitBar].join('\u0001'); if (have.has(k)) { dup++; return false; } have.add(k); return true; });
     start = (await one(C, 'SELECT MAX(pos) AS m FROM barcode_items')).m || 0;
   }
-  await bcInsertAll(C, me.name, add, start);
+  const job = await bcStage(C, me.name, add, start), ops = [];
+  if (replace) ops.push(stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats'));
+  ops.push(bcPublishStage(C, job), stmt(C, 'DELETE FROM barcode_stage WHERE job=?', job));
+  try { await batch(C, ops); }
+  catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) {} throw e; }
   await bcLog(C, me, '', 'นำเข้าจาก Excel', (replace ? 'แทนที่ทั้งหมด' : 'เพิ่มต่อท้าย') + ' · ' + add.length + ' รายการ' + (dup ? ' · ข้ามซ้ำ ' + dup : ''));
   return { ok: true, count: add.length, duplicates: dup, notes, backups: await bcBackups(C) };
 };
@@ -1242,8 +1286,12 @@ const stockAdjKey = (code, br) => stockCodeKey(code) + (stockBrKey(br) ? '@' + s
 async function stockAdjLoad(C) {
   const out = {};
   for (const kind of Object.keys(STOCK_ADJ_KV)) {
-    const raw = (await kvJson(C, STOCK_ADJ_KV[kind], {})) || {}, m = {};
-    Object.keys(raw).forEach(k => { const v = raw[k]; if (k && v && typeof v === 'object') m[k] = v; });
+    const raw = (await stateJson(C, STOCK_ADJ_KV[kind], {})) || {}, m = {};
+    Object.keys(raw).forEach(k => {
+      const v = raw[k];
+      if (!k || !v || typeof v !== 'object' || !str(v.code) || (v.qty != null && (!Number.isFinite(Number(v.qty)) || Number(v.qty) < 0))) throw new Error('ข้อมูลรายการ' + STOCK_ADJ_LABEL[kind] + 'ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+      m[k] = v;
+    });
     out[kind] = m;
   }
   return out;
@@ -1279,13 +1327,18 @@ function stockApply(rows, adj) {
   return { rows: out, hit, zero, cut };
 }
 const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
-const stockDate = v => { v = str(v); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : ''; };
+const stockDate = v => {
+  v = str(v);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+  const d = new Date(v + 'T00:00:00Z');
+  return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : '';
+};
 const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
 const stockOpt = (v, dp) => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : stockNum(v, dp);
 function stockCleanRow(r) {
   if (!Array.isArray(r)) return null;
   const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
-  if (!g || !name) return null;
+  if (!STOCK_GROUP_RE.test(g) || !name || r[4] === null || r[4] === undefined || str(r[4]) === '' || !Number.isFinite(Number(r[4]))) return null;
   const qty = stockNum(r[4], 2);
   if (!isFinite(qty)) return null;                               // เก็บทุกแถว รวมคงเหลือ 0 และติดลบ (แถวคงเหลือ 0 ไม่นับรวมในยอด/สรุป — แสดงแยกเป็นอีกรายการ)
   const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
@@ -1336,30 +1389,80 @@ function stockTotal(state) {                                      // ผลร�
   Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
   return out;
 }
+function stockSideSummaries(state, side, rows) {
+  const by = new Map();
+  rows.forEach(r => { if (!by.has(r[0])) by.set(r[0], []); by.get(r[0]).push(r); });
+  Object.keys(state).forEach(g => { if (state[g] && state[g][side]) state[g][side].sum = stockSummary(by.get(g) || []); });
+}
+async function stockRebuildSummaries(C, state, adj, replacements) {
+  const versions = await Promise.all([stockRowsByGroup(C, 0), stockRowsByGroup(C, 1)]);
+  for (let ver = 0; ver < 2; ver++) {
+    const side = ver ? 'prev' : 'cur', by = versions[ver], replace = replacements && replacements[side];
+    if (replace) replace.forEach((rows, g) => by.set(g, rows));
+    const rows = [];
+    Object.keys(state).sort().forEach(g => {
+      const meta = state[g] && state[g][side]; if (!meta) return;
+      if (!by.has(g) && meta.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+      (by.get(g) || []).forEach(r => rows.push(r));
+    });
+    // Allocate each adjustment once across all categories, matching stockGet.
+    stockSideSummaries(state, side, stockApply(rows, adj).rows);
+  }
+  return state;
+}
 function stockInsertOps(C, g, ver, json) {
   const ops = [];
   for (let i = 0, n = 0; i < json.length; i += STOCK_CHUNK, n++) ops.push(stmt(C, 'INSERT OR REPLACE INTO stock_grp(g,ver,n,data) VALUES(?,?,?,?)', g, ver, n, json.slice(i, i + STOCK_CHUNK)));
   return ops;
 }
+function stockParseRows(json, label) {
+  let rows;
+  try { rows = JSON.parse(json); } catch (e) { /* แสดงข้อผิดพลาดด้านล่าง */ }
+  if (!Array.isArray(rows) || rows.some(r => !stockCleanRow(r))) throw new Error('ข้อมูลสต็อกเสียหาย (' + label + ') กรุณาติดต่อผู้ดูแลก่อนทำรายการ');
+  return rows;
+}
+async function stockRowsByGroup(C, ver) {
+  const parts = await all(C, 'SELECT g,n,data FROM stock_grp WHERE ver=? ORDER BY g,n', ver), by = new Map();
+  parts.forEach(p => {
+    if (!by.has(p.g)) by.set(p.g, []);
+    const list = by.get(p.g);
+    if (p.n !== list.length) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + p.g + ') กรุณาติดต่อผู้ดูแล');
+    list.push(p.data);
+  });
+  by.forEach((parts, g) => {
+    const rows = stockParseRows(parts.join(''), 'หมวด ' + g);
+    if (rows.some(r => str(r[0]).toUpperCase() !== g)) throw new Error('ข้อมูลแถวไม่ตรงกับหมวด ' + g + ' กรุณาติดต่อผู้ดูแล');
+    by.set(g, rows);
+  });
+  return by;
+}
 async function stockLoadRows(C, ver) {                            // แถวของทุกหมวดตามฉบับที่ขอ (0 = ปัจจุบัน, 1 = ก่อนหน้า) เรียงตามรหัสหมวด
-  const parts = await all(C, 'SELECT g,data FROM stock_grp WHERE ver=? ORDER BY g,n', ver), by = {}, out = [];
-  parts.forEach(p => { by[p.g] = (by[p.g] || '') + p.data; });
-  Object.keys(by).sort().forEach(g => { try { const v = JSON.parse(by[g]); if (Array.isArray(v)) v.forEach(r => out.push(r)); } catch (e) { /* ข้ามหมวดที่ข้อมูลเสีย */ } });
+  const by = await stockRowsByGroup(C, ver), out = [];
+  Array.from(by.keys()).sort().forEach(g => by.get(g).forEach(r => out.push(r)));
   return out;
 }
 async function stockGroupJson(C, g, ver) {
-  const parts = await all(C, 'SELECT data FROM stock_grp WHERE g=? AND ver=? ORDER BY n', g, ver);
+  const parts = await all(C, 'SELECT n,data FROM stock_grp WHERE g=? AND ver=? ORDER BY n', g, ver);
+  if (parts.some((p, i) => p.n !== i)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
   return parts.length ? parts.map(p => p.data).join('') : null;
 }
 /* สถานะรายหมวด — ถ้ายังไม่เคยมี (ระบบเดิมเก็บทุกหมวดรวมกันใน stock_data) ย้ายข้อมูลเดิมเข้ามาเป็นฉบับปัจจุบันของแต่ละหมวดหนึ่งครั้ง */
 async function stockState(C) {
-  const cur = await kvJson(C, 'STOCK_GROUPS', null);
-  if (cur && typeof cur === 'object') return cur;
+  const cur = await stateJson(C, 'STOCK_GROUPS', null);
+  if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
+    if (Object.keys(cur).some(g => !STOCK_GROUP_RE.test(g) || !cur[g] || typeof cur[g] !== 'object' || Array.isArray(cur[g]) || ['cur', 'prev'].some(side => cur[g][side] != null && (typeof cur[g][side] !== 'object' || Array.isArray(cur[g][side]))))) throw new Error('ข้อมูลกำกับหมวดสต็อกไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+    return cur;
+  }
+  if (cur !== null) throw new Error('ข้อมูลหมวดสต็อกไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
   const parts = await all(C, 'SELECT data FROM stock_data ORDER BY n'), state = {};
+  if (!parts.length) {
+    const existing = await one(C, 'SELECT COUNT(*) AS n FROM stock_grp');
+    if (existing && existing.n > 0) throw new Error('ไม่พบข้อมูลกำกับหมวดสต็อก กรุณาติดต่อผู้ดูแลก่อนทำรายการ');
+  }
   let legacy = [];
-  if (parts.length) { try { const v = JSON.parse(parts.map(p => p.data).join('')); if (Array.isArray(v)) legacy = v; } catch (e) { legacy = []; } }
+  if (parts.length) legacy = stockParseRows(parts.map(p => p.data).join(''), 'ข้อมูลเดิม');
   if (legacy.length) {
-    const meta = (await kvJson(C, 'STOCK_META', null)) || {}, by = {}, ops = [];
+    const meta = (await stateJson(C, 'STOCK_META', null)) || {}, by = {}, ops = [];
     legacy.map(stockCleanRow).filter(Boolean).forEach(r => { (by[r[0]] || (by[r[0]] = [])).push(r); });
     Object.keys(by).forEach(g => {
       const rows = by[g], reps = rows.map(r => r[14]).filter(Boolean).sort();
@@ -1372,7 +1475,7 @@ async function stockState(C) {
   return state;
 }
 const stockNames = async C => {
-  const raw = (await kvJson(C, 'STOCK_NAMES', {})) || {}, out = {};
+  const raw = (await stateJson(C, 'STOCK_NAMES', {})) || {}, out = {};
   Object.keys(raw).forEach(k => {
     const t = str(raw[k]);
     if (!t) return;
@@ -1416,16 +1519,22 @@ API.stockGet = async (C, token, ver) => {
   const state = await stockState(C);
   const [rows0, history, names, lost, hard, bcRows] = await Promise.all([
     stockLoadRows(C, v),
-    kvJson(C, 'STOCK_HISTORY', []),
+    stateJson(C, 'STOCK_HISTORY', []),
     stockNames(C),
     stockAdjLoad(C),
     stockHardLoad(C),
     all(C, 'SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items ORDER BY pos').catch(() => [])
   ]);
   const ap = stockApply(rows0, lost);
+  const foundGroups = new Set(rows0.map(r => r[0]));
+  Object.keys(state).forEach(g => {
+    const meta = state[g] && state[g][v ? 'prev' : 'cur'];
+    if (meta && meta.count > 0 && !foundGroups.has(g)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+  });
+  stockSideSummaries(state, v ? 'prev' : 'cur', ap.rows);
   const barcodes = (bcRows || []).map(r => [str(r.packBar), str(r.unitBar), str(r.perPack), str(r.name), str(r.cat), str(r.partner)]);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
-  const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h.slice(0, 30) }; }).sort((a, b) => b.ts - a.ts);
+  const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h }; }).sort((a, b) => b.ts - a.ts);
   return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, barcodes };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
@@ -1440,20 +1549,25 @@ API.stockSave = async (C, token, payload) => {
   if (!branch) throw new Error('กรุณาเลือกสาขาก่อนอัปโหลด');
   const bk = stockBrKey(branch);
   const state = await stockState(C), ts = now(), file = str(payload.fileName).slice(0, 120), ops = [], changed = [], same = [], seen = {}, diff = {}, lost = await stockAdjLoad(C);
+  const replacements = { cur: new Map(), prev: new Map() };
   const tot = { add: 0, chg: 0, del: 0, same: 0 };
   let total = 0;
   for (const it of payload.groups) {
     const g = str(it && it.g).toUpperCase();
-    if (!STOCK_GROUP_RE.test(g) || seen[g]) continue;
+    if (!STOCK_GROUP_RE.test(g) || seen[g]) throw new Error('รหัสหมวดไม่ถูกต้องหรือซ้ำกัน: ' + g);
     seen[g] = 1;
     // แถวใหม่: เอาเฉพาะของสาขาที่เลือก (แถวที่ไม่มีชื่อสาขานับเป็นสาขานี้)
-    const mine = stockDedupe((Array.isArray(it.rows) ? it.rows : []).map(stockCleanRow).filter(r => r && r[0] === g && (!r[3] || stockBrKey(r[3]) === bk))).map(r => { r[3] = branch; return r; });
+    if (!Array.isArray(it.rows)) throw new Error('ข้อมูลหมวด ' + g + ' ไม่ถูกต้อง กรุณาอ่านไฟล์ใหม่');
+    const cleaned = it.rows.map(stockCleanRow);
+    if (cleaned.some(r => !r || r[0] !== g || (r[3] && stockBrKey(r[3]) !== bk))) throw new Error('พบแถวที่ไม่ถูกต้องหรือสาขาไม่ตรงในหมวด ' + g + ' กรุณาตรวจไฟล์ก่อนอัปโหลด');
+    const mine = stockDedupe(cleaned.map(r => { r[3] = branch; return r; }));
     total += mine.length;
     if (total > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
     // แถวเดิมของสาขาอื่นในหมวดนี้เก็บไว้ครบ — ตัดออกเฉพาะแถวของสาขาที่กำลังอัปโหลด
     const oldJson = await stockGroupJson(C, g, 0);
-    let existing = [];
-    if (oldJson) { try { const v = JSON.parse(oldJson); if (Array.isArray(v)) existing = v; } catch (e) { existing = []; } }
+    const existing = oldJson ? stockParseRows(oldJson, 'หมวด ' + g) : [];
+    if (existing.some(r => r[0] !== g)) throw new Error('ข้อมูลแถวไม่ตรงกับหมวด ' + g + ' กรุณาติดต่อผู้ดูแล');
+    if (!oldJson && state[g] && state[g].cur && state[g].cur.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
     // อัปเดตเฉพาะแถวที่เปลี่ยน: เทียบรายแถวของสาขานี้ (กลุ่ม+รหัส+ชื่อ+สาขา) · แถวเหมือนเดิมคงไว้ตามเดิม · แถวที่เปลี่ยนแทนที่ตรงตำแหน่งเดิม · แถวใหม่ต่อท้าย · แถวที่หายไปจากไฟล์ใหม่ (ไม่มีของแล้ว) ตัดออก · สาขาอื่นไม่แตะ
     const dk = r => [r[0], r[1], r[2], stockBrKey(r[3])].join('\u0001'), newMap = new Map(mine.map(r => [dk(r), r])), used = new Set(), merged = [], df = { add: 0, chg: 0, del: 0, same: 0 };
     for (const r of existing) {
@@ -1480,11 +1594,13 @@ API.stockSave = async (C, token, payload) => {
     });
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, json));
     state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: old && old.cur ? old.cur : null };
+    replacements.cur.set(g, rows); replacements.prev.set(g, existing);
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
+  await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
-  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · อัปเดต ' + changed.length + ' หมวด (' + changed.join(',') + ') · เพิ่ม ' + tot.add + ' เปลี่ยน ' + tot.chg + ' ลบ ' + tot.del + ' เหมือนเดิม ' + tot.same + ' แถว' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
@@ -1496,9 +1612,12 @@ API.stockRestore = async (C, token, g) => {
   g = str(g).toUpperCase();
   const state = await stockState(C), s = state[g];
   if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
+  const [curJson, prevJson, adj] = await Promise.all([stockGroupJson(C, g, 0), stockGroupJson(C, g, 1), stockAdjLoad(C)]);
+  if (!prevJson) throw new Error('ข้อมูลฉบับก่อนหน้าไม่ครบ กรุณาติดต่อผู้ดูแล');
   state[g] = { cur: s.prev, prev: s.cur };
+  await stockRebuildSummaries(C, state, adj, { cur: new Map([[g, stockParseRows(prevJson, g)]]), prev: new Map([[g, stockParseRows(curJson || '[]', g)]]) });
   const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
-  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
     kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))]);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
@@ -1529,6 +1648,7 @@ API.stockClear = async (C, token, password, scope) => {
   await stockVerifyPw(C, me, password);
   scope = scope || {};
   const mode = str(scope.mode), state = await stockState(C), ts = now(), ops = [], changed = [], lost = await stockAdjLoad(C);
+  const replacements = { cur: new Map(), prev: new Map() };
   const shiftGroup = (g, rows, clearedBr) => {
     const old = state[g], oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
     rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); if (r[4] > 0) b.count++; if (r[14] > b.rep) b.rep = r[14]; });
@@ -1540,6 +1660,7 @@ API.stockClear = async (C, token, password, scope) => {
     const reps = rows.map(r => r[14]).filter(Boolean).sort();
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, JSON.stringify(rows)));
     state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: oc || null };
+    replacements.cur.set(g, rows);
     changed.push(g);
   };
   let desc;
@@ -1552,7 +1673,8 @@ API.stockClear = async (C, token, password, scope) => {
   if (mode === 'group') {
     const g = str(scope.g).toUpperCase();
     if (!state[g]) throw new Error('ไม่พบหมวด ' + g);
-    if (!(state[g].cur && state[g].cur.count === 0)) shiftGroup(g, []);
+    const rows = stockParseRows((await stockGroupJson(C, g, 0)) || '[]', 'หมวด ' + g);
+    if (rows.length) { replacements.prev.set(g, rows); shiftGroup(g, []); }
     desc = 'ล้างทั้งหมวด ' + g;
   } else if (mode === 'branch') {
     const branch = str(scope.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
@@ -1560,16 +1682,16 @@ API.stockClear = async (C, token, password, scope) => {
     const bk = stockBrKey(branch);
     for (const g of Object.keys(state)) {
       if (!state[g] || !state[g].cur) continue;
-      let rows = []; try { rows = JSON.parse((await stockGroupJson(C, g, 0)) || '[]'); } catch (e) { rows = []; }
-      if (!Array.isArray(rows)) rows = [];
+      const rows = stockParseRows((await stockGroupJson(C, g, 0)) || '[]', 'หมวด ' + g);
       const keep = rows.filter(r => stockBrKey(r[3]) !== bk);
-      if (keep.length !== rows.length) shiftGroup(g, keep, branch);
+      if (keep.length !== rows.length) { replacements.prev.set(g, rows); shiftGroup(g, keep, branch); }
     }
     desc = 'ล้างทั้งสาขา ' + branch;
   } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
   if (!changed.length) return { ok: true, changed };
+  await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort();
-  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', desc + ' · ' + changed.length + ' หมวด (' + changed.join(',') + ') · เก็บเป็นฉบับก่อนหน้า');
@@ -1625,7 +1747,7 @@ API.stockGroupDelete = async (C, token, g, branch) => {
   const [state, names, lost] = await Promise.all([stockState(C), stockNames(C), stockAdjLoad(C)]);
   const ts = now(), ops = [];
   if (bk && state[code] && state[code].cur) {
-    let rows = []; try { rows = JSON.parse((await stockGroupJson(C, code, 0)) || '[]'); } catch (e) { rows = []; }
+    const rows = stockParseRows((await stockGroupJson(C, code, 0)) || '[]', 'หมวด ' + code);
     const keep = Array.isArray(rows) ? rows.filter(r => stockBrKey(r[3]) !== bk) : [];
     if (state[code].cur.br) {
       Object.keys(state[code].cur.br).forEach(k => { if (stockBrKey(k) === bk) delete state[code].cur.br[k]; });
@@ -1647,8 +1769,14 @@ API.stockGroupDelete = async (C, token, g, branch) => {
     Object.keys(names).forEach(k => { if (k.endsWith(':' + code)) delete names[k]; });
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
   }
+  const replacements = { cur: new Map() };
+  if (state[code] && state[code].cur && bk) {
+    const rows = stockParseRows((await stockGroupJson(C, code, 0)) || '[]', 'หมวด ' + code);
+    replacements.cur.set(code, rows.filter(r => stockBrKey(r[3]) !== bk));
+  }
+  await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
-  const hist = stockPushHistory(await kvJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code + (br ? ' สาขา ' + br : ''), to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code + (br ? ' สาขา ' + br : ''), to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   ops.push(
     kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)),
     kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names)),
@@ -1669,7 +1797,7 @@ API.stockHistoryDelete = async (C, token, payload) => {
   }
   if (mode === 'hist_item') {
     const day = str(payload.dayKey), ts = Number(payload.ts) || 0;
-    const raw = (await kvJson(C, 'STOCK_HISTORY', [])) || [];
+    const raw = (await stateJson(C, 'STOCK_HISTORY', [])) || [];
     const next = raw.filter(x => {
       if (!x) return false;
       if (day && stockDayKey(x.ts) === day) return false;
@@ -1706,7 +1834,7 @@ API.stockHistoryDelete = async (C, token, payload) => {
  * ผูกกับรหัสสินค้า/บาร์ (ทุกสาขา) เก็บใน KV 'STOCK_HARD' = { stockCodeKey: { code, ts, who } }
  * อัปโหลดไฟล์ใหม่/ล้างข้อมูล/สลับฉบับ ไม่แตะแท็ก → ติดอยู่จนกว่าจะยกเลิก (ดูอย่างเดียวก็เห็นแท็กได้ · แก้ไขต้องมีสิทธิ์ stock_edit) */
 async function stockHardLoad(C) {
-  const raw = (await kvJson(C, 'STOCK_HARD', {})) || {}, out = {};
+  const raw = (await stateJson(C, 'STOCK_HARD', {})) || {}, out = {};
   Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who), note: str(e.note).slice(0, 100) }; });
   return out;
 }
@@ -1734,16 +1862,7 @@ API.stockHardSet = async (C, token, codes, on, note) => {
  * เปลี่ยนรายการแล้วคำนวณยอดสรุป (sum) ของทุกหมวดทั้งฉบับปัจจุบัน/ก่อนหน้าใหม่ให้ตรงกัน */
 async function stockResumState(C, lost) {
   const state = await stockState(C);
-  for (const g of Object.keys(state)) {
-    const s = state[g]; if (!s) continue;
-    for (const side of ['cur', 'prev']) {
-      const m = s[side]; if (!m) continue;
-      const raw = await stockGroupJson(C, g, side === 'cur' ? 0 : 1); if (!raw) continue;
-      let rows; try { rows = JSON.parse(raw); } catch (e) { continue; }
-      if (Array.isArray(rows)) m.sum = stockSummary(rows, lost);
-    }
-  }
-  return state;
+  return stockRebuildSummaries(C, state, lost);
 }
 function stockAdjItems(items) {                                   // items = [{ code, qty }]
   if (!Array.isArray(items)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ลองรีเฟรชหน้าเว็บแล้วทำใหม่)');
@@ -1820,17 +1939,70 @@ API.stockAdjNote = async (C, token, kind, key, note) => {
 
 
 /* ============================== เช็คราคาตลาด (market.html) ============================== */
+const MARKET_CHUNK = 300000, MARKET_MAX_BYTES = 24 * 1024 * 1024;
+const isRecord = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const unsafeKey = k => k === '__proto__' || k === 'constructor' || k === 'prototype';
+function marketValidate(state) {
+  if (!isRecord(state) || (!isRecord(state.branches) && !isRecord(state.groups))) throw new Error('ข้อมูลเช็คราคาตลาดไม่ถูกต้อง');
+  if (isRecord(state.branches) && Object.keys(state.branches).some(unsafeKey)) throw new Error('ชื่อสาขานี้สงวนไว้สำหรับระบบ กรุณาใช้ชื่ออื่น');
+  const branches = isRecord(state.branches) ? Object.values(state.branches) : [state];
+  branches.forEach(b => {
+    if (!isRecord(b) || !isRecord(b.groups)) throw new Error('ข้อมูลหมวดของสาขาไม่ถูกต้อง');
+    Object.keys(b.groups).forEach(g => {
+      if (unsafeKey(g)) throw new Error('รหัสหมวดนี้สงวนไว้สำหรับระบบ กรุณาใช้รหัสอื่น');
+      const item = b.groups[g];
+      if (!isRecord(item)) throw new Error('ข้อมูลหมวด ' + g + ' ไม่ถูกต้อง');
+      ['cur', 'prev'].forEach(side => {
+        const meta = item[side];
+        if (meta == null) return;
+        if (!isRecord(meta) || !Array.isArray(meta.rows) || meta.rows.some(r => !Array.isArray(r) || !str(r[2]))) throw new Error('ข้อมูลแถวในหมวด ' + g + ' ไม่ถูกต้อง');
+      });
+    });
+  });
+  return state;
+}
+async function marketRead(C) {
+  // Read the marker and its chunks in one transaction so a simultaneous save
+  // cannot pair an old revision with the contents of a new revision.
+  const results = await batch(C, [stmt(C, 'SELECT v FROM kv WHERE k=?', 'MARKET_STATE'), stmt(C, 'SELECT n,data FROM market_data ORDER BY n')]);
+  const row = (results[0].results || [])[0], raw = row ? row.v : null;
+  if (raw === null) return { raw, state: { groups: {}, names: {}, surveyor: '', checker: '', approver: '', surveyNote: '', revision: '' } };
+  let stored;
+  try { stored = JSON.parse(raw); } catch (e) { throw new Error('ข้อมูลเช็คราคาตลาดเสียหาย กรุณาติดต่อผู้ดูแลก่อนบันทึก'); }
+  let state = stored;
+  if (isRecord(stored) && stored.__marketChunks === true) {
+    const chunks = results[1].results || [];
+    if (!Number.isInteger(stored.chunks) || chunks.length !== stored.chunks || chunks.some((c, i) => c.n !== i)) throw new Error('ข้อมูลเช็คราคาตลาดไม่ครบ กรุณาติดต่อผู้ดูแล');
+    try { state = JSON.parse(chunks.map(c => c.data).join('')); } catch (e) { throw new Error('ข้อมูลเช็คราคาตลาดเสียหาย กรุณาติดต่อผู้ดูแล'); }
+    if (!isRecord(state) || state.revision !== stored.revision) throw new Error('รุ่นข้อมูลเช็คราคาตลาดไม่ตรงกัน กรุณาโหลดใหม่');
+  }
+  marketValidate(state);
+  return { raw, state: Object.assign({}, state, { revision: str(state.revision) }) };
+}
 API.marketGet = async (C, token) => {
   const me = await auth(C, token);
   if (me.role !== 'admin' && !(me.perms && me.perms.market)) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
-  const raw = await kvJson(C, 'MARKET_STATE', null);
-  return raw && typeof raw === 'object' ? raw : { groups: {}, names: {}, surveyor: 'รัฐพล', checker: '', approver: '', surveyNote: '' };
+  return (await marketRead(C)).state;
 };
 API.marketSaveState = async (C, token, state) => {
   const me = await auth(C, token);
   if (me.role !== 'admin' && !(me.perms && me.perms.market && me.perms.market_edit)) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
-  if (!state || typeof state !== 'object') throw new Error('ข้อมูลไม่ถูกต้อง');
-  await kvSet(C, 'MARKET_STATE', JSON.stringify(state));
+  marketValidate(state);
+  const old = await marketRead(C);
+  if (str(state.revision) !== str(old.state.revision)) throw new Error('ข้อมูลถูกแก้ไขจากหน้าหรือผู้ใช้อื่นแล้ว กรุณารีเฟรชข้อมูลล่าสุดก่อนบันทึก');
+  const revision = uuid(), next = Object.assign({}, state, { revision }), data = JSON.stringify(next);
+  if (new TextEncoder().encode(data).byteLength > MARKET_MAX_BYTES) throw new Error('ข้อมูลเช็คราคาตลาดใหญ่เกิน 24 MB กรุณาลดจำนวนฉบับย้อนหลัง');
+  const condition = old.raw === null ? 'NOT EXISTS (SELECT 1 FROM kv WHERE k=?)' : 'EXISTS (SELECT 1 FROM kv WHERE k=? AND v=?)';
+  const expected = old.raw === null ? ['MARKET_STATE'] : ['MARKET_STATE', old.raw];
+  const ops = [stmt(C, 'DELETE FROM market_data WHERE ' + condition, ...expected)];
+  let count = 0;
+  for (let i = 0; i < data.length; i += MARKET_CHUNK) ops.push(stmt(C, 'INSERT INTO market_data(n,data) SELECT ?,? WHERE ' + condition, count++, data.slice(i, i + MARKET_CHUNK), ...expected));
+  const marker = JSON.stringify({ __marketChunks: true, revision, chunks: count });
+  ops.push(old.raw === null
+    ? stmt(C, 'INSERT INTO kv(k,v) SELECT ?,? WHERE ' + condition, 'MARKET_STATE', marker, ...expected)
+    : stmt(C, 'UPDATE kv SET v=? WHERE k=? AND v=?', marker, 'MARKET_STATE', old.raw));
+  const saved = await batch(C, ops);
+  if (!(saved[saved.length - 1].meta.changes > 0)) throw new Error('ข้อมูลถูกแก้ไขระหว่างบันทึก กรุณารีเฟรชข้อมูลล่าสุดก่อนบันทึก');
   await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', (state.branches && typeof state.branches === 'object' ? Object.keys(state.branches).length + ' สาขา · ' + Object.keys(state.branches).reduce((n, b) => n + Object.keys((state.branches[b] && state.branches[b].groups) || {}).length, 0) : Object.keys(state.groups || {}).length) + ' หมวด');
-  return { ok: true };
+  return { ok: true, revision };
 };
