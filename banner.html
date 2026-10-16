@@ -26,8 +26,8 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 'Sarabun','Noto Sans Th
 .slide.sk{background:linear-gradient(100deg,#f1ecf5 30%,#faf7fc 50%,#f1ecf5 70%);background-size:200% 100%;animation:sk 1.4s linear infinite;box-shadow:none}
 @keyframes sk{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.slide.sk{animation:none}}
-.nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:1px solid #d9c8ff;background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
-.nav:hover{background:#f3ebf8}
+.nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;border:1px solid var(--control-border,#d9c8ff);background:var(--control-bg,#fff);color:var(--control-color,#2a1f47);box-shadow:0 2px 10px rgba(0,0,0,.28);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
+.nav:hover{filter:brightness(1.08)}
 .nav:focus-visible{outline:3px solid #5b2fc7;outline-offset:2px}
 .nav.prev{left:6px}.nav.next{right:6px}
 .nav.pause{top:auto;bottom:8px;right:8px;transform:none;width:36px;height:36px;font-size:15px}
@@ -37,7 +37,10 @@ html,body{height:100%;overflow:hidden}
 body{padding:0}
 .panel{position:absolute;left:8px;right:8px;top:8px;max-width:none;margin:0;padding:12px;display:flex;align-items:center}
 .viewport{width:100%;padding:6px 0}
-body,.panel,.slide:not(.sk){background:var(--bg)}
+body{background:var(--bg)}
+.panel{background:var(--banner-panel,#fff);bottom:8px}
+.slide:not(.sk){background:var(--banner-frame,#fff);padding:var(--banner-frame-padding,10px)}
+.slide img,.slide a{border-radius:4px;min-width:0;min-height:0}
 .msg{color:var(--ink)}
 
 /* Critical a11y fallback styles */
@@ -71,17 +74,39 @@ var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)')
 var timer = null, userPaused = !!reduce, hoverPaused = false, paused = userPaused, moving = false, count = 0, speed = 4, sig = '', perSet = 0, hPct = 80, ar = 0.75, arSet = false, firstId = '';
 var ANIM = 600;
 var bannerParentTheme = false;
+var bannerParentConfig = null, imageFramePadding = 10;
 function applyBannerTheme(config) {
   var bg = config && config.bg;
   if (!/^#[0-9a-f]{6}$/i.test(String(bg || ''))) return;
   document.documentElement.style.setProperty('--bg', bg);
-  var h = bg.slice(1), r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-  document.documentElement.style.setProperty('--ink', r*.299 + g*.587 + b*.114 > 155 ? '#2a1f47' : '#ffffff');
+  var st=document.documentElement.style;
+  function valid(value,fallback){return /^#[0-9a-f]{6}$/i.test(String(value||''))?value:fallback;}
+  function amount(value,fallback,max){return value===undefined||value===null||!Number.isFinite(Number(value))?fallback:Math.min(max,Math.max(0,Number(value)));}
+  function rgba(color,opacity){var h=color.slice(1);return 'rgba('+parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16)+','+(opacity/100)+')';}
+  function rgb(color){return [1,3,5].map(function(start){return parseInt(color.slice(start,start+2),16);});}
+  function blend(color,alpha,under){return rgb(color).map(function(value,index){return value*alpha/100+under[index]*(1-alpha/100);});}
+  function readable(rgb){var c=rgb.map(function(v){v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);}),lum=.2126*c[0]+.7152*c[1]+.0722*c[2];return (lum+.05)/.06>1.05/(lum+.05)?'#1f1530':'#ffffff';}
+  var panelColor=config.bannerBgMatch?bg:valid(config.bannerBg,'#ffffff');
+  var frameColor=config.bannerFrameMatch?panelColor:valid(config.bannerFrameColor,'#ffffff');
+  var panelOpacity=amount(config.bannerBgOpacity,100,100),controlBg=valid(config.controlBg,'#ffffff'),controlOpacity=amount(config.controlOpacity,100,100),panelRgb=blend(panelColor,panelOpacity,rgb(bg));
+  st.setProperty('--ink',readable(panelRgb));
+  st.setProperty('--banner-panel',rgba(panelColor,panelOpacity));
+  st.setProperty('--banner-frame',rgba(frameColor,amount(config.bannerFrameOpacity,100,100)));
+  imageFramePadding=amount(config.bannerFramePadding,10,60);
+  st.setProperty('--control-bg',rgba(controlBg,controlOpacity));
+  st.setProperty('--control-color',valid(config.controlColor,readable(blend(controlBg,controlOpacity,panelRgb))));
+  st.setProperty('--control-border',valid(config.controlBorderColor,'#d9c8ff'));
+  if(Number.isFinite(Number(config.bannerSpeed))&&Number(config.bannerSpeed)>=1&&Number(config.bannerSpeed)<=60)speed=Number(config.bannerSpeed);
+  if(config.bannerPerView!==undefined)perSet=normPer(config.bannerPerView);
+  if(config.bannerHeightPct!==undefined)hPct=normH(config.bannerHeightPct);
+  layout();updateNav();restart();
 }
 window.addEventListener('message', function(event) {
-  if (window.parent === window || event.source !== window.parent || event.origin !== location.origin || !event.data || event.data.type !== 'cmucoop:banner-theme') return;
+  if (window.parent === window || event.source !== window.parent || event.origin !== location.origin || !event.data) return;
+  if(event.data.type==='cmucoop:banner-refresh'){load(false);return;}
+  if(event.data.type !== 'cmucoop:banner-theme')return;
   if (!/^#[0-9a-f]{6}$/i.test(String(event.data.bg || ''))) return;
-  bannerParentTheme = true; applyBannerTheme(event.data);
+  bannerParentTheme = true; bannerParentConfig=event.data;applyBannerTheme(bannerParentConfig);
 });
 function loadBannerTheme() {
   if (bannerParentTheme) return;
@@ -114,6 +139,7 @@ function layout() {
     for (var k = 1; k <= lim; k++) { var c = k * widthFor(k) * widthFor(k); if (c > best + 1) { best = c; n = k; } }
   }
   swPx = Math.floor(widthFor(n));
+  st.setProperty('--banner-frame-padding',Math.min(imageFramePadding,swPx/4,swPx/ar/4)+'px');
   st.setProperty('--per', n); st.setProperty('--sw', swPx + 'px'); st.setProperty('--ar', String(ar)); st.setProperty('--gap', GAP + 'px');
   $('#viewport').style.maxWidth = (n * swPx + (n - 1) * GAP) + 'px';
 }
@@ -172,7 +198,7 @@ function render(data) {
     if (b.link) im = '<a href="' + esc(b.link) + '" target="_blank" rel="noopener">' + im + '</a>';
     return '<div class="slide">' + im + '</div>';
   }).join('');
-  layout(); updateNav(); restart();
+  if(bannerParentTheme&&bannerParentConfig)applyBannerTheme(bannerParentConfig);else { layout(); updateNav(); restart(); }
   if (window.A11Y && A11Y.run) A11Y.run();
 }
 /* อ่านสัดส่วนจริงจากรูปแรก แล้วจัดขนาดช่องใหม่ */

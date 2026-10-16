@@ -1,7 +1,7 @@
 /* The editor sends drafts only to a same-origin, silent tv.html preview.
    setTvConfig is called exclusively by the Save button. */
 var TVC = {def:null,saved:null,dirty:false,loading:false,saving:false,loadId:0,previewSeq:0,ready:false,timer:null,pendingTab:null};
-var TV_COLOR_FIELDS = [['textColor','Text'],['clockColor','Clock'],['shopColor','Shop'],['welcomeColor','Welcome'],['subColor','Sub'],['captionColor','Caption'],['footColor','Foot']];
+var TV_COLOR_FIELDS = [['textColor','Text'],['clockColor','Clock'],['shopColor','Shop'],['welcomeColor','Welcome'],['subColor','Sub'],['captionColor','Caption'],['footColor','Foot'],['controlBg','ControlBg'],['controlColor','ControlColor'],['controlBorderColor','ControlBorderColor']];
 var TV_FIELDS = [
   ['shop','tvShop','text'],['helloMain','tvHelloMain','text'],['helloSub','tvHelloSub','text'],['caption','tvCaption','text'],
   ['bg','tvBg','color'],['font','tvFont','text'],['headLayout','tvHeadLayout','text'],
@@ -10,7 +10,10 @@ var TV_FIELDS = [
   ['padTop','tvPadTop','number',0,600],['logoSize','tvLogoSize','number',20,600],['headGap','tvHeadGap','number',0,200],
   ['gapBanner','tvGapBanner','optional',0,200],['gapCaption','tvGapCaption','optional',0,200],['gapReceiver','tvGapReceiver','optional',0,200],['gapFoot','tvGapFoot','optional',0,200],
   ['fontClock','tvFontClock','number',10,200],['fontShop','tvFontShop','number',10,200],['fontHello','tvFontHello','number',10,200],['fontCaption','tvFontCaption','number',10,200],['capSpeed','tvCapSpeed','number',10,400],
-  ['showLogo','tvShowLogo','bool'],['showClock','tvShowClock','bool'],['showBanner','tvShowBanner','bool']
+  ['showLogo','tvShowLogo','bool'],['showClock','tvShowClock','bool'],['showBanner','tvShowBanner','bool'],
+  ['bannerBg','tvBannerBg','color'],['bannerBgMatch','tvBannerBgMatch','bool'],['bannerBgOpacity','tvBannerBgOpacity','number',0,100],
+  ['bannerFrameColor','tvBannerFrameColor','color'],['bannerFrameMatch','tvBannerFrameMatch','bool'],['bannerFrameOpacity','tvBannerFrameOpacity','number',0,100],['bannerFramePadding','tvBannerFramePadding','number',0,60],
+  ['controlOpacity','tvControlOpacity','number',0,100],['bannerSpeed','bSpeed','decimal',1,60],['bannerPerView','bPer','number',0,6],['bannerHeightPct','bHeight','number',30,100]
 ];
 var TV_PRESETS = {
   balanced:{width:1280,bannerH:380,receiverH:300,fontClock:28,fontShop:34,fontHello:34,fontCaption:28,gap:18,padTop:24,logoSize:100,headGap:20,headLayout:'side'},
@@ -30,7 +33,7 @@ function tvReadForm(strict){
   TV_FIELDS.forEach(function(f){
     var el=$('#'+f[1]),raw=el.value,v=raw;
     if(f[2]==='bool')v=el.checked;
-    else if(f[2]==='number'||f[2]==='optional'){
+    else if(f[2]==='number'||f[2]==='decimal'||f[2]==='optional'){
       if(f[2]==='optional'&&raw==='')v=null;
       else{
         v=Number(raw);
@@ -39,7 +42,7 @@ function tvReadForm(strict){
           v=saved[f[0]]===undefined?defaults[f[0]]:saved[f[0]];
           if(v===undefined||v===null)v=f[3];
         }
-        v=Math.round(v);
+        if(f[2]!=='decimal')v=Math.round(v);
       }
     }else if(strict&&el.maxLength>0&&raw.length>el.maxLength){var e2=new Error('ข้อความยาวเกิน '+el.maxLength+' ตัวอักษร');e2.field=el;throw e2;}
     out[f[0]]=v;
@@ -47,13 +50,16 @@ function tvReadForm(strict){
   return Object.assign(out,tvReadColors());
 }
 function tvComparable(c){
-  var out={};TV_FIELDS.forEach(function(f){var v=c[f[0]];out[f[0]]=f[2]==='optional'&&(v===null||v===undefined||v==='')?null:f[2]==='number'||f[2]==='optional'?Number(v):f[2]==='bool'?!!v:String(v==null?'':v);});
+  var out={};TV_FIELDS.forEach(function(f){var v=c[f[0]];out[f[0]]=f[2]==='optional'&&(v===null||v===undefined||v==='')?null:f[2]==='number'||f[2]==='decimal'||f[2]==='optional'?Number(v):f[2]==='bool'?!!v:String(v==null?'':v);});
   TV_COLOR_FIELDS.forEach(function(p){out[p[0]]=String(c[p[0]]||'').toLowerCase();});return JSON.stringify(out);
 }
 function tvSyncControls(){
   var colors=tvReadColors(),fg=colors.textColor||tvAutoTextColor($('#tvBg').value);
   $('#tvBgValue').textContent=$('#tvBg').value.toUpperCase();
-  TV_COLOR_FIELDS.forEach(function(p){var id='#tv'+p[1]+'Color',el=$(id),auto=$(id+'Auto').checked;el.disabled=auto;$(id+'Value').textContent=auto?(p[0]==='textColor'?'อัตโนมัติ':'ใช้สีรวม'):el.value.toUpperCase();if(auto)el.value=fg;});
+  TV_COLOR_FIELDS.forEach(function(p){var id='#tv'+p[1]+'Color',el=$(id),auto=$(id+'Auto').checked,control=p[0].indexOf('control')===0;el.disabled=auto;$(id+'Value').textContent=auto?(control||p[0]==='textColor'?'อัตโนมัติ':'ใช้สีรวม'):el.value.toUpperCase();if(auto)el.value=control?(p[0]==='controlBg'?'#ffffff':p[0]==='controlColor'?'#2a1f47':'#d9c8ff'):fg;});
+  var match=$('#tvBannerBgMatch').checked,frameMatch=$('#tvBannerFrameMatch').checked;
+  $('#tvBannerBg').disabled=match;$('#tvBannerBgValue').textContent=match?'ใช้สีพื้นหลัง TV':$('#tvBannerBg').value.toUpperCase();
+  $('#tvBannerFrameColor').disabled=frameMatch;$('#tvBannerFrameColorValue').textContent=frameMatch?'ใช้สีกรอบรวม':$('#tvBannerFrameColor').value.toUpperCase();
   document.querySelectorAll('#st-tv input[data-range-for]').forEach(function(range){var target=$('#'+range.dataset.rangeFor);range.value=target.value||range.min;});
 }
 function tvSetStatus(){
@@ -73,19 +79,23 @@ function tvQueuePreview(){
 function tvOnChange(event){
   if(TVC.loading||!TVC.saved)return;
   if(event&&event.target.dataset.rangeFor){$('#'+event.target.dataset.rangeFor).value=event.target.value;}
-  tvSyncControls();TVC.dirty=tvComparable(tvReadForm(false))!==tvComparable(TVC.saved)||TV_FIELDS.some(function(f){if(f[2]!=='number'&&f[2]!=='optional')return false;var v=$('#'+f[1]).value;if(f[2]==='optional'&&v==='')return false;return v===''||!Number.isFinite(Number(v))||Number(v)<f[3]||Number(v)>f[4];});tvSetStatus();tvQueuePreview();
+  tvSyncControls();TVC.dirty=tvComparable(tvReadForm(false))!==tvComparable(TVC.saved)||TV_FIELDS.some(function(f){if(f[2]!=='number'&&f[2]!=='decimal'&&f[2]!=='optional')return false;var v=$('#'+f[1]).value;if(f[2]==='optional'&&v==='')return false;return v===''||!Number.isFinite(Number(v))||Number(v)<f[3]||Number(v)>f[4];});tvSetStatus();tvQueuePreview();
   document.querySelectorAll('[data-tv-preset]').forEach(function(b){b.classList.remove('on');});
 }
 function tvFill(c){
+  document.querySelectorAll('[data-tv-preset]').forEach(function(b){b.classList.remove('on');});
   TV_FIELDS.forEach(function(f){var el=$('#'+f[1]),v=c[f[0]];if(f[2]==='bool')el.checked=!!v;else el.value=v===null||v===undefined?'':v;});
   TV_COLOR_FIELDS.forEach(function(p){var value=String(c[p[0]]||''),custom=/^#[0-9a-f]{6}$/i.test(value),id='#tv'+p[1]+'Color';$(id+'Auto').checked=!custom;$(id).value=custom?value:'#ffffff';});
   tvSyncControls();tvSetStatus();tvQueuePreview();
 }
 function tvTab(name,focus){
+  $('.tv-designer-layout').classList.toggle('ads-active',name==='ads');
   document.querySelectorAll('[data-tv-tab]').forEach(function(b){var on=b.dataset.tvTab===name;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
   document.querySelectorAll('[data-tv-pane]').forEach(function(p){p.hidden=p.dataset.tvPane!==name;});
   if(focus)document.querySelector('[data-tv-tab="'+name+'"]').focus();
+  if(name==='ads'&&TVC.saved&&typeof B!=='undefined')loadBanners();
 }
+function tvRefreshBanners(){var frame=$('#tvLivePreview');if(frame&&frame.getAttribute('src'))frame.contentWindow.postMessage({type:'cmucoop:tv-banner-refresh'},location.origin);}
 function tvEnsurePreview(){
   var frame=$('#tvLivePreview');
   if(!frame.getAttribute('src'))frame.src=pageUrl('tv.html','https://cmucoop-support.github.io/CMUCOOP-SP/tv.html')+'?preview=1';
@@ -118,13 +128,16 @@ async function tvLoad(force){
   try{
     var r=await call('getTvConfig');if(id!==TVC.loadId||token!==S.token||!S.me)return;
     if(!r||!r.cfg||!r.def)throw new Error('ข้อมูลตั้งค่าหน้าจอ TV ไม่ครบ กรุณาลองโหลดอีกครั้ง');
+    if(typeof r.def.bannerFramePadding!=='number')throw new Error('กรุณาอัปเดต Cloudflare Worker v4 ก่อนใช้การตั้งค่าหน้าแสดงผลรุ่นนี้');
     TVC.def=r.def;TVC.saved=Object.assign({},r.def,r.cfg);TVC.dirty=false;TVC.loading=false;tvFill(TVC.saved);tvEnsurePreview();
+    if(!B.loaded)loadBanners();
     if(TVC.pendingTab){tvTab(TVC.pendingTab);TVC.pendingTab=null;}
   }catch(e){if(token===S.token)tvShowError('โหลดการตั้งค่าไม่สำเร็จ: '+e.message);}
   finally{if(id===TVC.loadId){TVC.loading=false;tvSetStatus();}}
 }
 function tvResetSession(){
   TVC.loadId++;TVC.saved=null;TVC.def=null;TVC.dirty=false;TVC.loading=false;TVC.saving=false;TVC.ready=false;TVC.pendingTab=null;clearTimeout(TVC.timer);
+  if(typeof B!=='undefined'){B.loadId++;B.loaded=false;B.list=[];}
   var frame=$('#tvLivePreview');if(frame)frame.removeAttribute('src');
 }
 function initTvDesigner(){
@@ -161,6 +174,5 @@ function initTvDesigner(){
     finally{if(token===S.token){TVC.saving=false;tvSetStatus();}}
   });
   $('#sTvCopy').addEventListener('click',function(){if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText($('#sTv').value).then(function(){toast('คัดลอกลิงก์ TV แล้ว');},function(){copyField('#sTv','คัดลอกลิงก์ TV แล้ว');});else copyField('#sTv','คัดลอกลิงก์ TV แล้ว');});
-  $('#bTextColors').addEventListener('click',function(){TVC.pendingTab='style';stPanel('tv');tvTab('style');$('#st-tv').scrollIntoView({block:'start'});});
   tvTab('content');tvSetStatus();
 }

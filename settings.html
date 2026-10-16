@@ -416,10 +416,9 @@ td.act{white-space:nowrap;min-width:170px}
 <div class="pwrap" id="wcag-main" role="main">
 <nav class="cnav" id="stNav">
 <button class="on" data-sp="cards">การ์ดเมนูหลัก</button>
-<button data-sp="banner">Banner</button>
 <button data-sp="users">ผู้ใช้งาน</button>
 <button data-sp="sound">เสียงประกาศ</button>
-<button data-sp="tv">หน้าจอ TV</button>
+<button data-sp="tv">ตั้งค่าหน้าแสดงผล โฆษณา</button>
 <button data-sp="history">ประวัติการใช้งาน</button>
 </nav>
 <section class="stp" id="st-cards" style="display:grid;gap:16px">
@@ -439,65 +438,7 @@ td.act{white-space:nowrap;min-width:170px}
 <div class="addbar"><button class="btn" id="sortSave">บันทึก</button></div>
 </div>
 </section>
-<section class="stp hidden" id="st-banner" style="display:grid;gap:16px">
-<div class="card"><div class="row"><span>ปรับสีข้อความ นาฬิกา และชื่อร้านที่แสดงเหนือแบนเนอร์ได้ที่หน้าจอ TV</span><button class="btn ghost small" id="bTextColors" type="button">ตั้งค่าสีตัวอักษร</button></div></div>
-<div class="card">
-<h3>เพิ่ม Banner</h3>
-<div class="row">
-<input accept="image/jpeg,image/png,image/webp,image/gif" aria-label="ไฟล์แบนเนอร์" id="bFiles" multiple="" type="file"/>
-<input aria-label="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." autocomplete="off" id="bLink" placeholder="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." style="flex:1;min-width:240px" type="text"/>
-<button class="btn" disabled="" id="bUpload">อัปโหลด</button>
-</div>
-<div class="muted" id="bUpHint" style="margin-top:6px"></div>
-</div>
-<div class="card">
-<div class="cardrow"><h3>Banner ทั้งหมด</h3><span class="muted" id="bCount"></span></div>
-<div class="bgrid" id="bGrid"><div class="muted">กำลังโหลด…</div></div>
-<div class="muted" style="margin-top:8px">ลำดับบนหน้าเว็บเรียงจากซ้ายไปขวาตามลำดับที่เห็นนี้ · ปุ่ม "ซ่อน" ซ่อนรูปจากหน้าเว็บโดยไม่ลบไฟล์ · ปุ่ม "ลบ" ลบไฟล์รูปออกจากระบบถาวร</div>
-</div>
-<div class="card">
-<h3>ความเร็วการหมุน Banner</h3>
-<div class="row">
-<label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แต่ละรูปค้างไว้
-          <input id="bSpeed" max="60" min="1" step="0.5" style="width:90px;border-radius:6px;padding:7px 9px" type="number" value="4"/>
-          วินาที</label>
-<button class="btn" id="bSpeedSave">บันทึกความเร็ว</button>
-</div>
-<div class="muted" style="margin-top:6px">ตั้งได้ 1–60 วินาที · รูปใหม่และความเร็วที่เปลี่ยนจะขึ้นบนหน้าเว็บเองภายใน 1 นาที (หรือเมื่อรีเฟรช) · ถ้ามีรูปไม่เกินจำนวนที่แสดงพร้อมกัน รูปจะอยู่นิ่ง ไม่หมุน</div>
-</div>
-<div class="card">
-<h3>จำนวนรูปต่อหน้า</h3>
-<div class="row">
-<label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">แสดงพร้อมกัน
-          <input id="bPer" max="6" min="0" step="1" style="width:90px;border-radius:6px;padding:7px 9px" type="number" value="0"/>
-          รูป</label>
-<button class="btn" id="bPerSave">บันทึกจำนวนรูป</button>
-</div>
-<div class="muted" style="margin-top:6px">0 = อัตโนมัติ (ระบบเลือกจำนวนรูปให้เต็มกรอบที่ฝังเว็บมากที่สุด แนะนำ) · 1–6 = กำหนดเอง · รูปจะย่อ/ขยายพอดีกรอบเสมอ ไม่ถูกตัด</div>
-</div>
-<div class="card">
-<h3>ความสูงการแสดงผล</h3>
-<div class="row">
-<label style="display:flex;align-items:center;gap:8px;font-size:15px;color:var(--ink)">สูง
-          <input id="bHeight" max="100" min="30" step="5" style="width:90px;border-radius:6px;padding:7px 9px" type="number" value="80"/>
-          % ของกรอบที่ฝังเว็บ</label>
-<button class="btn" id="bHeightSave">บันทึกความสูง</button>
-</div>
-<div class="muted" style="margin-top:6px">ตั้งได้ 30–100 · ยิ่งน้อยรูปยิ่งเตี้ยลง (รูปย่อตามสัดส่วน ไม่ถูกตัด) และอยู่กึ่งกลางกรอบ · 100 = เต็มความสูงกรอบ</div>
-</div>
-<div class="card">
-<h3>หน้าแสดง Banner</h3>
-<div class="row">
-<input aria-label="ตัวเลือก bUrl" id="bUrl" readonly="" style="flex:1;min-width:260px" type="text"/>
-<button class="btn ghost small" id="bCopyUrl">คัดลอกลิงก์</button>
-<a class="btn small" href="#" id="bOpen" rel="noopener" target="_blank">เปิดดู</a>
-</div>
-<div class="row" style="margin-top:8px">
-<input aria-label="ตัวเลือก bEmbed" id="bEmbed" readonly="" style="flex:1;min-width:260px" type="text"/>
-<button class="btn ghost small" id="bCopyEmbed">คัดลอกโค้ดฝังเว็บ</button>
-</div>
-</div>
-</section>
+
 <section class="stp hidden" id="st-users" style="display:grid;gap:16px">
 <div class="card">
 <h3>รหัสกู้คืน Admin</h3>
@@ -552,24 +493,55 @@ td.act{white-space:nowrap;min-width:170px}
 </section>
 <section class="stp hidden" id="st-tv">
 <div class="tv-designer">
-<div class="tv-editor-heading"><div><h2>ออกแบบหน้าจอ TV</h2><p>ลองปรับแล้วดูผลทันที · กดบันทึกเมื่อได้รูปแบบที่ต้องการ</p></div><div class="tv-editor-actions"><button class="btn ghost small" id="tvReload" type="button">โหลดค่าที่บันทึก</button><button class="btn ghost small" id="sTvCopy" type="button">คัดลอกลิงก์ TV</button><a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดจอจริง</a></div></div>
+<div class="tv-editor-heading"><div><h2>ตั้งค่าหน้าแสดงผล โฆษณา</h2><p>จัดการหน้าจอ TV และโฆษณาในที่เดียว · ลองปรับแล้วดูผลทันที</p></div><div class="tv-editor-actions"><button class="btn ghost small" id="tvReload" type="button">โหลดค่าที่บันทึก</button><button class="btn ghost small" id="sTvCopy" type="button">คัดลอกลิงก์ TV</button><a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดจอจริง</a></div></div>
 <input id="sTv" class="sr-only" type="text" readonly aria-label="ลิงก์หน้าจอ TV"/>
 <div class="tv-editor-error" id="tvEditorError" role="alert" hidden></div>
 <div class="tv-designer-layout">
 <div class="tv-controls"><fieldset id="tvEditorFields" disabled><legend class="sr-only">ปรับหน้าจอ TV</legend>
-<div class="tv-editor-tabs" role="tablist" aria-label="หมวดการออกแบบ TV"><button type="button" role="tab" id="tvTabContent" data-tv-tab="content" aria-controls="tvPaneContent" aria-selected="true">ข้อความ</button><button type="button" role="tab" id="tvTabStyle" data-tv-tab="style" aria-controls="tvPaneStyle" aria-selected="false" tabindex="-1">สีและฟอนต์</button><button type="button" role="tab" id="tvTabLayout" data-tv-tab="layout" aria-controls="tvPaneLayout" aria-selected="false" tabindex="-1">จัดวาง</button></div>
+<div class="tv-editor-tabs" role="tablist" aria-label="หมวดการออกแบบ TV"><button type="button" role="tab" id="tvTabContent" data-tv-tab="content" aria-controls="tvPaneContent" aria-selected="true">ข้อความ</button><button type="button" role="tab" id="tvTabStyle" data-tv-tab="style" aria-controls="tvPaneStyle" aria-selected="false" tabindex="-1">สีและฟอนต์</button><button type="button" role="tab" id="tvTabLayout" data-tv-tab="layout" aria-controls="tvPaneLayout" aria-selected="false" tabindex="-1">จัดวาง</button><button type="button" role="tab" id="tvTabAds" data-tv-tab="ads" aria-controls="tvPaneAds" aria-selected="false" tabindex="-1">รูปโฆษณา</button></div>
 <div class="tv-editor-pane" id="tvPaneContent" role="tabpanel" aria-labelledby="tvTabContent" data-tv-pane="content">
 <div class="tv-control-section"><h3>ข้อความบนหน้าจอ</h3><p>เว้นว่างในช่องที่ไม่ต้องการแสดงได้</p><label>ชื่อร้าน<input id="tvShop" type="text" maxlength="80" autocomplete="off"/></label><label>ข้อความต้อนรับ<input id="tvHelloMain" type="text" maxlength="60" autocomplete="off"/></label><label>ต้อนรับบรรทัดเล็ก<textarea id="tvHelloSub" maxlength="100" rows="2"></textarea></label><label>ข้อความวิ่งใต้แบนเนอร์<textarea id="tvCaption" maxlength="120" rows="2"></textarea></label></div>
 <div class="tv-control-section"><h3>ส่วนที่ต้องการแสดง</h3><div class="tv-switches"><label class="tv-toggle"><span>โลโก้ร้าน</span><input id="tvShowLogo" type="checkbox"/></label><label class="tv-toggle"><span>นาฬิกาและวันที่</span><input id="tvShowClock" type="checkbox"/></label><label class="tv-toggle"><span>แบนเนอร์ประชาสัมพันธ์</span><input id="tvShowBanner" type="checkbox"/></label></div></div>
 </div>
 <div class="tv-editor-pane" id="tvPaneStyle" role="tabpanel" aria-labelledby="tvTabStyle" data-tv-pane="style" hidden>
-<div class="tv-control-section" id="tvColors"><h3>สีของหน้าจอ</h3><label for="tvBg">สีพื้นหลัง TV และแบนเนอร์</label><div class="tv-color-control"><input id="tvBg" type="color" value="#a07ab8"/><output id="tvBgValue" for="tvBg">#A07AB8</output></div><p>พื้นหลังรอบรูปแบนเนอร์จะใช้สีนี้เหมือนกับหน้า TV</p><div class="tv-color-row"><label for="tvTextColor">สีตัวอักษรรวม</label><label class="tv-color-auto"><input id="tvTextColorAuto" type="checkbox" checked/>เลือกสีที่อ่านง่ายอัตโนมัติ</label><div class="tv-color-control"><input id="tvTextColor" type="color" value="#ffffff" disabled/><output id="tvTextColorValue" for="tvTextColor">อัตโนมัติ</output></div></div><details class="tv-advanced"><summary>แยกสีแต่ละข้อความ</summary><div class="tv-color-list"><div class="tv-color-row"><label for="tvClockColor">นาฬิกาและวันที่</label><label class="tv-color-auto"><input id="tvClockColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvClockColor" type="color" value="#ffffff" disabled/><output id="tvClockColorValue" for="tvClockColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvShopColor">ชื่อร้าน</label><label class="tv-color-auto"><input id="tvShopColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvShopColor" type="color" value="#ffffff" disabled/><output id="tvShopColorValue" for="tvShopColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvWelcomeColor">ข้อความต้อนรับ</label><label class="tv-color-auto"><input id="tvWelcomeColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvWelcomeColor" type="color" value="#ffffff" disabled/><output id="tvWelcomeColorValue" for="tvWelcomeColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvSubColor">ต้อนรับบรรทัดเล็ก</label><label class="tv-color-auto"><input id="tvSubColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvSubColor" type="color" value="#ffffff" disabled/><output id="tvSubColorValue" for="tvSubColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvCaptionColor">ข้อความวิ่ง</label><label class="tv-color-auto"><input id="tvCaptionColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvCaptionColor" type="color" value="#ffffff" disabled/><output id="tvCaptionColorValue" for="tvCaptionColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvFootColor">ข้อความท้ายหน้า</label><label class="tv-color-auto"><input id="tvFootColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvFootColor" type="color" value="#ffffff" disabled/><output id="tvFootColorValue" for="tvFootColor">อัตโนมัติ</output></div></div></div></details></div>
-<div class="tv-control-section"><h3>ฟอนต์และขนาดข้อความ</h3><label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label><label class="tv-range"><span>นาฬิกาและวันที่</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontClock" aria-label="นาฬิกาและวันที่"/><input id="tvFontClock" type="number" min="10" max="200" step="1" data-label="นาฬิกาและวันที่" aria-label="นาฬิกาและวันที่ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ชื่อร้าน</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontShop" aria-label="ชื่อร้าน"/><input id="tvFontShop" type="number" min="10" max="200" step="1" data-label="ชื่อร้าน" aria-label="ชื่อร้าน ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความต้อนรับ</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontHello" aria-label="ข้อความต้อนรับ"/><input id="tvFontHello" type="number" min="10" max="200" step="1" data-label="ข้อความต้อนรับ" aria-label="ข้อความต้อนรับ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความวิ่ง</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontCaption" aria-label="ข้อความวิ่ง"/><input id="tvFontCaption" type="number" min="10" max="200" step="1" data-label="ข้อความวิ่ง" aria-label="ข้อความวิ่ง ตัวเลข"/><span>px</span></span></label></div>
+<div class="tv-control-section" id="tvColors"><h3>สีของหน้าจอ</h3><label for="tvBg">สีพื้นหลังหน้า TV</label><div class="tv-color-control"><input id="tvBg" type="color" value="#a07ab8"/><output id="tvBgValue" for="tvBg">#A07AB8</output></div><p>กรอบ Banner เลือกสีแยกหรือใช้สีนี้ร่วมกันได้ที่หัวข้อกรอบโฆษณาด้านล่าง</p><div class="tv-color-row"><label for="tvTextColor">สีตัวอักษรรวม</label><label class="tv-color-auto"><input id="tvTextColorAuto" type="checkbox" checked/>เลือกสีที่อ่านง่ายอัตโนมัติ</label><div class="tv-color-control"><input id="tvTextColor" type="color" value="#ffffff" disabled/><output id="tvTextColorValue" for="tvTextColor">อัตโนมัติ</output></div></div><details class="tv-advanced"><summary>แยกสีแต่ละข้อความ</summary><div class="tv-color-list"><div class="tv-color-row"><label for="tvClockColor">นาฬิกาและวันที่</label><label class="tv-color-auto"><input id="tvClockColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvClockColor" type="color" value="#ffffff" disabled/><output id="tvClockColorValue" for="tvClockColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvShopColor">ชื่อร้าน</label><label class="tv-color-auto"><input id="tvShopColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvShopColor" type="color" value="#ffffff" disabled/><output id="tvShopColorValue" for="tvShopColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvWelcomeColor">ข้อความต้อนรับ</label><label class="tv-color-auto"><input id="tvWelcomeColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvWelcomeColor" type="color" value="#ffffff" disabled/><output id="tvWelcomeColorValue" for="tvWelcomeColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvSubColor">ต้อนรับบรรทัดเล็ก</label><label class="tv-color-auto"><input id="tvSubColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvSubColor" type="color" value="#ffffff" disabled/><output id="tvSubColorValue" for="tvSubColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvCaptionColor">ข้อความวิ่ง</label><label class="tv-color-auto"><input id="tvCaptionColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvCaptionColor" type="color" value="#ffffff" disabled/><output id="tvCaptionColorValue" for="tvCaptionColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvFootColor">ข้อความท้ายหน้า</label><label class="tv-color-auto"><input id="tvFootColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvFootColor" type="color" value="#ffffff" disabled/><output id="tvFootColorValue" for="tvFootColor">อัตโนมัติ</output></div></div></div></details></div>
+<div class="tv-control-section" id="tvBannerFrames"><h3>กรอบโฆษณา</h3><p>พื้นหลังหน้า TV → กรอบรวม Banner → กรอบรอบรูป → รูปโฆษณา</p><div class="tv-frame-group"><h4>กรอบรวม Banner</h4><label class="tv-color-auto"><input id="tvBannerBgMatch" type="checkbox"/>ใช้สีเดียวกับพื้นหลังหน้า TV</label><div class="tv-color-row"><label for="tvBannerBg">สีกรอบรวม</label><div class="tv-color-control"><input id="tvBannerBg" type="color" value="#ffffff"/><output id="tvBannerBgValue" for="tvBannerBg">#FFFFFF</output></div></div><label class="tv-range"><span>ความทึบกรอบรวม</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvBannerBgOpacity" aria-label="ความทึบกรอบรวม"/><input id="tvBannerBgOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบกรอบรวม" aria-label="ความทึบกรอบรวม ตัวเลข"/><span>%</span></span></label></div><div class="tv-frame-group"><h4>กรอบรอบรูป</h4><label class="tv-color-auto"><input id="tvBannerFrameMatch" type="checkbox"/>ใช้สีเดียวกับกรอบรวม Banner</label><div class="tv-color-row"><label for="tvBannerFrameColor">สีกรอบรอบรูป</label><div class="tv-color-control"><input id="tvBannerFrameColor" type="color" value="#ffffff"/><output id="tvBannerFrameColorValue" for="tvBannerFrameColor">#FFFFFF</output></div></div><label class="tv-range"><span>ความทึบกรอบรอบรูป</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvBannerFrameOpacity" aria-label="ความทึบกรอบรอบรูป"/><input id="tvBannerFrameOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบกรอบรอบรูป" aria-label="ความทึบกรอบรอบรูป ตัวเลข"/><span>%</span></span></label><label class="tv-range"><span>ความหนากรอบรอบรูป</span><span class="tv-number-pair"><input type="range" min="0" max="60" data-range-for="tvBannerFramePadding" aria-label="ความหนากรอบรอบรูป"/><input id="tvBannerFramePadding" type="number" min="0" max="60" step="1" value="10" data-label="ความหนากรอบรอบรูป" aria-label="ความหนากรอบรอบรูป ตัวเลข"/><span>px</span></span></label><p>ความหนา 0 = ไม่เว้นกรอบ · ความทึบ 0% = โปร่งใส และ 100% = ทึบ โดยรูปยังชัดเท่าเดิม</p></div></div><div class="tv-control-section" id="tvControlColors"><h3>สีปุ่มควบคุมหน้าแสดงผล</h3><p>ใช้กับปุ่มเลื่อนซ้าย/ขวา ปุ่มหยุดแบนเนอร์ และปุ่มท้ายหน้า TV</p><div class="tv-color-row"><label for="tvControlBgColor">สีพื้นปุ่ม</label><label class="tv-color-auto"><input id="tvControlBgColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlBgColor" type="color" value="#ffffff" disabled/><output id="tvControlBgColorValue" for="tvControlBgColor">เลือกอัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvControlColorColor">สีสัญลักษณ์และข้อความ</label><label class="tv-color-auto"><input id="tvControlColorColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlColorColor" type="color" value="#2a1f47" disabled/><output id="tvControlColorColorValue" for="tvControlColorColor">เลือกอัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvControlBorderColorColor">สีขอบปุ่ม</label><label class="tv-color-auto"><input id="tvControlBorderColorColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlBorderColorColor" type="color" value="#d9c8ff" disabled/><output id="tvControlBorderColorColorValue" for="tvControlBorderColorColor">เลือกอัตโนมัติ</output></div></div><label class="tv-range"><span>ความทึบพื้นปุ่ม</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvControlOpacity" aria-label="ความทึบพื้นปุ่ม"/><input id="tvControlOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบพื้นปุ่ม" aria-label="ความทึบพื้นปุ่ม ตัวเลข"/><span>%</span></span></label><p>0% = โปร่งใส · 100% = ทึบ เฉพาะพื้นหลังปุ่ม</p></div><div class="tv-control-section"><h3>ฟอนต์และขนาดข้อความ</h3><label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label><label class="tv-range"><span>นาฬิกาและวันที่</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontClock" aria-label="นาฬิกาและวันที่"/><input id="tvFontClock" type="number" min="10" max="200" step="1" data-label="นาฬิกาและวันที่" aria-label="นาฬิกาและวันที่ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ชื่อร้าน</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontShop" aria-label="ชื่อร้าน"/><input id="tvFontShop" type="number" min="10" max="200" step="1" data-label="ชื่อร้าน" aria-label="ชื่อร้าน ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความต้อนรับ</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontHello" aria-label="ข้อความต้อนรับ"/><input id="tvFontHello" type="number" min="10" max="200" step="1" data-label="ข้อความต้อนรับ" aria-label="ข้อความต้อนรับ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความวิ่ง</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontCaption" aria-label="ข้อความวิ่ง"/><input id="tvFontCaption" type="number" min="10" max="200" step="1" data-label="ข้อความวิ่ง" aria-label="ข้อความวิ่ง ตัวเลข"/><span>px</span></span></label></div>
 </div>
 <div class="tv-editor-pane" id="tvPaneLayout" role="tabpanel" aria-labelledby="tvTabLayout" data-tv-pane="layout" hidden>
 <div class="tv-control-section"><h3>เริ่มจากรูปแบบสำเร็จ</h3><div class="tv-preset-grid"><button class="tv-preset" type="button" data-tv-preset="balanced"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="1" y="1" width="46" height="32" rx="3"/><circle cx="10" cy="8" r="3"/><path d="M17 6h23M17 10h17M6 15h36v10H6zM6 29h36"/></svg><span>สมดุล</span></button><button class="tv-preset" type="button" data-tv-preset="banner"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="1" y="1" width="46" height="32" rx="3"/><path d="M7 6h34M6 10h36v17H6zM7 30h34"/></svg><span>เน้นแบนเนอร์</span></button><button class="tv-preset" type="button" data-tv-preset="portrait"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="15" y="1" width="18" height="32" rx="3"/><path d="M19 6h10M18 10h12v15H18zM19 29h10"/></svg><span>จอแนวตั้ง</span></button></div><p>เปลี่ยนเฉพาะขนาดและการจัดวาง ข้อความและสียังอยู่</p></div>
 <div class="tv-control-section"><h3>ขนาดและการจัดวาง</h3><label>ตำแหน่งโลโก้และข้อความ<select id="tvHeadLayout"><option value="side">โลโก้ซ้าย · ข้อความเรียงลง</option><option value="stack">โลโก้บน · ข้อความเรียงลง</option><option value="row">โลโก้และข้อความแถวเดียว</option><option value="topRow">โลโก้บน · ข้อความแถวเดียว</option></select></label><label class="tv-range"><span>ความกว้างเนื้อหา</span><span class="tv-number-pair"><input type="range" min="480" max="3840" data-range-for="tvWidth" aria-label="ความกว้างเนื้อหา"/><input id="tvWidth" type="number" min="480" max="3840" step="1" data-label="ความกว้างเนื้อหา" aria-label="ความกว้างเนื้อหา ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ความสูงแบนเนอร์</span><span class="tv-number-pair"><input type="range" min="60" max="2000" data-range-for="tvBannerH" aria-label="ความสูงแบนเนอร์"/><input id="tvBannerH" type="number" min="60" max="2000" step="1" data-label="ความสูงแบนเนอร์" aria-label="ความสูงแบนเนอร์ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ขนาดโลโก้</span><span class="tv-number-pair"><input type="range" min="20" max="600" data-range-for="tvLogoSize" aria-label="ขนาดโลโก้"/><input id="tvLogoSize" type="number" min="20" max="600" step="1" data-label="ขนาดโลโก้" aria-label="ขนาดโลโก้ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ระยะห่างระหว่างส่วน</span><span class="tv-number-pair"><input type="range" min="0" max="200" data-range-for="tvGap" aria-label="ระยะห่างระหว่างส่วน"/><input id="tvGap" type="number" min="0" max="200" step="1" data-label="ระยะห่างระหว่างส่วน" aria-label="ระยะห่างระหว่างส่วน ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ความเร็วข้อความวิ่ง</span><span class="tv-number-pair"><input type="range" min="10" max="400" data-range-for="tvCapSpeed" aria-label="ความเร็วข้อความวิ่ง"/><input id="tvCapSpeed" type="number" min="10" max="400" step="1" data-label="ความเร็วข้อความวิ่ง" aria-label="ความเร็วข้อความวิ่ง ตัวเลข"/><span>px/วินาที</span></span></label></div>
 <details class="tv-advanced"><summary>ตั้งค่าระยะห่างและส่วนเสียงเพิ่มเติม</summary><div class="tv-control-section"><label class="tv-range"><span>ความสูงส่วนรับเสียง</span><span class="tv-number-pair"><input type="range" min="150" max="2000" data-range-for="tvReceiverH" aria-label="ความสูงส่วนรับเสียง"/><input id="tvReceiverH" type="number" min="150" max="2000" step="1" data-label="ความสูงส่วนรับเสียง" aria-label="ความสูงส่วนรับเสียง ตัวเลข"/><span>px</span></span></label><div class="tv-fields-two"><label class="tv-unit-field">ความกว้างแบนเนอร์<input id="tvBannerW" type="number" min="0" max="3840" step="1" data-label="ความกว้างแบนเนอร์"/></label><label class="tv-unit-field">ความกว้างส่วนเสียง<input id="tvReceiverW" type="number" min="0" max="3840" step="1" data-label="ความกว้างส่วนเสียง"/></label></div><p>ความกว้าง 0 = เต็มพื้นที่เนื้อหา · ขนาดเป็นพิกเซล</p><div class="tv-fields-two"><label class="tv-unit-field">ระยะขอบบน<input id="tvPadTop" type="number" min="0" max="600" step="1" data-label="ระยะขอบบน"/></label><label class="tv-unit-field">โลโก้ห่างข้อความ<input id="tvHeadGap" type="number" min="0" max="200" step="1" data-label="โลโก้ห่างข้อความ"/></label></div><p>ระยะห่างแยกส่วน เว้นว่างเพื่อใช้ระยะห่างรวม</p><div class="tv-fields-two"><label class="tv-unit-field">เหนือแบนเนอร์<input id="tvGapBanner" type="number" min="0" max="200" step="1" data-label="เหนือแบนเนอร์" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือข้อความวิ่ง<input id="tvGapCaption" type="number" min="0" max="200" step="1" data-label="เหนือข้อความวิ่ง" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือส่วนเสียง<input id="tvGapReceiver" type="number" min="0" max="200" step="1" data-label="เหนือส่วนเสียง" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือท้ายหน้า<input id="tvGapFoot" type="number" min="0" max="200" step="1" data-label="เหนือท้ายหน้า" placeholder="ใช้ระยะห่างรวม"/></label></div></div></details>
+</div>
+<div class="tv-editor-pane tv-ad-pane" id="tvPaneAds" role="tabpanel" aria-labelledby="tvTabAds" data-tv-pane="ads" hidden>
+<div class="tv-ad-notice">สี ขนาด และการหมุน: ทดลองในพรีวิวแล้วกด “บันทึกและใช้จริง”<br>ไฟล์รูป: อัปโหลด ซ่อน แก้ไข ลบ และเลื่อนลำดับแล้วมีผลทันที</div>
+<div class="card tv-control-section"><h3>การแสดงรูปโฆษณา</h3><div class="tv-fields-two"><label>เวลาแสดงแต่ละรูป (วินาที)<input id="bSpeed" type="number" min="1" max="60" step="0.5" data-label="เวลาแสดงแต่ละรูป"/></label><label>จำนวนรูปพร้อมกัน<input id="bPer" type="number" min="0" max="6" step="1" data-label="จำนวนรูปต่อหน้า"/></label></div><label>ความสูงรูปในกรอบ (%)<input id="bHeight" type="number" min="30" max="100" step="1" data-label="ความสูงรูปในกรอบ"/></label><p>จำนวนรูป 0 = อัตโนมัติ · ความสูง 30–100% · ทดลองในพรีวิวแล้วกด “บันทึกและใช้จริง”</p></div>
+<div class="card">
+<h3>เพิ่มรูปโฆษณา</h3>
+<div class="row">
+<input accept="image/jpeg,image/png,image/webp,image/gif" aria-label="ไฟล์แบนเนอร์" id="bFiles" multiple="" type="file"/>
+<input aria-label="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." autocomplete="off" id="bLink" placeholder="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." style="width:100%;min-width:0" type="text"/>
+<button class="btn" disabled="" id="bUpload">อัปโหลด</button>
+</div>
+<div class="muted" id="bUpHint" style="margin-top:6px"></div>
+</div>
+<div class="card">
+<div class="cardrow"><h3>รูปโฆษณาทั้งหมด</h3><span class="muted" id="bCount"></span></div>
+<div class="bgrid" id="bGrid"><div class="muted">กำลังโหลด…</div></div>
+<div class="muted" style="margin-top:8px">ลำดับบนหน้าเว็บเรียงจากซ้ายไปขวาตามลำดับที่เห็นนี้ · ปุ่ม "ซ่อน" ซ่อนรูปจากหน้าเว็บโดยไม่ลบไฟล์ · ปุ่ม "ลบ" ลบไฟล์รูปออกจากระบบถาวร</div>
+</div>
+<div class="card">
+<h3>หน้าแสดง Banner</h3>
+<div class="row">
+<input aria-label="ตัวเลือก bUrl" id="bUrl" readonly="" style="width:100%;min-width:0" type="text"/>
+<button class="btn ghost small" id="bCopyUrl">คัดลอกลิงก์</button>
+<a class="btn small" href="#" id="bOpen" rel="noopener" target="_blank">เปิดดู</a>
+</div>
+<div class="row" style="margin-top:8px">
+<input aria-label="ตัวเลือก bEmbed" id="bEmbed" readonly="" style="width:100%;min-width:0" type="text"/>
+<button class="btn ghost small" id="bCopyEmbed">คัดลอกโค้ดฝังเว็บ</button>
+</div>
+</div>
+
 </div>
 </fieldset></div>
 <div class="tv-preview-panel" id="tvPreviewPanel">
@@ -1143,7 +1115,7 @@ document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
 
 
 /* ----- ตั้งค่า (Admin) : การ์ดเมนูหลัก / Banner / ผู้ใช้งาน / เสียงประกาศ ----- */
-var ST_PANELS = ['cards', 'banner', 'users', 'sound', 'tv', 'history'];
+var ST_PANELS = ['cards', 'users', 'sound', 'tv', 'history'];
 function openSettings(p) {
   if (!S.me || S.me.role !== 'admin') return;
   setNav('settings');
@@ -1151,11 +1123,11 @@ function openSettings(p) {
   stPanel(p || 'cards');
 }
 function stPanel(p) {
+  if (p === 'banner') { p = 'tv'; TVC.pendingTab = 'ads'; }
   $('.pwrap').classList.toggle('tv-editor-open', p === 'tv');
   document.querySelectorAll('#stNav button').forEach(function (b) { b.classList.toggle('on', b.dataset.sp === p); });
   ST_PANELS.forEach(function (k) { $('#st-' + k).classList.toggle('hidden', k !== p); });
   if (p === 'cards') stCardsLoad();
-  else if (p === 'banner') { $('#bUpHint').textContent = BANNER_HINT; loadBanners(); }
   else if (p === 'users') { renderPermBox(); resetUserForm(); loadUsers(); loadRecovery(); }
   else if (p === 'sound') sndLoadAdmin();
   else if (p === 'tv') tvLoad();
@@ -1163,22 +1135,24 @@ function stPanel(p) {
 }
 $('#stNav').addEventListener('click', function (e) { var b = e.target.closest('button[data-sp]'); if (b) stPanel(b.dataset.sp); });
 
-var B = { list: [], busy: false };
+var B = { list: [], busy: false, loaded: false, loadId: 0 };
 var BANNER_HINT = 'รองรับ JPG, PNG, WEBP, GIF · ระบบย่อรูปให้ด้านยาวไม่เกิน 1600 px ก่อนอัปโหลด (GIF ไม่ย่อ) · เลือกได้หลายไฟล์พร้อมกัน';
 
 async function loadBanners() {
+  var id = ++B.loadId, token = S.token;
+  $('#bUpHint').textContent = BANNER_HINT;
   try {
     var r = await call('listBanners');
+    if (token !== S.token || id !== B.loadId || !S.me) return;
+    B.loaded = true;
     B.list = r.banners || [];
     r.displayUrl = pageUrl('banner.html', r.displayUrl);
     $('#bUrl').value = r.displayUrl;
-    $('#bSpeed').value = r.speed || 4;
-    $('#bPer').value = r.perView == null ? 0 : r.perView;
-    $('#bHeight').value = r.heightPct || 80;
     $('#bOpen').href = r.displayUrl;
     $('#bEmbed').value = '<iframe src="' + r.displayUrl + '" style="width:100%;height:640px;border:0" loading="lazy"></iframe>';
     renderBanners();
-  } catch (e) { $('#bGrid').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }
+    tvRefreshBanners();
+  } catch (e) { if (token !== S.token || id !== B.loadId) return; $('#bGrid').innerHTML = '<div class="err">' + esc(e.message) + '</div>'; }
 }
 function renderBanners() {
   var shown = B.list.filter(function (b) { return b.show; }).length;
@@ -1279,25 +1253,6 @@ $('#bUpload').addEventListener('click', async function () {
   if (fail.length) toast('อัปโหลดสำเร็จ ' + ok + ' ไม่สำเร็จ ' + fail.length + ': ' + fail.join(', '), true);
   else if (ok) toast('เพิ่ม Banner แล้ว ' + ok + ' รูป');
   if (S.token) loadBanners();
-});
-$('#bSpeedSave').addEventListener('click', function () {
-  var v = Number($('#bSpeed').value);
-  if (!(v >= 1 && v <= 60)) { toast('ความเร็วต้องอยู่ระหว่าง 1–60 วินาที', true); return; }
-  busy(this, async function () { var r = await call('setBannerSpeed', v); $('#bSpeed').value = r.speed; toast('บันทึกความเร็วแล้ว ' + r.speed + ' วินาทีต่อรูป'); });
-});
-$('#bPerSave').addEventListener('click', function () {
-  var v = Number($('#bPer').value);
-  if (!(v >= 0 && v <= 6) || v % 1) { toast('ใส่เลขจำนวนเต็ม 0–6 (0 = อัตโนมัติ)', true); return; }
-  busy(this, async function () {
-    var r = await call('setBannerPerView', v);
-    $('#bPer').value = r.perView;
-    toast(r.perView ? 'บันทึกแล้ว แสดง ' + r.perView + ' รูปต่อหน้า' : 'บันทึกแล้ว: อัตโนมัติ (เต็มกรอบ)');
-  });
-});
-$('#bHeightSave').addEventListener('click', function () {
-  var v = Number($('#bHeight').value);
-  if (!(v >= 30 && v <= 100) || v % 1) { toast('ใส่เลขจำนวนเต็ม 30–100', true); return; }
-  busy(this, async function () { var r = await call('setBannerHeight', v); $('#bHeight').value = r.heightPct; toast('บันทึกแล้ว ความสูง ' + r.heightPct + '% ของกรอบ'); });
 });
 $('#bCopyUrl').addEventListener('click', function () { copyField('#bUrl', 'คัดลอกลิงก์แล้ว'); });
 $('#bCopyEmbed').addEventListener('click', function () { copyField('#bEmbed', 'คัดลอกโค้ดแล้ว'); });
