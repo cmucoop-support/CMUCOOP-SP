@@ -2996,7 +2996,30 @@ $('#upSave').addEventListener('click', function () {
   var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; });
   if (!sel.length) return;
   busy(this, async function () {
-    var br = UP.branch, r = await call('stockSave', { fileName: UP.files.join(', ').slice(0, 120), branch: br, groups: sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; }) });
+    var br = UP.branch, fileName = UP.files.join(', ').slice(0, 120), btn = this, label0 = btn.textContent;
+    // อัปหลายหมวดพร้อมกัน: แบ่งส่งทีละชุด (ไม่เกิน 4 หมวด หรือ ~400 แถวต่อชุด) กัน Worker หมดเวลา/เกินโควตา
+    var chunks = [], cur = [], curRows = 0;
+    sel.forEach(function (g) {
+      var n = UP.groups[g];
+      if (cur.length && (cur.length >= 4 || curRows + n.rows.length > 400)) { chunks.push(cur); cur = []; curRows = 0; }
+      cur.push({ g: g, rep: n.rep, title: n.title, rows: n.rows }); curRows += n.rows.length;
+    });
+    if (cur.length) chunks.push(cur);
+    var r = { changed: [], same: [], tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
+    try {
+      for (var ci = 0; ci < chunks.length; ci++) {
+        if (chunks.length > 1) btn.textContent = 'กำลังบันทึก ' + done + '/' + sel.length + ' หมวด…';
+        var rc = await call('stockSave', { fileName: fileName, branch: br, groups: chunks[ci] });
+        r.changed = r.changed.concat(rc.changed || []); r.same = r.same.concat(rc.same || []);
+        ['add', 'chg', 'del', 'same'].forEach(function (k) { r.tot[k] += (rc.tot && rc.tot[k]) || 0; });
+        done += chunks[ci].length;
+      }
+    } catch (er) {
+      btn.textContent = label0;
+      if (done) { await load(VIEW); throw new Error('บันทึกได้ ' + done + ' จาก ' + sel.length + ' หมวด แล้วหยุดที่ผิดพลาด: ' + er.message + ' — กดบันทึกอีกครั้งเพื่อทำต่อ (หมวดที่บันทึกแล้วจะถูกข้ามเอง)'); }
+      throw er;
+    }
+    btn.textContent = label0;
     var cancels = {}, nCan = 0;                                          // รายการที่ผู้ใช้เลือก "ยกเลิก" ในหน้าตัวอย่าง
     (UP.adjList || []).forEach(function (e) { if (UP.adjChoice && UP.adjChoice[e.kind + '|' + e.k] === 'cancel') { (cancels[e.kind] || (cancels[e.kind] = [])).push(e.k); nCan++; } });
     closeDlg('#upDlg'); UP = null; UPFILES = null;
