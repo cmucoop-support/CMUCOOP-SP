@@ -373,15 +373,8 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <label class="opt"><input checked="" name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br/><span class="muted" id="exN2"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="branch"/><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br/><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
-<div style="margin-top:12px"><b>เพิ่มส่งออกเป็นชีตแยก</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ใช้ขอบเขตเดียวกับที่เลือกด้านบน)</span></div>
-<div id="exExtra" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-<label class="chk-pill"><input data-exx="lost" type="checkbox"/><span>ของหาย</span></label>
-<label class="chk-pill"><input data-exx="exp" type="checkbox"/><span>หมดอายุ</span></label>
-<label class="chk-pill"><input data-exx="waste" type="checkbox"/><span>ของเสีย</span></label>
-<label class="chk-pill"><input data-exx="pend" type="checkbox"/><span>รอปรับ</span></label>
-<label class="chk-pill"><input checked="" data-exx="zero" type="checkbox"/><span>คงเหลือ 0</span></label>
-<label class="chk-pill"><input checked="" data-exx="neg" type="checkbox"/><span>ติดลบ</span></label>
-</div>
+<div style="margin-top:12px"><b>รวมรายการตามแท็กไว้ในชีตหมวดเดียวกัน</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ไม่แยกชีต · ใช้ขอบเขตเดียวกับที่เลือกด้านบน · ช่องหมายเหตุจะระบุแท็กและหมายเหตุให้)</span></div>
+<div id="exExtra" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
 </div>
 <div class="hidden" id="exPdfBox">
 <div class="muted" style="margin-top:10px">PDF ใช้ตัวกรองที่เลือกอยู่บนหน้าจอ (สาขา หมวด ช่วงอายุ แท็ก) · ติ๊กส่วนที่ต้องการให้อยู่ในไฟล์</div>
@@ -2252,10 +2245,20 @@ function xlAtTxt(ts) {                                                      // '
     .formatToParts(new Date(ts || Date.now())).forEach(function (x) { p[x.type] = x.value; });
   return 'ณ วันที่ ' + p.day + '/' + p.month + '/' + p.year + '\nเวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
 }
-function xlNote(x) {                                                        // หมายเหตุในไฟล์ต้นฉบับ + หมายเหตุที่บันทึกในระบบ (ขายยาก/ของหาย/หมดอายุ/รอปรับ/ของเสีย)
-  var o = [], tn = x.tn || {};
-  if (x.note) o.push(String(x.note));
-  Object.keys(TAGS).forEach(function (k) { if (tn[k]) o.push(TAGS[k].t + ': ' + tn[k]); });
+function xlTags(x) {                                                        // แท็กทั้งหมดของสินค้า (ขายยาก · ของหาย x · แท็กที่สร้างเอง · คงเหลือ 0/ติดลบ)
+  var t = [];
+  if (x.hard) t.push('ขายยาก');
+  Object.keys(x.tg || {}).forEach(function (k) { if (TAGS[k]) t.push(TAGS[k].t + (x.tg[k] ? ' ' + x.tg[k] : '')); });
+  ctKeys().forEach(function (k) { if (ctTagOnly(k) && ctHas(x, k)) t.push(TAGS[k].t); });
+  if (x.isZero) t.push(x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0');
+  return t;
+}
+function xlNote(x) {                                                        // ช่องหมายเหตุ = แท็ก + หมายเหตุ (ไฟล์ต้นฉบับ และที่บันทึกในระบบ)
+  var tg = xlTags(x), nt = [], tn = x.tn || {}, o = [];
+  if (x.note) nt.push(String(x.note));
+  Object.keys(TAGS).forEach(function (k) { if (tn[k]) nt.push(TAGS[k].t + ': ' + tn[k]); });
+  if (tg.length) o.push('แท็ก: ' + tg.join(', '));
+  if (nt.length) o.push('หมายเหตุ: ' + nt.join(' / '));
   return o.join(' · ');
 }
 function xlNum(v) { return (typeof v === 'number' && isFinite(v)) ? String(v) : null; }
@@ -2324,7 +2327,7 @@ function xlSheet(sh, ctx, idx) {
   if (!sh.zero) {
   // สรุปท้ายชีต: ค้างเกิน 60 วัน (DS) แยกสาขา
   var br = [], bc = {};
-  items.forEach(function (x) { if (x.st === 'DS') { if (bc[x.br] === undefined) { bc[x.br] = 0; br.push(x.br); } bc[x.br]++; } });
+  items.forEach(function (x) { if (x.st === 'DS' && !x.xtra) { if (bc[x.br] === undefined) { bc[x.br] = 0; br.push(x.br); } bc[x.br]++; } });
   var fr = last + 2, dsN = br.reduce(function (s, b) { return s + bc[b]; }, 0), blank = function (r) { var a = []; for (var c = 0; c < 12; c++) a.push(E(xlCol(c) + r, XL_S.plain)); return a; };
   var f1 = blank(fr);
   f1[0] = n ? '<c r="A' + fr + '" s="' + XL_S.plain + '"><f>SUBTOTAL(103,A5:A' + last + ')</f><v>' + n + '</v></c>' : N('A' + fr, XL_S.plain, 0);
@@ -2701,11 +2704,35 @@ $('#bXlsx').addEventListener('click', function () {
   $('#exBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
   $('#exBr').value = sel; $('#exBr').disabled = !bs.length;
   document.querySelector('input[name=exMode][value=branch]').disabled = !bs.length;
-  exBrNote();
+  exBrNote(); renderExExtra();
   $('#exErr').textContent = '';
   var fx = document.querySelector('input[name=exFmt][value=xlsx]'); fx.checked = true; exSetFmt();
   $('#exDlg').classList.remove('hidden');
 });
+function renderExExtra() {                                              // ตัวเลือกแท็กตามที่มีอยู่จริงตอนนี้ (ไม่รวมแท็กของระบบที่ลบแล้ว)
+  var ks = ['lost', 'exp', 'waste', 'pend', 'hard', 'zero', 'neg'].filter(function (k) { return !CT.removed[k]; }).concat(ctKeys());
+  $('#exExtra').innerHTML = ks.map(function (k) {
+    return '<label class="chk-pill"><input data-exx="' + k + '"' + (k === 'zero' || k === 'neg' ? ' checked' : '') + ' type="checkbox"/><span>' + esc(TAGS[k].t) + '</span></label>';
+  }).join('');
+}
+function exTagItems(k, mode, brName) {                                  // สินค้าที่มีแท็ก k ตามขอบเขตการส่งออก (ตัวสินค้าจริง ไม่ใช่แถวย่อ)
+  var bk = brKey(brName), fbk = brKey(F.br), hasG = Object.keys(F.gm).length > 0, out = [];
+  var inScope = function (x) { return mode === 'all' || (mode === 'branch' ? brKey(x.br) === bk : ((!fbk || brKey(x.br) === fbk) && (!hasG || F.gm[x.g]))); };
+  if (k === 'zero' || k === 'neg') {
+    var zl = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === bk; }) : zeroFiltered());
+    return zl.filter(function (x) { return k === 'neg' ? x.qty < 0 : !(x.qty < 0); });
+  }
+  if (AKI[k]) {
+    (D[k] || []).forEach(function (e) {
+      (e.hit || []).forEach(function (h) {
+        if (!inScope({ g: h.g, br: h.br })) return;
+        var it = findRowItem(e.code, h.br, h.g); if (it) out.push(it);
+      });
+    });
+    return out;
+  }
+  return D.items.concat(D.cut || [], D.zero || []).filter(function (x) { return inScope(x) && hasTag(x, k); });
+}
 function exSetFmt() {
   var pdf = document.querySelector('input[name=exFmt]:checked').value === 'pdf';
   $('#exXlsxBox').classList.toggle('hidden', pdf); $('#exPdfBox').classList.toggle('hidden', !pdf);
@@ -2749,29 +2776,30 @@ $('#exGo').addEventListener('click', function () {
   var exX = {}; document.querySelectorAll('#exExtra [data-exx]').forEach(function (c) { if (c.checked) exX[c.dataset.exx] = 1; });
   if (!list.length && !Object.keys(exX).length) { $('#exErr').textContent = mode === 'branch' ? 'ไม่มีรายการของสาขานี้' : 'ไม่มีรายการตามตัวกรองนี้'; return; }
   busy(this, async function () {
-    var by = {}; list.forEach(function (x) { (by[x.g] || (by[x.g] = [])).push(x); });
+    var by = {}, seen = {}, ik = function (x) { return x.g + '|' + codeKey(x.code) + '|' + brKey(x.br); };
+    list.forEach(function (x) { seen[ik(x)] = 1; (by[x.g] || (by[x.g] = [])).push(x); });
+    var tagCnt = [], nExtra = 0;                                         // รายการตามแท็กที่เลือก → ใส่ในชีตหมวดเดียวกัน (ต่อท้ายรายการปกติ)
+    Object.keys(exX).forEach(function (k) {
+      if (!TAGS[k]) return;
+      var added = 0;
+      exTagItems(k, mode, brName).forEach(function (x) {
+        if (seen[ik(x)]) return; seen[ik(x)] = 1;
+        var c = Object.assign({}, x); c.xtra = true; c.i = 1000000 + (x.i || 0);
+        (by[x.g] || (by[x.g] = [])).push(c); added++;
+      });
+      if (added) { tagCnt.push(TAGS[k].t + ' ' + nf0.format(added)); nExtra += added; }
+    });
     var sheets = Object.keys(by).sort().map(function (g) {
       var items = by[g].slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
       if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
       return { name: g, title: upTitle(m.ts), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
     });
-    var zlAll = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === brKey(brName); }) : zeroFiltered());
-    var byG = function (a, b) { return a.g === b.g ? a.i - b.i : (a.g < b.g ? -1 : 1); };
-    var zl = [];
-    if (exX.zero) { var z0 = zlAll.filter(function (x) { return !(x.qty < 0); }).sort(byG); zl = zl.concat(z0); if (z0.length) sheets.push({ name: 'คงเหลือ 0', title: 'สินค้าคงเหลือ 0 (ไม่นับรวมในยอดค้างสต็อก)', rep: '', at: Date.now(), zero: true, items: z0 }); }
-    if (exX.neg) { var zn = zlAll.filter(function (x) { return x.qty < 0; }).sort(byG); zl = zl.concat(zn); if (zn.length) sheets.push({ name: 'ติดลบ', title: 'สินค้าคงเหลือติดลบ (ไม่นับรวมในยอดค้างสต็อก)', rep: '', at: Date.now(), zero: true, items: zn }); }
-    var adjNames = { lost: ['ของหาย', 'รายการของหาย (จำนวนที่หักออกจากค้างสต็อก)'], exp: ['หมดอายุ', 'รายการสินค้าหมดอายุ (จำนวนที่หักออกจากค้างสต็อก)'], waste: ['ของเสีย', 'รายการของเสีย (จำนวนที่หักออกจากค้างสต็อก)'], pend: ['รอปรับ', 'รายการรอปรับข้อมูล (จำนวนที่หักออกจากค้างสต็อก)'] };
-    var adjCnt = [];
-    ['lost', 'exp', 'waste', 'pend'].forEach(function (kind) {
-      if (!exX[kind]) return;
-      var items = exAdjItems(kind, mode, brName);
-      if (items.length) { sheets.push({ name: adjNames[kind][0], title: adjNames[kind][1], rep: '', at: Date.now(), zero: true, items: items }); adjCnt.push(adjNames[kind][0] + ' ' + nf0.format(items.length)); }
-    });
+    var zl = [], adjCnt = tagCnt;
     if (!sheets.length) { $('#exErr').textContent = 'ไม่มีรายการให้ส่งออก'; return; }
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + thaiDayIso() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (zl.length ? ' + คงเหลือ 0/ติดลบ อีก ' + nf0.format(zl.length) + ' รายการ' : '') + (adjCnt.length ? ' + ' + adjCnt.join(' · ') + ' รายการ' : ''));
+    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (nExtra ? ' + รายการตามแท็ก ' + nf0.format(nExtra) + ' รายการ (' + adjCnt.join(' · ') + ')' : ''));
   });
 });
 
