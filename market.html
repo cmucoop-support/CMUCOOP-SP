@@ -170,7 +170,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css" rel="stylesheet"/><script src="workspace-ui.js" defer></script></head>
+<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css?v=market-update-2" rel="stylesheet"/><script src="workspace-ui.js?v=market-update-2" defer></script></head>
 <body data-workspace="market"><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>เช็คราคาตลาด</h1>
@@ -242,7 +242,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 </tr>
 <tr>
 <th rowspan="2">จำนวน<br/>คงเหลือ</th>
-<th colspan="2">อัพเดตล่าสุด</th>
+<th colspan="2">อัปเดตล่าสุด / การปรับ</th>
 <th rowspan="2">ต้นทุน</th>
 <th rowspan="2">ราคาขาย</th>
 <th rowspan="2">กำไร</th>
@@ -257,7 +257,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 </tr>
 <tr>
 <th>การปรับ</th>
-<th>วันที่</th>
+<th>วันที่อัปเดต</th>
 <th>ต่ำสุด</th>
 <th>สูงสุด</th>
 <th>ปรับ</th>
@@ -286,6 +286,8 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <tr><td>จำนวนสินค้าเคลื่อนไหว</td><td class="num"><b id="smActive">0</b> รายการ</td></tr>
 <tr><td>กำไรเฉลี่ยรวมเดิม (ไม่รวม Vat)</td><td class="num"><b id="smAvgEx">0.00%</b></td></tr>
 <tr><td>กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</td><td class="num"><b id="smAvgInc">0.00%</b></td></tr>
+<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (ไม่รวม Vat)</td><td class="num"><b id="smAfterEx">–</b></td></tr>
+<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (รวม Vat)</td><td class="num"><b id="smAfterInc">–</b></td></tr>
 </tbody>
 </table>
 <div class="sum-box">
@@ -356,7 +358,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <div class="overlay hidden" id="exDlg">
 <div class="dlg wide">
 <h2>ดาวน์โหลดไฟล์ Excel สำรวจราคาท้องตลาด</h2>
-<div class="muted">ส่งออกเป็นไฟล์ <code>.xlsx</code> รูปแบบเหมือนไฟล์ตัวอย่าง <code>34ผลิตภัณฑ์ดูแลผ้า.xlsx</code> ทุกประการ (หัวตาราง 4 แถว, สูตรคำนวณกำไร/Vat/ราคาที่กำไร 30%, สีไฮไลต์ตามรายการแนะนำ, ตารางสรุปท้ายชีต และช่องลงชื่อ) โดย<b>แถวบนสุดของหัวตารางแสดงวันที่อัปข้อมูลเข้าคู่กับวันที่ส่งออกข้อมูล</b></div>
+<div class="muted">ส่งออกเป็นไฟล์ <code>.xlsx</code> พร้อมข้อมูลอัปเดตล่าสุด สูตรคำนวณกำไร/Vat และสรุปกำไรก่อน–หลังใช้ราคาแนะนำ มีคอลัมน์ผลหลังปรับรายสินค้าเพิ่มเติมทางขวา ส่วนพื้นที่พิมพ์ยังใช้ตารางรายงานและสรุปเดิม โดย<b>แถวบนสุดแสดงวันที่อัปข้อมูลเข้าและวันที่ส่งออกข้อมูล</b></div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px;padding:12px;background:#faf7ff;border:1.5px solid #d9c8ff;border-radius:14px">
 <div style="grid-column:1/-1;font-weight:700;color:var(--accent-text);font-size:14px">ตั้งค่าบรรทัดบนสุดของหัวตาราง (Row 1)</div>
 <label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่อัปข้อมูลเข้าระบบ (มุมซ้ายบน A1:F1)<input id="exLeftHead" type="text"/></label>
@@ -502,8 +504,7 @@ var REC_META = [
   { k: 'ปรับลง', t: 'ปรับลง', c: '#5b2fc7', s: '▼' },
   { k: 'ฝากพิจารณา', t: 'ฝากพิจารณา', c: '#176b3f', s: '◆' },
   { k: 'คงที่', t: 'คงที่', c: '#946200', s: '■' },
-  { k: 'สินค้าไม่เคลื่อนไหว', t: 'สินค้าไม่เคลื่อนไหว', c: '#5a6573', s: '○' },
-  { k: '__LOW__', t: 'กำไรหลัง Vat < 12%', c: '#c0392b', s: '!' }
+  { k: 'สินค้าไม่เคลื่อนไหว', t: 'สินค้าไม่เคลื่อนไหว', c: '#5a6573', s: '○' }
 ];
 
 function brKey(s) { return String(s == null ? '' : s).replace(/[\s\u00a0]+/g, '').toLowerCase(); }
@@ -593,6 +594,64 @@ function calcItem(r, idx) {
     rep: String(r[13] || ''),
     hay: [r[1], r[2], r[4], r[10], r[12]].join(' ').toLowerCase()
   };
+}
+
+function latestUpdate(x) {
+  var hasChange = x.chgTxt && x.chgTxt !== '-';
+  var hasDate = x.chgDate && x.chgDate !== '-';
+  return {
+    text: hasChange ? x.chgTxt : (hasDate ? 'อัปเดตจากไฟล์' : 'นำเข้าข้อมูล'),
+    date: hasDate ? x.chgDate : (x.rep || '-'),
+    dateLabel: hasDate ? 'วันที่อัปเดตจากไฟล์/ประวัติราคา' : 'วันที่นำเข้าข้อมูล'
+  };
+}
+
+/* กำไรคิดเทียบต้นทุนตามสูตรเดิม; ใช้ราคาแนะนำเฉพาะรายการที่ระบุให้ปรับ/พิจารณา */
+function priceProjection(x) {
+  var actionable = ['ปรับขึ้น', 'ปรับลง', 'ฝากพิจารณา'].indexOf(x.recAct) >= 0;
+  var proposed = marketNumber(x.recPrice);
+  var valid = proposed !== null && proposed > 0;
+  var hasChange = actionable && valid && Math.abs(proposed - x.price) >= 0.005;
+  var price = hasChange ? proposed : x.price;
+  return {
+    hasChange: hasChange, needsPrice: actionable && !valid, price: price,
+    profitEx: Math.round((price - x.cost) * 100) / 100,
+    marginEx: x.cost > 0 ? Math.round((price - x.cost) / x.cost * 10000) / 10000 : null,
+    profitInc: Math.round((price - x.costVat) * 100) / 100,
+    marginInc: x.costVat > 0 ? Math.round((price - x.costVat) / x.costVat * 10000) / 10000 : null
+  };
+}
+
+function summarizePriceProjection(items) {
+  var result = { changedCount: 0, changedActiveCount: 0, missingPriceCount: 0, excludedCostCount: 0, activeCount: 0, eligibleCount: 0,
+    avgBeforeEx: null, avgBeforeInc: null, avgAfterEx: null, avgAfterInc: null };
+  var beforeEx = 0, beforeInc = 0, afterEx = 0, afterInc = 0;
+  (items || []).forEach(function (x) {
+    var projected = priceProjection(x);
+    if (projected.hasChange) result.changedCount++;
+    if (projected.needsPrice) result.missingPriceCount++;
+    if (x.qty <= 0) return;
+    result.activeCount++;
+    if (projected.hasChange) result.changedActiveCount++;
+    if (x.cost <= 0 || x.costVat <= 0) { result.excludedCostCount++; return; }
+    result.eligibleCount++;
+    beforeEx += x.marginEx; beforeInc += x.marginInc;
+    afterEx += projected.marginEx; afterInc += projected.marginInc;
+  });
+  if (result.eligibleCount) {
+    result.avgBeforeEx = beforeEx / result.eligibleCount; result.avgBeforeInc = beforeInc / result.eligibleCount;
+    result.avgAfterEx = afterEx / result.eligibleCount; result.avgAfterInc = afterInc / result.eligibleCount;
+  }
+  return result;
+}
+
+function projectionPercent(value) { return value === null || value === undefined ? 'คำนวณไม่ได้' : pctF(value); }
+
+function projectionNote(x) {
+  var p = priceProjection(x);
+  if (p.needsPrice) return '<small class="muted" style="display:block">กรอกราคาแนะนำเพื่อคำนวณกำไรหลังปรับ</small>';
+  if (!p.hasChange) return '';
+  return '<small style="display:block">กำไรหลังปรับ (รวม Vat): ' + projectionPercent(p.marginInc) + '</small>';
 }
 
 /* ---------- ตรวจสอบ "การปรับ" ให้ตรงกับคอลัมน์ราคาขาย ----------
@@ -821,9 +880,7 @@ function filteredItems() {
     if (F.move === 'active' && !(x.qty > 0)) return false;
     if (F.move === 'inactive' && x.qty > 0) return false;
     if (F.move === 'changed' && (!x.chgTxt || x.chgTxt === '-')) return false;
-    if (F.rec === '__LOW__') {
-      if (!(x.qty > 0 && x.marginInc < 0.12)) return false;
-    } else if (F.rec && x.recAct !== F.rec) {
+    if (F.rec && x.recAct !== F.rec) {
       return false;
     }
     if (q && x.hay.indexOf(q) < 0) return false;
@@ -892,11 +949,10 @@ function renderAll() {
 
   /* ชิปกรองตามรายการแนะนำ */
   var baseForChips = D.items.filter(function (x) { return !F.g || x.g === F.g; });
-  var recCounts = { '': baseForChips.length, '__LOW__': 0 };
+  var recCounts = { '': baseForChips.length };
   REC_OPTS.forEach(function (k) { recCounts[k] = 0; });
   baseForChips.forEach(function (x) {
     recCounts[x.recAct] = (recCounts[x.recAct] || 0) + 1;
-    if (x.qty > 0 && x.marginInc < 0.12) recCounts['__LOW__']++;
   });
   $('#chips').innerHTML = REC_META.map(function (c) {
     var on = F.rec === c.k;
@@ -914,14 +970,15 @@ function renderAll() {
   var constCnt = grpItems.filter(function (x) { return x.recAct === 'คงที่'; }).length;
   var adjTotal = upCnt + downCnt + consCnt;
 
-  var avgEx = activeItems.length ? activeItems.reduce(function (s, x) { return s + x.marginEx; }, 0) / activeItems.length : 0;
-  var avgInc = activeItems.length ? activeItems.reduce(function (s, x) { return s + x.marginInc; }, 0) / activeItems.length : 0;
+  var projection = summarizePriceProjection(grpItems);
+  var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
 
   $('#kpis').innerHTML =
     '<div class="kpi"><div class="l">สินค้าในหมวดนี้ทั้งหมด</div><div class="v">' + nf0.format(grpItems.length) + '<small>รายการ</small></div><div class="s">เคลื่อนไหว ' + nf0.format(activeItems.length) + ' · ไม่เคลื่อนไหว ' + nf0.format(inactiveCnt) + '</div></div>' +
     '<div class="kpi"><div class="l">รายการที่ต้องปรับ/พิจารณา</div><div class="v" style="color:var(--bad)">' + nf0.format(adjTotal) + '<small>รายการ</small></div><div class="s">ปรับขึ้น ' + upCnt + ' · ปรับลง ' + downCnt + ' · ฝากพิจารณา ' + consCnt + ' · คงที่ ' + constCnt + '</div></div>' +
-    '<div class="kpi"><div class="l">กำไรเฉลี่ยรวมเดิม (ไม่รวม Vat)</div><div class="v">' + pctF(avgEx) + '</div><div class="s">เฉพาะสินค้าที่มีสต็อก (' + nf0.format(activeItems.length) + ' รายการ)</div></div>' +
-    '<div class="kpi"><div class="l">กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</div><div class="v" style="color:var(--accent-text)">' + pctF(avgInc) + '</div><div class="s">เกณฑ์ร้านค้าปลีกทั่วไป ~12% – 20%</div></div>' +
+    '<div class="kpi"><div class="l">กำไรเฉลี่ยรวมเดิม (ไม่รวม Vat)</div><div class="v">' + projectionPercent(avgEx) + '</div><div class="s">เฉพาะสินค้าที่มีสต็อกและต้นทุนคำนวณได้ (' + nf0.format(projection.eligibleCount) + ' รายการ)</div></div>' +
+    '<div class="kpi"><div class="l">กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</div><div class="v" style="color:var(--accent-text)">' + projectionPercent(avgInc) + '</div></div>' +
+    '<div class="kpi"><div class="l">กำไรเฉลี่ยหลังใช้ราคาแนะนำ (รวม Vat)</div><div class="v">' + projectionPercent(projection.avgAfterInc) + '</div><div class="s">ราคาเปลี่ยน ' + projection.changedCount + ' รายการ · รอกรอกราคา ' + projection.missingPriceCount + ' รายการ</div></div>' +
     '<div class="kpi"><div class="l">รอบอัปเดตข้อมูล (ทุก 15 วัน)</div><div class="v" style="color:' + (cyc.cls === 'bad' ? 'var(--bad)' : cyc.cls === 'warn' ? 'var(--warn)' : 'var(--ok)') + '">' + (m && m.ts ? cyc.days + '<small>วันที่ผ่านมา</small>' : '–') + '</div><div class="s">' + (m && m.ts ? 'อัปเข้า ' + fmtDateSlash(m.rep || m.ts, false) + ' · ส่งออก ' + fmtDateSlash(Date.now(), false) : 'ยังไม่มีข้อมูล') + '</div></div>';
 
   /* แถบบนสุดของตาราง (แสดงวันที่อัปข้อมูลเข้า กับ วันที่ส่งออกข้อมูล) */
@@ -939,26 +996,33 @@ function renderAll() {
 
   /* กล่องสรุปท้ายรายงาน */
   $('#smActive').textContent = nf0.format(activeItems.length);
-  $('#smAvgEx').textContent = pctF(avgEx);
-  $('#smAvgInc').textContent = pctF(avgInc);
+  $('#smAvgEx').textContent = projectionPercent(avgEx);
+  $('#smAvgInc').textContent = projectionPercent(avgInc);
+  $('#smAfterEx').textContent = projectionPercent(projection.avgAfterEx);
+  $('#smAfterInc').textContent = projectionPercent(projection.avgAfterInc);
   $('#smTitle').textContent = 'สรุปการสำรวจ หมวด ' + (gCode ? gCode + (gName ? ' ' + gName : '') : 'ทั้งหมด');
-  $('#smText').textContent = buildSummaryText(gCode, gName, grpItems.length, inactiveCnt, activeItems.length, adjTotal, upCnt, downCnt, consCnt, avgEx, avgInc);
+  $('#smText').textContent = buildSummaryText(gCode, gName, grpItems.length, inactiveCnt, activeItems.length, adjTotal, upCnt, downCnt, consCnt, avgEx, avgInc, projection);
   $('#sigSurveyor').value = D.surveyor || '';
   $('#sigChecker').value = D.checker || '';
   $('#sigApprover').value = D.approver || '';
 }
 
-function buildSummaryText(gCode, gName, total, inactive, active, adjTotal, upCnt, downCnt, consCnt, avgEx, avgInc) {
+function buildSummaryText(gCode, gName, total, inactive, active, adjTotal, upCnt, downCnt, consCnt, avgEx, avgInc, projection) {
   var title = 'หมวด ' + (gCode ? gCode + (gName ? ' ' + gName : '') : 'สินค้า');
-  var exPct = (avgEx * 100).toFixed(2) + '%';
-  var incPct = (avgInc * 100).toFixed(2) + '%';
-  var levelTxt = avgInc > 0.20
-    ? 'ซึ่งเป็นช่วงกำไรที่สูงมากของสินค้าประเภทนี้ที่ผู้ค้าปลีกหรือร้านค้าโชห่วยนิยมกำหนดกำไรอยู่ที่ประมาณ 12% - 20%'
-    : (avgInc >= 0.12 ? 'ซึ่งอยู่ในเกณฑ์มาตรฐานที่ผู้ค้าปลีกหรือร้านค้าโชห่วยนิยมกำหนดกำไรอยู่ที่ประมาณ 12% - 20%' : 'ซึ่งต่ำกว่าเกณฑ์มาตรฐานที่ผู้ค้าปลีกนิยมกำหนดกำไรอยู่ที่ประมาณ 12% - 20% ควรพิจารณาปรับราคาขาย');
-  return title + ' มีสินค้าอยู่ในระบบ ' + total + ' รายการ มีสินค้าไม่เคลื่อนไหว ' + inactive + ' รายการ มีสินค้าเคลื่อนไหว ' + active +
-    ' รายการ โดยในสินค้าเคลื่อนไหวนี้มีรายการที่ต้องปรับอยู่ทั้งหมด ' + adjTotal + ' รายการ ซึ่งปรับขึ้น ' + upCnt + ' รายการ ปรับลง ' + downCnt +
+  var exPct = projectionPercent(avgEx), incPct = projectionPercent(avgInc);
+  var text = title + ' มีสินค้าอยู่ในระบบ ' + total + ' รายการ มีสินค้าไม่เคลื่อนไหว ' + inactive + ' รายการ มีสินค้าเคลื่อนไหว ' + active +
+    ' รายการ มีข้อเสนอปรับ/พิจารณารวม ' + adjTotal + ' รายการ ซึ่งปรับขึ้น ' + upCnt + ' รายการ ปรับลง ' + downCnt +
     ' รายการ และฝากพิจารณา ' + consCnt + ' รายการ โดยกำไรเฉลี่ยของสินค้าที่มีอยู่รวมเดิม ' + exPct +
-    ' และกำไรเฉลี่ยของสินค้าที่มีอยู่ หลังหัก Vat แล้ว ' + incPct + ' ' + levelTxt;
+    ' และกำไรเฉลี่ยของสินค้าที่มีอยู่ หลังหัก Vat แล้ว ' + incPct + '.';
+  if (projection) {
+    text += '\nหากใช้ราคาแนะนำที่ต่างจากราคาปัจจุบัน ' + projection.changedCount + ' รายการ (มีสต็อก ' + projection.changedActiveCount +
+      ' รายการ) กำไรเฉลี่ยไม่รวม Vat จะเปลี่ยนจาก ' + projectionPercent(projection.avgBeforeEx) + ' เป็น ' + projectionPercent(projection.avgAfterEx) +
+      ' และกำไรเฉลี่ยรวม Vat จาก ' + projectionPercent(projection.avgBeforeInc) + ' เป็น ' + projectionPercent(projection.avgAfterInc) + '.';
+    text += '\nคิดกำไรเทียบต้นทุน เฉลี่ยรายสินค้าเท่ากันเฉพาะคงเหลือ > 0 และต้นทุนคำนวณได้ รวมรายการที่ไม่เปลี่ยนราคาโดยใช้ราคาปัจจุบัน ต้นทุนรวม Vat = ต้นทุน × 1.07.';
+    if (projection.missingPriceCount) text += ' มีข้อเสนอที่ยังไม่กรอกราคาที่ใช้ได้ ' + projection.missingPriceCount + ' รายการ จึงยังใช้ราคาปัจจุบัน.';
+    if (projection.excludedCostCount) text += ' ไม่นำรายการที่ต้นทุนคำนวณไม่ได้ ' + projection.excludedCostCount + ' รายการมาเฉลี่ย.';
+  }
+  return text;
 }
 
 function recClass(recAct) {
@@ -1011,6 +1075,7 @@ function renderTable() {
     var inact = x.recAct === 'สินค้าไม่เคลื่อนไหว';
     var oDash = inact || x.mktMin === '-';
     var pDash = inact || x.mktMax === '-';
+    var update = latestUpdate(x);
     var chgColor = /^>/.test(x.chgTxt) ? 'color:var(--bad);font-weight:600' : (/^</.test(x.chgTxt) ? 'color:var(--ok);font-weight:600' : '');
 
     if (!edit) {
@@ -1019,8 +1084,8 @@ function renderTable() {
         '<td class="code">' + esc(x.code) + '</td>' +
         '<td class="nm">' + esc(x.name) + '</td>' +
         '<td>' + nf0.format(x.qty) + '</td>' +
-        '<td class="chg" style="' + chgColor + '">' + esc(x.chgTxt) + '</td>' +
-        '<td>' + esc(x.chgDate) + '</td>' +
+        '<td class="chg" style="' + chgColor + '">' + esc(update.text) + '</td>' +
+        '<td title="' + esc(update.dateLabel) + '">' + esc(update.date) + '</td>' +
         '<td class="c-cost">' + money(x.cost) + '</td>' +
         '<td class="c-price">' + money(x.price) + '</td>' +
         '<td>' + money(x.profitEx) + '</td>' +
@@ -1032,7 +1097,7 @@ function renderTable() {
         '<td class="c-mkt' + (oDash ? ' mkt-dash' : '') + '">' + (x.mktMin === '' ? '' : (typeof x.mktMin === 'number' ? money(x.mktMin) : esc(x.mktMin))) + '</td>' +
         '<td class="c-mkt' + (pDash ? ' mkt-dash' : '') + '">' + (x.mktMax === '' ? '' : (typeof x.mktMax === 'number' ? money(x.mktMax) : esc(x.mktMax))) + '</td>' +
         '<td class="' + rCls + '">' + esc(x.recAct) + '</td>' +
-        '<td class="' + rCls + '">' + (x.recPrice === '' ? '' : money(x.recPrice)) + '</td>' +
+        '<td class="' + rCls + '">' + (x.recPrice === '' ? '' : money(x.recPrice)) + projectionNote(x) + '</td>' +
         '<td>' + esc(x.editNote) + '</td>' +
         gLink(x) +
       '</tr>';
@@ -1047,8 +1112,8 @@ function renderTable() {
       '<td class="code">' + esc(x.code) + '</td>' +
       '<td class="nm">' + esc(x.name) + '</td>' +
       '<td>' + nf0.format(x.qty) + '</td>' +
-      '<td class="chg" style="' + chgColor + '">' + esc(x.chgTxt) + '</td>' +
-      '<td>' + esc(x.chgDate) + '</td>' +
+      '<td class="chg" style="' + chgColor + '">' + esc(update.text) + '</td>' +
+      '<td title="' + esc(update.dateLabel) + '">' + esc(update.date) + '</td>' +
       '<td class="c-cost">' + money(x.cost) + '</td>' +
       '<td class="c-price">' + money(x.price) + '</td>' +
       '<td>' + money(x.profitEx) + '</td>' +
@@ -1060,7 +1125,7 @@ function renderTable() {
       '<td class="c-mkt' + (oDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="8" aria-label="ราคาท้องตลาดต่ำสุด ' + esc(x.name) + '" value="' + esc(x.mktMin) + '" placeholder="-"></td>' +
       '<td class="c-mkt' + (pDash ? ' mkt-dash' : '') + '"><input type="text" class="in-cell" data-f="9" aria-label="ราคาท้องตลาดสูงสุด ' + esc(x.name) + '" value="' + esc(x.mktMax) + '" placeholder="-"></td>' +
       '<td class="' + rCls + '"><select class="in-cell" data-f="10" aria-label="รายการแนะนำ ' + esc(x.name) + '">' + opts + '</select></td>' +
-      '<td class="' + rCls + '"><input type="text" class="in-cell" data-f="11" aria-label="ราคาแนะนำ ' + esc(x.name) + '" value="' + esc(x.recPrice) + '" placeholder="ราคา"></td>' +
+      '<td class="' + rCls + '"><input type="text" class="in-cell" data-f="11" aria-label="ราคาแนะนำ ' + esc(x.name) + '" value="' + esc(x.recPrice) + '" placeholder="ราคา">' + projectionNote(x) + '</td>' +
       '<td><input type="text" class="in-cell left" data-f="12" aria-label="หมายเหตุการแก้ไข ' + esc(x.name) + '" value="' + esc(x.editNote) + '" placeholder="หมายเหตุ"></td>' +
       gLink(x) +
     '</tr>';
@@ -1141,8 +1206,6 @@ $('#bAutoRec').addEventListener('click', function () {
       else { nextAct = 'ฝากพิจารณา'; nextP = ''; }
     } else if (mn !== null && x.price < mn) {
       nextAct = 'ปรับขึ้น'; nextP = mn;
-    } else if (x.marginInc < 0.12 && mx !== null && mx > x.price) {
-      nextAct = 'ฝากพิจารณา'; nextP = '';
     }
     if (r[10] !== nextAct || String(r[11] || '') !== String(nextP)) {
       r[10] = nextAct; r[11] = nextP; cnt++;
@@ -1252,11 +1315,13 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
         var row = grid[r2] || [];
         var code = String(row[1] == null ? '' : row[1]).trim();
         var name = String(row[2] == null ? '' : row[2]).trim();
-        if (!name || /กำไรเฉลี่ย|สรุปการสำรวจ|ลงชื่อ/.test(name)) continue;
+        if (!code || !name || /กำไรเฉลี่ย|สรุปการสำรวจ|ลงชื่อ/.test(name)) continue;
         var qty = Number(String(row[3] == null ? '0' : row[3]).replace(/,/g, ''));
         if (!isFinite(qty)) qty = 0;
         var chgTxt = String(row[4] == null || row[4] === '' ? '-' : row[4]).trim();
         var chgDate = parseDateCell(row[5]);
+        if (chgTxt === 'นำเข้าข้อมูล') { chgTxt = '-'; chgDate = '-'; }
+        if (chgTxt === 'อัปเดตจากไฟล์') chgTxt = '-';
         var cost = Number(String(row[6] == null ? '0' : row[6]).replace(/,/g, '')) || 0;
         var price = Number(String(row[7] == null ? '0' : row[7]).replace(/,/g, '')) || 0;
         var mktMin = marketCell(row[14]);
@@ -1278,6 +1343,9 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
     var aliases = {
       g: ['กลุ่ม', 'หมวด'], code: ['รหัส', 'บาร์โค้ด', 'เลขบาร์'], name: ['ชื่อสินค้า', 'ชื่อรายการ'],
       branch: ['สาขา', 'ชื่อสาขา', 'branch'],
+      chgTxt: ['การปรับ', 'การปรับราคา', 'อัปเดตล่าสุด', 'อัพเดตล่าสุด'],
+      chgDate: ['วันที่ปรับราคา', 'วันที่อัปเดต', 'วันที่อัพเดต', 'วันที่ปรับปรุง', 'วันที่'],
+      oldPrice: ['ราคาขายเดิม', 'ราคาเดิม'],
       qty: ['คงเหลือ', 'จำนวนคงเหลือสินค้า', 'จำนวน'], cost: ['ต้นทุนล่าสุด', 'ต้นทุน', 'ทุน'], price: ['ราคาขาย', 'ราคา']
     };
     for (var h = 0; h < Math.min(grid.length, 15); h++) {
@@ -1303,8 +1371,14 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
       var pqty = idx.qty !== undefined ? (Number(String(prow[idx.qty] || '0').replace(/,/g, '')) || 0) : 0;
       var pcost = idx.cost !== undefined ? (Number(String(prow[idx.cost] || '0').replace(/,/g, '')) || 0) : 0;
       var pprice = idx.price !== undefined ? (Number(String(prow[idx.price] || '0').replace(/,/g, '')) || 0) : 0;
+      var pchg = idx.chgTxt !== undefined ? String(prow[idx.chgTxt] || '-').trim() : '-';
+      var pdate = idx.chgDate !== undefined ? parseDateCell(prow[idx.chgDate]) : '-';
+      var pold = idx.oldPrice !== undefined ? marketNumber(prow[idx.oldPrice]) : null;
+      if (pchg === '-' && pold !== null && Math.abs(pold - pprice) >= 0.005) {
+        pchg = (pprice > pold ? '> ปรับขึ้น\nเดิม ' + pold + ' ขึ้น ' + pprice : '< ปรับลง\nเดิม ' + pold + ' ลง ' + pprice);
+      }
       (groups[pg] || (groups[pg] = { g: pg, rep: repDate, surveyNote: sNote, items: [] })).items.push({
-        g: pg, code: pcode, name: pname, sourceBranch: pbranch, qty: pqty, chgTxt: '-', chgDate: '-',
+        g: pg, code: pcode, name: pname, sourceBranch: pbranch, qty: pqty, chgTxt: pchg, chgDate: pdate,
         cost: pcost, price: pprice, mktMin: '', mktMax: '', recAct: pqty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่', recPrice: '', editNote: '', rep: repDate, hasMarketCols: false
       });
       totalRead++;
@@ -1338,11 +1412,11 @@ function mergeUploadedGroup(g, newItems, fileName, repDate, ts, sNote) {
     if (old) {
       var oldPrice = Number(old[7]) || 0;
       var newPrice = Number(it.price) || 0;
-      if (newPrice !== oldPrice && (chgTxt === '-' || !it.hasMarketCols)) {
+      if (newPrice !== oldPrice && chgTxt === '-') {
         chgTxt = (newPrice > oldPrice ? '> ปรับขึ้น\nเดิม ' + oldPrice + ' ขึ้น ' + newPrice : '< ปรับลง\nเดิม ' + oldPrice + ' ลง ' + newPrice);
         chgDate = repDate || todayIso();
         priceChangedCnt++;
-      } else if (chgTxt === '-' && old[4] && old[4] !== '-') {
+      } else if (chgTxt === '-' && chgDate === '-' && old[4] && old[4] !== '-') {
         chgTxt = old[4];
         chgDate = old[5] || '-';
       }
@@ -1425,6 +1499,14 @@ function selectUploadDestination() {
   $('#upBrNewW').classList.toggle('hidden', !!existing);
 }
 
+function matchUploadSource() {
+  if (!UP) return;
+  if (UP.sources.length === 1 && !UP.sources[0].name) return;
+  var key = brKey(uploadDestinationName());
+  var matching = UP.sources.filter(function (s) { return s.name && s.key === key; })[0];
+  $('#upSourceBr').value = matching ? matching.key : '__choose__';
+}
+
 function renderUploadPreview() {
   if (!UP) return;
   var sourceKey = $('#upSourceBr').value;
@@ -1435,9 +1517,11 @@ function renderUploadPreview() {
   var gKeys = Object.keys(UP.groups).sort();
   var source = UP.sources.filter(function (s) { return s.key === sourceKey; })[0];
   var target = uploadDestinationName();
+  var matches = !source || !source.name || brKey(source.name) === brKey(target);
   var targetNames = D.store[findBranch(target) || target];
   $('#pv').innerHTML =
-    '<div><b>ข้อมูลจากสาขา: ' + esc(source && source.name || 'ไม่ระบุสาขาในไฟล์') + '</b> → <b>บันทึกที่สาขา: ' + esc(target || 'กรุณาระบุสาขาปลายทาง') + '</b></div>' +
+    '<div><b>ข้อมูลจากสาขา: ' + esc(source ? (source.name || 'ไม่ระบุสาขาในไฟล์') : 'กรุณาเลือกสาขาที่ตรงกัน') + '</b> → <b>บันทึกที่สาขา: ' + esc(target || 'กรุณาระบุสาขาปลายทาง') + '</b></div>' +
+    (!matches ? '<div class="err">สาขาปลายทางต้องตรงกับสาขาที่เลือกจากไฟล์</div>' : '') +
     '<div class="pvk">' +
       '<div><b>' + gKeys.length + '</b><span>หมวดสินค้าที่เลือก</span></div>' +
       '<div><b>' + nf0.format(UP.totalRows) + '</b><span>รายการของสาขาที่เลือก</span></div>' +
@@ -1450,7 +1534,7 @@ function renderUploadPreview() {
     }).join(', ') + '</div>';
   $('#pv').classList.remove('hidden');
   $('#upSave').classList.toggle('hidden', !gKeys.length);
-  $('#upSave').disabled = !gKeys.length || !target;
+  $('#upSave').disabled = !gKeys.length || !target || !matches;
 }
 
 $('#bUpload').addEventListener('click', function () {
@@ -1474,10 +1558,11 @@ $('#bUpload').addEventListener('click', function () {
 });
 $('#upBr').addEventListener('change', function () {
   $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__');
+  matchUploadSource();
   renderUploadPreview();
 });
 $('#upSourceBr').addEventListener('change', function () { selectUploadDestination(); renderUploadPreview(); });
-$('#upBrNew').addEventListener('input', renderUploadPreview);
+$('#upBrNew').addEventListener('input', function () { matchUploadSource(); renderUploadPreview(); });
 $('#upDate').addEventListener('change', renderUploadPreview);
 $('#upCancel').addEventListener('click', function () { UP_READ_ID++; UP = null; $('#upDlg').classList.add('hidden'); });
 $('#drop').addEventListener('click', function () { $('#upFile').click(); });
@@ -1522,11 +1607,11 @@ async function handleUploadFiles(fileList) {
 
     var sources = uploadSourceBranches(allGroups);
     UP = { allGroups: allGroups, groups: Object.create(null), sources: sources, names: allNames, files: fileNames, surveyNote: sNote, repDate: upDateIso, totalRows: 0, totalRead: totalRows };
-    $('#upSourceBr').innerHTML = sources.map(function (s) {
+    $('#upSourceBr').innerHTML = '<option value="__choose__">เลือกสาขาที่ตรงกับปลายทาง…</option>' + sources.map(function (s) {
       return '<option value="' + esc(s.key) + '">' + esc(s.name || 'ไม่ระบุสาขาในไฟล์') + ' (' + nf0.format(s.count) + ' รายการ)</option>';
     }).join('');
     var matchingSource = sources.filter(function (s) { return s.key === brKey(uploadDestinationName()); })[0];
-    $('#upSourceBr').value = matchingSource ? matchingSource.key : sources[0].key;
+    $('#upSourceBr').value = matchingSource ? matchingSource.key : (sources.length === 1 ? sources[0].key : '__choose__');
     $('#upSourceBrW').classList.toggle('hidden', sources.length === 1 && !sources[0].name);
     selectUploadDestination();
     renderUploadPreview();
@@ -1541,6 +1626,8 @@ $('#upSave').addEventListener('click', function () {
   renderUploadPreview();
   var upload = Object.assign({}, UP), brName = uploadDestinationName();
   if (!Object.keys(upload.groups).length) { toast('ไม่พบข้อมูลของสาขาที่เลือก', true); return; }
+  var source = upload.sources.filter(function (s) { return s.key === upload.sourceKey; })[0];
+  if (source && source.name && brKey(source.name) !== brKey(brName)) { toast('กรุณาเลือกสาขาปลายทางให้ตรงกับสาขาในไฟล์', true); return; }
   busy(this, async function () {
     if (!brName) { toast('กรุณาเลือกสาขา หรือกรอกชื่อสาขาใหม่', true); return; }
     brName = findBranch(brName) || brName;
@@ -1684,6 +1771,11 @@ function xlSerial(iso) {
   return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 + 25569 : null;
 }
 
+function projectionSummaryFormula(last, vat) {
+  var col = vat ? 'V' : 'U';
+  return 'IFERROR(AVERAGEIFS(' + col + '7:' + col + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")';
+}
+
 function xlMarketSheet(sh, ctx, idx) {
   var items = sh.items, n = items.length, last = 6 + Math.max(n, 1), rows = [];
   var sst = function (t) {
@@ -1700,7 +1792,7 @@ function xlMarketSheet(sh, ctx, idx) {
   };
   var E = function (ref, s) { return '<c r="' + ref + '" s="' + s + '"/>'; };
   var pushRow = function (r, cells, ht) {
-    rows.push('<row r="' + r + '" spans="1:19"' + (ht ? ' ht="' + ht + '" customHeight="1"' : '') + '>' + cells.join('') + '</row>');
+    rows.push('<row r="' + r + '" spans="1:22"' + (ht ? ' ht="' + ht + '" customHeight="1"' : '') + '>' + cells.join('') + '</row>');
   };
 
   /* Row 1: บนสุดของหัวตาราง = วันที่อัปข้อมูลเข้า (A1:F1) กับ วันที่ส่งออกข้อมูล (G1:S1) */
@@ -1720,27 +1812,29 @@ function xlMarketSheet(sh, ctx, idx) {
   pushRow(3, [
     S('A3', 83, 'ลำดับ'), S('B3', 86, 'รหัส'), S('C3', 83, 'ชื่อสินค้า'),
     S('D3', 89, 'ข้อมูลในระบบ (ไม่รวม Vat)'), E('E3', 90), E('F3', 91), E('G3', 90), E('H3', 90), E('I3', 90), E('J3', 92),
-    S('K3', 78, 'อื่นๆ (รวม Vat)'), E('L3', 79), E('M3', 79), E('N3', 79), E('O3', 81), E('P3', 81), E('Q3', 79), E('R3', 79), E('S3', 82)
+    S('K3', 78, 'อื่นๆ (รวม Vat)'), E('L3', 79), E('M3', 79), E('N3', 79), E('O3', 81), E('P3', 81), E('Q3', 79), E('R3', 79), E('S3', 82),
+    S('T3', 83, 'ผลหลังใช้ราคาแนะนำ'), E('U3', 83), E('V3', 83)
   ], 17.4);
 
   pushRow(4, [
     E('A4', 84), E('B4', 87), E('C4', 84),
-    S('D4', 83, 'จำนวนคงเหลือสินค้า'), S('E4', 74, 'อัพเดตล่าสุด'), E('F4', 75),
+    S('D4', 83, 'จำนวนคงเหลือสินค้า'), S('E4', 74, 'อัปเดตล่าสุด / การปรับ'), E('F4', 75),
     S('G4', 93, 'ต้นทุน'), S('H4', 93, 'ราคาขาย'), S('I4', 93, 'กำไร'), S('J4', 83, 'กำไร%'),
     S('K4', 103, 'ต้นทุน+Vat'), S('L4', 93, 'กำไร'), S('M4', 83, 'กำไร%'), S('N4', 100, 'ราคาขาย ถ้ากำไร 30%'),
-    S('O4', 74, 'ราคาท้องตลาด'), E('P4', 74), S('Q4', 96, 'รายการแนะนำ'), E('R4', 97), S('S4', 83, 'แก้ไข')
+    S('O4', 74, 'ราคาท้องตลาด'), E('P4', 74), S('Q4', 96, 'รายการแนะนำ'), E('R4', 97), S('S4', 83, 'แก้ไข'),
+    S('T4', 83, 'ราคาหลังปรับ'), S('U4', 83, 'กำไร% ไม่รวม Vat'), S('V4', 83, 'กำไร% รวม Vat')
   ], 16.8);
 
   pushRow(5, [
     E('A5', 84), E('B5', 87), E('C5', 84), E('D5', 84), E('E5', 74), E('F5', 75),
     E('G5', 94), E('H5', 94), E('I5', 94), E('J5', 84), E('K5', 104), E('L5', 94), E('M5', 84), E('N5', 101),
-    E('O5', 74), E('P5', 74), E('Q5', 98), E('R5', 99), E('S5', 84)
+    E('O5', 74), E('P5', 74), E('Q5', 98), E('R5', 99), E('S5', 84), E('T5', 84), E('U5', 84), E('V5', 84)
   ], 16.8);
 
   pushRow(6, [
-    E('A6', 85), E('B6', 88), E('C6', 85), E('D6', 85), S('E6', 3, 'การปรับ'), S('F6', 71, 'วันที่'),
+    E('A6', 85), E('B6', 88), E('C6', 85), E('D6', 85), S('E6', 3, 'การปรับ'), S('F6', 71, 'วันที่อัปเดต'),
     E('G6', 95), E('H6', 95), E('I6', 95), E('J6', 85), E('K6', 105), E('L6', 95), E('M6', 85), E('N6', 102),
-    S('O6', 3, 'ต่ำสุด'), S('P6', 57, 'สูงสุด'), S('Q6', 3, 'ปรับ'), S('R6', 3, 'ราคา'), E('S6', 85)
+    S('O6', 3, 'ต่ำสุด'), S('P6', 57, 'สูงสุด'), S('Q6', 3, 'ปรับ'), S('R6', 3, 'ราคา'), E('S6', 85), E('T6', 85), E('U6', 85), E('V6', 85)
   ], 34.2);
 
   /* Data Rows 7..last */
@@ -1748,8 +1842,10 @@ function xlMarketSheet(sh, ctx, idx) {
     var r = 7 + i;
     var codeStr = String(x.code == null ? '' : x.code).trim();
     var codeCell = /^(0|[1-9]\d{0,14})$/.test(codeStr) ? N('B' + r, 5, Number(codeStr)) : S('B' + r, 5, codeStr);
-    var dtSerial = xlSerial(x.chgDate);
-    var fCell = dtSerial !== null ? N('F' + r, 9, dtSerial) : S('F' + r, 9, x.chgDate || '-');
+    var update = latestUpdate(x);
+    var projected = priceProjection(x);
+    var dtSerial = xlSerial(update.date);
+    var fCell = dtSerial !== null ? N('F' + r, 9, dtSerial) : S('F' + r, 9, update.date);
     var oCell = (x.mktMin === '' || x.mktMin === null || x.mktMin === undefined)
       ? E('O' + r, 56)
       : (typeof x.mktMin === 'number' && isFinite(x.mktMin) ? N('O' + r, 59, x.mktMin) : S('O' + r, 59, String(x.mktMin)));
@@ -1766,7 +1862,7 @@ function xlMarketSheet(sh, ctx, idx) {
       codeCell,
       S('C' + r, 6, x.name),
       N('D' + r, 7, x.qty),
-      S('E' + r, 8, x.chgTxt || '-'),
+      S('E' + r, 8, update.text),
       fCell,
       N('G' + r, 10, x.cost),
       N('H' + r, 11, x.price),
@@ -1780,14 +1876,17 @@ function xlMarketSheet(sh, ctx, idx) {
       pCell,
       S('Q' + r, 17, x.recAct || (x.qty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่')),
       rCell,
-      sCell
+      sCell,
+      F('T' + r, 11, 'IF(AND(OR(Q' + r + '="ปรับขึ้น",Q' + r + '="ปรับลง",Q' + r + '="ฝากพิจารณา"),ISNUMBER(R' + r + '),R' + r + '>0,IFERROR(ABS(R' + r + '-H' + r + '),0)>=0.005),R' + r + ',H' + r + ')', projected.price),
+      F('U' + r, 13, 'IF(AND(G' + r + '>0,K' + r + '>0),ROUND((T' + r + '-G' + r + ')/G' + r + ',4),"")', x.cost > 0 && x.costVat > 0 ? projected.marginEx : null),
+      F('V' + r, 13, 'IF(AND(G' + r + '>0,K' + r + '>0),ROUND((T' + r + '-K' + r + ')/K' + r + ',4),"")', x.cost > 0 && x.costVat > 0 ? projected.marginInc : null)
     ], 37.2);
   });
 
   /* แถวสรุปท้ายตาราง (เหมือน Row 346..355 ในไฟล์ตัวอย่าง) */
   var activeItems = items.filter(function (x) { return x.qty > 0; });
-  var avgEx = activeItems.length ? activeItems.reduce(function (s, x) { return s + x.marginEx; }, 0) / activeItems.length : 0;
-  var avgInc = activeItems.length ? activeItems.reduce(function (s, x) { return s + x.marginInc; }, 0) / activeItems.length : 0;
+  var projection = summarizePriceProjection(items);
+  var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
 
   var rAvg = last + 1;     // Row 346
   var rBlank1 = last + 2;  // Row 347
@@ -1804,9 +1903,9 @@ function xlMarketSheet(sh, ctx, idx) {
     E('A' + rAvg, 25), E('B' + rAvg, 26), E('C' + rAvg, 27),
     F('D' + rAvg, 28, 'COUNTIF(D7:D' + last + ',">0")', activeItems.length),
     E('E' + rAvg, 29), E('F' + rAvg, 30), E('G' + rAvg, 31), E('H' + rAvg, 31), E('I' + rAvg, 31),
-    F('J' + rAvg, 32, 'IFERROR(AVERAGEIF(D7:D' + last + ',">0",J7:J' + last + '),0)', avgEx),
+    F('J' + rAvg, 32, 'IFERROR(AVERAGEIFS(J7:J' + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")', avgEx),
     E('K' + rAvg, 33), E('L' + rAvg, 33),
-    F('M' + rAvg, 32, 'IFERROR(AVERAGEIF(D7:D' + last + ',">0",M7:M' + last + '),0)', avgInc),
+    F('M' + rAvg, 32, 'IFERROR(AVERAGEIFS(M7:M' + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")', avgInc),
     E('N' + rAvg, 34), E('O' + rAvg, 61), E('P' + rAvg, 62), E('Q' + rAvg, 35), E('R' + rAvg, 35), E('S' + rAvg, 36)
   ], 18.6);
 
@@ -1829,20 +1928,21 @@ function xlMarketSheet(sh, ctx, idx) {
     S('F' + rSum1, 119, sh.sumText),
     E('G' + rSum1, 119), E('H' + rSum1, 119), E('I' + rSum1, 119), E('J' + rSum1, 119), E('K' + rSum1, 119), E('L' + rSum1, 119),
     E('M' + rSum1, 119), E('N' + rSum1, 119), E('O' + rSum1, 119), E('P' + rSum1, 119), E('Q' + rSum1, 119), E('R' + rSum1, 119), E('S' + rSum1, 37)
-  ], 18.6);
+  ], 44);
 
   pushRow(rSum2, [
     E('A' + rSum2, 37), E('B' + rSum2, 38), S('C' + rSum2, 39, 'กำไรเฉลี่ยหัก Vat แล้ว'), F('D' + rSum2, 41, 'M' + rAvg, avgInc), E('E' + rSum2, 37),
     E('F' + rSum2, 119), E('G' + rSum2, 119), E('H' + rSum2, 119), E('I' + rSum2, 119), E('J' + rSum2, 119), E('K' + rSum2, 119), E('L' + rSum2, 119),
     E('M' + rSum2, 119), E('N' + rSum2, 119), E('O' + rSum2, 119), E('P' + rSum2, 119), E('Q' + rSum2, 119), E('R' + rSum2, 119), E('S' + rSum2, 37)
-  ], 18.6);
+  ], 44);
 
-  [rSum3, rSum4].forEach(function (rr) {
+  [rSum3, rSum4].forEach(function (rr, idx) {
     pushRow(rr, [
-      E('A' + rr, 42), E('B' + rr, 35), E('C' + rr, 35), E('D' + rr, 35), E('E' + rr, 29),
+      E('A' + rr, 42), E('B' + rr, 35), S('C' + rr, 39, idx ? 'หลังปรับ (รวม Vat)' : 'หลังปรับ (ไม่รวม Vat)'),
+      F('D' + rr, 41, projectionSummaryFormula(last, !!idx), idx ? projection.avgAfterInc : projection.avgAfterEx), E('E' + rr, 29),
       E('F' + rr, 119), E('G' + rr, 119), E('H' + rr, 119), E('I' + rr, 119), E('J' + rr, 119), E('K' + rr, 119), E('L' + rr, 119),
       E('M' + rr, 119), E('N' + rr, 119), E('O' + rr, 119), E('P' + rr, 119), E('Q' + rr, 119), E('R' + rr, 119), E('S' + rr, 36)
-    ], 18.6);
+    ], 44);
   });
 
   pushRow(rBlank2, [
@@ -1872,6 +1972,7 @@ function xlMarketSheet(sh, ctx, idx) {
     'A3:A6', 'B3:B6', 'C3:C6', 'D3:J3', 'K3:S3',
     'D4:D6', 'E4:F5', 'G4:G6', 'H4:H6', 'I4:I6', 'J4:J6',
     'K4:K6', 'L4:L6', 'M4:M6', 'N4:N6', 'O4:P5', 'Q4:R5', 'S4:S6',
+    'T3:V3', 'T4:T6', 'U4:U6', 'V4:V6',
     'C' + rSumHd + ':D' + rSumHd, 'F' + rSumHd + ':R' + rSumHd,
     'F' + rSum1 + ':R' + rSum4,
     'E' + rSig1 + ':G' + rSig1, 'I' + rSig1 + ':K' + rSig1, 'M' + rSig1 + ':P' + rSig1,
@@ -1895,10 +1996,10 @@ function xlMarketSheet(sh, ctx, idx) {
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '">' +
     '<sheetPr filterMode="1"><pageSetUpPr fitToPage="1"/></sheetPr>' +
-    '<dimension ref="A1:S' + rSig2 + '"/>' +
+    '<dimension ref="A1:V' + rSig2 + '"/>' +
     '<sheetViews><sheetView' + (idx === 0 ? ' tabSelected="1"' : '') + ' zoomScale="115" zoomScaleNormal="115" workbookViewId="0"><pane ySplit="6" topLeftCell="A7" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
     '<sheetFormatPr defaultColWidth="5.69921875" defaultRowHeight="16.8"/>' +
-    XL_COLS_XML +
+    XL_COLS_XML.replace('<col min="20" max="20" width="3.69921875" customWidth="1"/>', '<col min="20" max="20" width="12" customWidth="1"/><col min="21" max="22" width="13" customWidth="1"/>') +
     '<sheetData>' + rows.join('') + '</sheetData>' +
     '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
     cfXml + dvXml +
@@ -1960,12 +2061,13 @@ async function xlZip(files) {
 }
 
 async function xlsxBuildMarket(sheets) {
-  var ctx = { sst: Object.create(null), sstList: [] }, files = [], N = sheets.length, ct = '', wbSheets = '', wbRels = '';
+  var ctx = { sst: Object.create(null), sstList: [] }, files = [], N = sheets.length, ct = '', wbSheets = '', wbRels = '', printAreas = '';
   var REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   sheets.forEach(function (sh, i) {
     files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: xlMarketSheet(sh, ctx, i) });
     ct += '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
     wbSheets += '<sheet name="' + xlEsc(sh.name.slice(0, 31)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+    printAreas += '<definedName name="_xlnm.Print_Area" localSheetId="' + i + '">' + xlEsc("'" + sh.name.slice(0, 31).replace(/'/g, "''") + "'!$A$1:$S$" + (16 + Math.max(sh.items.length, 1))) + '</definedName>';
     wbRels += '<Relationship Id="rId' + (i + 1) + '" Type="' + REL + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
   });
   wbRels += '<Relationship Id="rId' + (N + 1) + '" Type="' + REL + '/styles" Target="styles.xml"/>' +
@@ -1974,7 +2076,7 @@ async function xlsxBuildMarket(sheets) {
   files.unshift(
     { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + ct + '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>' },
     { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><bookViews><workbookView/></bookViews><sheets>' + wbSheets + '</sheets></workbook>' },
+    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><bookViews><workbookView/></bookViews><sheets>' + wbSheets + '</sheets><definedNames>' + printAreas + '</definedNames></workbook>' },
     { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + wbRels + '</Relationships>' },
     { name: 'xl/theme/theme1.xml', data: THEME1_XML },
     { name: 'xl/styles.xml', data: STYLES_XML }
@@ -2039,8 +2141,8 @@ $('#exGo').addEventListener('click', function () {
       var downCnt = gItems.filter(function (x) { return x.recAct === 'ปรับลง'; }).length;
       var consCnt = gItems.filter(function (x) { return x.recAct === 'ฝากพิจารณา'; }).length;
       var adjTot = upCnt + downCnt + consCnt;
-      var avgEx = act.length ? act.reduce(function (s, x) { return s + x.marginEx; }, 0) / act.length : 0;
-      var avgInc = act.length ? act.reduce(function (s, x) { return s + x.marginInc; }, 0) / act.length : 0;
+      var projection = summarizePriceProjection(gItems);
+      var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
 
       return {
         name: g,
@@ -2048,7 +2150,7 @@ $('#exGo').addEventListener('click', function () {
         rightHead: rightH,
         title: 'สำรวจราคาท้องตลาดหมวดสินค้า ' + g + (gName ? ' ' + gName : '') + (D.br ? ' · สาขา ' + D.br : ''),
         sumTitle: 'สรุปการสำรวจ หมวด ' + g + (gName ? ' ' + gName : ''),
-        sumText: buildSummaryText(g, gName, gItems.length, inactCnt, act.length, adjTot, upCnt, downCnt, consCnt, avgEx, avgInc),
+        sumText: buildSummaryText(g, gName, gItems.length, inactCnt, act.length, adjTot, upCnt, downCnt, consCnt, avgEx, avgInc, projection),
         surveyor: D.surveyor || '',
         checker: D.checker || '',
         approver: D.approver || '',
