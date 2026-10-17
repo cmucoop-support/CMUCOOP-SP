@@ -2997,11 +2997,11 @@ $('#upSave').addEventListener('click', function () {
   if (!sel.length) return;
   busy(this, async function () {
     var br = UP.branch, fileName = UP.files.join(', ').slice(0, 120), btn = this, label0 = btn.textContent;
-    // อัปหลายหมวดพร้อมกัน: แบ่งส่งทีละชุด (ไม่เกิน 4 หมวด หรือ ~400 แถวต่อชุด) กัน Worker หมดเวลา/เกินโควตา
+    // อัปหลายหมวดพร้อมกัน: แบ่งส่งทีละชุด (ไม่เกิน 2 หมวด หรือ ~250 แถวต่อชุด) กัน Worker หมดเวลา/เกินโควตา
     var chunks = [], cur = [], curRows = 0;
     sel.forEach(function (g) {
       var n = UP.groups[g];
-      if (cur.length && (cur.length >= 4 || curRows + n.rows.length > 400)) { chunks.push(cur); cur = []; curRows = 0; }
+      if (cur.length && (cur.length >= 2 || curRows + n.rows.length > 250)) { chunks.push(cur); cur = []; curRows = 0; }
       cur.push({ g: g, rep: n.rep, title: n.title, rows: n.rows }); curRows += n.rows.length;
     });
     if (cur.length) chunks.push(cur);
