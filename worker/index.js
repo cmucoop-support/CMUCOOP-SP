@@ -1359,11 +1359,14 @@ function stockApply(rows, adj) {
   return { rows: out, hit, zero, cut };
 }
 const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
+const STOCK_DATE_CACHE = new Map();
 const stockDate = v => {
   v = str(v);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
-  const d = new Date(v + 'T00:00:00Z');
-  return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : '';
+  const hit = STOCK_DATE_CACHE.get(v); if (hit !== undefined) return hit;
+  let out = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) { const d = new Date(v + 'T00:00:00Z'); if (Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v) out = v; }
+  if (STOCK_DATE_CACHE.size > 5000) STOCK_DATE_CACHE.clear();
+  STOCK_DATE_CACHE.set(v, out); return out;
 };
 const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
 const stockOpt = (v, dp) => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : stockNum(v, dp);
@@ -1520,17 +1523,11 @@ const stockNames = async C => {
   });
   return out;
 };
-function thaiDayIso(ts) {
-  var date = new Date(ts == null ? Date.now() : ts);
-  if (!Number.isFinite(date.getTime())) return '';
-  try {
-    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-    var obj = {};
-    parts.forEach(function (part) { obj[part.type] = part.value; });
-    return obj.year + '-' + obj.month + '-' + obj.day;
-  } catch (e) {
-    return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
-  }
+function thaiDayIso(ts) {                                         // ไทยเป็น UTC+7 ตายตัว (ไม่มี DST) — ไม่สร้าง Intl.DateTimeFormat ทุกครั้งเพราะกิน CPU มาก
+  var t = ts == null ? Date.now() : Number(ts);
+  if (!Number.isFinite(t)) return '';
+  var d = new Date(t + 7 * 3600000);
+  return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : '';
 }
 function stockDayKey(ts) { return thaiDayIso(ts); }
 function stockDailyHistory(hist) {
