@@ -332,7 +332,8 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
       เมื่ออัปโหลดข้อมูลรอบใหม่ทับหมวดเดิม ระบบจะ<b>ตรวจจับราคาขายที่เปลี่ยนไปโดยอัตโนมัติ</b> (ขึ้นข้อความ <code>&gt; ปรับขึ้น เดิม X ขึ้น Y</code> หรือ <code>&lt; ปรับลง เดิม X ลง Y</code> พร้อมวันที่) และ<b>คงข้อมูลราคาท้องตลาดที่เคยสำรวจไว้</b> พร้อมเก็บข้อมูลชุดเดิมไว้ในแท็บ "ฉบับก่อนหน้า"
     </div>
 <div class="upGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px;align-items:end">
-<label style="font-size:13px;font-weight:600;color:var(--steel)">สาขาที่จะอัปโหลด<select id="upBr"></select></label>
+<label class="hidden" id="upSourceBrW" style="font-size:13px;font-weight:600;color:var(--steel)">เลือกสาขาจากไฟล์<select id="upSourceBr"></select></label>
+<label style="font-size:13px;font-weight:600;color:var(--steel)">สาขาปลายทางที่จะบันทึก<select id="upBr"></select></label>
 <label class="hidden" id="upBrNewW" style="font-size:13px;font-weight:600;color:var(--steel)">ชื่อสาขาใหม่<input autocomplete="off" id="upBrNew" maxlength="20" placeholder="เช่น หน้ามช. / สวนดอก" type="text"/></label>
 <label style="font-size:13px;font-weight:600;color:var(--steel)">วันที่อัปข้อมูลเข้าระบบ (แสดงมุมซ้ายบนของหัวตาราง)<input id="upDate" type="date"/></label>
 <label style="font-size:13px;font-weight:600;color:var(--steel)">รหัสหมวดเริ่มต้น (กรณีไฟล์ไม่มีรหัสหมวดในชื่อชีต)<input id="upDefGrp" maxlength="12" placeholder="เช่น 34 หรือ G01" type="text"/></label>
@@ -1276,7 +1277,8 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
     var hdrRow = -1, idx = {};
     var aliases = {
       g: ['กลุ่ม', 'หมวด'], code: ['รหัส', 'บาร์โค้ด', 'เลขบาร์'], name: ['ชื่อสินค้า', 'ชื่อรายการ'],
-      qty: ['คงเหลือ', 'จำนวนคงเหลือสินค้า', 'จำนวน'], cost: ['ต้นทุน', 'ทุน'], price: ['ราคาขาย', 'ราคา']
+      branch: ['สาขา', 'ชื่อสาขา', 'branch'],
+      qty: ['คงเหลือ', 'จำนวนคงเหลือสินค้า', 'จำนวน'], cost: ['ต้นทุนล่าสุด', 'ต้นทุน', 'ทุน'], price: ['ราคาขาย', 'ราคา']
     };
     for (var h = 0; h < Math.min(grid.length, 15); h++) {
       var hr = grid[h] || [], hmap = Object.create(null), candidate = {};
@@ -1287,7 +1289,7 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
           if (j !== undefined && candidate[key] === undefined) candidate[key] = j;
         });
       });
-      if (candidate.name !== undefined && (candidate.cost !== undefined || candidate.price !== undefined)) { idx = candidate; hdrRow = h; break; }
+      if (candidate.code !== undefined && candidate.name !== undefined && candidate.cost !== undefined && candidate.price !== undefined) { idx = candidate; hdrRow = h; break; }
     }
     if (hdrRow < 0) return;
     for (var pr = hdrRow + 1; pr < grid.length; pr++) {
@@ -1296,11 +1298,13 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
       if (!pname) continue;
       var pg = (idx.g !== undefined && prow[idx.g] != null ? String(prow[idx.g]).trim().toUpperCase() : '') || grpCode;
       var pcode = idx.code !== undefined && prow[idx.code] != null ? String(prow[idx.code]).trim() : '';
+      if (!pcode) continue;
+      var pbranch = idx.branch !== undefined && prow[idx.branch] != null ? String(prow[idx.branch]).replace(/\s+/g, ' ').trim() : '';
       var pqty = idx.qty !== undefined ? (Number(String(prow[idx.qty] || '0').replace(/,/g, '')) || 0) : 0;
       var pcost = idx.cost !== undefined ? (Number(String(prow[idx.cost] || '0').replace(/,/g, '')) || 0) : 0;
       var pprice = idx.price !== undefined ? (Number(String(prow[idx.price] || '0').replace(/,/g, '')) || 0) : 0;
       (groups[pg] || (groups[pg] = { g: pg, rep: repDate, surveyNote: sNote, items: [] })).items.push({
-        g: pg, code: pcode, name: pname, qty: pqty, chgTxt: '-', chgDate: '-',
+        g: pg, code: pcode, name: pname, sourceBranch: pbranch, qty: pqty, chgTxt: '-', chgDate: '-',
         cost: pcost, price: pprice, mktMin: '', mktMax: '', recAct: pqty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่', recPrice: '', editNote: '', rep: repDate, hasMarketCols: false
       });
       totalRead++;
@@ -1382,7 +1386,75 @@ function mergeUploadedGroup(g, newItems, fileName, repDate, ts, sNote) {
 
 /* ---------- หน้าต่างอัปโหลดไฟล์ Excel ---------- */
 var UP = null;
+var UP_READ_ID = 0;
+
+function uploadSourceBranches(groups) {
+  var sources = Object.create(null);
+  Object.keys(groups).forEach(function (g) {
+    groups[g].items.forEach(function (it) {
+      var name = String(it.sourceBranch || '').trim(), key = brKey(name);
+      if (!sources[key]) sources[key] = { key: key, name: name, count: 0 };
+      sources[key].count++;
+    });
+  });
+  return Object.keys(sources).sort().map(function (key) { return sources[key]; });
+}
+
+function filterUploadGroups(groups, sourceKey) {
+  var selected = Object.create(null), totalRows = 0;
+  Object.keys(groups).forEach(function (g) {
+    var grp = groups[g], items = grp.items.filter(function (it) { return brKey(it.sourceBranch) === sourceKey; });
+    if (!items.length) return;
+    selected[g] = { g: grp.g, rep: grp.rep, surveyNote: grp.surveyNote, items: items };
+    totalRows += items.length;
+  });
+  return { groups: selected, totalRows: totalRows };
+}
+
+function uploadDestinationName() {
+  return $('#upBr').value === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim() : $('#upBr').value;
+}
+
+function selectUploadDestination() {
+  if (!UP) return;
+  var source = UP.sources.filter(function (s) { return s.key === $('#upSourceBr').value; })[0];
+  if (!source || !source.name) return;
+  var existing = findBranch(source.name);
+  $('#upBr').value = existing || '__new__';
+  $('#upBrNew').value = existing ? '' : source.name;
+  $('#upBrNewW').classList.toggle('hidden', !!existing);
+}
+
+function renderUploadPreview() {
+  if (!UP) return;
+  var sourceKey = $('#upSourceBr').value;
+  var selection = filterUploadGroups(UP.allGroups, sourceKey);
+  UP.groups = selection.groups;
+  UP.sourceKey = sourceKey;
+  UP.totalRows = selection.totalRows;
+  var gKeys = Object.keys(UP.groups).sort();
+  var source = UP.sources.filter(function (s) { return s.key === sourceKey; })[0];
+  var target = uploadDestinationName();
+  var targetNames = D.store[findBranch(target) || target];
+  $('#pv').innerHTML =
+    '<div><b>ข้อมูลจากสาขา: ' + esc(source && source.name || 'ไม่ระบุสาขาในไฟล์') + '</b> → <b>บันทึกที่สาขา: ' + esc(target || 'กรุณาระบุสาขาปลายทาง') + '</b></div>' +
+    '<div class="pvk">' +
+      '<div><b>' + gKeys.length + '</b><span>หมวดสินค้าที่เลือก</span></div>' +
+      '<div><b>' + nf0.format(UP.totalRows) + '</b><span>รายการของสาขาที่เลือก</span></div>' +
+      '<div><b>' + esc(fmtDateSlash($('#upDate').value || UP.repDate, false)) + '</b><span>วันที่อัปข้อมูลเข้า</span></div>' +
+    '</div>' +
+    '<div class="muted">อ่านจากไฟล์ทั้งหมด ' + nf0.format(UP.totalRead) + ' รายการ · นำเข้าเฉพาะสาขาที่เลือก ' + nf0.format(UP.totalRows) + ' รายการ</div>' +
+    '<div class="muted">หมวดที่จะอัปเดต: ' + gKeys.map(function (g) {
+      var nm = UP.names[g] || (targetNames && targetNames.names[g]) || '';
+      return '<b>' + esc(g + (nm ? ' · ' + nm : '')) + '</b> (' + nf0.format(UP.groups[g].items.length) + ' รายการ)';
+    }).join(', ') + '</div>';
+  $('#pv').classList.remove('hidden');
+  $('#upSave').classList.toggle('hidden', !gKeys.length);
+  $('#upSave').disabled = !gKeys.length || !target;
+}
+
 $('#bUpload').addEventListener('click', function () {
+  UP_READ_ID++;
   UP = null;
   var bks = Object.keys(D.store).sort();
   $('#upBr').innerHTML = bks.map(function (b) { return '<option value="' + esc(b) + '"' + (D.br === b ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
@@ -1393,13 +1465,21 @@ $('#bUpload').addEventListener('click', function () {
   $('#upDefGrp').value = F.g || '';
   $('#upDefName').value = (F.g && D.names[F.g]) || '';
   $('#upErr').textContent = '';
+  $('#upSourceBr').innerHTML = '';
+  $('#upSourceBrW').classList.add('hidden');
   $('#pv').classList.add('hidden');
   $('#upSave').classList.add('hidden');
   $('#upFile').value = '';
   $('#upDlg').classList.remove('hidden');
 });
-$('#upBr').addEventListener('change', function () { $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__'); });
-$('#upCancel').addEventListener('click', function () { $('#upDlg').classList.add('hidden'); });
+$('#upBr').addEventListener('change', function () {
+  $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__');
+  renderUploadPreview();
+});
+$('#upSourceBr').addEventListener('change', function () { selectUploadDestination(); renderUploadPreview(); });
+$('#upBrNew').addEventListener('input', renderUploadPreview);
+$('#upDate').addEventListener('change', renderUploadPreview);
+$('#upCancel').addEventListener('click', function () { UP_READ_ID++; UP = null; $('#upDlg').classList.add('hidden'); });
 $('#drop').addEventListener('click', function () { $('#upFile').click(); });
 ['dragenter', 'dragover'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('over'); }); });
 ['dragleave', 'drop'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.remove('over'); }); });
@@ -1407,8 +1487,11 @@ $('#drop').addEventListener('drop', function (e) { var fs = e.dataTransfer && e.
 $('#upFile').addEventListener('change', function () { if (this.files.length) handleUploadFiles(this.files); });
 
 async function handleUploadFiles(fileList) {
+  var readId = ++UP_READ_ID;
+  UP = null;
   var files = Array.prototype.slice.call(fileList);
   $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden');
+  $('#upSourceBrW').classList.add('hidden');
   try {
     var allGroups = Object.create(null), allNames = Object.create(null), fileNames = [], sNote = '', totalRows = 0;
     if (typeof XLSX === 'undefined') throw new Error('ยังโหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อและลองใหม่');
@@ -1420,6 +1503,7 @@ async function handleUploadFiles(fileList) {
       var f = files[i];
       fileNames.push(f.name);
       var buf = await f.arrayBuffer();
+      if (readId !== UP_READ_ID) return;
       var wb = XLSX.read(buf, { type: 'array' });
       var sheets = wb.SheetNames.map(function (n) {
         return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) };
@@ -1436,38 +1520,38 @@ async function handleUploadFiles(fileList) {
     var gKeys = Object.keys(allGroups).sort();
     if (!gKeys.length) throw new Error('ไม่พบตารางสินค้าในไฟล์ — ตรวจสอบว่าไฟล์มีคอลัมน์ รหัส, ชื่อสินค้า, ต้นทุน, ราคาขาย');
 
-    UP = { groups: allGroups, names: allNames, files: fileNames, surveyNote: sNote, repDate: upDateIso, totalRows: totalRows };
-    $('#pv').innerHTML =
-      '<div class="pvk">' +
-        '<div><b>' + gKeys.length + '</b><span>หมวดสินค้าที่พบ</span></div>' +
-        '<div><b>' + nf0.format(totalRows) + '</b><span>รายการสินค้าทั้งหมด</span></div>' +
-        '<div><b>' + esc(fmtDateSlash(upDateIso, false)) + '</b><span>วันที่อัปข้อมูลเข้า</span></div>' +
-      '</div>' +
-      '<div class="muted">หมวดที่จะอัปเดต: ' + gKeys.map(function (g) {
-        var nm = allNames[g] || D.names[g] || '';
-        return '<b>' + esc(g + (nm ? ' · ' + nm : '')) + '</b> (' + nf0.format(allGroups[g].items.length) + ' รายการ)';
-      }).join(', ') + '</div>';
-    $('#pv').classList.remove('hidden');
-    $('#upSave').classList.remove('hidden');
+    var sources = uploadSourceBranches(allGroups);
+    UP = { allGroups: allGroups, groups: Object.create(null), sources: sources, names: allNames, files: fileNames, surveyNote: sNote, repDate: upDateIso, totalRows: 0, totalRead: totalRows };
+    $('#upSourceBr').innerHTML = sources.map(function (s) {
+      return '<option value="' + esc(s.key) + '">' + esc(s.name || 'ไม่ระบุสาขาในไฟล์') + ' (' + nf0.format(s.count) + ' รายการ)</option>';
+    }).join('');
+    var matchingSource = sources.filter(function (s) { return s.key === brKey(uploadDestinationName()); })[0];
+    $('#upSourceBr').value = matchingSource ? matchingSource.key : sources[0].key;
+    $('#upSourceBrW').classList.toggle('hidden', sources.length === 1 && !sources[0].name);
+    selectUploadDestination();
+    renderUploadPreview();
   } catch (e) {
+    if (readId !== UP_READ_ID) return;
     $('#upErr').textContent = e.message;
   }
 }
 
 $('#upSave').addEventListener('click', function () {
   if (!UP) return;
+  renderUploadPreview();
+  var upload = Object.assign({}, UP), brName = uploadDestinationName();
+  if (!Object.keys(upload.groups).length) { toast('ไม่พบข้อมูลของสาขาที่เลือก', true); return; }
   busy(this, async function () {
-    var brName = $('#upBr').value === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim() : $('#upBr').value;
     if (!brName) { toast('กรุณาเลือกสาขา หรือกรอกชื่อสาขาใหม่', true); return; }
     brName = findBranch(brName) || brName;
     ensureBranch(brName);
     setBranch(brName);
-    Object.assign(D.names, UP.names);
-    if (UP.surveyNote) D.surveyNote = UP.surveyNote;
-    var ts = Date.now(), gKeys = Object.keys(UP.groups).sort(), chgSum = 0;
+    Object.keys(upload.groups).forEach(function (g) { if (upload.names[g]) D.names[g] = upload.names[g]; });
+    if (upload.surveyNote) D.surveyNote = upload.surveyNote;
+    var ts = Date.now(), gKeys = Object.keys(upload.groups).sort(), chgSum = 0;
     gKeys.forEach(function (g) {
-      var grp = UP.groups[g];
-      chgSum += mergeUploadedGroup(g, grp.items, UP.files.join(', '), $('#upDate').value || grp.rep, ts, grp.surveyNote);
+      var grp = upload.groups[g];
+      chgSum += mergeUploadedGroup(g, grp.items, upload.files.join(', '), $('#upDate').value || grp.rep, ts, grp.surveyNote);
     });
     F.g = gKeys[0];
     D.ver = 'cur';
@@ -1476,7 +1560,7 @@ $('#upSave').addEventListener('click', function () {
     renderAll();
     var upOk = await syncToServer();
     if (!upOk) return;
-    toast('อัปโหลดข้อมูลเรียบร้อย · สาขา ' + brName + ' · ' + gKeys.length + ' หมวด (' + nf0.format(UP.totalRows) + ' รายการ)' + (chgSum ? ' · ตรวจพบการปรับราคาขาย ' + chgSum + ' รายการ' : ''));
+    toast('อัปโหลดข้อมูลเรียบร้อย · สาขา ' + brName + ' · ' + gKeys.length + ' หมวด (' + nf0.format(upload.totalRows) + ' รายการ)' + (chgSum ? ' · ตรวจพบการปรับราคาขาย ' + chgSum + ' รายการ' : ''));
   });
 });
 
