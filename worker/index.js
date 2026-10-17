@@ -1005,10 +1005,6 @@ const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBa
 function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
 const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
 const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
-/* วันที่ข้อมูลอัพเดตล่าสุด: ดึงจากไฟล์รายงานสต็อก (PStkall) ที่อัปโหลด · เก็บ {branch,date:'YYYY-MM-DD',file,rows,ts,who} */
-const bcSrc = async C => { try { const o = JSON.parse(await kvGet(C, 'BC_SRC', 'null')); return o && /^\d{4}-\d{2}-\d{2}$/.test(str(o.date)) ? o : null; } catch (e) { return null; } };
-const thDateIso = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str(iso)); return m ? m[3] + '/' + m[2] + '/' + (Number(m[1]) + 543) : ''; };
-const bcStatus = (src, ts) => src ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateIso(src.date) : (ts ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(ts) : '');
 const bcLog = (C, me, cat, action, detail) => appendLog(C, me.name, BC_SHEET, cat || '', action, detail);
 
 async function bcDup(C, v, exceptId) {
@@ -1100,18 +1096,6 @@ API.setPrintFont = async (C, token, font) => {
   await appendLog(C, me.name, BC_SHEET, '', 'ตั้งฟอนต์ปริ้น', font);
   return { ok: true, font };
 };
-API.setStockSource = async (C, token, o) => {
-  const me = await auth(C, token, true); o = o && typeof o === 'object' ? o : {};
-  const date = str(o.date).trim(); if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(Date.parse(date))) throw new Error('วันที่ของไฟล์ไม่ถูกต้อง');
-  const src = { branch: str(o.branch).replace(/\s+/g, ' ').trim().slice(0, 40), date, file: str(o.file).slice(0, 200), rows: Math.max(0, Math.floor(Number(o.rows) || 0)), ts: now(), who: me.name };
-  await kvSet(C, 'BC_SRC', JSON.stringify(src));
-  await appendLog(C, me.name, BC_SHEET, '', 'อัปโหลดไฟล์วันที่ข้อมูล', (src.file || '-') + ' · สาขา ' + (src.branch || '-') + ' · วันที่ ' + thDateIso(date));
-  return { ok: true, src };
-};
-API.clearStockSource = async (C, token) => {
-  const me = await auth(C, token, true); await kvSet(C, 'BC_SRC', 'null');
-  await appendLog(C, me.name, BC_SHEET, '', 'ล้างวันที่ข้อมูลจากไฟล์', ''); return { ok: true };
-};
 API.getInit = async (C, token) => {
   await authPerm(C, token, 'barcode');
   const pf = await kvGet(C, 'BC_PRINT_FONT', BC_FONT_DEF);
@@ -1124,21 +1108,21 @@ API.getInit = async (C, token) => {
   empties.forEach(r => add(str(r.cat), 0, 0));
   parts.forEach(r => { const c = map[str(r.cat)], p = str(r.partner); if (c && p) c.partners[p] = r.n; });
   const lg = await one(C, 'SELECT ts,who,cat,action,detail FROM log WHERE sheet=? ORDER BY id DESC LIMIT 1', BC_SHEET);
-  const mx = await one(C, 'SELECT MAX(ts) AS m FROM barcode_items'), lastTs = Math.max(lg ? lg.ts : 0, mx && mx.m || 0), src = await bcSrc(C);
+  const mx = await one(C, 'SELECT MAX(ts) AS m FROM barcode_items'), lastTs = Math.max(lg ? lg.ts : 0, mx && mx.m || 0);
   return {
     categories: list, printFont: BC_FONTS.includes(pf) ? pf : BC_FONT_DEF, printFonts: BC_FONTS,
-    sheets: { [BC_SHEET]: { schema: 'bar', statusText: bcStatus(src, lastTs) } },
+    sheets: { [BC_SHEET]: { schema: 'bar', statusText: lastTs ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(lastTs) : '' } },
     schemas: { bar: BC_SCHEMA },
     overall: lg ? { ts: lg.ts, user: str(lg.who), sheet: BC_SHEET, cat: str(lg.cat), action: str(lg.action), detail: str(lg.detail) } : (lastTs ? { ts: lastTs, user: '', sheet: BC_SHEET, cat: '', action: '', detail: '' } : null),
-    stockSrc: src, now: now()
+    now: now()
   };
 };
 API.getCategoryData = async (C, token, sheet, cat) => {
   await authPerm(C, token, 'barcode'); cat = str(cat);
   const rows = cat === '*' ? await all(C, 'SELECT * FROM barcode_items ORDER BY pos') : await all(C, 'SELECT * FROM barcode_items WHERE cat=? ORDER BY pos', cat);
-  const ts = rows.reduce((m, r) => Math.max(m, r.ts || 0), 0), src = await bcSrc(C);
+  const ts = rows.reduce((m, r) => Math.max(m, r.ts || 0), 0);
   return { sheet: BC_SHEET, cat: cat === '*' ? '' : cat, last: ts ? { ts } : null,
-    header: { company: BC_COMPANY, title: BC_TITLE, statusText: bcStatus(src, ts), fixed: !!src },
+    header: { company: BC_COMPANY, title: BC_TITLE, statusText: ts ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDateS(ts) : '' },
     rows: rows.map((r, i) => bcRow(r, i + 1)) };
 };
 API.findBarcode = async (C, token, code, exSheet, exRow) => {
