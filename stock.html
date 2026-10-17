@@ -130,6 +130,9 @@ tr.click{cursor:pointer}
 .tab[disabled]{opacity:.45;cursor:default}
 .tag{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12.5px;font-weight:600;background:var(--accent-soft);color:var(--accent-text);white-space:nowrap}
 .tag.new{background:#e6f6ec;color:var(--ok)}.tag.old{background:#fdecea;color:var(--bad)}
+ .ct-add{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.ct-add input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit}
+.ct-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 0;border-top:1px dashed var(--line)}.ct-row .ct-n{font-weight:600;min-width:120px}
+.tag.t-custom{background:#e8f5f3;color:#0b6b5f;border:1px solid #a7d8d0;margin-left:6px;font-size:12px;padding:1px 8px}
 .tag.hard{background:#fff1d6;color:#7d4900;border:1px solid #e0b054;margin-left:6px;font-size:12px;padding:1px 8px}
 button.tag.hard{min-height:24px;cursor:pointer}
 .tag.t-lost{background:#fdecea;color:#b3261e;border-color:#f2b8b5}.tag.t-exp{background:#f3e8fd;color:#6a1b9a;border-color:#d9b8f2}.tag.t-pend{background:#e3f0fd;color:#0b5394;border-color:#aecdf2}.tag.t-waste{background:#eceff1;color:#37474f;border-color:#b8c4ca}
@@ -289,6 +292,10 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 </div><div>
 <div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
 <div class="chk-row" id="fHideChecks"></div>
+</div><div id="ctManager" style="grid-column:1/-1">
+<div class="muted" style="margin-bottom:5px">แท็กที่สร้างเอง (เพิ่ม/ลบแท็กได้)</div>
+<div class="ct-add"><input type="text" id="ctName" maxlength="30" placeholder="ชื่อแท็กใหม่ เช่น สินค้าโปรโมชั่น" aria-label="ชื่อแท็กใหม่"><button type="button" class="btn small" id="ctAdd">+ เพิ่มแท็ก</button></div>
+<div id="ctList"></div>
 </div></details></section><section class="kpis" id="kpis"></section><nav class="workspace-nav" role="tablist" aria-label="มุมมองstock"><button type="button" role="tab" id="ws-stock-tab-items" data-work-tab="items" aria-controls="ws-stock-items" aria-selected="true" tabindex="0">รายการสินค้า</button><button type="button" role="tab" id="ws-stock-tab-overview" data-work-tab="overview" aria-controls="ws-stock-overview" aria-selected="false" tabindex="-1">ภาพรวมและแนวโน้ม</button><button type="button" role="tab" id="ws-stock-tab-analysis" data-work-tab="analysis" aria-controls="ws-stock-analysis" aria-selected="false" tabindex="-1">วิเคราะห์และรายการตัดออก</button></nav><div class="workspace-pane" role="tabpanel" id="ws-stock-items" aria-labelledby="ws-stock-tab-items" data-work-pane="items"><section class="card">
 <div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
 <div class="tscroll"><table id="dt"></table></div>
@@ -1097,6 +1104,7 @@ function allPool(includeZero) {                                          // ก�
   base = base.concat(D.zero || []);                                      // รวมคงเหลือ 0 และติดลบเสมอ (ไม่นับรวมในยอดคำนวณ)
   return base;
 }
+var LAST_TS = [];
 function render() {
   D.groups = groupsForBranch(F.br);
   var allowedG = {}; D.groups.forEach(function (g) { allowedG[g] = 1; });
@@ -1113,6 +1121,7 @@ function render() {
   });
   var T_N = T_ALL.filter(function (x) { return gOn(x.g); });
   var T_S = T_N.filter(function (x) { return stOn(x.sk); });
+  LAST_TS = T_S;
   renderChips(T_N); renderGSelect(); renderPill(); renderRepCard(); renderTagSel(); renderKpis(S, N, T_S);
   renderGroupChart(S); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
   renderGroupTable(G); renderTable(T_S); renderZero(); renderLostBtn(); renderAnalysis(S, N, G);
@@ -1140,11 +1149,12 @@ function renderTagSel() {                                               // แ�
   var pool = allPool(true).filter(function (x) {
     return gOn(x.g) && (!bk || brKey(x.br) === bk) && stOn(x.sk) && (!q || x.hay.indexOf(q) >= 0);
   });
-  var cnt = { lost: 0, exp: 0, waste: 0, pend: 0, hard: 0, zero: 0, neg: 0 };
+  var order = ['lost', 'exp', 'waste', 'pend', 'hard', 'zero', 'neg'].concat(ctKeys());
+  var cnt = {}; order.forEach(function (k) { cnt[k] = 0; });
   pool.forEach(function (x) {
-    Object.keys(cnt).forEach(function (k) { if (hasTag(x, k)) cnt[k]++; });
+    order.forEach(function (k) { if (hasTag(x, k)) cnt[k]++; });
   });
-  var order = ['lost', 'exp', 'waste', 'pend', 'hard', 'zero', 'neg'];
+  renderCtList(cnt);
   var box = $('#fTagChecks');
   if (box) {
     box.innerHTML = order.map(function (k) {
@@ -1159,6 +1169,16 @@ function renderTagSel() {                                               // แ�
       return '<label class="chk-pill"><input type="checkbox" data-fhide="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
     }).join('') + (Object.keys(F.hide || {}).length ? '<button type="button" class="btn ghost small" id="bClearHide">ล้างแท็กซ่อน</button>' : '');
   }
+}
+function renderCtList(cnt) {
+  var box = $('#ctList'); if (!box) return;
+  box.innerHTML = CT.tags.length ? CT.tags.map(function (t) {
+    var k = 'c_' + t.id, n = Object.keys(CT.map[t.id] || {}).length;
+    return '<div class="ct-row"><span class="ct-n">' + esc(t.t) + '</span><span class="muted">ติดอยู่ ' + nf0.format(n) + ' รายการ</span>' +
+      '<button type="button" class="btn ghost small" data-ctapply="' + t.id + '">ติดแท็กให้รายการที่แสดง</button>' +
+      '<button type="button" class="btn ghost small" data-ctclear="' + t.id + '">ถอดแท็กจากรายการที่แสดง</button>' +
+      '<button type="button" class="btn ghost small" data-ctdel="' + t.id + '" aria-label="ลบแท็ก ' + esc(t.t) + '">× ลบแท็ก</button></div>';
+  }).join('') : '<div class="muted">ยังไม่มีแท็กที่สร้างเอง</div>';
 }
 function isAdjTag() { return false; }
 function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง แสดงจำนวนสินค้าทั้งหมดที่มีในหมวดนั้น (ตามสาขาที่เลือก)
@@ -1793,6 +1813,30 @@ $('#fHideChecks').addEventListener('change', function (e) {
   var k = cb.dataset.fhide;
   if (cb.checked) { F.hide[k] = true; delete F.tags[k]; } else delete F.hide[k];
   F.page = 0; render();
+});
+$('#ctAdd').addEventListener('click', function () {
+  var inp = $('#ctName'), name = inp.value.trim();
+  if (!name) { toast('กรุณาพิมพ์ชื่อแท็ก', true); return; }
+  var all = Object.keys(TAGS).map(function (k) { return TAGS[k].t; });
+  if (all.indexOf(name) >= 0) { toast('มีแท็กชื่อนี้อยู่แล้ว', true); return; }
+  CT.tags.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: name });
+  ctSave(); ctSync(); inp.value = ''; render(); toast('เพิ่มแท็ก "' + name + '" แล้ว');
+});
+$('#ctName').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#ctAdd').click(); } });
+$('#ctList').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var id = b.dataset.ctapply || b.dataset.ctclear || b.dataset.ctdel; if (!id) return;
+  var tg = CT.tags.filter(function (t) { return t.id === id; })[0]; if (!tg) return;
+  if (b.dataset.ctdel) {
+    if (!confirm('ลบแท็ก "' + tg.t + '" ?\nแท็กจะถูกถอดออกจากสินค้าทุกรายการ')) return;
+    CT.tags = CT.tags.filter(function (t) { return t.id !== id; }); delete CT.map[id];
+    delete F.tags['c_' + id]; delete F.hide['c_' + id];
+    ctSave(); ctSync(); F.page = 0; render(); toast('ลบแท็กแล้ว'); return;
+  }
+  var m = CT.map[id] || (CT.map[id] = {});
+  LAST_TS.forEach(function (x) { if (b.dataset.ctapply) m[ctItemKey(x)] = 1; else delete m[ctItemKey(x)]; });
+  ctSave(); render();
+  toast((b.dataset.ctapply ? 'ติดแท็ก "' : 'ถอดแท็ก "') + tg.t + '" ให้ ' + nf0.format(LAST_TS.length) + ' รายการแล้ว');
 });
 $('#fHideChecks').addEventListener('click', function (e) {
   if (e.target.closest('#bClearHide')) { F.hide = {}; F.page = 0; render(); }
@@ -3105,7 +3149,17 @@ function attachBcToItems() {
 }
 var AK = 'lost';
 var TAGS = { hard: { t: 'ขายยาก' }, lost: { t: 'ของหาย' }, exp: { t: 'หมดอายุ' }, pend: { t: 'รอปรับ' }, waste: { t: 'ของเสีย' }, zero: { t: 'คงเหลือ 0' }, neg: { t: 'ติดลบ' } };
-function hasTag(x, k) { return k === 'hard' ? !!x.hard : (k === 'zero' ? (!!x.isZero && !(x.qty < 0)) : (k === 'neg' ? (!!x.isZero && x.qty < 0) : !!(x.tg && x.tg[k] !== undefined))); }
+var CT = (function () {
+  try { var o = JSON.parse(localStorage.getItem('cmucoop_stock_ctags') || 'null'); if (o && Array.isArray(o.tags) && o.map) return o; } catch (e) {}
+  return { tags: [], map: {} };
+})();
+function ctSave() { try { localStorage.setItem('cmucoop_stock_ctags', JSON.stringify(CT)); } catch (e) {} }
+function ctSync() { Object.keys(TAGS).forEach(function (k) { if (k.indexOf('c_') === 0) delete TAGS[k]; }); CT.tags.forEach(function (t) { TAGS['c_' + t.id] = { t: t.t, custom: true }; }); }
+function ctItemKey(x) { return codeKey(x.code) + '|' + brKey(x.br); }
+function ctHas(x, k) { var m = CT.map[k.slice(2)]; return !!(m && m[ctItemKey(x)]); }
+function ctKeys() { return CT.tags.map(function (t) { return 'c_' + t.id; }); }
+ctSync();
+function hasTag(x, k) { if (k.indexOf('c_') === 0) return ctHas(x, k); return k === 'hard' ? !!x.hard : (k === 'zero' ? (!!x.isZero && !(x.qty < 0)) : (k === 'neg' ? (!!x.isZero && x.qty < 0) : !!(x.tg && x.tg[k] !== undefined))); }
 function tagHtml(x) {
   var tn = x.tn || {}, h = '', nl = [];
   if (x.hasUnitBar) {
@@ -3122,6 +3176,7 @@ function tagHtml(x) {
     }
   }
   Object.keys(x.tg || {}).forEach(function (k) { var q = x.tg[k]; h += '<span class="tag t-' + k + '" title="' + esc(TAGS[k].t + (q ? ' ' + qtyF(q) + ' ชิ้น หักออกจากค้างสต็อกแล้ว' : ' ทั้งหมด')) + '">' + esc(TAGS[k].t) + (q ? ' ' + qtyF(q) : '') + '</span>'; });
+  CT.tags.forEach(function (t) { if (ctHas(x, 'c_' + t.id)) h += '<span class="tag t-custom" title="แท็กที่สร้างเอง">' + esc(t.t) + '</span>'; });
   Object.keys(TAGS).forEach(function (k) { if (tn[k]) nl.push(TAGS[k].t + ': ' + tn[k]); });
   return h + (nl.length ? '<div class="tagnote">หมายเหตุ — ' + esc(nl.join(' · ')) + '</div>' : '');
 }
