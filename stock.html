@@ -361,7 +361,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <!-- ส่งออก Excel -->
 <div class="overlay hidden" id="exDlg">
 <div class="dlg">
-<h2>ส่งออกเป็นไฟล์ Excel</h2>
+<h2 id="exTitle">ดาวน์โหลดข้อมูล</h2>
+<div style="margin:8px 0 2px"><b>รูปแบบไฟล์</b></div>
+<label class="opt"><input checked="" name="exFmt" type="radio" value="xlsx"/><span><b>Excel (.xlsx)</b><br/><span class="muted">ข้อมูลรายสินค้า 1 ชีต = 1 หมวด</span></span></label>
+<label class="opt"><input name="exFmt" type="radio" value="pdf"/><span><b>PDF</b><br/><span class="muted">รายงานภาพรวมและแนวโน้ม เลือกส่วนที่ต้องการได้</span></span></label>
+<div id="exXlsxBox">
 <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
 <label class="opt"><input checked="" name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br/><span class="muted" id="exN2"></span></span></label>
@@ -374,6 +378,20 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <label class="chk-pill"><input data-exx="pend" type="checkbox"/><span>รอปรับ</span></label>
 <label class="chk-pill"><input checked="" data-exx="zero" type="checkbox"/><span>คงเหลือ 0</span></label>
 <label class="chk-pill"><input checked="" data-exx="neg" type="checkbox"/><span>ติดลบ</span></label>
+</div>
+</div>
+<div class="hidden" id="exPdfBox">
+<div class="muted" style="margin-top:10px">PDF ใช้ตัวกรองที่เลือกอยู่บนหน้าจอ (สาขา หมวด ช่วงอายุ แท็ก) · ติ๊กส่วนที่ต้องการให้อยู่ในไฟล์</div>
+<div id="exPdfSel" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+<label class="chk-pill"><input checked="" data-pdf="kpi" type="checkbox"/><span>สรุปตัวเลขภาพรวม</span></label>
+<label class="chk-pill"><input checked="" data-pdf="chGroup" type="checkbox"/><span>กราฟมูลค่าทุนแยกหมวด</span></label>
+<label class="chk-pill"><input checked="" data-pdf="chStatus" type="checkbox"/><span>กราฟสัดส่วนตามช่วงอายุ</span></label>
+<label class="chk-pill"><input checked="" data-pdf="chAge" type="checkbox"/><span>กราฟช่วงอายุที่ค้าง</span></label>
+<label class="chk-pill"><input checked="" data-pdf="chTop" type="checkbox"/><span>10 อันดับมูลค่าค้างสูงสุด</span></label>
+<label class="chk-pill"><input checked="" data-pdf="chTrend" type="checkbox"/><span>แนวโน้มตามวันที่อัปโหลด</span></label>
+<label class="chk-pill"><input checked="" data-pdf="gt" type="checkbox"/><span>ตารางสรุปแยกตามหมวด</span></label>
+<label class="chk-pill"><input data-pdf="items" type="checkbox"/><span>รายการสินค้า (ตามตัวกรอง)</span></label>
+</div>
 </div>
 <div class="err" id="exErr"></div>
 <div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
@@ -2378,13 +2396,14 @@ function synthTitle(rep) {
     return { cv: c };
   }
 
-  async function build() {
+  async function build(opts) {
     var prevTab = document.querySelector('[data-work-tab][aria-selected="true"]');
     var ovTab = $('#ws-stock-tab-overview');
-    var switched = prevTab && prevTab !== ovTab;
+    var ids = ['chGroup', 'chStatus', 'chAge', 'chTop', 'chTrend'].filter(function (id) { return opts[id]; });
+    var switched = ids.length && prevTab && prevTab !== ovTab;
     if (switched) { ovTab.click(); await raf2(); await new Promise(function (r) { setTimeout(r, 350); }); }
     var snaps = {};
-    try { ['chGroup', 'chStatus', 'chAge', 'chTop', 'chTrend'].forEach(function (id) { snaps[id] = snap(id); }); }
+    try { ids.forEach(function (id) { snaps[id] = snap(id); }); }
     finally { if (switched && prevTab) prevTab.click(); }
 
     if (document.fonts && document.fonts.load) {
@@ -2425,7 +2444,7 @@ function synthTitle(rep) {
     y += 14;
 
     /* KPI */
-    var ks = Array.prototype.slice.call(document.querySelectorAll('#kpis .kpi')).map(function (k) {
+    var ks = !opts.kpi ? [] : Array.prototype.slice.call(document.querySelectorAll('#kpis .kpi')).map(function (k) {
       var vEl = k.querySelector('.v'), un = vEl && vEl.querySelector('small');
       var cls = ['red', 'amber', 'green'].filter(function (c) { return k.classList.contains(c); })[0] || '';
       return { c: KPI_C[cls] || ACC, l: (k.querySelector('.l') || {}).textContent || '', v: vEl ? vEl.childNodes[0].textContent : '', u: un ? un.textContent : '', s: (k.querySelector('.s') || {}).textContent || '' };
@@ -2444,7 +2463,7 @@ function synthTitle(rep) {
           ctx.fillStyle = '#f7f5fc'; ctx.fillRect(bx, y, bw, bh); ctx.fillStyle = k.c; ctx.fillRect(bx, y, 7, bh);
           var yy = y + 20; ctx.fillStyle = MUTE; ctx.font = font(500, 21);
           wrap(ctx, k.l, bw - 40).forEach(function (l) { ctx.fillText(l, bx + 24, yy + 18); yy += 28; });
-          ctx.fillStyle = INK; var vf = fitText(ctx, k.v, bw - 150, 700, 44, 28); ctx.fillText(k.v, bx + 24, yy + 46);
+          ctx.fillStyle = INK; fitText(ctx, k.v, bw - 150, 700, 44, 28); ctx.fillText(k.v, bx + 24, yy + 46);
           var vw = ctx.measureText(k.v).width; ctx.font = font(500, 21); ctx.fillStyle = MUTE; ctx.fillText(k.u, bx + 24 + vw + 8, yy + 46);
           yy += 64; ctx.font = font(400, 19); ctx.fillStyle = MUTE;
           if (k.s) wrap(ctx, k.s, bw - 40).forEach(function (l) { ctx.fillText(l, bx + 24, yy + 16); yy += 25; });
@@ -2453,64 +2472,57 @@ function synthTitle(rep) {
       }
     }
 
-    function drawChart(title, note, sn, wPx) {
-      var w = wPx || CW, h = sn.cv ? Math.round(sn.cv.height * w / sn.cv.width) : 90;
-      if (sn.cv && h > 760) { h = 760; w = Math.round(sn.cv.width * h / sn.cv.height); }
-      var th = 34 + (note ? 30 : 0);
-      ensure(th + h + 16);
-      return { th: th, w: w, h: h };
-    }
     function chartBlock(title, note, sn) {
-      var d = drawChart(title, note, sn);
+      var w = CW, h = sn.cv ? Math.round(sn.cv.height * w / sn.cv.width) : 90;
+      if (sn.cv && h > 760) { h = 760; w = Math.round(sn.cv.width * h / sn.cv.height); }
+      ensure(34 + (note ? 30 : 0) + h + 16);
       ctx.fillStyle = INK; ctx.font = font(700, 26); ctx.fillText(title, MX, y + 26); y += 34;
       if (note) { ctx.fillStyle = MUTE; ctx.font = font(400, 20); ctx.fillText(note, MX, y + 18); y += 30; }
-      if (sn.cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(MX, y, CW, d.h + 12); ctx.drawImage(sn.cv, MX + Math.round((CW - d.w) / 2), y + 6, d.w, d.h); y += d.h + 28; }
+      if (sn.cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(MX, y, CW, h + 12); ctx.drawImage(sn.cv, MX + Math.round((CW - w) / 2), y + 6, w, h); y += h + 28; }
       else { ctx.fillStyle = MUTE; ctx.font = font(400, 22); ctx.fillText(sn.text, MX, y + 24); y += 56; }
     }
-    heading('ภาพรวมมูลค่าสต็อก', 560);
-    chartBlock('มูลค่าทุนทั้งหมดแยกตามหมวด', '', snaps.chGroup);
-    /* สองกราฟข้างกัน */
-    var half = Math.floor((CW - 24) / 2), sa = snaps.chStatus, sb = snaps.chAge;
-    function hh(sn) { return sn.cv ? Math.round(sn.cv.height * half / sn.cv.width) : 90; }
-    var ph = Math.max(hh(sa), hh(sb));
-    ensure(34 + ph + 30);
-    [['สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า', sa, 0], ['ช่วงอายุสินค้าที่ค้าง (มูลค่าทุน)', sb, 1]].forEach(function (a) {
-      var bx = MX + a[2] * (half + 24);
-      ctx.fillStyle = INK; var f2 = fitText(ctx, a[0], half, 700, 24, 17); ctx.fillText(a[0], bx, y + 24);
-      if (a[1].cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(bx, y + 34, half, hh(a[1]) + 12); ctx.drawImage(a[1].cv, bx, y + 40, half, hh(a[1])); }
-      else { ctx.fillStyle = MUTE; ctx.font = font(400, 20); ctx.fillText(a[1].text, bx, y + 64); }
-    });
-    y += 34 + ph + 30;
-    chartBlock('10 อันดับสินค้ามูลค่าค้างสูงสุด', '', snaps.chTop);
+    if (opts.chGroup || opts.chStatus || opts.chAge || opts.chTop) heading('ภาพรวมมูลค่าสต็อก', 560);
+    if (opts.chGroup) chartBlock('มูลค่าทุนทั้งหมดแยกตามหมวด', '', snaps.chGroup);
+    if (opts.chStatus || opts.chAge) {
+      var half = Math.floor((CW - 24) / 2), pair = [];
+      if (opts.chStatus) pair.push(['สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า', snaps.chStatus]);
+      if (opts.chAge) pair.push(['ช่วงอายุสินค้าที่ค้าง (มูลค่าทุน)', snaps.chAge]);
+      var hh = function (sn) { return sn.cv ? Math.round(sn.cv.height * half / sn.cv.width) : 90; };
+      var ph = Math.max.apply(null, pair.map(function (a) { return hh(a[1]); }));
+      ensure(34 + ph + 30);
+      pair.forEach(function (a, k) {
+        var bx = MX + k * (half + 24);
+        ctx.fillStyle = INK; fitText(ctx, a[0], half, 700, 24, 17); ctx.fillText(a[0], bx, y + 24);
+        if (a[1].cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(bx, y + 34, half, hh(a[1]) + 12); ctx.drawImage(a[1].cv, bx, y + 40, half, hh(a[1])); }
+        else { ctx.fillStyle = MUTE; ctx.font = font(400, 20); ctx.fillText(a[1].text, bx, y + 64); }
+      });
+      y += 34 + ph + 30;
+    }
+    if (opts.chTop) chartBlock('10 อันดับสินค้ามูลค่าค้างสูงสุด', '', snaps.chTop);
+    if (opts.chTrend) {
+      heading('แนวโน้มตามวันที่อัปโหลด', 640);
+      var trSel = $('#trMode'), trTxt = trSel && trSel.options[trSel.selectedIndex] ? trSel.options[trSel.selectedIndex].text : '';
+      chartBlock('แนวโน้มมูลค่าทุน — ' + trTxt, ($('#trNote') || {}).textContent ? $('#trNote').textContent.trim() : '', snaps.chTrend);
+    }
 
-    heading('แนวโน้มตามวันที่อัปโหลด', 640);
-    var trSel = $('#trMode'), trTxt = trSel && trSel.options[trSel.selectedIndex] ? trSel.options[trSel.selectedIndex].text : '';
-    chartBlock('แนวโน้มมูลค่าทุน — ' + trTxt, ($('#trNote') || {}).textContent ? $('#trNote').textContent.trim() : '', snaps.chTrend);
-
-    /* ตารางสรุปแยกตามหมวด */
-    var tb = $('#gt');
-    if (tb && tb.rows.length) {
-      heading('สรุปแยกตามหมวด', 260);
-      var cells = function (tr) { return Array.prototype.map.call(tr.cells, function (c) { return { t: c.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim(), num: c.classList.contains('num') }; }); };
-      var head = tb.tHead ? cells(tb.tHead.rows[0]) : [], body = [];
-      Array.prototype.forEach.call(tb.tBodies[0] ? tb.tBodies[0].rows : [], function (tr) { body.push(cells(tr)); });
-      var foot = tb.tFoot && tb.tFoot.rows[0] ? cells(tb.tFoot.rows[0]) : null;
-      var nc = head.length || (body[0] || []).length, w0 = Math.round(CW * 0.22), wr = Math.floor((CW - w0) / Math.max(1, nc - 1));
-      var xs = []; for (var c = 0; c < nc; c++) xs.push(c === 0 ? 0 : w0 + (c - 1) * wr);
-      var cw = function (c) { return c === 0 ? w0 : wr; };
+    /* ตาราง: head/body/foot เป็นอาร์เรย์ของ {t,num} · widths รวมเท่า CW · wrapCols = คอลัมน์ที่ตัดบรรทัดได้ */
+    function drawTable(head, body, foot, widths, wrapCols) {
+      wrapCols = wrapCols || [0];
+      var xs = [], acc = 0; widths.forEach(function (w) { xs.push(acc); acc += w; });
       var drawRow = function (cs, kind) {
-        var ls = 1; ctx.font = font(kind === 'h' ? 600 : 400, 19);
-        var first = wrap(ctx, (cs[0] || {}).t, cw(0) - 20); ls = Math.max(1, first.length);
-        if (kind === 'h') cs.forEach(function (cc, i) { if (i) ls = Math.max(ls, wrap(ctx, cc.t, cw(i) - 20).length); });
+        var bold = kind === 'h' || kind === 'f', ls = 1;
+        cs.forEach(function (cc, i) { if (kind === 'h' || wrapCols.indexOf(i) >= 0) { ctx.font = font(bold ? 700 : 400, 19); ls = Math.max(ls, wrap(ctx, cc.t, widths[i] - 20).length); } });
         var rh = ls * 26 + 16; ensure(rh);
         if (kind === 'h') { ctx.fillStyle = '#efeaf8'; ctx.fillRect(MX, y, CW, rh); }
         else if (kind === 'f') { ctx.fillStyle = '#f7f5fc'; ctx.fillRect(MX, y, CW, rh); }
         ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(MX, y + rh); ctx.lineTo(MX + CW, y + rh); ctx.stroke();
         cs.forEach(function (cc, i) {
-          var w = (kind === 'h' || kind === 'f') ? 700 : 400, bx = MX + xs[i];
-          ctx.fillStyle = INK;
-          if (i === 0 || kind === 'h') { ctx.font = font(w === 700 ? 700 : 600, 19); wrap(ctx, cc.t, cw(i) - 20).forEach(function (l, k) { ctx.textAlign = (cc.num && kind === 'h') ? 'right' : 'left'; ctx.fillText(l, (cc.num && kind === 'h') ? bx + cw(i) - 10 : bx + 10, y + 26 + k * 26); }); }
-          else { fitText(ctx, cc.t, cw(i) - 20, w, 19, 13); ctx.textAlign = cc.num ? 'right' : 'left'; ctx.fillText(cc.t, cc.num ? bx + cw(i) - 10 : bx + 10, y + 26); }
+          var bx = MX + xs[i], tx = cc.num ? bx + widths[i] - 10 : bx + 10;
+          ctx.fillStyle = INK; ctx.textAlign = cc.num ? 'right' : 'left';
+          if (kind === 'h' || wrapCols.indexOf(i) >= 0) {
+            ctx.font = font(bold ? 700 : (i === 0 ? 600 : 400), 19);
+            wrap(ctx, cc.t, widths[i] - 20).forEach(function (l, k) { ctx.fillText(l, tx, y + 26 + k * 26); });
+          } else { fitText(ctx, cc.t, widths[i] - 20, bold ? 700 : 400, 19, 13); ctx.fillText(cc.t, tx, y + 26); }
           ctx.textAlign = 'left';
         });
         y += rh;
@@ -2518,6 +2530,33 @@ function synthTitle(rep) {
       if (head.length) drawRow(head, 'h');
       body.forEach(function (cs) { if (y + 60 > PH - MB) { newPage(true); if (head.length) drawRow(head, 'h'); } drawRow(cs, 'b'); });
       if (foot) drawRow(foot, 'f');
+    }
+
+    /* ตารางสรุปแยกตามหมวด */
+    var tb = $('#gt');
+    if (opts.gt && tb && tb.rows.length) {
+      heading('สรุปแยกตามหมวด', 260);
+      var cells = function (tr) { return Array.prototype.map.call(tr.cells, function (c) { return { t: c.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim(), num: c.classList.contains('num') }; }); };
+      var head = tb.tHead ? cells(tb.tHead.rows[0]) : [], body = [];
+      Array.prototype.forEach.call(tb.tBodies[0] ? tb.tBodies[0].rows : [], function (tr) { body.push(cells(tr)); });
+      var foot = tb.tFoot && tb.tFoot.rows[0] ? cells(tb.tFoot.rows[0]) : null;
+      var nc = head.length || (body[0] || []).length, w0 = Math.round(CW * 0.22), wr = Math.floor((CW - w0) / Math.max(1, nc - 1)), wd = [w0];
+      for (var c = 1; c < nc; c++) wd.push(wr);
+      drawTable(head, body, foot, wd, [0]);
+    }
+
+    /* รายการสินค้า (ตามตัวกรองที่เลือก) */
+    if (opts.items) {
+      var list = (typeof sortedItems === 'function' ? sortedItems(LAST_RAW) : LAST_RAW);
+      heading('รายการสินค้า (ตามตัวกรอง) · ' + nf0.format(list.length) + ' รายการ', 220);
+      var wt = [80, 150, 310, 80, 85, 95, 115, 75, 85], tw = wt.reduce(function (a, b) { return a + b; }, 0), wi = wt.map(function (v) { return Math.floor(v * CW / tw); });
+      var ih = ['หมวด', 'รหัส', 'ชื่อสินค้า', 'สาขา', 'คงเหลือ', 'ต้นทุน/หน่วย', 'มูลค่าทุน', 'ค้าง (วัน)', 'ช่วงอายุ'].map(function (t, i) { return { t: t, num: [4, 5, 6, 7].indexOf(i) >= 0 }; });
+      var ib = list.map(function (x) {
+        return [{ t: String(x.g || '') }, { t: String(x.code == null ? '' : x.code) }, { t: String(x.name || '') }, { t: String(x.br || '') },
+          { t: qtyF(x.qty), num: 1 }, { t: nf2.format(x.cost || 0), num: 1 }, { t: money(x.vc), num: 1 }, { t: x.days == null ? '–' : nf0.format(x.days), num: 1 },
+          { t: x.sk === 'NA' ? 'ไม่มีข้อมูล' : String(x.sk || '') }];
+      });
+      drawTable(ih, ib, null, wi, [2]);
     }
 
     var total = pages.length, jp = [];
@@ -2530,18 +2569,24 @@ function synthTitle(rep) {
     return pdfFromJpegs(jp);
   }
 
-  $('#bOvPdf').addEventListener('click', function () {
-    if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return; }
-    if (!D.items.length) { toast('ไม่มีข้อมูลให้ส่งออก', true); return; }
-    var btn = this, label = btn.textContent; btn.textContent = 'กำลังสร้าง PDF…';
-    busy(btn, async function () {
-      var blob = await build();
-      var d = new Date(), iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  window.stockPdfRun = function (btn, opts) {            // เรียกจากหน้าต่างดาวน์โหลดข้อมูล · คืน true ถ้าสำเร็จ
+    if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return Promise.resolve(false); }
+    if (!D.items.length) { toast('ไม่มีข้อมูลให้ส่งออก', true); return Promise.resolve(false); }
+    var label = btn.textContent; btn.textContent = 'กำลังสร้าง PDF…';
+    var restore = function (ok) { btn.textContent = label; return ok === true; };
+    return busy(btn, async function () {
+      var blob = await build(opts);
+      var iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
       var a = document.createElement('a'), url = URL.createObjectURL(blob);
       a.href = url; a.download = 'ภาพรวมสินค้าค้างสต็อก_' + (F.br ? F.br + '_' : '') + iso + '.pdf'; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
       toast('ดาวน์โหลด PDF แล้ว · ' + Math.round(blob.size / 1024) + ' KB');
-    }).then(function () { btn.textContent = label; }, function () { btn.textContent = label; });
+      return true;
+    }).then(restore, restore);
+  };
+  $('#bOvPdf').addEventListener('click', function () {   // ปุ่มในแท็บภาพรวม: เปิดหน้าต่างดาวน์โหลดโดยเลือก PDF ไว้ให้
+    $('#bXlsx').click();
+    var r = document.querySelector('input[name=exFmt][value=pdf]'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
   });
 })();
 $('#bXlsx').addEventListener('click', function () {
@@ -2555,8 +2600,16 @@ $('#bXlsx').addEventListener('click', function () {
   $('#exBr').value = sel; $('#exBr').disabled = !bs.length;
   document.querySelector('input[name=exMode][value=branch]').disabled = !bs.length;
   exBrNote();
-  $('#exErr').textContent = ''; $('#exDlg').classList.remove('hidden');
+  $('#exErr').textContent = '';
+  var fx = document.querySelector('input[name=exFmt][value=xlsx]'); fx.checked = true; exSetFmt();
+  $('#exDlg').classList.remove('hidden');
 });
+function exSetFmt() {
+  var pdf = document.querySelector('input[name=exFmt]:checked').value === 'pdf';
+  $('#exXlsxBox').classList.toggle('hidden', pdf); $('#exPdfBox').classList.toggle('hidden', !pdf);
+  $('#exGo').textContent = pdf ? 'ดาวน์โหลด .pdf' : 'ดาวน์โหลด .xlsx'; $('#exErr').textContent = '';
+}
+document.querySelectorAll('input[name=exFmt]').forEach(function (r) { r.addEventListener('change', exSetFmt); });
 function exBranchItems() { var k = brKey($('#exBr').value); return D.items.filter(function (x) { return brKey(x.br) === k; }); }
 function exAdjItems(kind, mode, brName) {                               // แปลงรายการที่หัก (ของหาย/หมดอายุ/ของเสีย/รอปรับ) เป็นแถวรูปแบบเดียวกับชีตสินค้า
   var entries = D[kind] || [], out = [], bk = brKey(brName), fbk = brKey(F.br), hasG = Object.keys(F.gm).length > 0, q = (F.q || '').trim().toLowerCase();
@@ -2582,6 +2635,13 @@ function exBrNote() {
 $('#exBr').addEventListener('change', function () { document.querySelector('input[name=exMode][value=branch]').checked = true; exBrNote(); });
 $('#exCancel').addEventListener('click', function () { closeDlg('#exDlg'); });
 $('#exGo').addEventListener('click', function () {
+  if (document.querySelector('input[name=exFmt]:checked').value === 'pdf') {
+    var po = {}; document.querySelectorAll('#exPdfSel [data-pdf]').forEach(function (c) { if (c.checked) po[c.dataset.pdf] = 1; });
+    if (!Object.keys(po).length) { $('#exErr').textContent = 'กรุณาติ๊กเลือกอย่างน้อย 1 ส่วนที่จะส่งออก'; return; }
+    $('#exErr').textContent = '';
+    window.stockPdfRun(this, po).then(function (ok) { if (ok) closeDlg('#exDlg'); });
+    return;
+  }
   var mode = document.querySelector('input[name=exMode]:checked').value, brName = mode === 'branch' ? $('#exBr').value : '';
   var list = mode === 'all' ? D.items : (mode === 'branch' ? exBranchItems() : LAST_RAW);
   var exX = {}; document.querySelectorAll('#exExtra [data-exx]').forEach(function (c) { if (c.checked) exX[c.dataset.exx] = 1; });
