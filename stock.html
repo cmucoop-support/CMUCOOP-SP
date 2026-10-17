@@ -1188,10 +1188,10 @@ function renderCtList(cnt) {
   var dis = edit ? '' : ' disabled title="ต้องมีสิทธิ์แก้ไขสต็อก"';
   var dataCnt = { lost: (D.lost || []).length, exp: (D.exp || []).length, pend: (D.pend || []).length, waste: (D.waste || []).length, hard: Object.keys(D.hard || {}).length };
   var base = BASE_TAGS.map(function (k) {
-    var gone = !!CT.removed[k], real = dataCnt[k] !== undefined, n = real ? dataCnt[k] : (cnt && cnt[k] || 0);
+    if (CT.removed[k]) return '';
+    var real = dataCnt[k] !== undefined, n = real ? dataCnt[k] : (cnt && cnt[k] || 0);
     return '<div class="ct-row"><span class="ct-n">' + esc(TAGS[k].t) + ' <span class="muted">(แท็กของระบบ)</span></span>' +
-      (gone ? '<span class="muted">ลบออกจากตัวกรองแล้ว</span><button type="button" class="btn ghost small" data-btrestore="' + k + '">คืนแท็กในตัวกรอง</button>'
-            : '<span class="muted">' + (real ? 'มีข้อมูลจริง ' : 'ตามยอดสต็อก ') + nf0.format(n) + ' รายการ</span><button type="button" class="btn ghost small" data-btdel="' + k + '"' + (real ? dis : '') + ' aria-label="ลบแท็ก ' + esc(TAGS[k].t) + '">× ลบแท็ก' + (real ? 'และข้อมูลจริง' : '') + '</button>') + '</div>';
+      '<span class="muted">' + (real ? 'มีข้อมูลจริง ' : 'ตามยอดสต็อก ') + nf0.format(n) + ' รายการ</span><button type="button" class="btn ghost small" data-btdel="' + k + '"' + (real ? dis : '') + ' aria-label="ลบแท็ก ' + esc(TAGS[k].t) + '">× ลบแท็ก' + (real ? 'และข้อมูลจริง' : '') + '</button></div>';
   }).join('');
   var custom = ctKeys().map(function (k) {
     var id = k.slice(2), d = D.ctags[id], deduct = d.mode === 'deduct';
@@ -1558,7 +1558,7 @@ function openDotPop(btn, code, br, g) {
     { k: 'waste', label: 'ของเสีย' },
     { k: 'pend', label: 'รอปรับ' },
     { k: 'hard', label: 'ขายยาก' }
-  ].concat(ctKeys().map(function (k) { return { k: k, label: TAGS[k].t, custom: true }; }));
+  ].filter(function (o) { return !CT.removed[o.k]; }).concat(ctKeys().map(function (k) { return { k: k, label: TAGS[k].t, custom: true }; }));
   pop.innerHTML = '<div class="dot-pop-hd">' + esc(code) + (x.name ? ' · ' + esc(x.name.slice(0, 28)) : '') + (br ? ' <span class="muted">· ' + esc(br) + '</span>' : '') + '</div>' +
     opts.map(function (o) {
       var checked = o.k === 'hard' ? !!x.hard : (o.custom && ctTagOnly(o.k) ? ctHas(x, o.k) : !!(x.tg && x.tg[o.k] !== undefined));
@@ -1859,13 +1859,12 @@ $('#ctAdd').addEventListener('click', function () {
 $('#ctName').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#ctAdd').click(); } });
 $('#ctList').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b || b.disabled) return;
-  if (b.dataset.btrestore) { delete CT.removed[b.dataset.btrestore]; ctSave(); render(); toast('คืนแท็กในตัวกรองแล้ว'); return; }
   if (b.dataset.btdel) {
     var bk = b.dataset.btdel, nm = TAGS[bk].t, kinds = { lost: 1, exp: 1, pend: 1, waste: 1 };
     var keys = kinds[bk] ? (D[bk] || []).map(function (y) { return y.k; }) : [];
     var hardCodes = bk === 'hard' ? Object.keys(D.hard || {}).map(function (h) { return D.hard[h].code || h; }) : [];
     var real = kinds[bk] ? keys.length : hardCodes.length, derived = !kinds[bk] && bk !== 'hard';
-    var msg = derived ? 'ลบแท็ก "' + nm + '" ออกจากตัวกรอง ?\n(แท็กนี้คำนวณจากยอดสต็อก ไม่มีข้อมูลให้ลบ — กด "คืนแท็กในตัวกรอง" ได้)'
+    var msg = derived ? 'ลบแท็ก "' + nm + '" ออกจากตัวกรอง ?\n(แท็กนี้คำนวณจากยอดสต็อก ไม่มีข้อมูลให้ลบ)'
       : 'ลบแท็ก "' + nm + '" พร้อมข้อมูลจริง ' + nf0.format(real) + ' รายการ ?\n' + (kinds[bk] ? 'จำนวนที่หักไว้จะกลับมานับรวมในค้างสต็อกทันที' : 'สินค้าทุกรายการจะถูกถอดแท็ก') + '\nการลบข้อมูลจริงย้อนกลับไม่ได้';
     if (!confirm(msg)) return;
     busy(b, async function () {
