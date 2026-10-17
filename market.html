@@ -282,10 +282,10 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <thead><tr><th colspan="2">กำไรเฉลี่ยของสินค้าที่มีอยู่ (คงเหลือ &gt; 0)</th></tr></thead>
 <tbody>
 <tr><td>จำนวนสินค้าเคลื่อนไหว</td><td class="num"><b id="smActive">0</b> รายการ</td></tr>
-<tr><td>กำไรเฉลี่ยหักเดิม (ไม่รวม Vat)</td><td class="num"><b id="smAvgEx">0.00%</b></td></tr>
-<tr><td>กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</td><td class="num"><b id="smAvgInc">0.00%</b></td></tr>
-<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (ไม่รวม Vat)</td><td class="num"><b id="smAfterEx">–</b></td></tr>
-<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (รวม Vat)</td><td class="num"><b id="smAfterInc">–</b></td></tr>
+<tr><td>กำไรเฉลี่ยที่ยังไม่หักภาษีมูลค่าเพิ่ม</td><td class="num"><b id="smAvgEx">0.00%</b></td></tr>
+<tr><td>กำไรเฉลี่ยที่หักภาษีมูลค่าเพิ่มแล้ว</td><td class="num"><b id="smAvgInc">0.00%</b></td></tr>
+<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ ที่ยังไม่หักภาษีมูลค่าเพิ่ม</td><td class="num"><b id="smAfterEx">–</b></td></tr>
+<tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ ที่หักภาษีมูลค่าเพิ่มแล้ว</td><td class="num"><b id="smAfterInc">–</b></td></tr>
 </tbody>
 </table>
 <div class="sum-box">
@@ -1016,11 +1016,11 @@ function buildSummaryText(gCode, gName, total, inactive, active, adjTotal, upCnt
     ' รายการ และสินค้าไม่เคลื่อนไหว ' + inactive + ' รายการ';
   text += '\n2) ผลการสำรวจ: มีข้อเสนอปรับ/พิจารณารวม ' + adjTotal + ' รายการ ประกอบด้วย ปรับขึ้น ' + upCnt +
     ' รายการ ปรับลง ' + downCnt + ' รายการ และฝากพิจารณา ' + consCnt + ' รายการ';
-  text += '\n3) กำไรเฉลี่ยของสินค้าที่มีอยู่ (คงเหลือ > 0) ก่อนปรับราคา: ไม่รวม Vat ' + exPct + ' และหลังหัก Vat แล้ว ' + incPct;
+  text += '\n3) กำไรเฉลี่ยของสินค้าที่มีอยู่ (คงเหลือ > 0) ก่อนปรับราคา: กำไรเฉลี่ยที่ยังไม่หักภาษีมูลค่าเพิ่ม ' + exPct + ' และกำไรเฉลี่ยที่หักภาษีมูลค่าเพิ่มแล้ว ' + incPct;
   if (projection) {
     text += '\n4) หากใช้ราคาแนะนำ: มีสินค้าที่ราคาต่างจากปัจจุบัน ' + projection.changedCount + ' รายการ (มีสต็อก ' + projection.changedActiveCount +
-      ' รายการ) กำไรเฉลี่ยไม่รวม Vat เปลี่ยนจาก ' + projectionPercent(projection.avgBeforeEx) + ' เป็น ' + projectionPercent(projection.avgAfterEx) +
-      ' และกำไรเฉลี่ยรวม Vat เปลี่ยนจาก ' + projectionPercent(projection.avgBeforeInc) + ' เป็น ' + projectionPercent(projection.avgAfterInc) + '.';
+      ' รายการ) กำไรเฉลี่ยที่ยังไม่หักภาษีมูลค่าเพิ่มเปลี่ยนจาก ' + projectionPercent(projection.avgBeforeEx) + ' เป็น ' + projectionPercent(projection.avgAfterEx) +
+      ' และกำไรเฉลี่ยที่หักภาษีมูลค่าเพิ่มแล้วเปลี่ยนจาก ' + projectionPercent(projection.avgBeforeInc) + ' เป็น ' + projectionPercent(projection.avgAfterInc) + '.';
   }
   return text;
 }
