@@ -132,11 +132,11 @@ body[data-workspace=market] .mt input.in-cell,body[data-workspace=market] .mt se
 body[data-workspace=market] .mt td.c-mkt{background:#faf4ff}
 body[data-workspace=market].market-focus .mt{min-width:1080px;table-layout:auto}
 .market-focus #mt colgroup{display:none}
-.market-focus #mt tbody tr:not(:has(td[colspan])) td:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(7),:nth-child(9),:nth-child(10),:nth-child(11),:nth-child(12),:nth-child(13),:nth-child(14)){display:none}
+.market-focus #mt tbody tr:not(:has(td[colspan])) td:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(8),:nth-child(9),:nth-child(10),:nth-child(11),:nth-child(12),:nth-child(13)){display:none}
 .market-focus #mt td.nm{min-width:180px;font-weight:600;text-align:left}
 .market-focus #mt td.code{font-size:11px}
-.market-focus #mt td:nth-child(17){min-width:130px}
-.market-focus #mt td:nth-child(19){min-width:130px}
+.market-focus #mt td:nth-child(16){min-width:130px}
+.market-focus #mt td:nth-child(18){min-width:130px}
 
 @media(max-width:1150px){
 body[data-workspace] .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -199,14 +199,14 @@ body[data-workspace=market].market-focus #mt{display:block;min-width:0;table-lay
 .market-focus #mt tbody{display:grid;gap:14px}
 .market-focus #mt tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:15px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .market-focus #mt tbody td{display:block!important;padding:0!important;min-width:0!important;border:0!important;background:transparent!important;text-align:left!important;font-size:13px;overflow-wrap:anywhere}
-.market-focus #mt tbody tr:not(:has(td[colspan])) td:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(7),:nth-child(9),:nth-child(10),:nth-child(11),:nth-child(12),:nth-child(13),:nth-child(14)){display:none!important}
+.market-focus #mt tbody tr:not(:has(td[colspan])) td:is(:nth-child(1),:nth-child(5),:nth-child(6),:nth-child(8),:nth-child(9),:nth-child(10),:nth-child(11),:nth-child(12),:nth-child(13)){display:none!important}
 .market-focus #mt td[data-label]:before{content:attr(data-label);display:block;font-size:11px;color:var(--steel);font-weight:400;margin-bottom:5px}
-.market-focus #mt td:nth-child(2),.market-focus #mt td:nth-child(3),.market-focus #mt td:nth-child(19),.market-focus #mt td:nth-child(20),.market-focus #mt td[colspan]{grid-column:1/-1}
+.market-focus #mt td:nth-child(2),.market-focus #mt td:nth-child(3),.market-focus #mt td:nth-child(18),.market-focus #mt td:nth-child(19),.market-focus #mt td[colspan]{grid-column:1/-1}
 .market-focus #mt td:nth-child(3){font-size:16px;font-weight:700}
-.market-focus #mt td:nth-child(2):before,.market-focus #mt td:nth-child(3):before,.market-focus #mt td:nth-child(20):before{display:none}
+.market-focus #mt td:nth-child(2):before,.market-focus #mt td:nth-child(3):before,.market-focus #mt td:nth-child(19):before{display:none}
 .market-focus #marketTableCard>.tscroll{border:0;max-height:none;overflow:visible}
 .market-focus #mt td input,.market-focus #mt td select{width:100%;min-width:0}
-.market-focus #mt td:nth-child(20) .gbtn{min-height:34px;padding:6px 10px}
+.market-focus #mt td:nth-child(19) .gbtn{min-height:34px;padding:6px 10px}
 }
 }
 @media print{.workspace-intro,.workspace-context,.workspace-nav,.workspace-stats,.workspace-view-help,.market-savebar{display:none!important}}

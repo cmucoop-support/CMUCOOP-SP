@@ -3,7 +3,7 @@
   'use strict';
   var kind=document.body.dataset.workspace;
   var marketFullHead='',marketView='focus';
-  var marketLabels=['ลำดับ','รหัสบาร์','สินค้า','คงเหลือ','การปรับล่าสุด','วันที่ปรับ','ต้นทุน','ราคาขาย','กำไรก่อน VAT','อัตรากำไรก่อน VAT','ต้นทุนรวม VAT','กำไรรวม VAT','อัตรากำไรรวม VAT','ราคากำไร 30%','ราคาตลาดต่ำสุด','ราคาตลาดสูงสุด','คำแนะนำ','ราคาแนะนำ','หมายเหตุ','ค้นหา'];
+  var marketLabels=['ลำดับ','รหัสบาร์','สินค้า','คงเหลือ','การปรับล่าสุด','ต้นทุน','ราคาขาย','กำไรก่อน VAT','อัตรากำไรก่อน VAT','ต้นทุนรวม VAT','กำไรรวม VAT','อัตรากำไรรวม VAT','ราคากำไร 30%','ราคาตลาดต่ำสุด','ราคาตลาดสูงสุด','คำแนะนำ','ราคาแนะนำ','หมายเหตุ','ค้นหา'];
   function byId(id){return document.getElementById(id);}
   function resizeCharts(){requestAnimationFrame(function(){document.querySelectorAll('canvas').forEach(function(canvas){if(window.Chart&&canvas.getClientRects().length){var chart=Chart.getChart(canvas);if(chart)chart.resize();}});if(typeof window.fixHead==='function')window.fixHead();});}
   function workTab(key,focus){
@@ -16,7 +16,7 @@
   }
   function marketRows(){
     var table=byId('mt');if(!table)return;
-    table.querySelectorAll('tbody tr').forEach(function(row){if(row.cells.length!==20)return;Array.from(row.cells).forEach(function(cell,index){cell.dataset.label=marketLabels[index];});});
+    table.querySelectorAll('tbody tr').forEach(function(row){if(row.cells.length!==19)return;Array.from(row.cells).forEach(function(cell,index){cell.dataset.label=marketLabels[index];});});
   }
   function marketSelect(view){
     marketView=view;
@@ -24,7 +24,7 @@
     byId('marketTableCard').hidden=view==='summary';byId('sumCard').hidden=view!=='summary';
     document.querySelectorAll('[data-market-view]').forEach(function(b){var on=b.dataset.marketView===view;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;if(on&&view!=='summary')byId('marketTableCard').setAttribute('aria-labelledby',b.id);});
     byId('marketViewHelp').textContent=view==='focus'?'กรอกราคาตลาดและข้อเสนอปรับราคาได้โดยตรง · ช่องกรอกกรอบสีม่วงแก้ไขได้':view==='full'?'ข้อมูลต้นทุน กำไร VAT และประวัติปรับราคาแบบครบทุกคอลัมน์':'ตรวจสรุปและชื่อผู้ลงนามก่อนส่งออกรายงาน Excel';
-    byId('mt').querySelector('thead').innerHTML=view==='focus'?'<tr>'+[1,2,3,7,14,15,16,17,18,19].map(function(i){return '<th scope="col">'+marketLabels[i]+'</th>';}).join('')+'</tr>':marketFullHead;
+    byId('mt').querySelector('thead').innerHTML=view==='focus'?'<tr>'+[1,2,3,6,13,14,15,16,17,18].map(function(i){return '<th scope="col">'+marketLabels[i]+'</th>';}).join('')+'</tr>':marketFullHead;
     marketRows();resizeCharts();
   }
   function barcodeStats(){

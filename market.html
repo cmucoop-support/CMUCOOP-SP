@@ -170,7 +170,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
 </style>
 <link href="a11y.css" rel="stylesheet"/>
-<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css?v=market-update-2" rel="stylesheet"/><script src="workspace-ui.js?v=market-update-2" defer></script></head>
+<link href="app.css" rel="stylesheet"/><link href="workspace-ui.css?v=market-update-3" rel="stylesheet"/><script src="workspace-ui.js?v=market-update-3" defer></script></head>
 <body data-workspace="market"><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>เช็คราคาตลาด</h1>
@@ -404,7 +404,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <script>
 var $ = function (s) { return document.querySelector(s); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-var stripOldNote = function (t) { return String(t == null ? '' : t).split('สุ่มสำรวจเดือนกรกฎาคม เริ่มวันที่ 02/09/2026 สิ้นสุดวันที่ 07/09/2026').join('').replace(/^[\s\u00b7]+|[\s\u00b7]+$/g, ''); };
+var stripOldNote = function () { return ''; };   /* ตัดหมายเหตุช่วงสำรวจออกจากหัวตาราง/ไฟล์ส่งออก */
 var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
 var nf0 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 });
 var nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
