@@ -292,10 +292,6 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 </div><div>
 <div class="muted" style="margin-bottom:5px">ซ่อนสินค้าในแท็ก</div>
 <div class="chk-row" id="fHideChecks"></div>
-</div><div id="ctManager" style="grid-column:1/-1">
-<div class="muted" style="margin-bottom:5px">จัดการแท็ก (เพิ่ม/ลบแท็กได้ ทั้งแท็กเดิมและแท็กที่สร้างเอง)</div>
-<div class="ct-add"><input type="text" id="ctName" maxlength="30" placeholder="ชื่อแท็กใหม่ เช่น สินค้าโปรโมชั่น" aria-label="ชื่อแท็กใหม่"><select id="ctMode" aria-label="โหมดแท็ก"><option value="tag">แท็กเฉยๆ (ไม่หักยอด)</option><option value="deduct">หักออก (หักจำนวนจากค้างสต็อก)</option></select><button type="button" class="btn small" id="ctAdd">+ เพิ่มแท็ก</button></div>
-<div id="ctList"></div>
 </div></details></section><section class="kpis" id="kpis"></section><nav class="workspace-nav" role="tablist" aria-label="มุมมองstock"><button type="button" role="tab" id="ws-stock-tab-items" data-work-tab="items" aria-controls="ws-stock-items" aria-selected="true" tabindex="0">รายการสินค้า</button><button type="button" role="tab" id="ws-stock-tab-overview" data-work-tab="overview" aria-controls="ws-stock-overview" aria-selected="false" tabindex="-1">ภาพรวมและแนวโน้ม</button><button type="button" role="tab" id="ws-stock-tab-analysis" data-work-tab="analysis" aria-controls="ws-stock-analysis" aria-selected="false" tabindex="-1">วิเคราะห์และรายการตัดออก</button></nav><div class="workspace-pane" role="tabpanel" id="ws-stock-items" aria-labelledby="ws-stock-tab-items" data-work-pane="items"><section class="card">
 <div class="cardhead"><h3>รายการสินค้า <small id="dtNote"></small></h3></div>
 <div class="tscroll"><table id="dt"></table></div>
@@ -462,6 +458,11 @@ tr.row-zero td{color:var(--steel);background:#fafafa}
 <div style="width:100%;font-size:13px;font-weight:600;color:var(--accent-text)">ข้อมูลและประวัติ</div>
 <button class="btn ghost small hidden" id="bHist" type="button">จัดการประวัติย้อนหลัง</button>
 <button class="btn ghost small hidden" id="bClear" style="color:var(--bad)" type="button">ล้างข้อมูล</button>
+</div>
+<div id="ctManager" style="margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
+<div style="font-size:13px;font-weight:600;color:var(--accent-text);margin-bottom:6px">จัดการแท็ก (เพิ่ม/ลบแท็กได้ ทั้งแท็กเดิมและแท็กที่สร้างเอง)</div>
+<div class="ct-add"><input type="text" id="ctName" maxlength="30" placeholder="ชื่อแท็กใหม่ เช่น สินค้าโปรโมชั่น" aria-label="ชื่อแท็กใหม่"><select id="ctMode" aria-label="โหมดแท็ก"><option value="tag">แท็กเฉยๆ (ไม่หักยอด)</option><option value="deduct">หักออก (หักจำนวนจากค้างสต็อก)</option></select><button type="button" class="btn small" id="ctAdd">+ เพิ่มแท็ก</button></div>
+<div id="ctList"></div>
 </div>
 <div class="err" id="nmErr"></div>
 <div class="row"><button class="btn ghost" id="nmCancel">ปิด</button><button class="btn" id="nmSave">บันทึกตั้งค่าหมวด</button></div>
