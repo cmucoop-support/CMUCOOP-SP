@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>เช็คราคาตลาด · CMUCOOP</title>
 <link href="logo.png" rel="icon" type="image/png"/>
-<script src="gas-shim.js"></script>
+<script src="gas-shim.js?v=stable-1"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <link href="fonts.css" rel="stylesheet"/>
 <script src="vendor/xlsx.full.min.js"></script>
@@ -759,8 +759,6 @@ function stateContent(state) {
 }
 function syncToServer(quiet) {
   if (!D.me || !D.me.edit) return Promise.resolve(false);
-  var snapshot = JSON.parse(JSON.stringify(stateObj()));
-  var content = stateContent(snapshot);
   var saveUser = D.me.user, saveToken = TOKEN;
   DIRTY = true;
   $('#bSaveEdits').classList.remove('hidden');
@@ -768,6 +766,11 @@ function syncToServer(quiet) {
   SAVE_CHAIN = SAVE_CHAIN.then(async function () {
     try {
       if (!D.me || D.me.user !== saveUser || TOKEN !== saveToken) return false;
+      if (!DIRTY) return true;
+      // Capture at execution time: queued clicks share the newest draft and do
+      // not retain multiple complete copies of a large market dataset.
+      var snapshot = JSON.parse(JSON.stringify(stateObj()));
+      var content = stateContent(snapshot);
       snapshot.revision = D.revision;
       var saved = await call('marketSaveState', snapshot);
       if (!D.me || D.me.user !== saveUser || TOKEN !== saveToken) return false;
@@ -1620,6 +1623,7 @@ async function handleUploadFiles(fileList) {
   $('#upSourceBrW').classList.add('hidden');
   try {
     var allGroups = Object.create(null), allNames = Object.create(null), fileNames = [], sNote = '', totalRows = 0;
+    if (files.some(function (f) { return f.size > 25 * 1024 * 1024; })) throw new Error('ไฟล์ใหญ่เกิน 25 MB กรุณาแบ่งไฟล์ก่อนนำเข้า');
     if (typeof XLSX === 'undefined') throw new Error('ยังโหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อและลองใหม่');
     var upDateIso = $('#upDate').value || todayIso();
     /* วันที่ข้อมูลล่าสุด: อ่านจากชื่อไฟล์ เช่น PStkall_691017.xls -> 17/10/2569 (ปีปี เดือน วัน แบบ พ.ศ.) */

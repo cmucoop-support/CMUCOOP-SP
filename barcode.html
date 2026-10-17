@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>รายการบาร์เดี่ยว/บาร์แพ็ค · CMUCOOP</title>
 <link href="logo.png" rel="icon" type="image/png"/>
-<script src="gas-shim.js"></script>
+<script src="gas-shim.js?v=stable-1"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <base target="_top"/>
 <link href="fonts.css" rel="stylesheet"/>
@@ -435,6 +435,11 @@ td.act{white-space:nowrap;min-width:170px}
 <table class="dt"><thead id="thead"></thead>
 <tbody id="tbody"><tr><td class="empty">เลือกหมวดเพื่อดูรายการ</td></tr></tbody></table>
 </div>
+<nav class="row" aria-label="หน้ารายการบาร์โค้ด" style="justify-content:flex-end;margin-top:8px;gap:8px">
+<button type="button" class="btn ghost small" id="bcPrevPage">ก่อนหน้า</button>
+<span id="bcPageInfo" class="muted" role="status" aria-live="polite"></span>
+<button type="button" class="btn ghost small" id="bcNextPage">ถัดไป</button>
+</nav>
 <div class="muted" style="margin-top:6px">ปุ่ม "แก้ไข" แก้ข้อมูลรายการ และปุ่ม "ลบ" ลบรายการออกจากชีต (ระบบบันทึกประวัติไว้ทุกครั้ง) ส่วนช่องจำนวนในระบบ / กระจาย / ของเดิม ไม่ต้องกรอกในระบบ เว้นไว้ให้เขียนบนกระดาษที่ปริ้น</div>
 </div></section>
 <section class="workspace-pane hidden" id="v-manage"><div class="workspace-section-title"><h3>เพิ่มรายการและจัดการไฟล์</h3><p>กรอกสินค้าใหม่ หรือนำเข้า Excel พร้อมสำรองข้อมูลเดิม</p></div><div class="card">
@@ -700,7 +705,7 @@ async function selectCat(key) {
     return;
   }
   if (loadId !== categoryLoadId || token !== S.token || !S.me) return;
-  S.data = data;
+  S.data = data; S.tablePage = 0;
   var sc = schemaOfCat(c);
   buildForm(sc, c);
   buildHead(sc);
@@ -717,17 +722,26 @@ function rowHtml(sc, x) {
     return '<td data-col="'+esc(c.k)+'" class="' + cls + '">' + esc(x.v[j]) + '</td>';
   }).join('') + '<td class="act"><button class="btn ghost small" data-a="edit">แก้ไข</button><button class="btn danger small" data-a="del">ลบ</button></td></tr>';
 }
+var BC_TABLE_PAGE = 200, bcSearchTimer = null;
 function renderTable() {
   if (!S.data) return;
   var c = curCat(), sc = schemaOfCat(c);
   var q = $('#q').value.trim().toLowerCase();
   var rows = S.data.rows.filter(function (x) { return !q || x.v.join(' ').toLowerCase().indexOf(q) >= 0; });
-  $('#count').textContent = 'แสดง ' + rows.length + ' จาก ' + S.data.rows.length + ' รายการ';
+  var pages = Math.max(1, Math.ceil(rows.length / BC_TABLE_PAGE));
+  S.tablePage = Math.max(0, Math.min(S.tablePage || 0, pages - 1));
+  var start = S.tablePage * BC_TABLE_PAGE, visible = rows.slice(start, start + BC_TABLE_PAGE);
+  $('#count').textContent = 'แสดง ' + (rows.length ? start + 1 : 0) + '–' + (start + visible.length) + ' จาก ' + rows.length + ' รายการ (ทั้งหมด ' + S.data.rows.length + ')';
+  $('#bcPageInfo').textContent = 'หน้า ' + (S.tablePage + 1) + ' / ' + pages;
+  $('#bcPrevPage').disabled = S.tablePage === 0;
+  $('#bcNextPage').disabled = S.tablePage >= pages - 1;
   if (window.WorkspaceUI) WorkspaceUI.barcodeStats();
-  $('#tbody').innerHTML = rows.map(function (x) { return rowHtml(sc, x); }).join('') ||
+  $('#tbody').innerHTML = visible.map(function (x) { return rowHtml(sc, x); }).join('') ||
     '<tr><td class="empty" colspan="' + (sc.cols.length + 1) + '">ไม่พบรายการ</td></tr>';
 }
-$('#q').addEventListener('input', renderTable);
+$('#q').addEventListener('input', function () { S.tablePage = 0; clearTimeout(bcSearchTimer); bcSearchTimer = setTimeout(renderTable, 150); });
+$('#bcPrevPage').addEventListener('click', function () { S.tablePage--; renderTable(); });
+$('#bcNextPage').addEventListener('click', function () { S.tablePage++; renderTable(); });
 
 /* ============================ แก้ไข / ลบรายการ (Admin) ============================ */
 var editing = null;
@@ -760,7 +774,7 @@ async function saveEdit(force) {
   if (!vals.name) { toast('กรุณากรอกชื่อรายการ', true); return; }
   $('#eSave').disabled = true;
   try {
-    var r = await withSaving(call('editItem', c.sheet, editing.item.r, editing.oldName, vals, !!force));
+    var r = await withSaving(call('editItem', c.sheet, editing.item.r, editing.oldName, vals, !!force, editing.item.revision));
     if (r.duplicate) {
       $('#eSave').disabled = false;
       if (confirm(r.message + '\nต้องการบันทึกซ้ำหรือไม่?')) return saveEdit(true);
@@ -779,7 +793,7 @@ async function delItem(c, item) {
   var sc = schemaOfCat(c), name = item.v[sc.nameCol - 1];
   if (!confirm('ลบรายการนี้ออกจากชีตถาวร?\n\n' + name + '\n\n(ลบแล้วกู้คืนจากระบบไม่ได้)')) return;
   try {
-    await withSaving(call('deleteItem', c.sheet, item.r, name));
+    await withSaving(call('deleteItem', c.sheet, item.r, name, item.revision));
     toast('ลบแล้ว: ' + name);
     await refreshCats();
     await selectCat(c.all || S.cats.some(function (x) { return x.key === c.key; }) ? c.key : (S.cats[0] ? S.cats[0].key : allCat().key));
@@ -1354,6 +1368,7 @@ $('#bcBkList').addEventListener('click', async function (e) {
 $('#bcImpFile').addEventListener('change', function () { $('#bcImpBtn').disabled = !this.files.length; });
 $('#bcImpBtn').addEventListener('click', function () {
   var f = $('#bcImpFile').files[0], mode = $('#bcImpMode').value; if (!f) return;
+  if (f.size > 25 * 1024 * 1024) { toast('ไฟล์ใหญ่เกิน 25 MB กรุณาแบ่งไฟล์ก่อนนำเข้า', true); return; }
   if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
   var fr = new FileReader();
   fr.onerror = function () { toast('อ่านไฟล์ไม่ได้', true); };

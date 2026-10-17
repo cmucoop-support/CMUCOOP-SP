@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>สินค้าค้างสต็อก · CMUCOOP</title>
 <link href="logo.png" rel="icon" type="image/png"/>
-<script src="gas-shim.js"></script>
+<script src="gas-shim.js?v=stable-1"></script>
 <link href="fonts.css" rel="stylesheet"/>
 <script src="vendor/chart.umd.min.js"></script>
 <style>
@@ -871,7 +871,7 @@ function toItem(a) {
 function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.cur) || null : null; }   // เมตาของหมวดตามฉบับที่กำลังดู
 function applyData(r) {
   TODAY_MS = Date.parse(thaiDayIso() + 'T00:00:00Z');
-  D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = dailyHistory(r.history || []);
+  D.revision = r.revision; D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = dailyHistory(r.history || []);
   Object.keys(DELETED_GROUPS).forEach(function (g) { delete D.gm[g]; delete D.names[g]; });
   Object.keys(DELETED_PREV_GRPS).forEach(function (g) {
     if (D.gm[g] && D.gm[g].prev && (!D.gm[g].prev.ts || D.gm[g].prev.ts <= DELETED_PREV_GRPS[g])) D.gm[g].prev = null;
@@ -2996,8 +2996,9 @@ $('#upSave').addEventListener('click', function () {
   var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; });
   if (!sel.length) return;
   busy(this, async function () {
+    var expectedRevision = D.revision;
     var br = UP.branch, fileName = UP.files.join(', ').slice(0, 120), btn = this, label0 = btn.textContent;
-    // บันทึกทีละชุดเล็ก ช้าได้แต่ไม่ล่ม: ลองซ้ำเมื่อเชื่อมต่อไม่ได้ (3 ครั้ง) ถ้ายังไม่ได้จะลดขนาดชุดลงครึ่งหนึ่ง · แสดงความคืบหน้าตลอด
+    // ส่งทีละชุดและตรวจ revision ทุกครั้ง; ถ้าผลไม่แน่นอนให้โหลดข้อมูลก่อนส่งซ้ำ
     var queue = sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; });
     var maxG = 4, maxRows = 400, total = queue.length, lastG = '';
     var r = { changed: [], same: [], tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
@@ -3010,7 +3011,6 @@ $('#upSave').addEventListener('click', function () {
         '<div style="height:6px;border-radius:4px;background:#e4d9fb;margin-top:6px"><div style="height:6px;border-radius:4px;background:var(--accent-text);width:' + pct + '%"></div></div>';
       btn.textContent = 'กำลังบันทึก ' + done + '/' + total + '…';
     };
-    var sleep = function (ms) { return new Promise(function (res) { setTimeout(res, ms); }); };
     var upCancel = $('#upCancel'); if (upCancel) upCancel.disabled = true;
     $('#upErr').textContent = '';
     try {
@@ -3018,22 +3018,15 @@ $('#upSave').addEventListener('click', function () {
       while (queue.length) {
         var chunk = [], cr = 0;
         while (queue.length && chunk.length < maxG && (!chunk.length || cr + queue[0].rows.length <= maxRows)) { var it = queue.shift(); chunk.push(it); cr += it.rows.length; }
-        var names = chunk.map(function (x) { return x.g; }).join(', '), rc = null, tries = 0, fatal = null, netFail = false;
-        while (!rc) {
-          showProg('กำลังส่ง ' + names + (tries ? ' · ลองใหม่ครั้งที่ ' + tries : ''));
-          try { rc = await call('stockSave', { fileName: fileName, branch: br, groups: chunk }); }
-          catch (e2) {
-            if (/เชื่อมต่อเซิร์ฟเวอร์/.test(e2.message)) {
-              if (tries < 3) { tries++; showProg('เชื่อมต่อไม่ได้ รอสักครู่แล้วลองใหม่ (' + tries + '/3) · ' + names); await sleep(1500 * tries * tries); continue; }
-              netFail = true; break;
-            }
-            fatal = e2; break;
-          }
-        }
-        if (fatal) throw fatal;
-        if (netFail) {
-          if (chunk.length > 1) { queue = chunk.concat(queue); maxG = Math.max(1, Math.floor(chunk.length / 2)); maxRows = Math.max(1, Math.floor(cr / 2)); showProg('ลดขนาดชุดเหลือ ' + maxG + ' หมวดต่อครั้ง แล้วลองใหม่'); continue; }
-          queue = chunk.concat(queue); throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ที่หมวด ' + names);
+        var names = chunk.map(function (x) { return x.g; }).join(', '), rc;
+        showProg('กำลังส่ง ' + names);
+        try {
+          rc = await call('stockSave', { fileName: fileName, branch: br, groups: chunk, revision: expectedRevision });
+          expectedRevision = rc.revision; D.revision = rc.revision;
+        } catch (writeError) {
+          queue = chunk.concat(queue);
+          if (/เชื่อมต่อเซิร์ฟเวอร์/.test(writeError.message)) throw new Error(writeError.message + ' · ผลบันทึกอาจสำเร็จแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนบันทึกต่อ');
+          throw writeError;
         }
         r.changed = r.changed.concat(rc.changed || []); r.same = r.same.concat(rc.same || []);
         ['add', 'chg', 'del', 'same'].forEach(function (k) { r.tot[k] += (rc.tot && rc.tot[k]) || 0; });
@@ -3045,7 +3038,7 @@ $('#upSave').addEventListener('click', function () {
       btn.textContent = label0; if (upCancel) upCancel.disabled = false;
       var left = queue.map(function (x) { return x.g; });
       prog.innerHTML = '<b style="color:var(--bad)">หยุดที่ ' + done + ' / ' + total + ' หมวด</b>' + (lastG ? ' · บันทึกแล้วถึง ' + esc(lastG) : '') + (left.length ? '<br>ยังไม่ได้บันทึก: ' + esc(left.join(', ')) : '') + '<br><span class="muted">กดบันทึกอีกครั้งเพื่อทำต่อ (ส่งเฉพาะหมวดที่เหลือ)</span>';
-      if (done) await load(VIEW);
+      await load(VIEW);
       throw new Error('บันทึกได้ ' + done + ' จาก ' + total + ' หมวด · ' + er.message);
     }
     if (upCancel) upCancel.disabled = false; prog.style.display = 'none';
