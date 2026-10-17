@@ -129,7 +129,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 .sum-tb th{background:#f3ecff;color:var(--accent-text);text-align:center;font-weight:700}
 .sum-box{border:1px solid #bfbfbf;border-radius:10px;overflow:hidden;background:#fff}
 .sum-box-hd{background:#f3ecff;color:var(--ink);font-weight:700;padding:8px 12px;border-bottom:1px solid #bfbfbf;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.sum-box-bd{padding:10px 12px;font-size:14px;line-height:1.55}
+.sum-box-bd{padding:10px 12px;font-size:14px;line-height:1.55;white-space:pre-line}
 .sig-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
 .sig-card{text-align:center;font-size:13.5px}
 .sig-line{border-bottom:1px solid var(--ink);padding-bottom:4px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -282,7 +282,7 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <thead><tr><th colspan="2">กำไรเฉลี่ยของสินค้าที่มีอยู่ (คงเหลือ &gt; 0)</th></tr></thead>
 <tbody>
 <tr><td>จำนวนสินค้าเคลื่อนไหว</td><td class="num"><b id="smActive">0</b> รายการ</td></tr>
-<tr><td>กำไรเฉลี่ยรวมเดิม (ไม่รวม Vat)</td><td class="num"><b id="smAvgEx">0.00%</b></td></tr>
+<tr><td>กำไรเฉลี่ยหักเดิม (ไม่รวม Vat)</td><td class="num"><b id="smAvgEx">0.00%</b></td></tr>
 <tr><td>กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</td><td class="num"><b id="smAvgInc">0.00%</b></td></tr>
 <tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (ไม่รวม Vat)</td><td class="num"><b id="smAfterEx">–</b></td></tr>
 <tr><td>กำไรเฉลี่ยหลังใช้ราคาแนะนำ (รวม Vat)</td><td class="num"><b id="smAfterInc">–</b></td></tr>
@@ -978,7 +978,7 @@ function renderAll() {
   $('#kpis').innerHTML =
     '<div class="kpi"><div class="l">สินค้าในหมวดนี้ทั้งหมด</div><div class="v">' + nf0.format(grpItems.length) + '<small>รายการ</small></div><div class="s">เคลื่อนไหว ' + nf0.format(activeItems.length) + ' · ไม่เคลื่อนไหว ' + nf0.format(inactiveCnt) + '</div></div>' +
     '<div class="kpi"><div class="l">รายการที่ต้องปรับ/พิจารณา</div><div class="v" style="color:var(--bad)">' + nf0.format(adjTotal) + '<small>รายการ</small></div><div class="s">ปรับขึ้น ' + upCnt + ' · ปรับลง ' + downCnt + ' · ฝากพิจารณา ' + consCnt + ' · คงที่ ' + constCnt + '</div></div>' +
-    '<div class="kpi"><div class="l">กำไรเฉลี่ยรวมเดิม (ไม่รวม Vat)</div><div class="v">' + projectionPercent(avgEx) + '</div><div class="s">เฉพาะสินค้าที่มีสต็อกและต้นทุนคำนวณได้ (' + nf0.format(projection.eligibleCount) + ' รายการ)</div></div>' +
+    '<div class="kpi"><div class="l">กำไรเฉลี่ยหักเดิม (ไม่รวม Vat)</div><div class="v">' + projectionPercent(avgEx) + '</div><div class="s">เฉพาะสินค้าที่มีสต็อกและต้นทุนคำนวณได้ (' + nf0.format(projection.eligibleCount) + ' รายการ)</div></div>' +
     '<div class="kpi"><div class="l">กำไรเฉลี่ยหัก Vat แล้ว (รวม Vat)</div><div class="v" style="color:var(--accent-text)">' + projectionPercent(avgInc) + '</div></div>' +
     '<div class="kpi"><div class="l">กำไรเฉลี่ยหลังใช้ราคาแนะนำ (รวม Vat)</div><div class="v">' + projectionPercent(projection.avgAfterInc) + '</div><div class="s">ราคาเปลี่ยน ' + projection.changedCount + ' รายการ · รอกรอกราคา ' + projection.missingPriceCount + ' รายการ</div></div>' +
     '<div class="kpi"><div class="l">รอบอัปเดตข้อมูล (ทุก 15 วัน)</div><div class="v" style="color:' + (cyc.cls === 'bad' ? 'var(--bad)' : cyc.cls === 'warn' ? 'var(--warn)' : 'var(--ok)') + '">' + (m && m.ts ? cyc.days + '<small>วันที่ผ่านมา</small>' : '–') + '</div><div class="s">' + (m && m.ts ? 'อัปเข้า ' + fmtDateSlash(m.rep || m.ts, false) + ' · ส่งออก ' + fmtDateSlash(Date.now(), false) : 'ยังไม่มีข้อมูล') + '</div></div>';
@@ -1012,17 +1012,15 @@ function renderAll() {
 function buildSummaryText(gCode, gName, total, inactive, active, adjTotal, upCnt, downCnt, consCnt, avgEx, avgInc, projection) {
   var title = 'หมวด ' + (gCode ? gCode + (gName ? ' ' + gName : '') : 'สินค้า');
   var exPct = projectionPercent(avgEx), incPct = projectionPercent(avgInc);
-  var text = title + ' มีสินค้าอยู่ในระบบ ' + total + ' รายการ มีสินค้าไม่เคลื่อนไหว ' + inactive + ' รายการ มีสินค้าเคลื่อนไหว ' + active +
-    ' รายการ มีข้อเสนอปรับ/พิจารณารวม ' + adjTotal + ' รายการ ซึ่งปรับขึ้น ' + upCnt + ' รายการ ปรับลง ' + downCnt +
-    ' รายการ และฝากพิจารณา ' + consCnt + ' รายการ โดยกำไรเฉลี่ยของสินค้าที่มีอยู่รวมเดิม ' + exPct +
-    ' และกำไรเฉลี่ยของสินค้าที่มีอยู่ หลังหัก Vat แล้ว ' + incPct + '.';
+  var text = '1) ภาพรวมสินค้า: ' + title + ' มีสินค้าในระบบ ' + total + ' รายการ แบ่งเป็นสินค้าเคลื่อนไหว ' + active +
+    ' รายการ และสินค้าไม่เคลื่อนไหว ' + inactive + ' รายการ';
+  text += '\n2) ผลการสำรวจ: มีข้อเสนอปรับ/พิจารณารวม ' + adjTotal + ' รายการ ประกอบด้วย ปรับขึ้น ' + upCnt +
+    ' รายการ ปรับลง ' + downCnt + ' รายการ และฝากพิจารณา ' + consCnt + ' รายการ';
+  text += '\n3) กำไรเฉลี่ยของสินค้าที่มีอยู่ (คงเหลือ > 0) ก่อนปรับราคา: ไม่รวม Vat ' + exPct + ' และหลังหัก Vat แล้ว ' + incPct;
   if (projection) {
-    text += '\nหากใช้ราคาแนะนำที่ต่างจากราคาปัจจุบัน ' + projection.changedCount + ' รายการ (มีสต็อก ' + projection.changedActiveCount +
-      ' รายการ) กำไรเฉลี่ยไม่รวม Vat จะเปลี่ยนจาก ' + projectionPercent(projection.avgBeforeEx) + ' เป็น ' + projectionPercent(projection.avgAfterEx) +
-      ' และกำไรเฉลี่ยรวม Vat จาก ' + projectionPercent(projection.avgBeforeInc) + ' เป็น ' + projectionPercent(projection.avgAfterInc) + '.';
-    text += '\nคิดกำไรเทียบต้นทุน เฉลี่ยรายสินค้าเท่ากันเฉพาะคงเหลือ > 0 และต้นทุนคำนวณได้ รวมรายการที่ไม่เปลี่ยนราคาโดยใช้ราคาปัจจุบัน ต้นทุนรวม Vat = ต้นทุน × 1.07.';
-    if (projection.missingPriceCount) text += ' มีข้อเสนอที่ยังไม่กรอกราคาที่ใช้ได้ ' + projection.missingPriceCount + ' รายการ จึงยังใช้ราคาปัจจุบัน.';
-    if (projection.excludedCostCount) text += ' ไม่นำรายการที่ต้นทุนคำนวณไม่ได้ ' + projection.excludedCostCount + ' รายการมาเฉลี่ย.';
+    text += '\n4) หากใช้ราคาแนะนำ: มีสินค้าที่ราคาต่างจากปัจจุบัน ' + projection.changedCount + ' รายการ (มีสต็อก ' + projection.changedActiveCount +
+      ' รายการ) กำไรเฉลี่ยไม่รวม Vat เปลี่ยนจาก ' + projectionPercent(projection.avgBeforeEx) + ' เป็น ' + projectionPercent(projection.avgAfterEx) +
+      ' และกำไรเฉลี่ยรวม Vat เปลี่ยนจาก ' + projectionPercent(projection.avgBeforeInc) + ' เป็น ' + projectionPercent(projection.avgAfterInc) + '.';
   }
   return text;
 }
@@ -1969,7 +1967,7 @@ function xlMarketSheet(sh, ctx, idx) {
   ], 18.6);
 
   pushRow(rSum1, [
-    E('A' + rSum1, 37), E('B' + rSum1, 38), S('C' + rSum1, 39, 'กำไรเฉลี่ยรวมเดิม'), F('D' + rSum1, 40, 'J' + rAvg, avgEx), E('E' + rSum1, 37),
+    E('A' + rSum1, 37), E('B' + rSum1, 38), S('C' + rSum1, 39, 'กำไรเฉลี่ยหักเดิม'), F('D' + rSum1, 40, 'J' + rAvg, avgEx), E('E' + rSum1, 37),
     S('F' + rSum1, 119, sh.sumText),
     E('G' + rSum1, 119), E('H' + rSum1, 119), E('I' + rSum1, 119), E('J' + rSum1, 119), E('K' + rSum1, 119), E('L' + rSum1, 119),
     E('M' + rSum1, 119), E('N' + rSum1, 119), E('O' + rSum1, 119), E('P' + rSum1, 119), E('Q' + rSum1, 119), E('R' + rSum1, 119), E('S' + rSum1, 37)
