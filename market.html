@@ -361,7 +361,6 @@ table.mt{border-collapse:collapse;table-layout:fixed;width:100%;min-width:1150px
 <div style="grid-column:1/-1;font-weight:700;color:var(--accent-text);font-size:14px">ตั้งค่าบรรทัดบนสุดของหัวตาราง (Row 1)</div>
 <label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่อัปข้อมูลเข้าระบบ (มุมซ้ายบน A1:F1)<input id="exLeftHead" type="text"/></label>
 <label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่ส่งออกข้อมูล / ช่วงสำรวจ (มุมขวาบน G1:S1)<input id="exRightHead" type="text"/></label>
-<label style="font-size:13px;font-weight:600;color:var(--steel)">หมายเหตุช่วงสำรวจเพิ่มเติม (ต่อท้ายมุมขวาบน ไม่บังคับ)<input id="exSurveyNote" placeholder="เช่น สุ่มสำรวจเดือนตุลาคม เริ่มวันที่ 01/10/2026 สิ้นสุดวันที่ 15/10/2026" type="text"/></label>
 <label style="font-size:13px;font-weight:600;color:var(--steel)">รูปแบบปี พ.ศ./ค.ศ. สำหรับวันที่เริ่มต้น<select id="exYearMode">
 <option value="ce">ค.ศ. เช่น 15/10/2026 (ตามไฟล์ตัวอย่าง)</option>
 <option value="be">พ.ศ. เช่น 15/10/2569</option>
@@ -1087,7 +1086,7 @@ function renderTable() {
         '<td class="code">' + esc(x.code) + '</td>' +
         '<td class="nm">' + esc(x.name) + '</td>' +
         '<td>' + nf0.format(x.qty) + '</td>' +
-        '<td class="chg" style="' + chgColor + '">' + esc(update.text) + (update.text && update.date ? '<span class="muted" style="display:block;font-weight:400;color:var(--steel)">' + esc(update.date) + '</span>' : '') + '</td>' +
+        '<td class="chg" style="' + chgColor + '">' + esc(update.text) + '</td>' +
         '<td class="c-cost">' + money(x.cost) + '</td>' +
         '<td class="c-price">' + money(x.price) + '</td>' +
         '<td>' + money(x.profitEx) + '</td>' +
@@ -1114,7 +1113,7 @@ function renderTable() {
       '<td class="code">' + esc(x.code) + '</td>' +
       '<td class="nm">' + esc(x.name) + '</td>' +
       '<td>' + nf0.format(x.qty) + '</td>' +
-      '<td class="chg" style="' + chgColor + '">' + esc(update.text) + (update.text && update.date ? '<span class="muted" style="display:block;font-weight:400;color:var(--steel)">' + esc(update.date) + '</span>' : '') + '</td>' +
+      '<td class="chg" style="' + chgColor + '">' + esc(update.text) + '</td>' +
       '<td class="c-cost">' + money(x.cost) + '</td>' +
       '<td class="c-price">' + money(x.price) + '</td>' +
       '<td>' + money(x.profitEx) + '</td>' +
@@ -1891,7 +1890,7 @@ function xlMarketSheet(sh, ctx, idx) {
     var codeCell = /^(0|[1-9]\d{0,14})$/.test(codeStr) ? N('B' + r, 5, Number(codeStr)) : S('B' + r, 5, codeStr);
     var update = latestUpdate(x);
     var projected = priceProjection(x);
-    var eTxt = update.text ? update.text + (update.date ? '\n' + update.date : '') : '';
+    var eTxt = update.text ? update.text : '';
     var oCell = (x.mktMin === '' || x.mktMin === null || x.mktMin === undefined)
       ? E('O' + r, 56)
       : (typeof x.mktMin === 'number' && isFinite(x.mktMin) ? N('O' + r, 59, x.mktMin) : S('O' + r, 59, String(x.mktMin)));
@@ -2142,7 +2141,7 @@ function refreshExHeaders() {
   var m = curGroupMeta(F.g);
   var upDate = fmtDateSlash((m && (m.rep || m.ts)) || Date.now(), useBe);
   var exDate = fmtDateSlash(Date.now(), useBe);
-  var sNote = $('#exSurveyNote').value.trim();
+  var sNote = stripOldNote((m && m.surveyNote) || D.surveyNote || '');
   $('#exLeftHead').value = 'อัปข้อมูลเข้า วันที่ ' + upDate;
   $('#exRightHead').value = 'ส่งออกข้อมูล วันที่ ' + exDate + (sNote ? ' · ' + sNote : '');
 }
@@ -2150,7 +2149,6 @@ function refreshExHeaders() {
 $('#bXlsx').addEventListener('click', function () {
   if (!D.items.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
   var m = curGroupMeta(F.g);
-  $('#exSurveyNote').value = stripOldNote((m && m.surveyNote) || D.surveyNote || '');
   refreshExHeaders();
   var flt = filteredItems();
   var gSet = Object.create(null); flt.forEach(function (x) { gSet[x.g] = 1; });
@@ -2160,7 +2158,6 @@ $('#bXlsx').addEventListener('click', function () {
   $('#exDlg').classList.remove('hidden');
 });
 $('#exYearMode').addEventListener('change', refreshExHeaders);
-$('#exSurveyNote').addEventListener('input', refreshExHeaders);
 $('#exCancel').addEventListener('click', function () { $('#exDlg').classList.add('hidden'); });
 
 $('#exGo').addEventListener('click', function () {
@@ -2173,7 +2170,6 @@ $('#exGo').addEventListener('click', function () {
     var useBe = $('#exYearMode').value === 'be';
     var customLeft = $('#exLeftHead').value.trim();
     var customRight = $('#exRightHead').value.trim();
-    D.surveyNote = $('#exSurveyNote').value.trim();
 
     var sheets = Object.keys(byG).sort().map(function (g) {
       var gItems = byG[g], gName = (D.names && D.names[g]) || '';
