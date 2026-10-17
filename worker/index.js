@@ -1636,7 +1636,8 @@ API.stockSave = async (C, token, payload) => {
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
-  await stockRebuildSummaries(C, state, lost, replacements);
+  // ไม่มีรายการหัก (ของหาย/หมดอายุ/แท็กหักออก) → ยอดสรุปรายหมวดที่คำนวณในลูปถูกต้องแล้ว ไม่ต้องโหลดทุกหมวดมาคำนวณใหม่ (ประหยัด CPU ของ Worker)
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
