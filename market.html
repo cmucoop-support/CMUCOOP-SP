@@ -596,13 +596,19 @@ function calcItem(r, idx) {
   };
 }
 
+function dateFromFileName(n) {
+  var m = /(?:^|[^\d])(\d{2})(\d{2})(\d{2})(?:[^\d]|$)/.exec(String(n || '')); if (!m) return '';
+  var y = 2500 + Number(m[1]) - 543, mo = Number(m[2]), d = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 2000 || y > 2100) return '';
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
 function latestUpdate(x) {
   var hasChange = x.chgTxt && x.chgTxt !== '-';
   var hasDate = x.chgDate && x.chgDate !== '-';
   return {
-    text: hasChange ? x.chgTxt : (hasDate ? 'อัปเดตจากไฟล์' : 'นำเข้าข้อมูล'),
+    text: hasChange ? x.chgTxt : 'อัปเดตจากไฟล์',
     date: hasDate ? x.chgDate : (x.rep || '-'),
-    dateLabel: hasDate ? 'วันที่อัปเดตจากไฟล์/ประวัติราคา' : 'วันที่นำเข้าข้อมูล'
+    dateLabel: hasDate ? 'วันที่อัปเดตจากไฟล์/ประวัติราคา' : 'วันที่ข้อมูลจากไฟล์'
   };
 }
 
@@ -1338,6 +1344,49 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
       return;
     }
 
+    /* ไฟล์ Allproduct: ทุกสาขาอยู่ในชีตเดียว แต่ละสาขามีคอลัมน์ "<รหัสสาขา>ปรับ" ตามด้วย "ขาย" ของสาขานั้น
+       คอลัมน์ "อัพเดท" = วันที่อัปเดตล่าสุดของสินค้า · แตกเป็นรายการต่อสาขา แล้วให้เลือกสาขาที่ตรงตอนอัปโหลด */
+    var apHdr = -1, apC = {}, apBr = [];
+    for (var ah = 0; ah < Math.min(grid.length, 15) && apHdr < 0; ah++) {
+      var ahr = grid[ah] || [], am = Object.create(null), brs = [];
+      ahr.forEach(function (cell, j) {
+        var raw = String(cell == null ? '' : cell).replace(/[\s\u00a0]+/g, ''), k = raw.toLowerCase();
+        if (k && am[k] === undefined) am[k] = j;
+        var mb = /^([A-Za-z0-9]{1,8})ปรับ$/.exec(raw);
+        if (mb) {
+          var pc = -1;
+          for (var j2 = j + 1; j2 < ahr.length; j2++) { if (normH(ahr[j2]) === 'ขาย') { pc = j2; break; } }
+          if (pc >= 0) brs.push({ name: mb[1].toUpperCase(), chg: j, price: pc });
+        }
+      });
+      if (brs.length && am['ชื่อสินค้า'] !== undefined && (am['รหัส'] !== undefined || am['barcode'] !== undefined) && am['ต้นทุน'] !== undefined) {
+        apHdr = ah; apBr = brs;
+        apC = { g: am['กลุ่ม'], code: am['รหัส'], bar: am['barcode'], name: am['ชื่อสินค้า'], qty: am['จำนวน'], cost: am['ต้นทุน'], upd: am['อัพเดท'] !== undefined ? am['อัพเดท'] : am['อัปเดต'] };
+      }
+    }
+    if (apHdr >= 0) {
+      var cellStr = function (row, j) { return j === undefined || row[j] == null ? '' : String(row[j]).replace(/\u00a0/g, ' ').trim(); };
+      for (var ar = apHdr + 1; ar < grid.length; ar++) {
+        var arow = grid[ar] || [];
+        var aname = cellStr(arow, apC.name), acode = cellStr(arow, apC.code) || cellStr(arow, apC.bar);
+        if (!aname || !acode) continue;
+        var ag = (cellStr(arow, apC.g) || grpCode).toUpperCase();
+        var aqty = Number(cellStr(arow, apC.qty).replace(/,/g, '')) || 0;
+        var acost = Number(cellStr(arow, apC.cost).replace(/,/g, '')) || 0;
+        var adate = apC.upd !== undefined ? parseDateCell(arow[apC.upd]) : '-';
+        apBr.forEach(function (b) {
+          var aprice = Number(cellStr(arow, b.price).replace(/,/g, '')) || 0;
+          var achg = cellStr(arow, b.chg).replace(/^([<>])\s*(ปรับ(?:ลง|ขึ้น))\s*เดิม\s*([\d.,]+)\s*(ลง|ขึ้น)\s*([\d.,]+)/, '$1 $2\nเดิม $3 $4 $5') || '-';
+          (groups[ag] || (groups[ag] = { g: ag, rep: repDate, surveyNote: sNote, items: [] })).items.push({
+            g: ag, code: acode, name: aname, sourceBranch: b.name, qty: aqty, chgTxt: achg, chgDate: adate,
+            cost: acost, price: aprice, mktMin: '', mktMax: '', recAct: aqty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่', recPrice: '', editNote: '', rep: repDate, hasMarketCols: false
+          });
+          totalRead++;
+        });
+      }
+      return;
+    }
+
     /* กรณีเป็นไฟล์รายงานวิเคราะห์การขาย / สต็อกสินค้าจาก POS */
     var hdrRow = -1, idx = {};
     var aliases = {
@@ -1581,6 +1630,9 @@ async function handleUploadFiles(fileList) {
     var allGroups = Object.create(null), allNames = Object.create(null), fileNames = [], sNote = '', totalRows = 0;
     if (typeof XLSX === 'undefined') throw new Error('ยังโหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อและลองใหม่');
     var upDateIso = $('#upDate').value || todayIso();
+    /* วันที่ข้อมูลล่าสุด: อ่านจากชื่อไฟล์ เช่น PStkall_691017.xls -> 17/10/2569 (ปีปี เดือน วัน แบบ พ.ศ.) */
+    var fnIso = ''; for (var fi = 0; fi < files.length && !fnIso; fi++) fnIso = dateFromFileName(files[fi].name);
+    if (fnIso) { upDateIso = fnIso; $('#upDate').value = fnIso; }
     var defG = $('#upDefGrp').value.trim() || '34';
     var defN = $('#upDefName').value.trim();
 
