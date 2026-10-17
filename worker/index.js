@@ -1302,13 +1302,25 @@ const STOCK_LOST_MAX = 5000;
  * br ว่าง = หักจากทุกสาขาตามลำดับแถวที่พบ · br มีค่า = หักเฉพาะสาขานั้น · qty ว่าง (ข้อมูลเก่าก่อนมีจำนวน) = หักทั้งบาร์ */
 const STOCK_ADJ_KV = { lost: 'STOCK_LOST', exp: 'STOCK_EXPIRED', pend: 'STOCK_PENDING', waste: 'STOCK_WASTE' }, STOCK_ADJ_LABEL = { lost: 'ของหาย', exp: 'สินค้าหมดอายุ', pend: 'รอปรับข้อมูล', waste: 'ของเสีย' };
 const stockAdjKey = (code, br) => stockCodeKey(code) + (stockBrKey(br) ? '@' + stockBrKey(br) : '');
+/* แท็กที่ผู้ใช้สร้างเอง: kv STOCK_CTAGS = { <id>: { t: ชื่อ, mode: 'deduct'|'tag', ts, who } }
+ * mode 'deduct' = หักจำนวนออกจากค้างสต็อกเหมือนของหาย (kv STOCK_CT_<id>, kind = 'c_<id>')
+ * mode 'tag' = ติดแท็กเฉยๆ ไม่หักยอด (kv STOCK_CTMAP = { <id>: { <codeKey>|<brKey>: 1 } }) */
+const STOCK_CT_MAX = 50, STOCK_CT_ID_RE = /^[a-z0-9]{4,16}$/;
+async function stockCtagDefs(C) {
+  const raw = (await stateJson(C, 'STOCK_CTAGS', {})) || {}, out = {};
+  Object.keys(raw).forEach(id => { const v = raw[id]; if (STOCK_CT_ID_RE.test(id) && v && typeof v === 'object' && str(v.t)) out[id] = { t: str(v.t).slice(0, 30), mode: v.mode === 'deduct' ? 'deduct' : 'tag', ts: v.ts || 0, who: str(v.who) }; });
+  return out;
+}
+function stockCtagMeta(id, def) { return { label: def.t, kv: 'STOCK_CT_' + id }; }
 async function stockAdjLoad(C) {
-  const out = {};
-  for (const kind of Object.keys(STOCK_ADJ_KV)) {
-    const raw = (await stateJson(C, STOCK_ADJ_KV[kind], {})) || {}, m = {};
+  const out = {}, defs = await stockCtagDefs(C), kinds = {}, labels = {};
+  Object.keys(STOCK_ADJ_KV).forEach(k => { kinds[k] = STOCK_ADJ_KV[k]; labels[k] = STOCK_ADJ_LABEL[k]; });
+  Object.keys(defs).forEach(id => { if (defs[id].mode === 'deduct') { kinds['c_' + id] = 'STOCK_CT_' + id; labels['c_' + id] = defs[id].t; } });
+  for (const kind of Object.keys(kinds)) {
+    const raw = (await stateJson(C, kinds[kind], {})) || {}, m = {};
     Object.keys(raw).forEach(k => {
       const v = raw[k];
-      if (!k || !v || typeof v !== 'object' || !str(v.code) || (v.qty != null && (!Number.isFinite(Number(v.qty)) || Number(v.qty) < 0))) throw new Error('ข้อมูลรายการ' + STOCK_ADJ_LABEL[kind] + 'ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+      if (!k || !v || typeof v !== 'object' || !str(v.code) || (v.qty != null && (!Number.isFinite(Number(v.qty)) || Number(v.qty) < 0))) throw new Error('ข้อมูลรายการ' + labels[kind] + 'ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
       m[k] = v;
     });
     out[kind] = m;
@@ -1319,6 +1331,7 @@ async function stockAdjLoad(C) {
  * จำนวนสต็อกมากกว่าที่หัก → แถวยังอยู่ด้วยจำนวนที่เหลือ · หักหมดหรือเกิน → แถวหายไป · รายการที่ระบุสาขาหักก่อน แล้วค่อยหักแบบทุกสาขา */
 function stockApply(rows, adj) {
   const hit = { lost: {}, exp: {}, pend: {}, waste: {} }, by = new Map();
+  if (adj) Object.keys(adj).forEach(kind => { if (!hit[kind]) hit[kind] = {}; });
   if (adj) Object.keys(hit).forEach(kind => Object.keys(adj[kind] || {}).forEach(k => {
     const e = adj[kind][k], ck = stockCodeKey(e.code);
     if (!ck) return;
@@ -1558,7 +1571,9 @@ API.stockGet = async (C, token, ver) => {
   const barcodes = (bcRows || []).map(r => [str(r.packBar), str(r.unitBar), str(r.perPack), str(r.name), str(r.cat), str(r.partner)]);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h }; }).sort((a, b) => b.ts - a.ts);
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, barcodes };
+  const ctDefs = await stockCtagDefs(C), ctMapRaw = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, ctLists = {}, ctMap = {};
+  Object.keys(ctDefs).forEach(id => { if (ctDefs[id].mode === 'deduct') ctLists[id] = adjList('c_' + id); else ctMap[id] = Object.keys(ctMapRaw[id] || {}); });
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, barcodes, ctags: ctDefs, ctlists: ctLists, ctmap: ctMap };
 };
 /* payload = { fileName, branch, groups: [{ g, rep, title, rows }] } — อัปโหลดแยกสาขา: แทนที่เฉพาะแถวของ "สาขา branch" ในหมวดที่ส่งมา
  * แถวของสาขาอื่นในหมวดเดียวกัน และหมวดอื่นทั้งหมด ไม่ถูกแตะ
@@ -1896,8 +1911,8 @@ function stockAdjItems(items) {                                   // items = [{ 
     return { code, qty };
   }).filter(Boolean);
 }
-function stockAdjApi(kind) {
-  const label = STOCK_ADJ_LABEL[kind], kv = STOCK_ADJ_KV[kind];
+function stockAdjApi(kind, meta) {                                // meta (ไม่บังคับ) = { label, kv } สำหรับแท็กที่สร้างเอง
+  const label = meta ? meta.label : STOCK_ADJ_LABEL[kind], kv = meta ? meta.kv : STOCK_ADJ_KV[kind];
   return {
     add: async (C, token, items, note, br) => {
       const me = await stockEditAuth(C, token), list = stockAdjItems(items);
@@ -1951,13 +1966,77 @@ API.stockWasteRemove = stockWasteApi.remove;
 /* แก้หมายเหตุของรายการ ของหาย/หมดอายุ/รอปรับ/ของเสีย (ไม่แตะจำนวน) · kind = lost|exp|pend|waste · key = k จาก stockGet */
 API.stockAdjNote = async (C, token, kind, key, note) => {
   const me = await stockEditAuth(C, token);
-  if (!STOCK_ADJ_KV[kind]) throw new Error('ประเภทไม่ถูกต้อง');
+  let kvName = STOCK_ADJ_KV[kind], kLabel = STOCK_ADJ_LABEL[kind];
+  if (!kvName && /^c_/.test(str(kind))) { const defs = await stockCtagDefs(C), d = defs[str(kind).slice(2)]; if (d && d.mode === 'deduct') { kvName = 'STOCK_CT_' + str(kind).slice(2); kLabel = d.t; } }
+  if (!kvName) throw new Error('ประเภทไม่ถูกต้อง');
   const adj = await stockAdjLoad(C), cur = adj[kind], k = str(key), e = cur[k];
   if (!e) throw new Error('ไม่พบรายการนี้ (อาจถูกยกเลิกไปแล้ว) กรุณารีเฟรช');
   e.note = str(note).replace(/\s+/g, ' ').slice(0, 100);
-  await kvSet(C, STOCK_ADJ_KV[kind], JSON.stringify(cur));
-  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'แก้หมายเหตุ' + STOCK_ADJ_LABEL[kind], str(e.code) + (e.br ? '@' + e.br : '') + ' · ' + (e.note || '(ลบหมายเหตุ)'));
+  await kvSet(C, kvName, JSON.stringify(cur));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'แก้หมายเหตุ' + kLabel, str(e.code) + (e.br ? '@' + e.br : '') + ' · ' + (e.note || '(ลบหมายเหตุ)'));
   return { ok: true };
+};
+
+/* ============================== แท็กที่ผู้ใช้สร้างเอง (เพิ่ม/ลบแท็ก · เลือกโหมด หักออก/แท็กเฉยๆ) ==============================
+ * stockCtagCreate(name, mode) · stockCtagDelete(id) · stockCtagAssign(id, [{code, br}], on) สำหรับโหมดแท็กเฉยๆ
+ * stockCtagAdd(items, note, br, id) / stockCtagRemove(keys, id) สำหรับโหมดหักออก (ทำงานเหมือนของหาย/หมดอายุ) */
+async function stockCtagNeed(C, id, mode) {
+  id = str(id);
+  const defs = await stockCtagDefs(C), d = defs[id];
+  if (!d) throw new Error('ไม่พบแท็กนี้ (อาจถูกลบไปแล้ว) กรุณารีเฟรช');
+  if (mode && d.mode !== mode) throw new Error('แท็ก "' + d.t + '" เป็นโหมด' + (d.mode === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ'));
+  return { id, def: d, defs };
+}
+API.stockCtagCreate = async (C, token, name, mode) => {
+  const me = await stockEditAuth(C, token), nm = str(name).replace(/\s+/g, ' ').trim().slice(0, 30), md = str(mode) === 'deduct' ? 'deduct' : 'tag';
+  if (!nm) throw new Error('กรุณาใส่ชื่อแท็ก');
+  const defs = await stockCtagDefs(C), reserved = ['ขายยาก', 'ของหาย', 'หมดอายุ', 'รอปรับ', 'ของเสีย', 'คงเหลือ 0', 'ติดลบ'];
+  if (reserved.indexOf(nm) >= 0 || Object.keys(defs).some(k => defs[k].t === nm)) throw new Error('มีแท็กชื่อนี้อยู่แล้ว');
+  if (Object.keys(defs).length >= STOCK_CT_MAX) throw new Error('สร้างแท็กได้ไม่เกิน ' + STOCK_CT_MAX + ' แท็ก');
+  let id = '';
+  do { id = ('t' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).slice(0, 14); } while (defs[id]);
+  defs[id] = { t: nm, mode: md, ts: now(), who: me.name };
+  await kvSet(C, 'STOCK_CTAGS', JSON.stringify(defs));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สร้างแท็ก', nm + ' (' + (md === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
+  return { ok: true, id };
+};
+API.stockCtagDelete = async (C, token, id) => {
+  const me = await stockEditAuth(C, token), n = await stockCtagNeed(C, id), kind = 'c_' + n.id;
+  const adj = await stockAdjLoad(C), freed = Object.keys(adj[kind] || {}).length;
+  delete adj[kind];
+  const defs = n.defs; delete defs[n.id];
+  const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}; delete map[n.id];
+  const ops = [kvSetStmt(C, 'STOCK_CTAGS', JSON.stringify(defs)), kvSetStmt(C, 'STOCK_CTMAP', JSON.stringify(map)), stmt(C, 'DELETE FROM kv WHERE k=?', 'STOCK_CT_' + n.id)];
+  if (n.def.mode === 'deduct' && freed) { const state = await stockResumState(C, adj); ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))); }
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบแท็ก', n.def.t + (freed ? ' · คืนยอดที่หักไว้ ' + freed + ' รายการ' : ''));
+  return { ok: true, freed };
+};
+API.stockCtagAssign = async (C, token, id, items, on) => {
+  const me = await stockEditAuth(C, token), n = await stockCtagNeed(C, id, 'tag');
+  if (!Array.isArray(items)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+  if (items.length > 5000) throw new Error('ทำได้ครั้งละไม่เกิน 5,000 รายการ');
+  const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, m = map[n.id] || (map[n.id] = {});
+  let c = 0;
+  items.forEach(it => {
+    const ck = stockCodeKey(it && it.code); if (!ck) return;
+    const k = ck + '|' + stockBrKey(it.br);
+    if (on) { if (!m[k]) { m[k] = 1; c++; } } else if (m[k]) { delete m[k]; c++; }
+  });
+  if (!c) return { ok: true, changed: 0 };
+  await kvSet(C, 'STOCK_CTMAP', JSON.stringify(map));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', (on ? 'ติดแท็ก ' : 'ถอดแท็ก ') + n.def.t, c + ' รายการ');
+  return { ok: true, changed: c };
+};
+API.stockCtagAdd = async (C, token, items, note, br, id) => {
+  await stockEditAuth(C, token);
+  const n = await stockCtagNeed(C, id, 'deduct');
+  return stockAdjApi('c_' + n.id, stockCtagMeta(n.id, n.def)).add(C, token, items, note, br);
+};
+API.stockCtagRemove = async (C, token, keys, id) => {
+  await stockEditAuth(C, token);
+  const n = await stockCtagNeed(C, id, 'deduct');
+  return stockAdjApi('c_' + n.id, stockCtagMeta(n.id, n.def)).remove(C, token, keys);
 };
 
 
