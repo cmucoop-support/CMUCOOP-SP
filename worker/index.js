@@ -63,7 +63,60 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))',   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
-let schemaReady = false;
+const SCHEMA_VERSION = 'stable-1';
+SCHEMA.push(
+  'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
+  'CREATE TABLE IF NOT EXISTS kv_chunks (k TEXT, n INTEGER, data TEXT, PRIMARY KEY(k,n))',
+  'CREATE TABLE IF NOT EXISTS barcode_backup_items (backup_id INTEGER, pos INTEGER, partner TEXT, cat TEXT, name TEXT, packBar TEXT, unitBar TEXT, perPack TEXT)',
+  'CREATE INDEX IF NOT EXISTS bbi_backup ON barcode_backup_items(backup_id,pos)',
+  'CREATE TABLE IF NOT EXISTS barcode_backup_cats (backup_id INTEGER, cat TEXT, PRIMARY KEY(backup_id,cat))',
+  'CREATE INDEX IF NOT EXISTS bc_pos ON barcode_items(pos)',
+  'CREATE INDEX IF NOT EXISTS bc_name ON barcode_items(cat,name)',
+  'CREATE INDEX IF NOT EXISTS bc_pack ON barcode_items(packBar)',
+  'CREATE INDEX IF NOT EXISTS bc_unit ON barcode_items(unitBar)',
+  'CREATE INDEX IF NOT EXISTS bc_stage_ts ON barcode_stage(ts)',
+  'CREATE INDEX IF NOT EXISTS sg_ver ON stock_grp(ver,g,n)',
+  'CREATE INDEX IF NOT EXISTS log_sheet_id ON log(sheet,id DESC)',
+  'CREATE INDEX IF NOT EXISTS sessions_exp ON sessions(exp)',
+  'CREATE INDEX IF NOT EXISTS sessions_user ON sessions(username)',
+  'CREATE INDEX IF NOT EXISTS fails_until ON fails(until)',
+  'CREATE INDEX IF NOT EXISTS mq_user ON music_queue(uname,status)',
+  'CREATE INDEX IF NOT EXISTS mq_ref ON music_queue(ref,status)',
+  "CREATE TRIGGER IF NOT EXISTS keep_admin_delete BEFORE DELETE ON users WHEN OLD.role='admin' AND (SELECT COUNT(*) FROM users WHERE role='admin')<=1 BEGIN SELECT RAISE(ABORT,'ต้องมี Admin อย่างน้อย 1 คน'); END",
+  "CREATE TRIGGER IF NOT EXISTS keep_admin_update BEFORE UPDATE OF role ON users WHEN OLD.role='admin' AND NEW.role<>'admin' AND (SELECT COUNT(*) FROM users WHERE role='admin')<=1 BEGIN SELECT RAISE(ABORT,'ต้องมี Admin อย่างน้อย 1 คน'); END"
+);
+const schemaPromises = new WeakMap();
+async function ensureSchema(db) {
+  let ready = schemaPromises.get(db);
+  const first = !ready;
+  if (!ready) {
+    ready = (async () => {
+      try {
+        const version = await db.prepare('SELECT v FROM kv WHERE k=?').bind('SCHEMA_VERSION').first();
+        if (version && version.v === SCHEMA_VERSION) {
+          const cols = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+          if (cols.some(c => c.name === 'perPack')) return false;
+        }
+      } catch (e) { if (!/no such table/i.test(String(e))) throw e; }
+      // Install with the migration command before production traffic. This is a
+      // compatibility fallback for existing deployments, shared within an isolate.
+      await db.batch(SCHEMA.map(sql => db.prepare(sql)));
+      const cols = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+      if (!cols.some(c => c.name === 'perPack')) {
+        try { await db.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); }
+        catch (e) {
+          const after = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+          if (!after.some(c => c.name === 'perPack')) throw e;
+        }
+      }
+      await db.prepare('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').bind('SCHEMA_VERSION', SCHEMA_VERSION).run();
+      return true;
+    })();
+    schemaPromises.set(db, ready);
+    ready.catch(() => schemaPromises.delete(db));
+  }
+  return (await ready) && first;
+}
 
 /* ============================== เข้า/ออก ============================== */
 export default {
@@ -72,13 +125,9 @@ export default {
     const C = { env, ctx, request, base: url.origin };
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors() });
     try {
-      if (!schemaReady) { await env.DB.batch(SCHEMA.map(s => env.DB.prepare(s)));
-        try { await env.DB.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); }
-        catch (e) {
-          const columns = (await env.DB.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
-          if (!columns.some(c => c.name === 'perPack')) throw e;
-        }
-        schemaReady = true; }
+      const initialized = await ensureSchema(env.DB);
+      // No business operation has run: the client may safely repeat this request.
+      if (initialized && request.method === 'POST') return jsonOut({ ok: false, code: 'SCHEMA_INITIALIZED', error: 'ปรับโครงสร้างฐานข้อมูลเรียบร้อย กรุณาส่งคำขออีกครั้ง' });
       if (request.method === 'POST') return await rpc(C);
       if (request.method === 'GET') {
         if (url.pathname.startsWith('/file/')) return await serveFile(C, url.pathname.slice(6));
@@ -99,7 +148,20 @@ const API = {};   // ลงทะเบียนท้ายไฟล์
 async function rpc(C) {
   let out;
   try {
-    const req = JSON.parse((await C.request.text()) || '{}'), fn = String(req.fn || '');
+    const declared = Number(C.request.headers.get('Content-Length'));
+    if (declared > 32 * 1024 * 1024) throw new Error('ข้อมูลคำขอใหญ่เกิน 32 MB กรุณาแบ่งชุด');
+    const reader = C.request.body && C.request.body.getReader();
+    const decoder = new TextDecoder(); let body = '', bytes = 0;
+    if (reader) {
+      while (true) {
+        const part = await reader.read(); if (part.done) break;
+        bytes += part.value.byteLength;
+        if (bytes > 32 * 1024 * 1024) { await reader.cancel(); throw new Error('ข้อมูลคำขอใหญ่เกิน 32 MB กรุณาแบ่งชุด'); }
+        body += decoder.decode(part.value, { stream: true });
+      }
+      body += decoder.decode();
+    }
+    const req = JSON.parse(body || '{}'), fn = String(req.fn || '');
     if (PENDING.indexOf(fn) >= 0) throw new Error(NOT_YET);
     if (!Object.prototype.hasOwnProperty.call(API, fn)) throw new Error('ไม่รู้จักคำสั่ง: ' + fn);
     out = { ok: true, data: await API[fn](C, ...(Array.isArray(req.args) ? req.args : [])) };
@@ -114,12 +176,129 @@ const str = v => (v === null || v === undefined ? '' : String(v).trim());
 const now = () => Date.now();
 const all = async (C, sql, ...p) => (await C.env.DB.prepare(sql).bind(...p).all()).results || [];
 const one = (C, sql, ...p) => C.env.DB.prepare(sql).bind(...p).first();
-const run = (C, sql, ...p) => C.env.DB.prepare(sql).bind(...p).run();
-const stmt = (C, sql, ...p) => C.env.DB.prepare(sql).bind(...p);
-const batch = (C, list) => C.env.DB.batch(list);
-async function kvGet(C, k, def) { const r = await one(C, 'SELECT v FROM kv WHERE k=?', k); return r ? r.v : def; }
-function kvSetStmt(C, k, v) { return stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, String(v)); }
-const kvSet = (C, k, v) => kvSetStmt(C, k, v).run();
+const statementInfo = new WeakMap();
+function stmt(C, sql, ...p) {
+  const q = C.env.DB.prepare(sql).bind(...p); statementInfo.set(q, { sql, p }); return q;
+}
+const run = async (C, sql, ...p) => (await batch(C, [stmt(C, sql, ...p)]))[0];
+const utf8Size = value => new TextEncoder().encode(value).byteLength;
+// JSON parameters stay below D1's 2 MB value limit, including escaping/Thai text.
+function jsonBatches(values, maxBytes = 1200000) {
+  const out = []; let parts = [], bytes = 2;
+  for (const value of values) {
+    const json = JSON.stringify(value), size = utf8Size(json) + 1;
+    if (size > maxBytes) throw new Error('ข้อมูลหนึ่งรายการใหญ่เกินขนาดที่บันทึกได้');
+    if (bytes + size > maxBytes && parts.length) { out.push('[' + parts.join(',') + ']'); parts = []; bytes = 2; }
+    parts.push(json); bytes += size;
+  }
+  if (parts.length) out.push('[' + parts.join(',') + ']');
+  return out;
+}
+function scopeWrite(info, scope) {
+  if (!info || !/^(INSERT|UPDATE|DELETE)/i.test(info.sql)) return false;
+  if (scope === 'stock') return /\bstock_(grp|data)\b/i.test(info.sql) || (/\bkv\b/.test(info.sql) && info.p.some(v => typeof v === 'string' && v.startsWith('STOCK_')));
+  if (scope === 'barcode') return /^(?:INSERT(?: OR [A-Z]+)? INTO|UPDATE|DELETE FROM) barcode_(items|cats)\b/i.test(info.sql);
+  if (scope === 'media') return /^(?:INSERT(?: OR [A-Z]+)? INTO|UPDATE|DELETE FROM) (sounds|banners)\b/i.test(info.sql);
+  return false;
+}
+function compactStockOps(C, list) {
+  const deletes = [], shifts = [], inserts = [], rest = [];
+  for (const q of list) {
+    const info = statementInfo.get(q);
+    if (info && info.sql === 'DELETE FROM stock_grp WHERE g=? AND ver=1') deletes.push(info.p[0]);
+    else if (info && info.sql === 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0') shifts.push(info.p[0]);
+    else if (info && info.sql.startsWith('INSERT OR REPLACE INTO stock_grp(g,ver,n,data) SELECT')) {
+      const [g, ver, payload] = info.p;
+      for (const [n, data] of JSON.parse(payload)) inserts.push([g, ver, n, data]);
+    } else rest.push(q);
+  }
+  if (!deletes.length && !shifts.length && !inserts.length) return list;
+  const ops = [];
+  if (deletes.length) ops.push(stmt(C, 'DELETE FROM stock_grp WHERE ver=1 AND g IN (SELECT value FROM json_each(?))', JSON.stringify(deletes)));
+  if (shifts.length) ops.push(stmt(C, 'UPDATE stock_grp SET ver=1 WHERE ver=0 AND g IN (SELECT value FROM json_each(?))', JSON.stringify(shifts)));
+  for (const payload of jsonBatches(inserts)) ops.push(stmt(C, "INSERT OR REPLACE INTO stock_grp(g,ver,n,data) SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]') FROM json_each(?)", payload));
+  // Special cases deleting ver=0 or all versions must retain their original order.
+  if (rest.some(q => /^(DELETE|UPDATE).*stock_grp/.test(statementInfo.get(q)?.sql || ''))) return list;
+  return ops.concat(rest);
+}
+async function batch(C, list) {
+  if (!list.length) return [];
+  if (C.guard && C.guard.scope === 'stock') list = compactStockOps(C, list);
+  let ops = [], ends = [];
+  const guarded = C.guard && list.some(q => scopeWrite(statementInfo.get(q), C.guard.scope));
+  if (guarded) {
+    ops.push(stmt(C, 'INSERT OR IGNORE INTO write_revisions(scope,revision) VALUES(?,0)', C.guard.scope));
+    ops.push(stmt(C, 'UPDATE write_revisions SET revision=CASE WHEN revision=? THEN revision+1 ELSE -1 END WHERE scope=?', C.guard.revision, C.guard.scope));
+  }
+  for (const q of list) {
+    const info = statementInfo.get(q);
+    if (info && info.kv !== undefined) {
+      const { kv: k, value } = info;
+      // Chunk large KV documents; the marker and all chunks commit together.
+      ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=?', k));
+      if (utf8Size(value) > 250000) {
+        if (utf8Size(value) > 24 * 1024 * 1024) throw new Error('ข้อมูลประกอบใหญ่เกิน 24 MB กรุณาแบ่งชุด');
+        const chunks = [];
+        for (let i = 0; i < value.length; i += 80000) chunks.push([chunks.length, value.slice(i, i + 80000)]);
+        for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT INTO kv_chunks(k,n,data) SELECT ?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?)", k, payload));
+        ops.push(stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, JSON.stringify({ __kvChunks: true, count: chunks.length })));
+      } else ops.push(q);
+    } else {
+      ops.push(q);
+      if (info && /^DELETE FROM kv WHERE k=\?$/.test(info.sql)) ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=?', info.p[0]));
+    }
+    ends.push(ops.length - 1);
+  }
+  let results;
+  try { results = await C.env.DB.batch(ops); }
+  catch (e) {
+    if (/revision_conflict/.test(String(e))) { const conflict = new Error('ข้อมูลถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดแล้วลองบันทึกอีกครั้ง'); conflict.code = 'WRITE_CONFLICT'; throw conflict; }
+    throw e;
+  }
+  if (guarded) { C.guard.revision++; C.guard.committed = true; }
+  return ends.map(i => results[i]);
+}
+async function kvDecode(C, k, raw) {
+  if (typeof raw !== 'string' || !raw.startsWith('{"__kvChunks":true,')) return raw;
+  const snapshot = await C.env.DB.batch([
+    stmt(C, 'SELECT v FROM kv WHERE k=?', k), stmt(C, 'SELECT n,data FROM kv_chunks WHERE k=? ORDER BY n', k)
+  ]);
+  const head = (snapshot[0].results || [])[0]; if (!head) return null;
+  const marker = JSON.parse(head.v);
+  if (!marker || marker.__kvChunks !== true) return head.v;
+  const parts = snapshot[1].results || [];
+  if (parts.length !== marker.count || parts.some((p, i) => p.n !== i)) throw new Error('ข้อมูลประกอบไม่ครบ (' + k + ') กรุณาติดต่อผู้ดูแล');
+  return parts.map(p => p.data).join('');
+}
+async function kvGet(C, k, def) {
+  const r = await one(C, 'SELECT v FROM kv WHERE k=?', k);
+  return r ? kvDecode(C, k, r.v) : def;
+}
+function kvSetStmt(C, k, v) {
+  const value = String(v), q = stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, value);
+  Object.assign(statementInfo.get(q), { kv: k, value }); return q;
+}
+const kvSet = async (C, k, v) => (await batch(C, [kvSetStmt(C, k, v)]))[0];
+async function revision(C, scope) { const r = await one(C, 'SELECT revision FROM write_revisions WHERE scope=?', scope); return r ? r.revision : 0; }
+function guardedApi(fn, scope, readOnly = false, includeRevision = false) {
+  return async (C, ...args) => {
+    // Retrying only a known rolled-back conflict is safe for additive operations.
+    for (let attempt = 0; ; attempt++) {
+      const scoped = { ...C, guard: { scope, revision: await revision(C, scope), committed: false } };
+      try {
+        const result = await fn(scoped, ...args);
+        if (readOnly && await revision(scoped, scope) !== scoped.guard.revision) {
+          const e = new Error('ข้อมูลเปลี่ยนระหว่างโหลด กรุณาโหลดใหม่'); e.code = 'WRITE_CONFLICT'; throw e;
+        }
+        if (includeRevision && result && typeof result === 'object' && !Array.isArray(result)) result.revision = scoped.guard.revision;
+        return result;
+      } catch (e) {
+        if (e.code === 'WRITE_CONFLICT' && !scoped.guard.committed && attempt < 2) continue;
+        throw e;
+      }
+    }
+  };
+}
 async function kvJson(C, k, def) { const v = await kvGet(C, k, null); if (v === null) return def; try { return JSON.parse(v); } catch (e) { return def; } }
 async function stateJson(C, k, def) {
   const v = await kvGet(C, k, null);
@@ -133,9 +312,22 @@ async function stateJson(C, k, def) {
   catch (e) { throw new Error('ข้อมูลที่บันทึกไว้เสียหาย (' + k + ') กรุณาติดต่อผู้ดูแลก่อนทำรายการ'); }
 }
 async function kvMany(C, keys) {
-  const rows = await all(C, 'SELECT k,v FROM kv WHERE k IN (' + keys.map(() => '?').join(',') + ')', ...keys), m = {};
-  rows.forEach(r => { m[r.k] = r.v; });
-  return m;
+  if (!keys.length) return Object.create(null);
+  const payload = JSON.stringify(keys);
+  const snapshot = await C.env.DB.batch([
+    stmt(C, 'SELECT k,v FROM kv WHERE k IN (SELECT value FROM json_each(?))', payload),
+    stmt(C, 'SELECT k,n,data FROM kv_chunks WHERE k IN (SELECT value FROM json_each(?)) ORDER BY k,n', payload)
+  ]);
+  const out = Object.create(null), by = new Map();
+  for (const r of snapshot[1].results || []) { if (!by.has(r.k)) by.set(r.k, []); by.get(r.k).push(r); }
+  for (const r of snapshot[0].results || []) {
+    if (typeof r.v === 'string' && r.v.startsWith('{"__kvChunks":true,')) {
+      const marker = JSON.parse(r.v), parts = by.get(r.k) || [];
+      if (parts.length !== marker.count || parts.some((p, i) => p.n !== i)) throw new Error('ข้อมูลประกอบไม่ครบ (' + r.k + ') กรุณาติดต่อผู้ดูแล');
+      out[r.k] = parts.map(p => p.data).join('');
+    } else out[r.k] = r.v;
+  }
+  return out;
 }
 function numSetting(raw, min, max, def, round) {
   if (raw === undefined || raw === null || raw === '') return def;
@@ -151,14 +343,20 @@ const uuid = () => crypto.randomUUID();
 const passArg = v => String(v === null || v === undefined ? '' : v);
 
 /* ---------- ประวัติ ---------- */
+const maintenanceChecks = new WeakMap();
 async function appendLog(C, who, sheet, cat, action, detail) {
   try {
     await run(C, 'INSERT INTO log(ts,who,sheet,cat,action,detail) VALUES(?,?,?,?,?,?)', now(), str(who), sheet, cat || '', action, detail || '');
-    const day = new Date(now() + 7 * 3600e3).toISOString().slice(0, 10);
-    if ((await kvGet(C, 'LOG_PRUNE_DAY', '')) !== day) {
-      await run(C, 'DELETE FROM log WHERE ts<?', now() - LOG_DAYS * 86400000);
-      await kvSet(C, 'LOG_PRUNE_DAY', day);
-    }
+    if ((maintenanceChecks.get(C.env.DB) || 0) > now()) return;
+    maintenanceChecks.set(C.env.DB, now() + 60000);
+    const bucket = String(Math.floor(now() / 600000));
+    if (await kvGet(C, 'LOG_PRUNE_BUCKET', '') === bucket) return;
+    const due = 'NOT EXISTS (SELECT 1 FROM kv WHERE k=? AND v=?)';
+    await batch(C, [
+      stmt(C, 'DELETE FROM log WHERE id IN (SELECT id FROM log WHERE ts<? LIMIT 10000) AND ' + due, now() - LOG_DAYS * 86400000, 'LOG_PRUNE_BUCKET', bucket),
+      stmt(C, 'DELETE FROM fails WHERE k IN (SELECT k FROM fails WHERE until<? LIMIT 10000) AND ' + due, now(), 'LOG_PRUNE_BUCKET', bucket),
+      kvSetStmt(C, 'LOG_PRUNE_BUCKET', bucket)
+    ]);
   } catch (e) { console.error('บันทึกประวัติไม่สำเร็จ', e); } // ห้ามรายงานว่าบันทึกหลักล้มเหลวทั้งที่บันทึกสำเร็จแล้ว
 }
 async function sysLogTo(C, who, sheet, action, detail) { try { await appendLog(C, who, sheet, '', action, detail); } catch (e) { /* ไม่ให้บันทึกประวัติทำงานหลักล้ม */ } }
@@ -194,7 +392,7 @@ async function getUser(C, username) { const r = await one(C, 'SELECT * FROM user
 async function allUsers(C) { return (await all(C, 'SELECT * FROM users ORDER BY rowid')).map(rowToUser); }
 async function ensureAdmin(C) {
   const r = await one(C, 'SELECT COUNT(*) AS n FROM users');
-  if (!r || !r.n) { const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin'); await saveUserStmt(C, '0000', u).run(); }   // เหมือนของเดิม: Admin เริ่มต้น 0000/0000
+  if (!r || !r.n) { const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin'); await run(C, 'INSERT INTO users(username,salt,hash,role,name,perms) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM users)', '0000', u.salt, u.hash, u.role, u.name, JSON.stringify(u.perms)); }   // เหมือนของเดิม: Admin เริ่มต้น 0000/0000
 }
 async function newLinkRec(username) {
   const key = (uuid() + uuid()).replace(/-/g, ''), salt = uuid();
@@ -219,7 +417,7 @@ async function startSession(C, username, u, how) {
   return { token, user: username, name: u.name || username, role: u.role, assets: perms.assets, perms };
 }
 async function failCount(C, k) { const r = await one(C, 'SELECT n, until FROM fails WHERE k=?', k); return r && r.until > now() ? r.n : 0; }
-const failBump = (C, k, n) => run(C, 'INSERT INTO fails(k,n,until) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET n=excluded.n, until=excluded.until', k, n, now() + LOCK_SEC * 1000);
+const failBump = (C, k, n) => run(C, 'INSERT INTO fails(k,n,until) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET n=CASE WHEN fails.until>? THEN fails.n+1 ELSE 1 END, until=excluded.until', k, 1, now() + LOCK_SEC * 1000, now());
 const failClear = (C, k) => run(C, 'DELETE FROM fails WHERE k=?', k);
 
 API.login = async (C, username, password) => {
@@ -315,7 +513,7 @@ API.listUsers = async (C, token) => {
 API.saveUser = async (C, token, p) => {
   const me = await auth(C, token, true);
   p = p || {};
-  const users = await allUsers(C), map = {}; users.forEach(u => { map[u.username] = u; });
+  const users = await allUsers(C), map = Object.create(null); users.forEach(u => { map[u.username] = u; });
   const original = str(p.original), username = str(p.username), password = String(p.password || ''), role = ROLES[p.role] ? p.role : 'viewer';
   const linkMode = p.linkMode === true || p.linkMode === 'true';
   if (!username) throw new Error('กรุณากรอกรหัสผู้ใช้');
@@ -335,9 +533,8 @@ API.saveUser = async (C, token, p) => {
   if ((!old && linkMode) || (old && old.lk && original !== username)) { const nl = await newLinkRec(username); rec.lk = nl.lk; link = nl.link; }
   const next = Object.assign({}, map); if (original && original !== username) delete next[original]; next[username] = rec;
   if (!Object.keys(next).some(k => next[k].role === 'admin')) throw new Error('ต้องมี Admin อย่างน้อย 1 คน');
-  const ops = [];
+  const ops = [saveUserStmt(C, username, rec)];
   if (original && original !== username) ops.push(stmt(C, 'DELETE FROM users WHERE username=?', original), stmt(C, 'DELETE FROM sessions WHERE username=?', original));
-  ops.push(saveUserStmt(C, username, rec));
   await batch(C, ops);
   await sysLog(C, me.name, old ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้', username + ' · ' + ROLES[role] + ' · การ์ด: ' + PERM_KEYS.filter(k => rec.perms[k]).join(','));
   return { ok: true, link, relogin: original === me.user && original !== username };
@@ -518,8 +715,9 @@ async function saveFile(C, mime, b64) {
 }
 const dropFile = (C, fid) => (fid ? run(C, 'DELETE FROM files WHERE fid=?', fid) : null);
 async function fileB64(C, fid) {
-  const rows = await all(C, 'SELECT mime,data FROM files WHERE fid=? ORDER BY n', fid);
+  const rows = await all(C, 'SELECT n,mime,data FROM files WHERE fid=? ORDER BY n', fid);
   if (!rows.length) return null;
+  if (rows.some((r, i) => r.n !== i)) throw new Error('ข้อมูลไฟล์ไม่ครบ กรุณาติดต่อผู้ดูแล');
   return { mime: rows[0].mime, b64: rows.map(r => r.data).join('') };
 }
 async function dataUrl(C, fid) {
@@ -592,7 +790,9 @@ API.addBanner = async (C, token, p) => {
   const title = str(p.name).replace(/\.[^.]+$/, '').slice(0, 100);
   const id = await saveFile(C, mime, data);
   const pos = ((await one(C, 'SELECT MAX(pos) AS m FROM banners')).m || 0) + 1;
-  await run(C, 'INSERT INTO banners(id,pos,title,link,visible,ts,who,mime) VALUES(?,?,?,?,1,?,?,?)', id, pos, title, link, now(), me.name, mime);
+  try {
+    await run(C, 'INSERT INTO banners(id,pos,title,link,visible,ts,who,mime) VALUES(?,?,?,?,1,?,?,?)', id, pos, title, link, now(), me.name, mime);
+  } catch (e) { try { await dropFile(C, id); } catch (_) {} throw e; }
   await appendLog(C, me.name, 'Banner', '', 'เพิ่ม Banner', title || id);
   return { ok: true, id };
 };
@@ -849,8 +1049,9 @@ API.musicRequest = async (C, token, url) => {
   if (!admin && mine >= s.maxUser) throw new Error('คุณมีเพลงในคิวครบ ' + s.maxUser + ' เพลงแล้ว — รอให้เล่นจบหรือยกเลิกอันเดิมก่อน');
   if (item.kind !== 'audio') { const m = await ytMeta(item); if (m.error) throw new Error(m.error); if (m.title) item.title = m.title; }
   const id = uuid().replace(/-/g, '').slice(0, 12), status = (s.auto || admin) ? 'รอคิว' : 'รออนุมัติ';
-  await run(C, 'INSERT INTO music_queue(id,seq,ts,uname,who,kind,ref,url,title,thumb,status) VALUES(?, (SELECT COALESCE(MAX(seq),0)+1 FROM music_queue), ?,?,?,?,?,?,?,?,?)',
-    id, now(), me.user, me.name, item.kind, item.ref, item.url, item.title, item.thumb, status);
+  const inserted = await run(C, 'INSERT INTO music_queue(id,seq,ts,uname,who,kind,ref,url,title,thumb,status) SELECT ?, (SELECT COALESCE(MAX(seq),0)+1 FROM music_queue), ?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM music_queue WHERE status IN ' + MU_LIVE + ') < ? AND NOT EXISTS (SELECT 1 FROM music_queue WHERE ref=? AND status IN ' + MU_LIVE + ') AND (? OR (SELECT COUNT(*) FROM music_queue WHERE uname=? AND status IN ' + MU_LIVE + ') < ?)',
+    id, now(), me.user, me.name, item.kind, item.ref, item.url, item.title, item.thumb, status, MU_MAX_QUEUE, item.ref, admin ? 1 : 0, me.user, s.maxUser);
+  if (!inserted.meta.changes) throw new Error('คิวเปลี่ยนระหว่างส่งคำขอ (เต็มหรือเพลงซ้ำ) กรุณาโหลดใหม่');
   await run(C, 'DELETE FROM music_queue WHERE status NOT IN ' + MU_LIVE + ' AND COALESCE(t_end, ts)<?', now() - MU_KEEP_DAYS * 86400000);
   await appendLog(C, me.name, 'Music', '', 'ขอเพลง', item.title + (status === 'รออนุมัติ' ? ' (รออนุมัติ)' : ''));
   return { id, status, title: item.title, kind: item.kind };
@@ -952,7 +1153,7 @@ API.musicSetMaxUser = async (C, token, n) => {
 
 /* ---------- ฝั่ง TV ---------- */
 let tvSeenWrite = 0;
-async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { tvSeenWrite = now(); await kvSet(C, 'MUSIC_TV_SEEN', now()); } }
+async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { await kvSet(C, 'MUSIC_TV_SEEN', now()); tvSeenWrite = now(); } }
 API.musicTvPing = async C => { await muHeartbeat(C); return true; };     // TV เรียกระหว่างหยุดเพลงเพื่อประกาศ จะได้ไม่ถูกมองว่าออฟไลน์
 API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
   curId = str(curId); await muHeartbeat(C);
@@ -969,7 +1170,7 @@ API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
   const cmd = s.cmd && s.cmd.id === top.id && now() - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
   const paused = s.pausedId === top.id;                           // เพลงนี้ถูก Admin สั่งหยุดอยู่หรือไม่
   if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep', paused, cmd }, base) : Object.assign({ action: 'play', item: muItem(top), paused }, base);
-  const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว'", now(), top.id);
+  const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว' AND NOT EXISTS (SELECT 1 FROM music_queue WHERE status='กำลังเล่น')", now(), top.id);
   return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top), paused: false }, base) : Object.assign({ action: 'keep', paused: false }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
 };
 API.musicTvEnd = async (C, id, ok) => {
@@ -1003,7 +1204,7 @@ const BC_SCHEMA = {
 const BC_FIELDS = ['partner', 'cat', 'name', 'perPack', 'packBar', 'unitBar'];
 const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/\s+/g, '') : v.replace(/\s+/g, ' '); };
 function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
-const bcRow = (r, no) => ({ r: r.id, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
+const bcRow = (r, no) => ({ r: r.id, revision: r.ts, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
 const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
 const bcLog = (C, me, cat, action, detail) => appendLog(C, me.name, BC_SHEET, cat || '', action, detail);
 
@@ -1102,7 +1303,7 @@ API.getInit = async (C, token) => {
   const cats = await all(C, 'SELECT cat, COUNT(*) AS n, MAX(ts) AS ts, MIN(pos) AS p FROM barcode_items GROUP BY cat ORDER BY p');
   const parts = await all(C, 'SELECT cat, partner, COUNT(*) AS n FROM barcode_items GROUP BY cat, partner');
   const empties = await all(C, 'SELECT cat FROM barcode_cats ORDER BY cat');
-  const map = {}, list = [];
+  const map = Object.create(null), list = [];
   const add = (cat, n, ts) => { if (map[cat]) return; map[cat] = { key: BC_SHEET + '|' + cat, sheet: BC_SHEET, cat, label: cat, items: n, last: ts ? { ts } : null, partners: {} }; list.push(map[cat]); };
   cats.forEach(r => add(str(r.cat), r.n, r.ts));
   empties.forEach(r => add(str(r.cat), 0, 0));
@@ -1149,16 +1350,19 @@ API.addItem = async (C, token, sheet, catArg, item, force) => {
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items WHERE cat=?', v.cat);
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items');
   const at = ((a && a.p) || 0) + 1;                       // แทรกต่อจากรายการของคู่ค้า/หมวดเดียวกัน
-  await run(C, 'UPDATE barcode_items SET pos=pos+1 WHERE pos>=?', at);
-  const r = await run(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name);
-  await run(C, 'DELETE FROM barcode_cats WHERE cat=?', v.cat);
+  const saved = await batch(C, [
+    stmt(C, 'UPDATE barcode_items SET pos=pos+1 WHERE pos>=?', at),
+    stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?)', at, BC_SHEET, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name),
+    stmt(C, 'DELETE FROM barcode_cats WHERE cat=?', v.cat)
+  ]);
+  const r = saved[1];
   await bcLog(C, me, v.cat, 'เพิ่มรายการ', v.name + (v.packBar ? ' · แพ็ค ' + v.packBar : '') + (v.unitBar ? ' · เดี่ยว ' + v.unitBar : ''));
   return { ok: true, cat: v.cat, row: r.meta.last_row_id };
 };
-API.editItem = async (C, token, sheet, row, oldName, vals, force) => {
+API.editItem = async (C, token, sheet, row, oldName, vals, force, expectedRevision) => {
   const me = await auth(C, token, true); vals = vals || {};
   const cur = await one(C, 'SELECT * FROM barcode_items WHERE id=?', Number(row) || 0);
-  if (!cur || str(cur.name) !== str(oldName)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนแก้ไข');
+  if (!cur || str(cur.name) !== str(oldName) || (expectedRevision !== undefined && cur.ts !== expectedRevision)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนแก้ไข');
   const src = {}; BC_FIELDS.forEach(k => { src[k] = vals[k] === undefined ? cur[k] : vals[k]; });
   const v = bcVals(src);
   if (!v.name) throw new Error('กรุณากรอกชื่อรายการ');
@@ -1166,16 +1370,16 @@ API.editItem = async (C, token, sheet, row, oldName, vals, force) => {
   const changed = BC_FIELDS.filter(k => str(cur[k]) !== v[k]);
   if (!changed.length) return { ok: true, nochange: true, cat: str(cur.cat) };
   if (!force) { const d = await bcDup(C, v, cur.id); if (d) return { duplicate: true, message: d }; }
-  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,perPack=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, now(), me.name, cur.id);
+  await run(C, 'UPDATE barcode_items SET partner=?,cat=?,name=?,packBar=?,unitBar=?,perPack=?,ts=?,who=? WHERE id=?', v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack, Math.max(now(), (cur.ts || 0) + 1), me.name, cur.id);
   await bcLog(C, me, v.cat, 'แก้ไขรายการ', str(oldName) + ' · ' + changed.map(k => k + ': ' + str(cur[k]) + ' → ' + v[k]).join(' | '));
   return { ok: true, cat: v.cat };
 };
-API.deleteItem = async (C, token, sheet, row, name) => {
+API.deleteItem = async (C, token, sheet, row, name, expectedRevision) => {
   const me = await auth(C, token, true);
   const cur = await one(C, 'SELECT * FROM barcode_items WHERE id=?', Number(row) || 0);
-  if (!cur || str(cur.name) !== str(name)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
-  await run(C, 'DELETE FROM barcode_items WHERE id=?', cur.id);
-  if (!(await one(C, 'SELECT 1 AS x FROM barcode_items WHERE cat=?', cur.cat))) await run(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', cur.cat);   // หมวดว่างยังอยู่
+  if (!cur || str(cur.name) !== str(name) || (expectedRevision !== undefined && cur.ts !== expectedRevision)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
+  await batch(C, [stmt(C, 'DELETE FROM barcode_items WHERE id=?', cur.id),
+    stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM barcode_items WHERE cat=?)', cur.cat, cur.cat)]);   // หมวดว่างยังอยู่
   await bcLog(C, me, str(cur.cat), 'ลบรายการ', str(cur.name) + (cur.packBar ? ' · แพ็ค ' + cur.packBar : '') + (cur.unitBar ? ' · เดี่ยว ' + cur.unitBar : ''));
   return { ok: true };
 };
@@ -1187,47 +1391,59 @@ API.getLog = async (C, token, limit) => {
 /* ---------- สำเนา (เก็บ 2 ชุดล่าสุด) ---------- */
 const bcBackups = async C => (await all(C, 'SELECT id,ts,name FROM backups WHERE kind=? ORDER BY id DESC', 'barcode')).map(b => ({ id: b.id, ts: b.ts, name: b.name }));
 async function bcSnapshot(C, why) {
-  const rows = await all(C, 'SELECT partner,cat,name,packBar,unitBar,perPack FROM barcode_items ORDER BY pos');
-  const cats = (await all(C, 'SELECT cat FROM barcode_cats')).map(r => str(r.cat));
-  if (rows.length || cats.length) {
-    const data = JSON.stringify({ rows: rows.map(r => [str(r.partner), str(r.cat), str(r.name), str(r.packBar), str(r.unitBar), str(r.perPack)]), cats });
-    if (data.length > 1900000) throw new Error('ข้อมูลใหญ่เกินกว่าจะทำสำเนาได้');
-    const hash = (await sha256hex(data)).slice(0, 24), last = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'barcode');
-    if (!last || last.hash !== hash) {
-      await run(C, 'INSERT INTO backups(kind,ts,name,hash,data) VALUES(?,?,?,?,?)', 'barcode', now(), rows.length + ' รายการ · ' + why, hash, data);
-      await run(C, 'DELETE FROM backups WHERE kind=? AND id NOT IN (SELECT id FROM backups WHERE kind=? ORDER BY id DESC LIMIT ?)', 'barcode', 'barcode', BACKUP_KEEP);
-    }
-  }
+  const count = await one(C, 'SELECT COUNT(*) AS n FROM barcode_items');
+  const cats = await one(C, 'SELECT COUNT(*) AS n FROM barcode_cats');
+  if (!count.n && !cats.n) return bcBackups(C);
+  const hash = uuid();
+  await batch(C, [
+    stmt(C, 'INSERT INTO backups(kind,ts,name,hash,data) VALUES(?,?,?,?,?)', 'barcode', now(), count.n + ' รายการ · ' + why, hash, '{"__barcodeRows":true}'),
+    stmt(C, 'INSERT INTO barcode_backup_items(backup_id,pos,partner,cat,name,packBar,unitBar,perPack) SELECT (SELECT id FROM backups WHERE hash=?),pos,partner,cat,name,packBar,unitBar,perPack FROM barcode_items', hash),
+    stmt(C, 'INSERT INTO barcode_backup_cats(backup_id,cat) SELECT (SELECT id FROM backups WHERE hash=?),cat FROM barcode_cats', hash),
+    stmt(C, 'DELETE FROM backups WHERE kind=? AND id NOT IN (SELECT id FROM backups WHERE kind=? ORDER BY id DESC LIMIT ?)', 'barcode', 'barcode', BACKUP_KEEP),
+    stmt(C, 'DELETE FROM barcode_backup_items WHERE backup_id NOT IN (SELECT id FROM backups)'),
+    stmt(C, 'DELETE FROM barcode_backup_cats WHERE backup_id NOT IN (SELECT id FROM backups)')
+  ]);
   return bcBackups(C);
+}
+async function bcBackupRead(C, id) {
+  const result = await batch(C, [stmt(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode'),
+    stmt(C, 'SELECT partner,cat,name,packBar,unitBar,perPack FROM barcode_backup_items WHERE backup_id=? ORDER BY pos', Number(id) || 0),
+    stmt(C, 'SELECT cat FROM barcode_backup_cats WHERE backup_id=?', Number(id) || 0)]);
+  const b = (result[0].results || [])[0];
+  if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
+  const data = JSON.parse(b.data);
+  if (!data.__barcodeRows) return data;
+  return { rows: (result[1].results || []).map(r => [r.partner, r.cat, r.name, r.packBar, r.unitBar, r.perPack]), cats: (result[2].results || []).map(r => r.cat) };
 }
 API.barcodeBackupList = async (C, token) => { await auth(C, token, true); return { backups: await bcBackups(C) }; };
 API.barcodeBackupData = async (C, token, id) => {
   await auth(C, token, true);
-  const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
-  if (!b) throw new Error('ไม่พบสำเนานี้ (อาจถูกแทนที่ด้วยสำเนาใหม่แล้ว)');
-  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว', 'จำนวนต่อแพ็ค']].concat(JSON.parse(b.data).rows).map(r => r.map(q).join(',')).join('\r\n') };
+  const data = await bcBackupRead(C, id);
+  const q = v => { let text = String(v); if (/^[=+\-@\t\r]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
+  return { name: 'สำเนารายการบาร์', csv: '﻿' + [['รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว', 'จำนวนต่อแพ็ค']].concat(data.rows).map(r => r.map(q).join(',')).join('\r\n') };
 };
 async function bcStage(C, who, items, startPos) {
   const job = uuid(), ts = now();
   try {
     await run(C, 'DELETE FROM barcode_stage WHERE ts<?', ts - 86400000);
-    for (let i = 0; i < items.length; i += 80) await batch(C, items.slice(i, i + 80).map((r, j) => stmt(C,
-      'INSERT INTO barcode_stage(job,pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
-      job, startPos + i + j + 1, BC_SHEET, r.partner, r.cat, r.name, r.packBar, r.unitBar, str(r.perPack), ts, who)));
+    let offset = 0;
+    for (const payload of jsonBatches(items)) {
+      await run(C, `INSERT INTO barcode_stage(job,pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who)
+        SELECT ?,?+CAST(key AS INTEGER)+1,?,json_extract(value,'$.partner'),json_extract(value,'$.cat'),json_extract(value,'$.name'),json_extract(value,'$.packBar'),json_extract(value,'$.unitBar'),COALESCE(json_extract(value,'$.perPack'),''),?,? FROM json_each(?)`,
+        job, startPos + offset, BC_SHEET, ts, who, payload);
+      offset += JSON.parse(payload).length;
+    }
     return job;
-  } catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) { /* ล้างรายการค้างในรอบถัดไป */ } throw e; }
+  } catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) {} throw e; }
 }
 const bcPublishStage = (C, job) => stmt(C, 'INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) SELECT pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who FROM barcode_stage WHERE job=? ORDER BY pos', job);
 API.barcodeRestore = async (C, token, id) => {
   const me = await auth(C, token, true);
-  const b = await one(C, 'SELECT data FROM backups WHERE id=? AND kind=?', Number(id) || 0, 'barcode');
-  if (!b) throw new Error('ไม่พบสำเนานี้');
-  const d = JSON.parse(b.data), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4], perPack: a[5] || '' }));
+  const d = await bcBackupRead(C, id), items = d.rows.map(a => ({ partner: a[0], cat: a[1], name: a[2], packBar: a[3], unitBar: a[4], perPack: a[5] || '' }));
   await bcSnapshot(C, 'ก่อนกู้คืน');
   const job = await bcStage(C, me.name, items, 0);
   try {
-    await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat((d.cats || []).map(c => stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) VALUES(?)', c)), [bcPublishStage(C, job), stmt(C, 'DELETE FROM barcode_stage WHERE job=?', job)]));
+    await batch(C, [stmt(C, 'DELETE FROM barcode_items'), stmt(C, 'DELETE FROM barcode_cats')].concat([stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) SELECT value FROM json_each(?)', JSON.stringify(d.cats || []))], [bcPublishStage(C, job), stmt(C, 'DELETE FROM barcode_stage WHERE job=?', job)]));
   } catch (e) { try { await run(C, 'DELETE FROM barcode_stage WHERE job=?', job); } catch (_) {} throw e; }
   await bcLog(C, me, '', 'กู้คืนจากสำเนา', items.length + ' รายการ');
   return { ok: true, count: items.length, backups: await bcBackups(C) };
@@ -1292,7 +1508,6 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
  *        ต่ำกว่าทุน('-'/'B'), กำไร฿, กำไร%, ยอดขาย, กำไรสุทธิ V]
  * เก็บแยกรายหมวดใน D1 (ตาราง stock_grp: g, ver, n, data) — ver 0 = ฉบับปัจจุบัน, ver 1 = ฉบับก่อนหน้า (เก็บไว้ 1 ฉบับต่อหมวด)
  * kv: STOCK_GROUPS = { G01: { cur: meta, prev: meta|null } }, STOCK_HISTORY (ผลรวมทั้งร้านแต่ละรอบ ใช้วาดกราฟแนวโน้ม), STOCK_NAMES */
-const STOCK_CHUNK = 400000;        // ตัวอักษรต่อก้อน (ภาษาไทย 3 ไบต์/ตัว → ไม่เกิน ~1.2 MB ต่อแถว ต่ำกว่าเพดาน 2 MB ของ D1)
 const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
 const STOCK_GROUP_RE = /^[A-Z0-9_-]{1,12}$/;
 const stockCodeKey = s => str(s).replace(/\s+/g, '').toLowerCase();    // เทียบบาร์/รหัสสินค้าแบบไม่สนช่องว่าง/ตัวพิมพ์ (หน้าเว็บใช้สูตรเดียวกัน)
@@ -1316,8 +1531,13 @@ async function stockAdjLoad(C) {
   const out = {}, defs = await stockCtagDefs(C), kinds = {}, labels = {};
   Object.keys(STOCK_ADJ_KV).forEach(k => { kinds[k] = STOCK_ADJ_KV[k]; labels[k] = STOCK_ADJ_LABEL[k]; });
   Object.keys(defs).forEach(id => { if (defs[id].mode === 'deduct') { kinds['c_' + id] = 'STOCK_CT_' + id; labels['c_' + id] = defs[id].t; } });
+  const stored = await kvMany(C, Object.values(kinds));
   for (const kind of Object.keys(kinds)) {
-    const raw = (await stateJson(C, kinds[kind], {})) || {}, m = {};
+    let raw = {};
+    try { raw = stored[kinds[kind]] === undefined ? {} : JSON.parse(stored[kinds[kind]]); }
+    catch (e) { throw new Error('ข้อมูลรายการ' + labels[kind] + 'เสียหาย กรุณาติดต่อผู้ดูแล'); }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('ข้อมูลรายการ' + labels[kind] + 'ไม่ถูกต้อง');
+    const m = Object.create(null);
     Object.keys(raw).forEach(k => {
       const v = raw[k];
       if (!k || !v || typeof v !== 'object' || !str(v.code) || (v.qty != null && (!Number.isFinite(Number(v.qty)) || Number(v.qty) < 0))) throw new Error('ข้อมูลรายการ' + labels[kind] + 'ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
@@ -1330,8 +1550,8 @@ async function stockAdjLoad(C) {
 /* หักจำนวนของหาย/หมดอายุออกจากแถว → { rows: แถวที่ยังเหลือ (คงเหลือ > 0 · แถวที่ถูกหักจะเป็นสำเนา ไม่แก้ของเดิม), hit: { lost|exp: { key: [{ g, br, qty, cost, name }] } } }
  * จำนวนสต็อกมากกว่าที่หัก → แถวยังอยู่ด้วยจำนวนที่เหลือ · หักหมดหรือเกิน → แถวหายไป · รายการที่ระบุสาขาหักก่อน แล้วค่อยหักแบบทุกสาขา */
 function stockApply(rows, adj) {
-  const hit = { lost: {}, exp: {}, pend: {}, waste: {} }, by = new Map();
-  if (adj) Object.keys(adj).forEach(kind => { if (!hit[kind]) hit[kind] = {}; });
+  const hit = { lost: Object.create(null), exp: Object.create(null), pend: Object.create(null), waste: Object.create(null) }, by = new Map();
+  if (adj) Object.keys(adj).forEach(kind => { if (!hit[kind]) hit[kind] = Object.create(null); });
   if (adj) Object.keys(hit).forEach(kind => Object.keys(adj[kind] || {}).forEach(k => {
     const e = adj[kind][k], ck = stockCodeKey(e.code);
     if (!ck) return;
@@ -1358,7 +1578,11 @@ function stockApply(rows, adj) {
   });
   return { rows: out, hit, zero, cut };
 }
-const stockBrKey = s => str(s).replace(/\s+/g, '').toLowerCase();      // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
+const stockBrKey = s => {
+  const key = str(s).replace(/\s+/g, '').toLowerCase();
+  if (key === '__proto__' || key === 'constructor' || key === 'prototype') throw new Error('ชื่อสาขานี้สงวนไว้สำหรับระบบ กรุณาใช้ชื่ออื่น');
+  return key;
+};
 const STOCK_DATE_CACHE = new Map();
 const stockDate = v => {
   v = str(v);
@@ -1451,7 +1675,9 @@ async function stockRebuildSummaries(C, state, adj, replacements) {
 }
 function stockInsertOps(C, g, ver, json) {
   const ops = [];
-  for (let i = 0, n = 0; i < json.length; i += STOCK_CHUNK, n++) ops.push(stmt(C, 'INSERT OR REPLACE INTO stock_grp(g,ver,n,data) VALUES(?,?,?,?)', g, ver, n, json.slice(i, i + STOCK_CHUNK)));
+  const chunks = [];
+  for (let i = 0, n = 0; i < json.length; i += 80000, n++) chunks.push([n, json.slice(i, i + 80000)]);
+  for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT OR REPLACE INTO stock_grp(g,ver,n,data) SELECT ?,?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?)", g, ver, payload));
   return ops;
 }
 function stockParseRows(json, label) {
@@ -1556,7 +1782,7 @@ API.stockGet = async (C, token, ver) => {
     stockNames(C),
     stockAdjLoad(C),
     stockHardLoad(C),
-    all(C, 'SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items ORDER BY pos').catch(() => [])
+    all(C, 'SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items ORDER BY pos')
   ]);
   const ap = stockApply(rows0, lost);
   const foundGroups = new Set(rows0.map(r => r[0]));
@@ -1579,7 +1805,9 @@ API.stockGet = async (C, token, ver) => {
 API.stockSave = async (C, token, payload) => {
   const me = await stockEditAuth(C, token);
   payload = payload || {};
+  if (payload.revision !== undefined && payload.revision !== C.guard.revision) throw new Error('ข้อมูลสต็อกเปลี่ยนไปแล้ว กรุณาโหลดล่าสุดก่อนบันทึก');
   if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
+  if (payload.groups.length > 8) throw new Error('กรุณาแบ่งบันทึกครั้งละไม่เกิน 8 หมวด');
   const branch = str(payload.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
   if (!branch) throw new Error('กรุณาเลือกสาขาก่อนอัปโหลด');
   const bk = stockBrKey(branch);
@@ -1715,10 +1943,11 @@ API.stockClear = async (C, token, password, scope) => {
   } else if (mode === 'branch') {
     const branch = str(scope.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
     if (!branch) throw new Error('กรุณาเลือกสาขาที่จะล้าง');
-    const bk = stockBrKey(branch);
+    const bk = stockBrKey(branch), current = await stockRowsByGroup(C, 0);
     for (const g of Object.keys(state)) {
       if (!state[g] || !state[g].cur) continue;
-      const rows = stockParseRows((await stockGroupJson(C, g, 0)) || '[]', 'หมวด ' + g);
+      const rows = current.get(g) || [];
+      if (!current.has(g) && state[g].cur.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ หมวด ' + g);
       const keep = rows.filter(r => stockBrKey(r[3]) !== bk);
       if (keep.length !== rows.length) { replacements.prev.set(g, rows); shiftGroup(g, keep, branch); }
     }
@@ -1870,7 +2099,7 @@ API.stockHistoryDelete = async (C, token, payload) => {
  * ผูกกับรหัสสินค้า/บาร์ (ทุกสาขา) เก็บใน KV 'STOCK_HARD' = { stockCodeKey: { code, ts, who } }
  * อัปโหลดไฟล์ใหม่/ล้างข้อมูล/สลับฉบับ ไม่แตะแท็ก → ติดอยู่จนกว่าจะยกเลิก (ดูอย่างเดียวก็เห็นแท็กได้ · แก้ไขต้องมีสิทธิ์ stock_edit) */
 async function stockHardLoad(C) {
-  const raw = (await stateJson(C, 'STOCK_HARD', {})) || {}, out = {};
+  const raw = (await stateJson(C, 'STOCK_HARD', {})) || {}, out = Object.create(null);
   Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who), note: str(e.note).slice(0, 100) }; });
   return out;
 }
@@ -2039,7 +2268,7 @@ API.stockCtagRemove = async (C, token, keys, id) => {
 
 
 /* ============================== เช็คราคาตลาด (market.html) ============================== */
-const MARKET_CHUNK = 300000, MARKET_MAX_BYTES = 24 * 1024 * 1024;
+const MARKET_MAX_BYTES = 24 * 1024 * 1024;
 const isRecord = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const unsafeKey = k => k === '__proto__' || k === 'constructor' || k === 'prototype';
 function marketValidate(state) {
@@ -2096,7 +2325,9 @@ API.marketSaveState = async (C, token, state) => {
   const expected = old.raw === null ? ['MARKET_STATE'] : ['MARKET_STATE', old.raw];
   const ops = [stmt(C, 'DELETE FROM market_data WHERE ' + condition, ...expected)];
   let count = 0;
-  for (let i = 0; i < data.length; i += MARKET_CHUNK) ops.push(stmt(C, 'INSERT INTO market_data(n,data) SELECT ?,? WHERE ' + condition, count++, data.slice(i, i + MARKET_CHUNK), ...expected));
+  const chunks = [];
+  for (let i = 0; i < data.length; i += 80000) chunks.push([count++, data.slice(i, i + 80000)]);
+  for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT INTO market_data(n,data) SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?) WHERE " + condition, payload, ...expected));
   const marker = JSON.stringify({ __marketChunks: true, revision, chunks: count });
   ops.push(old.raw === null
     ? stmt(C, 'INSERT INTO kv(k,v) SELECT ?,? WHERE ' + condition, 'MARKET_STATE', marker, ...expected)
@@ -2106,3 +2337,12 @@ API.marketSaveState = async (C, token, state) => {
   await sysLogTo(C, me.name, 'เช็คราคาตลาด', 'บันทึกข้อมูลเช็คราคาตลาด', (state.branches && typeof state.branches === 'object' ? Object.keys(state.branches).length + ' สาขา · ' + Object.keys(state.branches).reduce((n, b) => n + Object.keys((state.branches[b] && state.branches[b].groups) || {}).length, 0) : Object.keys(state.groups || {}).length) + ' หมวด');
   return { ok: true, revision };
 };
+
+
+for (const name of Object.keys(API).filter(k => k.startsWith('stock'))) {
+  const fn = API[name], wrapped = guardedApi(fn, 'stock', name === 'stockGet', name === 'stockGet' || name === 'stockSave');
+  API[name] = (C, ...args) => C.guard && C.guard.scope === 'stock' ? fn(C, ...args) : wrapped(C, ...args);
+}
+for (const name of ['addItem','editItem','deleteItem','createCategory','importBarcodeData','barcodeRestore']) API[name] = guardedApi(API[name], 'barcode');
+for (const name of ['getInit','getCategoryData']) API[name] = guardedApi(API[name], 'barcode', true);
+for (const name of ['addBanner','updateBanner','moveBanner','deleteBanner','saveSound','deleteSound']) API[name] = guardedApi(API[name], 'media');
