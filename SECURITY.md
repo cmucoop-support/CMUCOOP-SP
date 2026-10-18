@@ -1,21 +1,7 @@
-# Security Policy
+# การรายงานปัญหาความปลอดภัย
 
-## Supported Versions
+ส่งรายละเอียดให้ผู้ดูแลโครงการหรือผู้ดูแลระบบของร้านผ่านช่องทางภายในที่ใช้อยู่ โครงการนี้ยังไม่ได้ระบุช่องทางรับรายงานสาธารณะหรือรอบเวลาการสนับสนุนแต่ละรุ่น
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+รายงานด้วยขั้นตอนที่ทำซ้ำได้และข้อมูลจำลอง หลีกเลี่ยงการแนบรหัสผ่าน session token ข้อมูลส่วนบุคคล หรือสำเนาฐานข้อมูลจริงใน issue สาธารณะ
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
-## Reporting a Vulnerability
-
-Use this section to tell people how to report a vulnerability.
-
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+ทะเบียนสินค้าต้องผ่านการยืนยันตัวตนและสิทธิ์ `product_catalog` ข้อมูลต้นทุน ราคาขาย และกำไรยังอยู่ภายใต้สิทธิ์ระบบต้นทาง ไม่รวมใน API ทะเบียนสินค้า ดูการติดตั้งและผลตรวจที่ README-TH.md
