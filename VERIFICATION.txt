@@ -1,56 +1,73 @@
-✔ browser shares identical in-flight reads and bounds concurrent requests at four (57.4701ms)
-✔ browser never retries a write after an uncertain network failure (4.5218ms)
-✔ browser retries only the explicit schema-initialized response before a write ran (4.7075ms)
-✔ browser retries one transient read without retrying API validation errors (720.5817ms)
-✔ barcode table renders only one page of 20,000 records and searches every record (113.6319ms)
-✔ identical products/dates create distinct lots and retain every earlier alert (25.7354ms)
-✔ optional quantity preserves null, zero, decimals and units without affecting lot counts (13.5734ms)
-✔ retrying the same create request is idempotent, including concurrent submissions (7.7056ms)
-✔ month-end and leap-year boundaries use clamped calendar months in Thai time (0.4017ms)
-✔ all alert ranges are mutually exclusive and counts/filters agree (17.5988ms)
-✔ acknowledgement retains an alert, closing affects only that lot, reopen retains history (9.7317ms)
-✔ concurrent edits fence the row and retain exactly one update in history (7.0521ms)
-✔ history failure rolls back the new lot and all edits (5.5988ms)
-✔ view-only and unpermitted users cannot change lots (3.7975ms)
-✔ invalid dates/quantities are rejected; past dates and missing barcodes are allowed (9.5246ms)
-✔ 10,000 lots are paginated on the server and escaped searches remain literal (166.0204ms)
-✔ expiry migrations preserve the existing stable database and initialize the new version (6.5702ms)
+✔ browser shares identical in-flight reads and bounds concurrent requests at four (57.0734ms)
+✔ browser never retries a write after an uncertain network failure (6.4691ms)
+✔ browser retries only the explicit schema-initialized response before a write ran (1.5993ms)
+✔ browser retries one transient read without retrying API validation errors (585.6511ms)
+✔ barcode table renders only one page of 20,000 records and searches every record (22.1838ms)
+✔ catalog derives names/codes from current stock and configured branches, including zero stock (46.9153ms)
+✔ stock name/code/branch lookups limit results and keep wildcard searches literal (17.5035ms)
+✔ expiry-only viewers can search source names/codes without stock cost permission (26.5687ms)
+{"catalogRows":30000,"buildQueries":16,"warmLookupQueries":6,"largestParameterBytes":1199942}
+✔ new stock-backed forms validate canonical names and branches; old lots/retries survive stock replacement (68.1157ms)
+✔ catalog refreshes after actual stock saves and branch configuration edits, never changing stock itself (8.3585ms)
+✔ stock revision changing during a catalog rebuild cannot publish mixed or stale data (9.918ms)
+✔ failed catalog publication rolls back and can be retried without affecting previous lots (5.9114ms)
+✔ legacy source data is readable without migrating or writing to stock tables (6.776ms)
+✔ 30,000 current stock records build once in bounded chunks and lookup never returns the entire source (788.3433ms)
+✔ identical products/dates create distinct lots and retain every earlier alert (61.5318ms)
+✔ optional quantity preserves null, zero, decimals and units without affecting lot counts (12.3654ms)
+✔ retrying the same create request is idempotent, including concurrent submissions (9.6668ms)
+✔ month-end and leap-year boundaries use clamped calendar months in Thai time (0.5405ms)
+✔ all alert ranges are mutually exclusive and counts/filters agree (20.3076ms)
+✔ acknowledgement retains an alert, closing affects only that lot, reopen retains history (14.7819ms)
+✔ concurrent edits fence the row and retain exactly one update in history (22.6851ms)
+✔ history failure rolls back the new lot and all edits (6.5039ms)
+✔ view-only and unpermitted users cannot change lots (4.6089ms)
+✔ invalid dates/quantities are rejected; past dates and missing barcodes are allowed (7.799ms)
+✔ 10,000 lots are paginated on the server and escaped searches remain literal (176.8881ms)
+✔ expiry migrations preserve the existing stable database and initialize the new version (7.1809ms)
 {"barcodeRows":20000,"warmImportQueries":26,"largestParameterBytes":1199953}
-✔ 20,000 Thai barcode rows import, backup, export and restore below D1 value limits (1928.4762ms)
+✔ 20,000 Thai barcode rows import, backup, export and restore below D1 value limits (949.1284ms)
 {"stockRows":30000,"warmSaveQueries":28}
-✔ 30,000 stock rows, branch merge, no-change save and previous version (1273.7258ms)
-✔ concurrent stock adjustments preserve both quantities after rolled-back conflict retry (8.847ms)
-✔ failed stock batch rolls back rows, metadata and revision (9.9013ms)
-✔ large UTF-8 KV round trip, shrink and rollback never expose partial values (155.8888ms)
-✔ stale stock payload cannot overwrite a newer upload or its previous version (12.4795ms)
-✔ competing barcode adds cannot lose position shifts or admit duplicate names (6.4448ms)
+✔ 30,000 stock rows, branch merge, no-change save and previous version (914.4954ms)
+✔ concurrent stock adjustments preserve both quantities after rolled-back conflict retry (6.5985ms)
+✔ failed stock batch rolls back rows, metadata and revision (27.5187ms)
+✔ large UTF-8 KV round trip, shrink and rollback never expose partial values (71.7451ms)
+✔ stale stock payload cannot overwrite a newer upload or its previous version (4.3757ms)
+✔ competing barcode adds cannot lose position shifts or admit duplicate names (3.8115ms)
 {"marketRows":20000,"warmSaveQueries":23}
-✔ market large chunk state CAS rejects stale saves and preserves revisions (553.9844ms)
-✔ music duplicate requests insert at most one live row (5.1001ms)
-✔ 50 custom stock deduction tags load without 50 individual KV queries (4.496ms)
+✔ market large chunk state CAS rejects stale saves and preserves revisions (393.4802ms)
+✔ music duplicate requests insert at most one live row (4.3923ms)
+✔ 50 custom stock deduction tags load without 50 individual KV queries (5.1256ms)
 {"clearedGroups":100,"queries":23}
-✔ clearing 100 stock groups uses bulk reads/writes and preserves previous data (192.894ms)
-✔ failed barcode publication leaves current rows unchanged (26.7973ms)
-✔ old barcode edit form cannot overwrite a completed same-name edit (7.4675ms)
-✔ market publication failure rolls back all chunks and marker (4.9095ms)
-✔ missing stock chunks fail closed rather than publishing an empty dataset (5.3558ms)
-✔ last-admin triggers survive concurrent demotions and allow renaming (5.4997ms)
-✔ first POST installs schema without running a write, subsequent POST is normal (36.8094ms)
-✔ oversized declared requests are rejected before a business operation (2.7273ms)
-✔ view-only users cannot mutate stock or market (3.4806ms)
-✔ simultaneous sound saves cannot create duplicate type/code records (5.5195ms)
-✔ failed banner publication removes the staged file (2.6019ms)
-✔ legacy JSON barcode backups remain restorable (2.6457ms)
-✔ legacy stock_data migrates without losing rows (4.2584ms)
-✔ migration and schema fallback preserve an old barcode table lacking perPack (5.6112ms)
-✔ reserved branch names are rejected without modifying object prototypes (2.2746ms)
-✔ simultaneous failed logins accumulate every failed attempt (3.1086ms)
-✔ a burst of music requests never exceeds 60 live records (19.0262ms)
-ℹ tests 44
+✔ clearing 100 stock groups uses bulk reads/writes and preserves previous data (127.673ms)
+✔ failed barcode publication leaves current rows unchanged (22.1526ms)
+✔ old barcode edit form cannot overwrite a completed same-name edit (3.4982ms)
+✔ market publication failure rolls back all chunks and marker (3.1377ms)
+✔ missing stock chunks fail closed rather than publishing an empty dataset (3.7651ms)
+✔ last-admin triggers survive concurrent demotions and allow renaming (4.4998ms)
+✔ first POST installs schema without running a write, subsequent POST is normal (28.1732ms)
+✔ oversized declared requests are rejected before a business operation (3.7804ms)
+✔ view-only users cannot mutate stock or market (2.8809ms)
+✔ simultaneous sound saves cannot create duplicate type/code records (3.2064ms)
+✔ failed banner publication removes the staged file (2.4449ms)
+✔ legacy JSON barcode backups remain restorable (2.717ms)
+✔ legacy stock_data migrates without losing rows (3.014ms)
+✔ migration and schema fallback preserve an old barcode table lacking perPack (4.4751ms)
+✔ reserved branch names are rejected without modifying object prototypes (2.2164ms)
+✔ simultaneous failed logins accumulate every failed attempt (3.0901ms)
+✔ a burst of music requests never exceeds 60 live records (17.1011ms)
+ℹ tests 53
 ℹ suites 0
-ℹ pass 44
+ℹ pass 53
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 4555.2876
+ℹ duration_ms 3370.5648
+Syntax passed: 22 browser scripts and worker/index.js
+{
+  "firstPartyBrowserFiles": 23,
+  "apiFunctions": 108,
+  "unknownApiCalls": [],
+  "missingLocalAssets": []
+}
