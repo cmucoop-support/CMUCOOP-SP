@@ -4,9 +4,9 @@ const CHUNK = 900000;                // จำนวนตัวอักษร 
 const MAX_BANNER_BYTES = 3 * 1024 * 1024, MAX_SOUND_BYTES = 3 * 1024 * 1024;
 
 const ROLES = { admin: 'Admin', viewer: 'ผู้ใช้งาน' };
-const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → Admin ต้องติ๊กให้ผู้ใช้ทีละคน
-const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'settings'];
+const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit', 'expiry', 'expiry_edit'];   // stock_edit = แก้ไขข้อมูลสินค้าค้างสต็อกได้ (อัปโหลด/ตั้งชื่อหมวด/สลับฉบับ) · ไม่มี = ดูอย่างเดียว
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false };   // stock = สินค้าค้างสต็อก (มีต้นทุน/กำไร) → Admin ต้องติ๊กให้ผู้ใช้ทีละคน
+const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'expiry', 'settings'];
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;   // การ์ดลิงก์ที่ Admin สร้างเอง (รหัส c_xxxxxxxx)
 const CARD_TITLE_MAX = 40;
 /* การ์ดลิงก์เดิม 5 ใบ (ทำป้ายราคา ฯลฯ) ถูกแปลงเป็นการ์ดลิงก์ทั่วไปที่ลบ/แก้ได้ (ย้ายข้อมูลอัตโนมัติครั้งเดียวใน migrateLinks) */
@@ -25,10 +25,11 @@ const ACT_GROUPS = [
   { key: 'assets', label: 'รายการสินทรัพย์', sheets: ['รายการสินทรัพย์'] },
   { key: 'stock', label: 'สินค้าค้างสต็อก', sheets: ['สินค้าค้างสต็อก'] },
   { key: 'market', label: 'เช็คราคาตลาด', sheets: ['เช็คราคาตลาด'] },
+  { key: 'expiry', label: 'แจ้งเตือนสินค้าหมดอายุ', sheets: ['วันหมดอายุ'] },
   { key: 'banner', label: 'Banner', sheets: ['Banner'] },
   { key: 'system', label: 'ผู้ใช้งาน/ระบบ', sheets: ['ระบบ'] }
 ];
-const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner', stock: 'สินค้าค้างสต็อก', market: 'เช็คราคาตลาด' };
+const USE_AREAS = { barcode: 'บาร์สินค้า', sound: 'Sound', music: 'Music', assets: 'รายการสินทรัพย์', banner: 'Banner', stock: 'สินค้าค้างสต็อก', market: 'เช็คราคาตลาด', expiry: 'วันหมดอายุ' };
 const BANNER_EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 const BANNER_DEF = { speed: 4, per: 0, perMax: 6, h: 80 };
 const SOUND_TYPES = ['ปุ่ม', 'เสียงตามเวลา', 'ระบบ', 'พนักงาน', 'สถานที่', 'แคชเชียร์', 'ประเภทงดรับ', 'เวลา', 'ตั้งค่า'];
@@ -63,7 +64,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))',   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
-const SCHEMA_VERSION = 'stable-1';
+const SCHEMA_VERSION = 'expiry-1';
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
   'CREATE TABLE IF NOT EXISTS kv_chunks (k TEXT, n INTEGER, data TEXT, PRIMARY KEY(k,n))',
@@ -85,6 +86,24 @@ SCHEMA.push(
   "CREATE TRIGGER IF NOT EXISTS keep_admin_delete BEFORE DELETE ON users WHEN OLD.role='admin' AND (SELECT COUNT(*) FROM users WHERE role='admin')<=1 BEGIN SELECT RAISE(ABORT,'ต้องมี Admin อย่างน้อย 1 คน'); END",
   "CREATE TRIGGER IF NOT EXISTS keep_admin_update BEFORE UPDATE OF role ON users WHEN OLD.role='admin' AND NEW.role<>'admin' AND (SELECT COUNT(*) FROM users WHERE role='admin')<=1 BEGIN SELECT RAISE(ABORT,'ต้องมี Admin อย่างน้อย 1 คน'); END"
 );
+
+const EXPIRY_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS expiry_lots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT NOT NULL UNIQUE, create_hash TEXT NOT NULL,
+    barcode TEXT NOT NULL, name TEXT NOT NULL, branch TEXT NOT NULL, location TEXT NOT NULL,
+    expires TEXT NOT NULL, quantity REAL CHECK(quantity IS NULL OR (quantity>=0 AND quantity<=1000000000)), unit TEXT NOT NULL,
+    note TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','acknowledged','closed')),
+    version INTEGER NOT NULL DEFAULT 1 CONSTRAINT expiry_revision_conflict CHECK(version>0),
+    created_ts INTEGER NOT NULL, created_user TEXT NOT NULL, created_by TEXT NOT NULL,
+    updated_ts INTEGER NOT NULL, updated_by TEXT NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS expiry_status_date ON expiry_lots(status,expires,id)',
+  'CREATE INDEX IF NOT EXISTS expiry_branch_date ON expiry_lots(branch,status,expires,id)',
+  'CREATE INDEX IF NOT EXISTS expiry_barcode ON expiry_lots(barcode)',
+  'CREATE TABLE IF NOT EXISTS expiry_events (lot_id INTEGER NOT NULL, version INTEGER NOT NULL, ts INTEGER NOT NULL, who TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, PRIMARY KEY(lot_id,version))'
+];
+SCHEMA.push(...EXPIRY_SCHEMA);
+
 const schemaPromises = new WeakMap();
 async function ensureSchema(db) {
   let ready = schemaPromises.get(db);
@@ -374,6 +393,7 @@ function userPerms(u) {
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = u.role === 'admin' ? true : p[k] !== false; });   // การ์ดกำหนดเอง: ไม่ได้ตั้ง = เห็นได้
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   if (!out.market) out.market_edit = false;
+  if (!out.expiry) out.expiry_edit = false;
   return out;
 }
 function cleanPerms(p, role) {
@@ -382,6 +402,7 @@ function cleanPerms(p, role) {
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = role === 'admin' ? true : !(p[k] === false || p[k] === 'false'); });
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   if (!out.market) out.market_edit = false;
+  if (!out.expiry) out.expiry_edit = false;
   return out;
 }
 async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
@@ -2346,3 +2367,161 @@ for (const name of Object.keys(API).filter(k => k.startsWith('stock'))) {
 for (const name of ['addItem','editItem','deleteItem','createCategory','importBarcodeData','barcodeRestore']) API[name] = guardedApi(API[name], 'barcode');
 for (const name of ['getInit','getCategoryData']) API[name] = guardedApi(API[name], 'barcode', true);
 for (const name of ['addBanner','updateBanner','moveBanner','deleteBanner','saveSound','deleteSound']) API[name] = guardedApi(API[name], 'media');
+
+/* ======================= Expiry alerts: independent lots, no stock movement ======================= */
+function expiryBounds(ts = now()) {
+  const today = thaiDayIso(ts), base = new Date(today + 'T00:00:00Z');
+  const addMonths = months => {
+    const year = base.getUTCFullYear(), month = base.getUTCMonth() + months;
+    const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(year, month, Math.min(base.getUTCDate(), last))).toISOString().slice(0, 10);
+  };
+  return { today, week: new Date(base.getTime() + 7 * 86400000).toISOString().slice(0, 10), month: addMonths(1), m3: addMonths(3), m6: addMonths(6), m12: addMonths(12) };
+}
+function expiryBucket(date, b) {
+  if (date < b.today) return 'expired';
+  if (date <= b.week) return 'week';
+  if (date <= b.month) return 'month';
+  if (date <= b.m3) return 'm3';
+  if (date <= b.m6) return 'm6';
+  if (date <= b.m12) return 'm12';
+  return 'later';
+}
+async function expiryAuth(C, token, edit = false) {
+  const me = await authPerm(C, token, 'expiry');
+  if (edit && !me.perms.expiry_edit) throw new Error('บัญชีนี้ดูข้อมูลได้อย่างเดียว ไม่สามารถเปลี่ยนรายการแจ้งเตือนได้');
+  return me;
+}
+function expiryClean(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('รูปแบบรายการไม่ถูกต้อง');
+  const text = (v, max) => str(v).replace(/\s+/g, ' ').slice(0, max);
+  const data = { barcode: str(p.barcode).replace(/\s+/g, '').slice(0, 64), name: text(p.name, 200), branch: text(p.branch, 80), location: text(p.location, 120), expires: stockDate(p.expires), quantity: null, unit: '', note: text(p.note, 1000) };
+  if (!data.name) throw new Error('กรุณาระบุชื่อสินค้า');
+  if (!data.branch) throw new Error('กรุณาระบุสาขา');
+  if (!data.expires || Number(data.expires.slice(0, 4)) < 1900 || Number(data.expires.slice(0, 4)) > 2200) throw new Error('วันหมดอายุไม่ถูกต้อง กรุณาเลือกปี ค.ศ. จากปฏิทิน');
+  if (p.quantity != null && !['number', 'string'].includes(typeof p.quantity)) throw new Error('จำนวนต้องเป็นตัวเลขหรือเว้นว่าง');
+  if (p.quantity !== null && p.quantity !== undefined && str(p.quantity) !== '') {
+    const value = Number(p.quantity);
+    if (!Number.isFinite(value) || value < 0 || value > 1000000000 || Math.abs(value * 1000 - Math.round(value * 1000)) > 0.0001) throw new Error('จำนวนต้องเป็นเลขตั้งแต่ 0 ถึง 1,000,000,000 และทศนิยมไม่เกิน 3 ตำแหน่ง หรือเว้นว่าง');
+    data.quantity = value; data.unit = text(p.unit, 20) || 'ชิ้น';
+  }
+  return data;
+}
+function expiryRow(row, bounds = expiryBounds()) {
+  return { id: row.id, lot: 'LOT-' + String(row.id).padStart(6, '0'), barcode: row.barcode, name: row.name, branch: row.branch, location: row.location,
+    expires: row.expires, quantity: row.quantity, unit: row.unit, note: row.note, status: row.status, version: row.version,
+    createdTs: row.created_ts, createdBy: row.created_by, updatedTs: row.updated_ts, updatedBy: row.updated_by,
+    days: Math.round((Date.parse(row.expires + 'T00:00:00Z') - Date.parse(bounds.today + 'T00:00:00Z')) / 86400000), bucket: expiryBucket(row.expires, bounds) };
+}
+function expiryCountsStmt(C, branch, b) {
+  return stmt(C, `WITH cut(today,week,month,m3,m6,m12) AS (VALUES(?,?,?,?,?,?))
+    SELECT COUNT(*) AS total,
+      COALESCE(SUM(expires<today),0) AS expired,
+      COALESCE(SUM(expires>=today AND expires<=week),0) AS week,
+      COALESCE(SUM(expires>week AND expires<=month),0) AS month,
+      COALESCE(SUM(expires>month AND expires<=m3),0) AS m3,
+      COALESCE(SUM(expires>m3 AND expires<=m6),0) AS m6,
+      COALESCE(SUM(expires>m6 AND expires<=m12),0) AS m12,
+      COALESCE(SUM(expires>m12),0) AS later
+    FROM expiry_lots,cut WHERE status IN ('active','acknowledged') AND (?='' OR branch=?)`, b.today, b.week, b.month, b.m3, b.m6, b.m12, branch, branch);
+}
+API.expirySummary = async (C, token, branch) => {
+  await expiryAuth(C, token);
+  const bounds = expiryBounds(), data = await expiryCountsStmt(C, str(branch), bounds).first();
+  return { counts: data, bounds };
+};
+API.expiryLookup = async (C, token, barcode) => {
+  await expiryAuth(C, token);
+  barcode = str(barcode).replace(/\s+/g, '').slice(0, 64);
+  if (!barcode) return [];
+  return all(C, 'SELECT DISTINCT name,cat,partner FROM barcode_items WHERE packBar=? OR unitBar=? ORDER BY name LIMIT 10', barcode, barcode);
+};
+API.expiryList = async (C, token, options) => {
+  const me = await expiryAuth(C, token), o = options && typeof options === 'object' ? options : {}, bounds = expiryBounds();
+  const branch = str(o.branch).slice(0, 80), search = str(o.q).slice(0, 120), state = ['open','closed','all'].includes(o.state) ? o.state : 'open';
+  const size = 50, page = Math.min(20000, Math.max(1, Math.floor(Number(o.page) || 1))), where = [], params = [];
+  if (state === 'open') where.push("status IN ('active','acknowledged')");
+  if (state === 'closed') where.push("status='closed'");
+  if (branch) { where.push('branch=?'); params.push(branch); }
+  if (search) {
+    const q = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
+    where.push("(name LIKE ? ESCAPE '\\' OR barcode LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR ('LOT-'||printf('%06d',id)) LIKE ? ESCAPE '\\')"); params.push(q, q, q, q);
+  }
+  const ranges = {
+    expired: ['expires<?', bounds.today], week: ['expires>=? AND expires<=?', bounds.today, bounds.week],
+    month: ['expires>? AND expires<=?', bounds.week, bounds.month], m3: ['expires>? AND expires<=?', bounds.month, bounds.m3],
+    m6: ['expires>? AND expires<=?', bounds.m3, bounds.m6], m12: ['expires>? AND expires<=?', bounds.m6, bounds.m12], later: ['expires>?', bounds.m12]
+  };
+  if (o.bucket && o.bucket !== 'all') {
+    if (!Object.hasOwn(ranges, o.bucket)) throw new Error('ช่วงเวลาแจ้งเตือนไม่ถูกต้อง');
+    const [sql, ...p] = ranges[o.bucket]; where.push('(' + sql + ')'); params.push(...p);
+  }
+  const filter = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  // Counts, branches and this page come from one consistent D1 transaction.
+  const results = await batch(C, [
+    stmt(C, 'SELECT * FROM expiry_lots' + filter + ' ORDER BY expires,id LIMIT ? OFFSET ?', ...params, size, (page - 1) * size),
+    stmt(C, 'SELECT COUNT(*) AS n FROM expiry_lots' + filter, ...params), expiryCountsStmt(C, branch, bounds),
+    stmt(C, 'SELECT DISTINCT branch FROM expiry_lots ORDER BY branch')
+  ]);
+  return { rows: (results[0].results || []).map(r => expiryRow(r, bounds)), total: results[1].results[0].n, counts: results[2].results[0], branches: (results[3].results || []).map(r => r.branch), page, pageSize: size, bounds, me: { name: me.name, edit: !!me.perms.expiry_edit } };
+};
+API.expiryCreate = async (C, token, payload) => {
+  const me = await expiryAuth(C, token, true), data = expiryClean(payload), requestId = str(payload.requestId);
+  if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new Error('รหัสคำขอไม่ถูกต้อง กรุณาเปิดฟอร์มเพิ่มล็อตใหม่');
+  const digest = await sha256hex(JSON.stringify(data)), ts = now();
+  const results = await batch(C, [
+    stmt(C, `INSERT INTO expiry_lots(request_id,create_hash,barcode,name,branch,location,expires,quantity,unit,note,created_ts,created_user,created_by,updated_ts,updated_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_id) DO NOTHING`, requestId, digest, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, ts, me.user, me.name, ts, me.name),
+    stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail)
+      SELECT id,1,created_ts,created_by,'เพิ่มล็อต',? FROM expiry_lots WHERE request_id=? AND create_hash=? AND created_user=? AND version=1
+      AND NOT EXISTS (SELECT 1 FROM expiry_events e WHERE e.lot_id=expiry_lots.id AND e.version=1)`, JSON.stringify(data), requestId, digest, me.user),
+    stmt(C, 'SELECT * FROM expiry_lots WHERE request_id=?', requestId)
+  ]);
+  const row = results[2].results[0];
+  if (!row || row.create_hash !== digest || row.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
+  const replayed = !results[0].meta.changes;
+  if (!replayed) await sysLogTo(C, me.name, 'วันหมดอายุ', 'เพิ่มล็อต', 'LOT-' + row.id + ' · ' + data.name + ' · ' + data.expires);
+  return { lot: expiryRow(row), replayed };
+};
+API.expiryHistory = async (C, token, id) => {
+  await expiryAuth(C, token);
+  const result = await batch(C, [stmt(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0), stmt(C, 'SELECT version,ts,who,action,detail FROM expiry_events WHERE lot_id=? ORDER BY version DESC LIMIT 100', Number(id) || 0)]);
+  if (!result[0].results.length) throw new Error('ไม่พบล็อตนี้');
+  return { lot: expiryRow(result[0].results[0]), events: result[1].results || [] };
+};
+async function expiryWrite(C, me, current, expectedVersion, data, action, detail) {
+  if (!Number.isInteger(expectedVersion) || current.version !== expectedVersion) throw new Error('ล็อตนี้ถูกแก้ไขแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก');
+  const ts = Math.max(now(), current.updated_ts + 1), nextVersion = expectedVersion + 1;
+  let results;
+  try {
+    results = await batch(C, [
+      stmt(C, `UPDATE expiry_lots SET barcode=?,name=?,branch=?,location=?,expires=?,quantity=?,unit=?,note=?,status=?,updated_ts=?,updated_by=?,
+        version=CASE WHEN version=? THEN version+1 ELSE 0 END WHERE id=?`, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, data.status, ts, me.name, expectedVersion, current.id),
+      stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail)
+        SELECT id,version,updated_ts,updated_by,?,? FROM expiry_lots WHERE id=? AND version=? AND updated_ts=?`, action, detail, current.id, nextVersion, ts),
+      stmt(C, 'SELECT * FROM expiry_lots WHERE id=?', current.id)
+    ]);
+  } catch (e) {
+    if (/expiry_revision_conflict/.test(String(e))) throw new Error('ล็อตนี้ถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก');
+    throw e;
+  }
+  if (!results[0].meta.changes || !results[2].results.length) throw new Error('ไม่พบล็อตนี้ กรุณาโหลดข้อมูลล่าสุด');
+  await sysLogTo(C, me.name, 'วันหมดอายุ', action, 'LOT-' + current.id + ' · ' + data.name);
+  return { lot: expiryRow(results[2].results[0]) };
+}
+API.expiryUpdate = async (C, token, id, version, payload) => {
+  const me = await expiryAuth(C, token, true), data = expiryClean(payload), current = await one(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0);
+  if (!current) throw new Error('ไม่พบล็อตนี้');
+  data.status = current.status;
+  return expiryWrite(C, me, current, version, data, 'แก้ไขล็อต', JSON.stringify({ before: expiryRow(current), after: data }));
+};
+API.expirySetStatus = async (C, token, id, version, status) => {
+  const me = await expiryAuth(C, token, true);
+  if (!['active','acknowledged','closed'].includes(status)) throw new Error('สถานะไม่ถูกต้อง');
+  const current = await one(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0);
+  if (!current) throw new Error('ไม่พบล็อตนี้');
+  if (current.version !== version) throw new Error('ล็อตนี้ถูกแก้ไขแล้ว กรุณาโหลดข้อมูลล่าสุด');
+  if (current.status === status) return { lot: expiryRow(current) };
+  const data = { ...expiryClean(current), status };
+  return expiryWrite(C, me, current, version, data, { active: 'เปิดแจ้งเตือนอีกครั้ง', acknowledged: 'รับทราบ', closed: 'ปิดแจ้งเตือน' }[status], JSON.stringify({ from: current.status, to: status }));
+};
