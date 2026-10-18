@@ -432,7 +432,7 @@ async function newLinkRec(username) {
 async function auth(C, token, adminOnly) {
   const s = token ? await one(C, 'SELECT s.exp AS exp, u.* FROM sessions s JOIN users u ON u.username=s.username WHERE s.token=?', String(token)) : null;
   if (!s || s.exp < now()) { if (token) await run(C, 'DELETE FROM sessions WHERE token=?', String(token)); throw new Error('SESSION_EXPIRED'); }
-  if (s.exp - now() < SESSION_TTL * 500) await run(C, 'UPDATE sessions SET exp=? WHERE token=?', now() + SESSION_TTL * 1000, String(token));   // ต่ออายุเมื่อเหลือน้อยกว่าครึ่ง
+  if (s.exp - now() < SESSION_TTL * 500) await run(C, 'UPDATE sessions SET exp=? WHERE token=? AND exp<?', now() + SESSION_TTL * 1000, String(token), now() + SESSION_TTL * 500);   // คำขอพร้อมกันต่ออายุได้ครั้งเดียว
   const u = rowToUser(s);
   if (adminOnly && u.role !== 'admin') throw new Error('ไม่มีสิทธิ์ใช้งานส่วนนี้');
   const perms = userPerms(u);
@@ -2480,14 +2480,26 @@ async function expiryBuildCatalog(C, rev) {
     const record = [expiryCodeKey(code), branch, code, name, group];
     products.set(JSON.stringify([record[0], branch, group, name]), record);
   }));
+  // Compare the minimal projection before writing. Recreating all product rows
+  // on each stock revision also rewrites their indexes and quickly spends D1's
+  // free daily allowance. Unchanged products require no product-table writes.
+  const existing = await all(C, 'SELECT code_key,branch,code,name,group_code FROM expiry_products'), seen = new Set(), removedKeys = [], changedProducts = [];
+  for (const row of existing) {
+    const key = JSON.stringify([row.code_key, row.branch, row.group_code, row.name]), next = products.get(key);
+    if (!next) removedKeys.push([row.code_key, row.branch, row.group_code, row.name]);
+    else { seen.add(key); if (next[2] !== row.code) changedProducts.push(next); }
+  }
+  for (const [key, row] of products) if (!seen.has(key)) changedProducts.push(row);
   const metadata = { version: 1, revision: rev, branches: [...branches].sort(), total: products.size };
   const ops = [
     stmt(C, "INSERT OR IGNORE INTO write_revisions(scope,revision) VALUES('expiry_catalog',0)"),
-    stmt(C, "UPDATE write_revisions SET revision=CASE WHEN COALESCE((SELECT revision FROM write_revisions WHERE scope='stock'),0)=? THEN revision+1 ELSE -1 END WHERE scope='expiry_catalog'", rev),
-    stmt(C, 'DELETE FROM expiry_products')
+    stmt(C, "UPDATE write_revisions SET revision=CASE WHEN COALESCE((SELECT revision FROM write_revisions WHERE scope='stock'),0)=? THEN revision+1 ELSE -1 END WHERE scope='expiry_catalog'", rev)
   ];
-  for (const chunk of jsonBatches([...products.values()])) ops.push(stmt(C, `INSERT INTO expiry_products(code_key,branch,code,name,group_code)
-    SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]') FROM json_each(?)`, chunk));
+  for (const chunk of jsonBatches(removedKeys)) ops.push(stmt(C, `DELETE FROM expiry_products WHERE (code_key,branch,group_code,name) IN
+    (SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]') FROM json_each(?))`, chunk));
+  for (const chunk of jsonBatches(changedProducts)) ops.push(stmt(C, `INSERT INTO expiry_products(code_key,branch,code,name,group_code)
+    SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]') FROM json_each(?) WHERE 1
+    ON CONFLICT(code_key,branch,group_code,name) DO UPDATE SET code=excluded.code WHERE expiry_products.code<>excluded.code`, chunk));
   ops.push(kvSetStmt(C, 'EXPIRY_STOCK_CATALOG', JSON.stringify(metadata)));
   await batch(C, ops);
   return metadata;
