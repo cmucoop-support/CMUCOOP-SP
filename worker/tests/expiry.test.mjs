@@ -132,6 +132,7 @@ test('expiry migrations preserve the existing stable database and initialize the
   DB.db.prepare("INSERT INTO barcode_cats(cat) VALUES('preserve')").run();
   const migration = await readFile(new URL('../migrations/0002_expiry.sql', import.meta.url), 'utf8');
   DB.db.exec(migration);
+  DB.db.exec(await readFile(new URL('../migrations/0003_expiry_stock.sql', import.meta.url), 'utf8'));
   assert.equal(DB.db.prepare('SELECT cat FROM barcode_cats').get().cat, 'preserve');
   assert.equal(DB.db.prepare("SELECT v FROM kv WHERE k='SCHEMA_VERSION'").get().v, SCHEMA_VERSION);
   assert.equal(DB.db.prepare('SELECT COUNT(*) n FROM expiry_lots').get().n, 0);

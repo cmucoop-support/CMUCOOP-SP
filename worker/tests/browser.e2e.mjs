@@ -5,16 +5,23 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_PACKAGE_PATH || 'playwright');
 import { D1 } from './d1.mjs';
+import { cameraChecks } from './camera.e2e.mjs';
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const previewDir = resolve(root, 'previews');
 const source = await readFile(resolve(root, 'worker/index.js'), 'utf8');
-const mod = await import('data:text/javascript;base64,' + Buffer.from(source + '\nexport {SCHEMA,SCHEMA_VERSION,API,sha256hex,expiryBounds};').toString('base64'));
+const mod = await import('data:text/javascript;base64,' + Buffer.from(source + '\nexport {SCHEMA,SCHEMA_VERSION,API,sha256hex,expiryBounds};\n//# sourceURL=cmucoop-worker.js').toString('base64'));
 const DB = new D1(); await DB.install(mod.SCHEMA);
 DB.db.prepare('INSERT INTO kv(k,v) VALUES(?,?)').run('SCHEMA_VERSION', mod.SCHEMA_VERSION);
 DB.db.prepare('INSERT INTO users(username,salt,hash,role,name,perms) VALUES(?,?,?,?,?,?)').run('demo', 'salt', await mod.sha256hex('salt|demo1234'), 'admin', 'ผู้ดูแลระบบ (ตัวอย่าง)', '{}');
 DB.db.prepare('INSERT INTO sessions(token,username,exp) VALUES(?,?,?)').run('seed', 'demo', Date.now() + 86400000);
 DB.db.prepare('INSERT INTO barcode_items(pos,cat,name,packBar,unitBar) VALUES(1,?,?,?,?)').run('ผลิตภัณฑ์นม', 'นมทดสอบใหม่', '', '8850999000001');
 const C = { env: { DB } }, bounds = mod.expiryBounds();
+const stockRow=(code,name,branch='สาขาทดสอบ')=>['AA',code,name,branch,10,1,1,'','',20,'T2',99,120,'','2026-10-18'];
+const testProducts=[['8850999000001','นมทดสอบใหม่'],['CONNECTION','ทดสอบเน็ตหลุด'],['NEXT','สินค้าบันทึกต่อเนื่อง'],['AFTER','ล็อตหลังอ่านค้าง'],['8850123456787','สินค้าจากกล้อง'],['WATER_A','น้ำดื่ม แบบ A'],['WATER_B','น้ำดื่ม แบบ B']];
+await mod.API.stockSave(C,'seed',{branch:'สาขาทดสอบ',groups:[{g:'AA',rows:testProducts.map(p=>stockRow(...p))}]});
+await mod.API.stockSave(C,'seed',{branch:'สาขาหลัก',groups:[{g:'AA',rows:[stockRow('MAIN','สินค้าในสาขาหลัก','สาขาหลัก')]}]});
+const stockSnapshot=DB.db.prepare('SELECT * FROM stock_grp ORDER BY g,ver,n').all();
+
 const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0,10);
 const seed = [
   ['นมสดพาสเจอร์ไรส์ รสจืด', addDays(bounds.today,-2), null, 'ตู้แช่ 01'],
@@ -26,7 +33,7 @@ const seed = [
   ['ข้าวหอมมะลิ 5 กก.', bounds.m12, null, 'ชั้น D1']
 ];
 for (let i=0; i<seed.length; i++) await mod.API.expiryCreate(C,'seed',{requestId:crypto.randomUUID().replace(/-/g,''),barcode:'885000000000'+i,name:seed[i][0],expires:seed[i][1],quantity:seed[i][2],unit:'ชิ้น',branch:'สาขาหลัก',location:seed[i][3],note:i===0?'ตรวจสอบหน้าชั้นและดำเนินการตามขั้นตอน':''});
-const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.ttf':'font/ttf'};
+const mime = {'.svg':'image/svg+xml','.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.ttf':'font/ttf'};
 const base='https://cmucoop.test';
 async function dispatch(request) {
   return mod.default.fetch(new Request(request.url(),{method:request.method(),headers:request.headers(),body:request.method()==='POST'?request.postDataBuffer():undefined}),{DB},{});
@@ -48,6 +55,7 @@ await context.route('**/*',async route=>{
   } catch(e){await route.fulfill({status:404,body:String(e.message)});}
 });
 const page=await context.newPage(), errors=[];
+page.setDefaultTimeout(15000);
 page.on('pageerror', e=>errors.push(e.message));
 const wait=async condition=>{await page.waitForFunction(condition);};
 const lotCount=()=>DB.db.prepare('SELECT COUNT(*) n FROM expiry_lots').get().n;
@@ -59,13 +67,23 @@ try {
   await page.goto(base+'/index.html');await page.locator('#mExpiry').waitFor({state:'visible'});
   await page.locator('#mExpiry').click();await page.waitForURL('**/expiry.html');await page.locator('#rows tr').first().waitFor();
   console.log('PASS separate URL, shared login and portal card');
+  const selectProduct = async (query, name=query) => {
+    await page.locator('#branch').selectOption('สาขาทดสอบ');
+    await page.locator('#productSearch').fill(query);await page.locator('#productSearch').press('Enter');
+    await page.waitForFunction(name=>document.querySelector('#productName').value===name,name);
+  };
   const add = async (quantity=null) => {
-    await page.locator('#addLot').click();await page.locator('#barcode').fill('8850999000001');await page.locator('#barcode').press('Enter');
-    await page.waitForFunction(()=>document.querySelector('#productName').value==='นมทดสอบใหม่');
-    await page.locator('#branch').fill('สาขาทดสอบ');await page.locator('#expires').fill(bounds.month);
+    await page.locator('#addLot').click();await selectProduct('8850999000001','นมทดสอบใหม่');await page.locator('#expires').fill(bounds.month);
     if (quantity!==null){await page.locator('#quantity').fill(String(quantity));await page.locator('#unit').fill('กล่อง');}
     await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});await wait(()=>!document.querySelector('#refresh').disabled);
   };
+  await page.locator('#addLot').click();await page.locator('#branch').selectOption('สาขาทดสอบ');
+  await page.locator('#productSearch').fill('น้ำดื่ม');await page.locator('#productSearch').press('Enter');await page.locator('#productResults button').nth(1).waitFor();
+  await page.locator('#productResults button').filter({hasText:'น้ำดื่ม แบบ A'}).click();
+  assert.equal(await page.locator('#barcode').inputValue(),'WATER_A');assert.equal(await page.locator('#productName').evaluate(el=>el.readOnly),true);
+  await page.locator('#branch').selectOption('สาขาหลัก');assert.equal(await page.locator('#barcode').inputValue(),'');
+  await page.locator('#productSearch').fill('สินค้าในสาขาหลัก');await page.locator('#productSearch').press('Enter');await page.waitForFunction(()=>document.querySelector('#barcode').value==='MAIN');
+  await page.locator('#cancelForm').click();console.log('PASS multiple stock matches can be selected; branch changes clear the previous product');
   await add();await add(12);
   await page.locator('#search').fill('8850999000001');await page.waitForFunction(()=>document.querySelectorAll('#rows tr').length===2);
   assert.match(await page.locator('#rows').innerText(),/ไม่ระบุ/);assert.match(await page.locator('#rows').innerText(),/12 กล่อง/);
@@ -87,7 +105,7 @@ try {
     const p=route.request().postDataJSON();
     if(p.fn==='expiryCreate'&&!aborted){aborted=true;await dispatch(route.request());await route.abort('failed');}else await route.fallback();
   });
-  await page.locator('#addLot').click();await page.locator('#productName').fill('ทดสอบเน็ตหลุด');await page.locator('#branch').fill('สาขาทดสอบ');await page.locator('#expires').fill(bounds.week);await page.locator('#save').click();
+  await page.locator('#addLot').click();await selectProduct('ทดสอบเน็ตหลุด');await page.locator('#expires').fill(bounds.week);await page.locator('#save').click();
   await page.locator('#pendingNotice').waitFor({state:'visible'});
   assert.equal(lotCount(),before+1);assert.equal(await page.locator('#lotFields').evaluate(el=>el.disabled),true);
   await page.reload(); await page.locator('#addLot').waitFor({state:'visible'}); await wait(()=>!document.querySelector('#refresh').disabled);
@@ -95,9 +113,9 @@ try {
   await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});assert.equal(lotCount(),before+1);
   await page.unroute('**/api');console.log('PASS uncertain response retry across reload creates exactly one lot');
   const beforeNext=lotCount();
-  await page.locator('#addLot').click();await page.locator('#productName').fill('สินค้าบันทึกต่อเนื่อง');await page.locator('#branch').fill('สาขาทดสอบ');await page.locator('#expires').fill(bounds.m3);await page.locator('#saveNext').click();
+  await page.locator('#addLot').click();await selectProduct('สินค้าบันทึกต่อเนื่อง');await page.locator('#expires').fill(bounds.m3);await page.locator('#saveNext').click();
   await page.waitForFunction(()=>document.querySelector('#lotDialog').open&&document.querySelector('#productName').value===''&&!document.querySelector('#lotFields').disabled);
-  await page.locator('#productName').fill('สินค้าบันทึกต่อเนื่อง');await page.locator('#expires').fill(bounds.m3);await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});
+  await selectProduct('สินค้าบันทึกต่อเนื่อง');await page.locator('#expires').fill(bounds.m3);await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});
   assert.equal(lotCount(),beforeNext+2);console.log('PASS save-and-next retains identical prior lots');
   await wait(()=>!document.querySelector('#refresh').disabled);
   let releaseRead, markReadStarted, markReadDone, delayed=false;
@@ -111,11 +129,12 @@ try {
     }else await route.fallback();
   });
   await page.locator('#refresh').click();await started;
-  await page.locator('#addLot').click();await page.locator('#productName').fill('ล็อตหลังอ่านค้าง');await page.locator('#branch').fill('สาขาทดสอบ');await page.locator('#expires').fill(bounds.today);await page.locator('#save').click();
+  await page.locator('#addLot').click();await selectProduct('ล็อตหลังอ่านค้าง');await page.locator('#expires').fill(bounds.today);await page.locator('#save').click();
   await page.waitForFunction(()=>document.querySelector('#rows').innerText.includes('ล็อตหลังอ่านค้าง'));
   releaseRead();await finished;await page.unroute('**/api');console.log('PASS pre-save delayed reads cannot replace post-save data');
   await page.locator('#search').fill('');await wait(()=>!document.querySelector('#refresh').disabled);
   await page.locator('#refresh').click();await wait(()=>!document.querySelector('#refresh').disabled);
+  const beforeCamera=lotCount();await cameraChecks(page,base);assert.equal(lotCount(),beforeCamera);
   await mkdir(previewDir,{recursive:true});
   await page.evaluate(()=>document.querySelector('#toast').hidden=true);
   await page.screenshot({path:resolve(previewDir, 'expiry-desktop.png'),fullPage:false});
@@ -123,13 +142,21 @@ try {
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:resolve(previewDir, 'expiry-mobile.png'),fullPage:false});
-  await page.locator('#addLot').click();
+  await page.locator('#addLot').click();await page.locator('#branch').selectOption('สาขาทดสอบ');
+  await page.locator('#productSearch').fill('นม');await page.locator('#productSearch').press('Enter');await page.waitForFunction(()=>document.querySelector('#productName').value==='นมทดสอบใหม่');
   assert.equal(await page.evaluate(()=>document.querySelector('#lotDialog').scrollWidth<=document.querySelector('#lotDialog').clientWidth),true);
   assert.equal(await page.locator('#save').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),true);
+  assert.equal(await page.evaluate(()=>document.querySelector('#lotScroll').getBoundingClientRect().bottom<=document.querySelector('#lotForm .dialog-actions').getBoundingClientRect().top),true);
+  await page.locator('#note').fill('เข้าถึงช่องท้ายฟอร์มได้โดยเลื่อนภายในฟอร์ม');
+  assert.equal(await page.locator('#save').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),true);
+  await page.evaluate(()=>document.querySelector('#lotScroll').scrollTop=0);
   await page.screenshot({path:resolve(previewDir, 'expiry-form-mobile.png'),fullPage:false});
   await page.locator('#cancelForm').click();
   console.log('PASS desktop/mobile layouts and dialog width');
-  assert.equal(DB.db.prepare('SELECT COUNT(*) n FROM stock_grp').get().n,0);
+  assert.deepEqual(DB.db.prepare('SELECT * FROM stock_grp ORDER BY g,ver,n').all(),stockSnapshot);
   assert.deepEqual(errors,[]);console.log('PASS no browser JavaScript errors and no stock writes');
   console.log('E2E PASSED');
+} catch (error) {
+  console.error('Browser diagnostic',await page.evaluate(()=>({cameraStatus:document.querySelector('#cameraStatus')?.textContent,ready:document.querySelector('video')?.readyState,videoWidth:document.querySelector('video')?.videoWidth,decoder:!!window.ZXing,stream:window.__testStream?.getTracks().map(t=>t.readyState),product:document.querySelector('#productName')?.value})).catch(()=>null));
+  throw error;
 } finally {await browser.close();}
