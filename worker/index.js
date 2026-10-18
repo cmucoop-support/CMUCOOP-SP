@@ -277,7 +277,7 @@ async function batch(C, list) {
   let results;
   try { results = await C.env.DB.batch(ops); }
   catch (e) {
-    if (/revision_conflict/.test(String(e))) { const conflict = new Error('ข้อมูลถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดแล้วลองบันทึกอีกครั้ง'); conflict.code = 'WRITE_CONFLICT'; throw conflict; }
+    if (/revision_conflict/.test(String(e))) throw Object.assign(new Error('ข้อมูลถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดแล้วลองบันทึกอีกครั้ง'), { code: 'WRITE_CONFLICT' });
     throw e;
   }
   if (guarded) { C.guard.revision++; C.guard.committed = true; }
@@ -313,7 +313,7 @@ function guardedApi(fn, scope, readOnly = false, includeRevision = false) {
       try {
         const result = await fn(scoped, ...args);
         if (readOnly && await revision(scoped, scope) !== scoped.guard.revision) {
-          const e = new Error('ข้อมูลเปลี่ยนระหว่างโหลด กรุณาโหลดใหม่'); e.code = 'WRITE_CONFLICT'; throw e;
+          throw Object.assign(new Error('ข้อมูลเปลี่ยนระหว่างโหลด กรุณาโหลดใหม่'), { code: 'WRITE_CONFLICT' });
         }
         if (includeRevision && result && typeof result === 'object' && !Array.isArray(result)) result.revision = scoped.guard.revision;
         return result;
@@ -390,11 +390,12 @@ const actGroupOf = sheet => ACT_GROUPS.filter(g => g.sheets.indexOf(sheet) >= 0)
 
 /* ---------- ผู้ใช้ / สิทธิ์ / เซสชัน ---------- */
 function rowToUser(r) {
+  /** @type {Record<string, boolean>} */
   let perms = {}; try { perms = JSON.parse(r.perms || '{}') || {}; } catch (e) { /* ใช้ค่าเริ่มต้น */ }
   return { username: r.username, salt: r.salt, hash: r.hash, role: r.role, name: r.name || '', perms, lk: r.lk_hash ? { salt: r.lk_salt, hash: r.lk_hash } : null };
 }
 function userPerms(u) {
-  const out = {}, p = u.perms || {};
+  const out = /** @type {Record<string, boolean>} */ ({}), p = u.perms || {};
   PERM_KEYS.forEach(k => { out[k] = u.role === 'admin' ? true : (p[k] !== undefined ? !!p[k] : PERM_DEFAULT[k]); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = u.role === 'admin' ? true : p[k] !== false; });   // การ์ดกำหนดเอง: ไม่ได้ตั้ง = เห็นได้
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
@@ -403,7 +404,7 @@ function userPerms(u) {
   return out;
 }
 function cleanPerms(p, role) {
-  const out = {}; p = p || {};
+  const out = /** @type {Record<string, boolean>} */ ({}); p = p || {};
   PERM_KEYS.forEach(k => { out[k] = role === 'admin' ? true : (p[k] === undefined ? PERM_DEFAULT[k] : !(p[k] === false || p[k] === 'false')); });
   Object.keys(p).forEach(k => { if (CUSTOM_KEY.test(k)) out[k] = role === 'admin' ? true : !(p[k] === false || p[k] === 'false'); });
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
@@ -411,6 +412,8 @@ function cleanPerms(p, role) {
   if (!out.expiry) out.expiry_edit = false;
   return out;
 }
+/** @typedef {{salt: string, hash: string, role: string, name: string, perms?: Record<string, boolean>, lk?: {salt: string, hash: string} | null}} UserRecord */
+/** @returns {Promise<UserRecord>} */
 async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
 const saveUserStmt = (C, username, u) => stmt(C,
   'INSERT INTO users(username,salt,hash,role,name,perms,lk_salt,lk_hash) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(username) DO UPDATE SET salt=excluded.salt, hash=excluded.hash, role=excluded.role, name=excluded.name, perms=excluded.perms, lk_salt=excluded.lk_salt, lk_hash=excluded.lk_hash',
@@ -509,7 +512,7 @@ API.recoveryInfo = async (C, token) => {
 };
 API.issueRecoveryCode = async (C, token) => {
   const me = await auth(C, token, true);
-  const raw = (uuid() + uuid()).replace(/-/g, '').toUpperCase().slice(0, 20), code = raw.match(/.{4}/g).join('-'), salt = uuid();
+  const raw = (uuid() + uuid()).replace(/-/g, '').toUpperCase().slice(0, 20), code = (raw.match(/.{4}/g) || []).join('-'), salt = uuid();
   await kvSet(C, 'RECOVERY_CODE', JSON.stringify({ salt, hash: await hashPw(salt, raw), ts: now(), by: me.name }));
   await failClear(C, 'rfail');
   await sysLog(C, me.name, 'ออกรหัสกู้คืนใหม่', 'รหัสกู้คืนเดิมใช้ไม่ได้แล้ว');
@@ -551,11 +554,12 @@ API.saveUser = async (C, token, p) => {
   if (original && original !== username && map[username]) throw new Error('มีผู้ใช้ชื่อนี้อยู่แล้ว');
   if (!old && !linkMode && password.length < 4) throw new Error('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
   if (old && password && password.length < 4) throw new Error('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
+  /** @type {UserRecord} */
   let rec;
   if (old) { rec = { salt: old.salt, hash: old.hash, role, name: str(p.name), lk: old.lk }; if (password) { rec.salt = uuid(); rec.hash = await hashPw(rec.salt, password); } }
   else if (linkMode) rec = await makeUser(uuid(), role, str(p.name));   // รหัสผ่านสุ่ม → เข้าได้ทางลิงก์เท่านั้น
   else rec = await makeUser(password, role, str(p.name));
-  rec.perms = cleanPerms(p.perms, role);
+  const perms = cleanPerms(p.perms, role); rec.perms = perms;
   let link = '';
   if ((!old && linkMode) || (old && old.lk && original !== username)) { const nl = await newLinkRec(username); rec.lk = nl.lk; link = nl.link; }
   const next = Object.assign({}, map); if (original && original !== username) delete next[original]; next[username] = rec;
@@ -563,7 +567,7 @@ API.saveUser = async (C, token, p) => {
   const ops = [saveUserStmt(C, username, rec)];
   if (original && original !== username) ops.push(stmt(C, 'DELETE FROM users WHERE username=?', original), stmt(C, 'DELETE FROM sessions WHERE username=?', original));
   await batch(C, ops);
-  await sysLog(C, me.name, old ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้', username + ' · ' + ROLES[role] + ' · การ์ด: ' + PERM_KEYS.filter(k => rec.perms[k]).join(','));
+  await sysLog(C, me.name, old ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้', username + ' · ' + ROLES[role] + ' · การ์ด: ' + PERM_KEYS.filter(k => perms[k]).join(','));
   return { ok: true, link, relogin: original === me.user && original !== username };
 };
 API.regenUserLink = async (C, token, username) => {
@@ -722,8 +726,8 @@ API.clearActivity = async (C, token, group) => {
     const g = ACT_GROUPS.filter(x => x.key === group)[0];
     if (!g && group !== 'other') throw new Error('ไม่พบหมวดที่เลือก');
     label = g ? g.label : 'อื่น ๆ';
-    const known = ACT_GROUPS.reduce((a, x) => a.concat(x.sheets), []);
-    const sheets = g ? g.sheets : null;
+    const known = ACT_GROUPS.flatMap(x => x.sheets);
+    const sheets = g ? g.sheets : [];
     const where = g ? 'sheet IN (' + sheets.map(() => '?').join(',') + ')' : 'sheet NOT IN (' + known.map(() => '?').join(',') + ')';
     const args = g ? sheets : known;
     removed = (await one(C, 'SELECT COUNT(*) AS n FROM log WHERE ' + where, ...args)).n;
@@ -872,7 +876,7 @@ async function readSounds(C) {
     .filter(x => x.type && x.code);
 }
 async function buildSoundCfg(C, full) {
-  const cfg = { buttons: [], timed: [], staff: [], locations: [], cashiers: [], notices: [], schedule: [], intro: '', outro: '', daytime: { on: false, interval: 30 } };
+  const cfg = { buttons: [], timed: [], staff: [], locations: [], cashiers: [], notices: [], schedule: /** @type {Array<{time: string, key: string}>} */ ([]), intro: '', outro: '', daytime: { on: false, interval: 30 } };
   const map = { 'ปุ่ม': 'buttons', 'เสียงตามเวลา': 'timed', 'พนักงาน': 'staff', 'สถานที่': 'locations', 'แคชเชียร์': 'cashiers', 'ประเภทงดรับ': 'notices' };
   let dayKey = '';
   (await readSounds(C)).forEach(x => {
@@ -929,7 +933,7 @@ API.saveSound = async (C, token, p) => {
   }
   const on = str(p.status) !== 'ปิด';
   const list = await readSounds(C); let old = null;
-  list.forEach(x => { if (x.row === row) old = x; else if (x.type === type && x.code === code) throw new Error('มีรหัสนี้ในประเภท "' + type + '" แล้ว'); });
+  for (const x of list) { if (x.row === row) old = x; else if (x.type === type && x.code === code) throw new Error('มีรหัสนี้ในประเภท "' + type + '" แล้ว'); }
   if (row && !old) throw new Error('ไม่พบแถวที่ต้องการแก้ไข');
   let fid = old ? old.id : '', fname = old ? old.file : '';
   if (data) { fid = await saveFile(C, mime, data); fname = str(f.name).slice(0, 120) || ('sound.' + SOUND_EXT[mime]); }
@@ -1032,7 +1036,7 @@ function parseMusicUrl(raw) {
     if (['shorts', 'embed', 'live', 'v'].indexOf(seg[0]) >= 0 && YT_ID.test(seg[1] || '')) return ytItem('yt', seg[1]);
     if (list && !/^RD/.test(list) && YT_LIST.test(list)) return ytItem('ytlist', list);
   } else if (MU_AUDIO_EXT.test(u.pathname)) {
-    let name = u.pathname.split('/').pop().replace(MU_AUDIO_EXT, '');
+    let name = (u.pathname.split('/').pop() || '').replace(MU_AUDIO_EXT, '');
     try { name = decodeURIComponent(name); } catch (e) { /* ใช้ชื่อดิบ */ }
     return { kind: 'audio', ref: u.href, url: u.href, thumb: '', title: name.slice(0, 150) || 'ไฟล์เสียง' };
   }
@@ -1477,6 +1481,7 @@ API.barcodeRestore = async (C, token, id) => {
 };
 
 /* ---------- นำเข้าจาก Excel ---------- */
+/** @type {Array<[string, RegExp, RegExp?]>} */
 const BC_PATS = [
   ['perPack', /ต่อแพ็ค|ต่อแพค|ต่อ\s*pack|per\s*pack/i],
   ['packBar', /แพ็ค|แพค|pack/i, /บาร์|bar|รหัส|เลข|code/i], ['unitBar', /เดี่ยว|เดียว|unit|single|ชิ้น/i, /บาร์|bar|รหัส|เลข|code/i],
@@ -1755,7 +1760,7 @@ async function stockState(C) {
   if (parts.length) legacy = stockParseRows(parts.map(p => p.data).join(''), 'ข้อมูลเดิม');
   if (legacy.length) {
     const meta = (await stateJson(C, 'STOCK_META', null)) || {}, by = {}, ops = [];
-    legacy.map(stockCleanRow).filter(Boolean).forEach(r => { (by[r[0]] || (by[r[0]] = [])).push(r); });
+    legacy.map(stockCleanRow).filter(r => r !== null).forEach(r => { (by[r[0]] || (by[r[0]] = [])).push(r); });
     Object.keys(by).forEach(g => {
       const rows = by[g], reps = rows.map(r => r[14]).filter(Boolean).sort();
       ops.push(...stockInsertOps(C, g, 0, JSON.stringify(rows)));
@@ -2163,7 +2168,7 @@ function stockAdjItems(items) {                                   // items = [{ 
     if (!code) return null;
     if (!(qty > 0) || qty > 1000000) throw new Error('จำนวนต้องมากกว่า 0 (บาร์ ' + code + ')');
     return { code, qty };
-  }).filter(Boolean);
+  }).filter(item => item !== null);
 }
 function stockAdjApi(kind, meta) {                                // meta (ไม่บังคับ) = { label, kv } สำหรับแท็กที่สร้างเอง
   const label = meta ? meta.label : STOCK_ADJ_LABEL[kind], kv = meta ? meta.kv : STOCK_ADJ_KV[kind];
@@ -2401,7 +2406,7 @@ async function expiryAuth(C, token, edit = false) {
 function expiryClean(p) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('รูปแบบรายการไม่ถูกต้อง');
   const text = (v, max) => str(v).replace(/\s+/g, ' ').slice(0, max);
-  const data = { barcode: str(p.barcode).replace(/\s+/g, '').slice(0, 64), name: text(p.name, 200), branch: text(p.branch, 80), location: text(p.location, 120), expires: stockDate(p.expires), quantity: null, unit: '', note: text(p.note, 1000) };
+  const data = { barcode: str(p.barcode).replace(/\s+/g, '').slice(0, 64), name: text(p.name, 200), branch: text(p.branch, 80), location: text(p.location, 120), expires: stockDate(p.expires), quantity: /** @type {number | null} */ (null), unit: '', note: text(p.note, 1000) };
   if (!data.name) throw new Error('กรุณาระบุชื่อสินค้า');
   if (!data.branch) throw new Error('กรุณาระบุสาขา');
   if (!data.expires || Number(data.expires.slice(0, 4)) < 1900 || Number(data.expires.slice(0, 4)) > 2200) throw new Error('วันหมดอายุไม่ถูกต้อง กรุณาเลือกปี ค.ศ. จากปฏิทิน');
