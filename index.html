@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>CMUCOOP SUPPORT</title>
 <link href="logo.png" rel="icon" type="image/png"/>
-<script src="gas-shim.js?v=stable-1"></script>
+<script src="gas-shim.js?v=expiry-1"></script>
 <script>function pageUrl(file, fallback){ if (/google(usercontent)?\.com$/.test(location.hostname)) return fallback; return location.origin + location.pathname.replace(/[^\/]*$/, '') + file; }</script>
 <base target="_top"/>
 <link href="fonts.css" rel="stylesheet"/>
@@ -417,6 +417,7 @@ td.act{white-space:nowrap;min-width:170px}
 <button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b><span>จัดการคำขอและลำดับการเล่นเพลง</span></button>
 <button class="mcard hidden" id="mStock"><b>สินค้าค้างสต็อก</b><span>ติดตามอายุสินค้า มูลค่าคงเหลือ และแนวโน้ม</span></button>
 <button class="mcard hidden" id="mMarket"><b>เช็คราคาตลาด</b><span>สำรวจราคา เปรียบเทียบ และส่งออกรายงาน</span></button>
+<button class="mcard hidden" id="mExpiry"><b>แจ้งเตือนสินค้าหมดอายุ</b><span>ติดตามวันหมดอายุแยกล็อต</span><span id="expiryCardCount" aria-live="polite"></span></button>
 <button class="mcard hidden" id="mSettings"><b>ตั้งค่า</b><span>ผู้ใช้งาน สิทธิ์ และการตั้งค่าระบบ</span></button>
 </div>
 </div>
@@ -544,7 +545,8 @@ function goPortal() {
   $('#pMe').textContent = S.me.name + ' (' + (admin ? 'Admin' : 'ผู้ใช้งาน') + ')';
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
-  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket'].forEach(function (x) {
+  loadExpiryCardCount();
+  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket', 'expiry:mExpiry'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่ Admin ติ๊กให้ผู้ใช้คนนี้
   });
 }
@@ -565,6 +567,7 @@ async function startApp(me) {
 var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
+  { k: 'expiry', id: 'mExpiry', t: 'แจ้งเตือนสินค้าหมดอายุ' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
@@ -740,6 +743,17 @@ $('#mSound').addEventListener('click', function () { openCardPage('sound.html', 
 $('#mMusic').addEventListener('click', function () { openCardPage('music.html', 'music'); });
 $('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
 $('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
+$('#mExpiry').addEventListener('click', function () { openCardPage('expiry.html', 'expiry'); });
+async function loadExpiryCardCount() {
+  var el = $('#expiryCardCount'), token = S.token;
+  if (!hasPerm('expiry')) { el.textContent = ''; return; }
+  el.textContent = 'กำลังตรวจรายการแจ้งเตือน…';
+  try {
+    var data = await call('expirySummary');
+    if (token !== S.token) return;
+    el.textContent = data.counts.total + ' ล็อตที่เปิดแจ้งเตือน · ภายใน 1 เดือน/เลยกำหนด ' + (data.counts.expired + data.counts.week + data.counts.month) + ' ล็อต';
+  } catch (e) { if (token === S.token) el.textContent = 'เปิดเพื่อตรวจรายการล่าสุด'; }
+}
 
 /* ----- ตั้งค่า (Admin) : เปิดเป็นหน้าแยก settings.html ----- */
 $('#mSettings').addEventListener('click', function () { if (S.me && S.me.role === 'admin') openCardPage('settings.html', 'settings'); });

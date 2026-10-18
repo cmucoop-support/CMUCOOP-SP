@@ -1,0 +1,10 @@
+PASS separate URL, shared login and portal card
+PASS barcode lookup, optional quantities and duplicate lots
+PASS acknowledgement, close-one-lot and retained history
+PASS editing optional quantity to blank
+PASS uncertain response retry across reload creates exactly one lot
+PASS save-and-next retains identical prior lots
+PASS pre-save delayed reads cannot replace post-save data
+PASS desktop/mobile layouts and dialog width
+PASS no browser JavaScript errors and no stock writes
+E2E PASSED

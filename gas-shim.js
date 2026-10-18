@@ -6,7 +6,7 @@ window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.d
   var readOnly = new Set(['whoami', 'listUsers', 'getCardOrder', 'getCustomCards', 'getCardTitles', 'getCardSize',
     'getActivity', 'getPublicBanners', 'getBannerImage', 'adminBannerImage', 'listBanners', 'getSoundConfig',
     'getSoundPublic', 'getSoundAudio', 'listSounds', 'adminSoundAudio', 'musicList', 'getInit', 'getCategoryData',
-    'findBarcode', 'getLog', 'barcodeBackupList', 'barcodeBackupData', 'stockGet', 'marketGet', 'getTvPublic', 'getTvConfig']);
+    'findBarcode', 'getLog', 'barcodeBackupList', 'barcodeBackupData', 'stockGet', 'marketGet', 'getTvPublic', 'getTvConfig', 'expiryList', 'expirySummary', 'expiryLookup', 'expiryHistory']);
   var active = 0, pending = [], inFlight = new Map();
   function enqueue(job) {
     if (pending.length >= 32) return Promise.reject(new Error('มีคำขอค้างจำนวนมาก กรุณารอให้รายการก่อนหน้าเสร็จ'));
