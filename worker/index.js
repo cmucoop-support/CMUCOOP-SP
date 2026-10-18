@@ -64,7 +64,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS stock_grp (g TEXT, ver INTEGER, n INTEGER, data TEXT, PRIMARY KEY (g, ver, n))',   // สินค้าค้างสต็อก: แยกรายหมวด ver 0 = ปัจจุบัน, 1 = ฉบับก่อนหน้า
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
-const SCHEMA_VERSION = 'expiry-1';
+const SCHEMA_VERSION = 'expiry-stock-2';
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
   'CREATE TABLE IF NOT EXISTS kv_chunks (k TEXT, n INTEGER, data TEXT, PRIMARY KEY(k,n))',
@@ -103,6 +103,12 @@ const EXPIRY_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS expiry_events (lot_id INTEGER NOT NULL, version INTEGER NOT NULL, ts INTEGER NOT NULL, who TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, PRIMARY KEY(lot_id,version))'
 ];
 SCHEMA.push(...EXPIRY_SCHEMA);
+const EXPIRY_PRODUCT_SCHEMA = [
+  'CREATE TABLE IF NOT EXISTS expiry_products (code_key TEXT NOT NULL,branch TEXT NOT NULL,code TEXT NOT NULL,name TEXT NOT NULL,group_code TEXT NOT NULL,PRIMARY KEY(code_key,branch,group_code,name))',
+  'CREATE INDEX IF NOT EXISTS expiry_products_branch ON expiry_products(branch,code_key)'
+];
+SCHEMA.push(...EXPIRY_PRODUCT_SCHEMA);
+
 
 const schemaPromises = new WeakMap();
 async function ensureSchema(db) {
@@ -2430,12 +2436,96 @@ API.expirySummary = async (C, token, branch) => {
   const bounds = expiryBounds(), data = await expiryCountsStmt(C, str(branch), bounds).first();
   return { counts: data, bounds };
 };
-API.expiryLookup = async (C, token, barcode) => {
+// Derived, searchable names/codes only: expiry access never exposes stock costs.
+// One rebuild per stock revision/isolate, with an atomic revision fence in D1.
+const expiryCatalogBuilds = new WeakMap();
+const expiryCodeKey = value => stockCodeKey(value).replace(/^p(?=\d)/, '');
+async function expiryBuildCatalog(C, rev) {
+  const [names, state, by] = await Promise.all([stockNames(C), stateJson(C, 'STOCK_GROUPS', null), stockRowsByGroup(C, 0)]);
+  let cfg = {};
+  if (names.__BR_CFG__) {
+    try { cfg = JSON.parse(names.__BR_CFG__); if (!cfg || typeof cfg !== 'object') throw new Error(); }
+    catch (_) { throw new Error('การตั้งค่าสาขาสินค้าค้างสต็อกไม่ถูกต้อง กรุณาติดต่อผู้ดูแล'); }
+  }
+  const removed = cfg.delBranches && typeof cfg.delBranches === 'object' ? cfg.delBranches : {};
+  const branches = new Set(), products = new Map();
+  const addBranch = value => {
+    const name = str(value).replace(/\s+/g, ' ').slice(0, 80);
+    if (name && !removed[stockBrKey(name)]) branches.add(name);
+  };
+  (Array.isArray(cfg.branches) ? cfg.branches : []).forEach(addBranch);
+  if (state !== null) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) throw new Error('ข้อมูลกำกับสินค้าค้างสต็อกไม่ถูกต้อง');
+    Object.keys(state).forEach(g => {
+      const meta = state[g] && state[g].cur;
+      if (meta && meta.count > 0 && !by.has(g)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+      if (meta && meta.br) Object.keys(meta.br).forEach(addBranch);
+    });
+  } else {
+    if (by.size) throw new Error('ไม่พบข้อมูลกำกับสินค้าค้างสต็อก กรุณาติดต่อผู้ดูแล');
+    // Read legacy data without migrating or modifying the stock system.
+    const parts = await all(C, 'SELECT n,data FROM stock_data ORDER BY n');
+    if (parts.some((p, i) => p.n !== i)) throw new Error('ข้อมูลสต็อกเดิมไม่ครบ กรุณาติดต่อผู้ดูแล');
+    if (parts.length) by.set('legacy', stockParseRows(parts.map(p => p.data).join(''), 'ข้อมูลเดิม'));
+  }
+  by.forEach(rows => rows.forEach(row => {
+    addBranch(row[3]);
+    const code = str(row[1]).replace(/\s+/g, '').slice(0, 64), name = str(row[2]).replace(/\s+/g, ' ').slice(0, 200), branch = str(row[3]).replace(/\s+/g, ' ').slice(0, 80), group = str(row[0]);
+    if (!code || !name || !branch || removed[stockBrKey(branch)]) return;
+    const record = [expiryCodeKey(code), branch, code, name, group];
+    products.set(JSON.stringify([record[0], branch, group, name]), record);
+  }));
+  const metadata = { version: 1, revision: rev, branches: [...branches].sort(), total: products.size };
+  const ops = [
+    stmt(C, "INSERT OR IGNORE INTO write_revisions(scope,revision) VALUES('expiry_catalog',0)"),
+    stmt(C, "UPDATE write_revisions SET revision=CASE WHEN COALESCE((SELECT revision FROM write_revisions WHERE scope='stock'),0)=? THEN revision+1 ELSE -1 END WHERE scope='expiry_catalog'", rev),
+    stmt(C, 'DELETE FROM expiry_products')
+  ];
+  for (const chunk of jsonBatches([...products.values()])) ops.push(stmt(C, `INSERT INTO expiry_products(code_key,branch,code,name,group_code)
+    SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]') FROM json_each(?)`, chunk));
+  ops.push(kvSetStmt(C, 'EXPIRY_STOCK_CATALOG', JSON.stringify(metadata)));
+  await batch(C, ops);
+  return metadata;
+}
+async function expiryStockCatalog(C) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rev = await revision(C, 'stock'), cached = await stateJson(C, 'EXPIRY_STOCK_CATALOG', null);
+    if (cached && cached.version === 1 && cached.revision === rev && Array.isArray(cached.branches)) return cached;
+    let pending = expiryCatalogBuilds.get(C.env.DB);
+    if (!pending || pending.revision !== rev) {
+      const promise = expiryBuildCatalog(C, rev);
+      pending = { revision: rev, promise }; expiryCatalogBuilds.set(C.env.DB, pending);
+    }
+    try { return await pending.promise; }
+    catch (e) { if (e.code !== 'WRITE_CONFLICT' || attempt === 2) throw e; }
+    finally { if (expiryCatalogBuilds.get(C.env.DB) === pending) expiryCatalogBuilds.delete(C.env.DB); }
+  }
+}
+API.expiryCatalog = guardedApi(async (C, token) => {
   await expiryAuth(C, token);
-  barcode = str(barcode).replace(/\s+/g, '').slice(0, 64);
-  if (!barcode) return [];
-  return all(C, 'SELECT DISTINCT name,cat,partner FROM barcode_items WHERE packBar=? OR unitBar=? ORDER BY name LIMIT 10', barcode, barcode);
-};
+  return expiryStockCatalog(C);
+}, 'stock', true);
+API.expiryLookup = guardedApi(async (C, token, query, branch) => {
+  await expiryAuth(C, token); await expiryStockCatalog(C);
+  const q = str(query).slice(0, 120), br = str(branch).slice(0, 80);
+  if (q.length < 2) return { rows: [], more: false };
+  const key = expiryCodeKey(q), keys = [key];
+  if (/^\d{12}$/.test(key)) keys.push('0' + key);
+  if (/^0\d{12}$/.test(key)) keys.push(key.slice(1));
+  const literal = '%' + q.replace(/[!%_]/g, '!$&') + '%';
+  // Exact scans use the primary-key index, even with a large source catalog.
+  let rows = await all(C, `SELECT code,name,branch,group_code AS category FROM expiry_products
+    WHERE code_key IN (SELECT value FROM json_each(?)) AND (?='' OR branch=?) ORDER BY code,name,branch,group_code LIMIT 31`, JSON.stringify(keys), br, br);
+  if (!rows.length) rows = await all(C, `SELECT code,name,branch,group_code AS category FROM expiry_products
+    WHERE (?='' OR branch=?) AND (code LIKE ? ESCAPE '!' OR name LIKE ? ESCAPE '!') ORDER BY code,name,branch,group_code LIMIT 31`, br, br, literal, literal);
+  return { rows: rows.slice(0, 30), more: rows.length > 30 };
+}, 'stock', true);
+async function expiryValidateSource(C, data) {
+  const catalog = await expiryStockCatalog(C);
+  if (!catalog.branches.includes(data.branch)) throw new Error('กรุณาเลือกสาขาจากระบบสินค้าค้างสต็อก');
+  if (!data.barcode || !await one(C, 'SELECT 1 AS found FROM expiry_products WHERE code_key=? AND code=? AND name=? AND branch=? LIMIT 1', expiryCodeKey(data.barcode), data.barcode, data.name, data.branch))
+    throw new Error('กรุณาค้นหาและเลือกสินค้าจากระบบสินค้าค้างสต็อกอีกครั้ง (ไม่พบสินค้านี้ในสาขาที่เลือก)');
+}
 API.expiryList = async (C, token, options) => {
   const me = await expiryAuth(C, token), o = options && typeof options === 'object' ? options : {}, bounds = expiryBounds();
   const branch = str(o.branch).slice(0, 80), search = str(o.q).slice(0, 120), state = ['open','closed','all'].includes(o.state) ? o.state : 'open';
@@ -2469,6 +2559,15 @@ API.expiryCreate = async (C, token, payload) => {
   const me = await expiryAuth(C, token, true), data = expiryClean(payload), requestId = str(payload.requestId);
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new Error('รหัสคำขอไม่ถูกต้อง กรุณาเปิดฟอร์มเพิ่มล็อตใหม่');
   const digest = await sha256hex(JSON.stringify(data)), ts = now();
+  // Old clients/pending receipts remain compatible. New forms explicitly select stock data.
+  if (payload.stockSource === true) {
+    const previous = await one(C, 'SELECT * FROM expiry_lots WHERE request_id=?', requestId);
+    if (previous) {
+      if (previous.create_hash !== digest || previous.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
+      return { lot: expiryRow(previous), replayed: true };
+    }
+    await expiryValidateSource(C, data);
+  }
   const results = await batch(C, [
     stmt(C, `INSERT INTO expiry_lots(request_id,create_hash,barcode,name,branch,location,expires,quantity,unit,note,created_ts,created_user,created_by,updated_ts,updated_by)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_id) DO NOTHING`, requestId, digest, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, ts, me.user, me.name, ts, me.name),
@@ -2512,6 +2611,7 @@ async function expiryWrite(C, me, current, expectedVersion, data, action, detail
 API.expiryUpdate = async (C, token, id, version, payload) => {
   const me = await expiryAuth(C, token, true), data = expiryClean(payload), current = await one(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0);
   if (!current) throw new Error('ไม่พบล็อตนี้');
+  if (payload.stockSource === true && (data.barcode !== current.barcode || data.name !== current.name || data.branch !== current.branch)) await expiryValidateSource(C, data);
   data.status = current.status;
   return expiryWrite(C, me, current, version, data, 'แก้ไขล็อต', JSON.stringify({ before: expiryRow(current), after: data }));
 };
