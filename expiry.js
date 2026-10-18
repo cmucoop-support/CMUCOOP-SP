@@ -15,7 +15,7 @@
   const labels = Object.fromEntries(ranges.map(([key, title]) => [key, title])); labels.later = 'เกิน 12 เดือน';
   const statusLabels = { active: 'ยังไม่รับทราบ', acknowledged: 'รับทราบแล้ว', closed: 'ปิดแจ้งเตือนแล้ว' };
   let token = '', user = null, data = null, bucket = 'all', page = 1, loadSeq = 0, lookupSeq = 0, historySeq = 0, timer, searchTimer, toastTimer, formState = null, saving = false;
-  let formLocked = false, catalog = null, catalogError = '', matches = [], productSelection = null, lookupTimer;
+  let formLocked = false, catalog = null, catalogError = '', matches = [], productSelection = null, manualMode = false, lookupTimer;
   const fields = ['barcode', 'productName', 'branch', 'location', 'expires', 'quantity', 'unit', 'note'];
   function toast(message, error = false) {
     if (message === 'SESSION_CHANGED') return;
@@ -145,9 +145,10 @@
   $('#refresh').addEventListener('click', () => load()); $('#prev').addEventListener('click', () => { page--; load(); }); $('#next').addEventListener('click', () => { page++; load(); });
   function currentFields() {
     return { barcode: $('#barcode').value.trim(), name: $('#productName').value.trim(), branch: $('#branch').value.trim(), location: $('#location').value.trim(), expires: $('#expires').value,
-      quantity: $('#quantity').value === '' ? null : Number($('#quantity').value), unit: $('#unit').value.trim(), note: $('#note').value.trim(), stockSource: true };
+      quantity: $('#quantity').value === '' ? null : Number($('#quantity').value), unit: $('#unit').value.trim(), note: $('#note').value.trim(), stockSource: !manualMode, manualEntry: manualMode };
   }
   function fillForm(r) {
+    setManualMode(r.manualEntry === true);
     populateBranches(r.branch || '', !!(r.branch && (formState && formState.id || r.requestId)));
     $('#barcode').value = r.barcode || ''; $('#productName').value = r.name || ''; $('#branch').value = r.branch || ''; $('#location').value = r.location || '';
     $('#expires').value = r.expires || ''; $('#quantity').value = r.quantity == null ? '' : r.quantity; $('#unit').value = r.unit || ''; $('#note').value = r.note || '';
@@ -157,11 +158,18 @@
     const list = catalog ? catalog.branches.slice() : [];
     let legacy = '';
     if (selected && !list.includes(selected)) { if (keepOld) { list.push(selected); legacy = selected; } else selected = ''; }
-    $('#branch').innerHTML = '<option value="">เลือกสาขาจากระบบสินค้าค้างสต็อก</option>' + list.map(value => '<option value="' + esc(value) + '">' + esc(value) + (value === legacy ? ' (ข้อมูลเดิม)' : '') + '</option>').join('');
+    $('#branch').innerHTML = '<option value="">เลือกสาขา</option>' + list.map(value => '<option value="' + esc(value) + '">' + esc(value) + (value === legacy ? ' (ข้อมูลเดิม)' : '') + '</option>').join('');
     $('#branch').value = selected || (list.length === 1 && !keepOld ? list[0] : '');
   }
-  function clearResults() { matches = []; $('#productResults').innerHTML = ''; $('#productResults').hidden = true; }
-  function resetProduct() { productSelection = null; $('#barcode').value = ''; $('#productName').value = ''; $('#barcode').required = true; }
+  function setManualMode(enabled) {
+    manualMode = enabled; $('#barcode').readOnly = !enabled; $('#productName').readOnly = !enabled;
+    $('#barcode').required = !enabled; $('#selectedProduct').classList.toggle('manual-mode', enabled);
+    $('#barcodeLabel').textContent = enabled ? 'รหัสสินค้า / บาร์โค้ด (ถ้ามี)' : 'รหัสสินค้าจากระบบ';
+    $('#barcode').placeholder = enabled ? 'กรอกรหัส หรือเว้นว่างได้' : 'เติมเมื่อเลือกสินค้า';
+    $('#productName').placeholder = enabled ? 'กรอกชื่อสินค้า' : 'เติมเมื่อเลือกสินค้า';
+  }
+  function clearResults() { matches = []; $('#productResults').innerHTML = ''; $('#productResults').hidden = true; $('#manualEntry').hidden = true; }
+  function resetProduct() { setManualMode(false); productSelection = null; $('#barcode').value = ''; $('#productName').value = ''; }
   function prepareLookup() {
     lookupSeq++; clearTimeout(lookupTimer); clearResults(); closeCamera();
     $('#productSearch').value = ''; $('#lookup').disabled = false;
@@ -194,7 +202,7 @@
   $('#lotDialog').addEventListener('cancel', event => { if (saving) event.preventDefault(); });
   $('#lotDialog').addEventListener('close', () => { lookupSeq++; clearTimeout(lookupTimer); closeCamera(); });
   function chooseProduct(row) {
-    productSelection = row; $('#barcode').value = row.code; $('#productName').value = row.name; $('#branch').value = row.branch;
+    setManualMode(false); productSelection = row; $('#barcode').value = row.code; $('#productName').value = row.name; $('#branch').value = row.branch;
     $('#barcode').required = true; clearResults();
     $('#lookupInfo').textContent = 'เลือกแล้ว: ' + row.code + ' · ' + row.name + ' · ' + row.branch;
   }
@@ -212,11 +220,22 @@
       if (matches.length === 1) { chooseProduct(matches[0]); return; }
       $('#productResults').innerHTML = matches.map((r, i) => '<button type="button" class="product-choice" data-product="' + i + '"><strong>' + esc(r.name) + '</strong><span>' + esc(r.code) + ' · ' + esc(r.branch) + ' · หมวด ' + esc(r.category) + '</span></button>').join('');
       $('#productResults').hidden = !matches.length;
-      $('#lookupInfo').textContent = matches.length ? (result.more ? 'พบมากกว่า 30 รายการ แสดง 30 รายการแรก พิมพ์เพิ่มเพื่อค้นหาให้แคบลง' : 'พบ ' + matches.length + ' รายการ กรุณาเลือกสินค้าที่ต้องการ') : 'ไม่พบสินค้าในสาขาที่เลือก ลองค้นหาด้วยชื่อ หรือเลือกสาขาอื่น หากยังไม่พบให้นำเข้าข้อมูลสินค้าค้างสต็อกก่อน';
+      $('#manualEntry').hidden = !!matches.length;
+      $('#lookupInfo').textContent = matches.length ? (result.more ? 'พบมากกว่า 30 รายการ แสดง 30 รายการแรก พิมพ์เพิ่มเพื่อค้นหาให้แคบลง' : 'พบ ' + matches.length + ' รายการ กรุณาเลือกสินค้าที่ต้องการ') : 'ไม่พบสินค้าในสาขาที่เลือก กด “กรอกสินค้าเอง” เพื่อระบุชื่อและรหัสสินค้าได้';
     } catch (e) { if (seq === lookupSeq) $('#lookupInfo').textContent = e.message; }
     finally { if (seq === lookupSeq) $('#lookup').disabled = false; }
   }
   $('#productResults').addEventListener('click', event => { const button = event.target.closest('[data-product]'); if (button && matches[Number(button.dataset.product)]) { chooseProduct(matches[Number(button.dataset.product)]); $('#expires').focus(); } });
+  $('#manualEntry').addEventListener('click', () => {
+    if (formLocked || saving || !$('#lotDialog').open) return;
+    if (!$('#branch').value) { $('#lookupInfo').textContent = 'เลือกสาขาก่อน แล้วกด “กรอกสินค้าเอง”'; $('#branch').focus(); return; }
+    const query = $('#productSearch').value.trim();
+    clearResults(); productSelection = null; setManualMode(true);
+    const isCode = /^[pP]?\d{4,64}$/.test(query);
+    $('#barcode').value = isCode ? query : ''; $('#productName').value = isCode ? '' : query.slice(0, 200);
+    $('#lookupInfo').textContent = 'กรอกสินค้าเอง · ระบุชื่อสินค้า รหัสเว้นว่างได้ · บันทึกเป็นล็อตตามปกติ';
+    $('#productName').focus();
+  });
   $('#lookup').addEventListener('click', lookup);
   $('#productSearch').addEventListener('input', () => { resetProduct(); lookupSeq++; clearTimeout(lookupTimer); clearResults(); $('#lookup').disabled = false; lookupTimer = setTimeout(lookup, 450); });
   $('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); lookup().then(() => { if ($('#lotDialog').open && !formLocked && productSelection) $('#expires').focus(); }); } });
@@ -236,7 +255,7 @@
     event.preventDefault(); if (saving || !formState || !user) return;
     const next = event.submitter && event.submitter.dataset.next === 'yes', state = formState, owner = user.user;
     if (!state.payload && !$('#lotForm').reportValidity()) return;
-    if (!state.payload && (!productSelection || productSelection.code !== $('#barcode').value || productSelection.name !== $('#productName').value || productSelection.branch !== $('#branch').value)) { $('#formError').textContent = 'กรุณาค้นหาและเลือกสินค้าจากระบบสินค้าค้างสต็อก'; return; }
+    if (!state.payload && !manualMode && (!productSelection || productSelection.code !== $('#barcode').value || productSelection.name !== $('#productName').value || productSelection.branch !== $('#branch').value)) { $('#formError').textContent = 'กรุณาค้นหาและเลือกสินค้า หรือกดกรอกสินค้าเองเมื่อค้นหาไม่พบ'; return; }
     const payload = state.payload || currentFields();
     if (!state.id) { payload.requestId = state.requestId; state.payload = payload; storageSet(draftKey(state.requestId), JSON.stringify(payload)); }
     saving = true; $('#formError').textContent = ''; $('#save').disabled = true; $('#saveNext').disabled = true; $('#closeForm').disabled = true; $('#cancelForm').disabled = true; $('#lotFields').disabled = true;
