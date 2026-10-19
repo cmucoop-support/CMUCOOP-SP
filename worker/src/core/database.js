@@ -1,5 +1,3 @@
-import { isCatalogSourceStatement } from '../modules/catalog.js';
-
 const str = v => (v === null || v === undefined ? '' : String(v).trim());
 
 const now = () => Date.now();
@@ -72,33 +70,27 @@ async function batch(C, list) {
     const info = statementInfo.get(q);
     if (info && info.kv !== undefined) {
       const { kv: k, value } = info;
-      // Chunk large KV documents; the marker and all chunks commit together.
-      ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=?', k));
+      // Chunk large KV documents; only write chunks that actually changed.
       if (utf8Size(value) > 250000) {
         if (utf8Size(value) > 24 * 1024 * 1024) throw new Error('ข้อมูลประกอบใหญ่เกิน 24 MB กรุณาแบ่งชุด');
         const chunks = [];
-        for (let i = 0; i < value.length; i += 80000) chunks.push([chunks.length, value.slice(i, i + 80000)]);
-        for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT INTO kv_chunks(k,n,data) SELECT ?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?)", k, payload));
-        ops.push(stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, JSON.stringify({ __kvChunks: true, count: chunks.length })));
-      } else ops.push(q);
+        for (let i = 0; i < value.length; i += 240000) chunks.push([chunks.length, value.slice(i, i + 240000)]);
+        ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=? AND n>=?', k, chunks.length));
+        for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT INTO kv_chunks(k,n,data) SELECT ?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?) WHERE 1 ON CONFLICT(k,n) DO UPDATE SET data=excluded.data WHERE kv_chunks.data<>excluded.data", k, payload));
+        ops.push(stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE kv.v<>excluded.v', k, JSON.stringify({ __kvChunks: true, count: chunks.length })));
+      } else {
+        ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=?', k));
+        ops.push(q);
+      }
     } else {
       ops.push(q);
       if (info && /^DELETE FROM kv WHERE k=\?$/.test(info.sql)) ops.push(stmt(C, 'DELETE FROM kv_chunks WHERE k=?', info.p[0]));
     }
     ends.push(ops.length - 1);
   }
-  // Bulk source imports invalidate the projection once per atomic transaction.
-  // The same flag is rolled back on failure; external SQL keeps trigger support.
-  const sourceWrite = ops.some(q => isCatalogSourceStatement(statementInfo.get(q)));
-  const transaction = sourceWrite ? [
-    stmt(C, 'UPDATE product_catalog_state SET batching=1 WHERE id=1'),
-    ...ops,
-    stmt(C, 'UPDATE product_catalog_state SET batching=0,source_revision=source_revision+1 WHERE id=1')
-  ] : ops;
   let results;
   try {
-    results = await C.env.DB.batch(transaction);
-    if (sourceWrite) results = results.slice(1, -1);
+    results = await C.env.DB.batch(ops);
   }
   catch (e) {
     if (/revision_conflict/.test(String(e))) throw Object.assign(new Error('ข้อมูลถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดแล้วลองบันทึกอีกครั้ง'), { code: 'WRITE_CONFLICT' });
@@ -127,7 +119,7 @@ async function kvGet(C, k, def) {
 }
 
 function kvSetStmt(C, k, v) {
-  const value = String(v), q = stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v', k, value);
+  const value = String(v), q = stmt(C, 'INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE kv.v<>excluded.v', k, value);
   Object.assign(statementInfo.get(q), { kv: k, value }); return q;
 }
 

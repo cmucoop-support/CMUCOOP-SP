@@ -1,9 +1,15 @@
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
+import { webcrypto } from 'node:crypto';
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
+
+const { DatabaseSync } = await import('node:sqlite').catch(() =>
+  createRequire(import.meta.url)(process.env.SQLITE_ADDON || '/tmp/sqlite_sync.node')
+);
 
 // Real SQLite transactions/JSON1, with the D1 binding's result shape and limits.
 // Network/CPU limits and distributed D1 scheduling still require staging tests.
 export class D1 {
-  constructor() { this.db = new DatabaseSync(':memory:'); this.calls = 0; this.maxValue = 0; this.fail = null; this.hook = null; }
+  constructor() { this.db = new DatabaseSync(':memory:'); this.calls = 0; this.writes = 0; this.maxValue = 0; this.fail = null; this.hook = null; }
   prepare(sql) { return new Statement(this, sql); }
   async batch(statements) {
     await this.hook?.(statements);
@@ -28,7 +34,9 @@ export class D1 {
     const compiled = this.db.prepare(q.sql);
     if (compiled.columns().length) return { success: true, results: compiled.all(...q.params), meta: { changes: 0 } };
     const out = compiled.run(...q.params);
-    return { success: true, results: [], meta: { changes: Number(out.changes), last_row_id: Number(out.lastInsertRowid) } };
+    const changes = Number(out.changes);
+    this.writes += changes;
+    return { success: true, results: [], meta: { changes, last_row_id: Number(out.lastInsertRowid) } };
   }
   async install(schema) { await this.batch(schema.map(sql => this.prepare(sql))); }
 }

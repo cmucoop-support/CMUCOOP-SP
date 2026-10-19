@@ -11,8 +11,11 @@ function normCardOrder(list, extra) {
   return out;
 }
 
+const linkMigratedCache = new WeakSet();
+
 async function migrateLinks(C) {
-  if (await kvGet(C, 'LINK_MIGRATED', '')) return;
+  if (linkMigratedCache.has(C.env.DB)) return;
+  if (await kvGet(C, 'LINK_MIGRATED', '')) { linkMigratedCache.add(C.env.DB); return; }
   const rawL = (await kvJson(C, 'CARD_LINKS', {})) || {}, rawT = (await kvJson(C, 'CARD_TITLES', {})) || {};
   const existing = Array.isArray(await kvJson(C, 'CUSTOM_CARDS', [])) ? await kvJson(C, 'CUSTOM_CARDS', []) : [];
   const seeded = [], map = {};
@@ -35,6 +38,7 @@ async function migrateLinks(C) {
   ops.push(kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(seeded.filter(c => !have[c.k]).concat(existing))),
            kvSetStmt(C, 'CARD_ORDER', JSON.stringify(order)), kvSetStmt(C, 'LINK_MIGRATED', '1'));
   await batch(C, ops);
+  linkMigratedCache.add(C.env.DB);
 }
 
 async function customCards(C) {
@@ -70,14 +74,17 @@ API.setCustomCards = async (C, token, list) => {     // รับรายกา
     if (!(old.some(x => x.k === k) && !out.some(x => x.k === k))) { do { k = 'c_' + uuid().replace(/-/g, '').slice(0, 8); } while (out.some(x => x.k === k) || old.some(x => x.k === k)); }
     out.push({ k, t, u });
   });
-  await kvSet(C, 'CUSTOM_CARDS', JSON.stringify(out));
-  await kvSet(C, 'CARD_ORDER', JSON.stringify(normCardOrder(await kvJson(C, 'CARD_ORDER', null), out.map(c => c.k))));
+  if (JSON.stringify(old) === JSON.stringify(out)) return out;
+  const nextOrder = normCardOrder(await kvJson(C, 'CARD_ORDER', null), out.map(c => c.k));
+  await batch(C, [kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(out)), kvSetStmt(C, 'CARD_ORDER', JSON.stringify(nextOrder))]);
   await sysLog(C, me.name, 'จัดการการ์ดลิงก์', out.map(c => c.t).join(' | ') || '(ไม่มี)');
   return out;
 };
 
 API.setCardOrder = async (C, token, order) => {
-  const me = await auth(C, token, true), out = normCardOrder(order, await customIds(C));
+  const me = await auth(C, token, true), ids = await customIds(C);
+  const prev = normCardOrder(await kvJson(C, 'CARD_ORDER', null), ids), out = normCardOrder(order, ids);
+  if (JSON.stringify(prev) === JSON.stringify(out)) return out;
   await kvSet(C, 'CARD_ORDER', JSON.stringify(out));
   await sysLog(C, me.name, 'จัดลำดับการ์ดเมนูหลัก', out.join(','));
   return out;
@@ -92,7 +99,7 @@ async function cardTitles(C) {
 API.getCardTitles = async (C, token) => { await auth(C, token); return cardTitles(C); };
 
 API.setCardTitles = async (C, token, titles) => {
-  const me = await auth(C, token, true), out = {};
+  const me = await auth(C, token, true), prev = await cardTitles(C), out = {};
   titles = (titles && typeof titles === 'object') ? titles : {};
   CARD_KEYS.forEach(k => {
     const t = str(titles[k]).replace(/\s+/g, ' ').trim();
@@ -100,6 +107,7 @@ API.setCardTitles = async (C, token, titles) => {
     if (t.length > CARD_TITLE_MAX) throw new Error('ชื่อการ์ดยาวเกิน ' + CARD_TITLE_MAX + ' ตัวอักษร');
     out[k] = t;
   });
+  if (JSON.stringify(prev) === JSON.stringify(out)) return out;
   await kvSet(C, 'CARD_TITLES', JSON.stringify(out));
   await sysLog(C, me.name, 'แก้ไขชื่อการ์ดเมนูหลัก', JSON.stringify(out));
   return out;
@@ -118,14 +126,20 @@ API.getCardSize = async (C, token) => { const me = await auth(C, token); return 
 API.setCardSize = async (C, token, o) => {
   const me = await auth(C, token), v = normCardSize(o);
   if (!v) throw new Error('ค่าขนาดการ์ดไม่ถูกต้อง');
+  const prev = normCardSize(await kvJson(C, 'CSZ:' + me.user, null));
+  if (prev && prev.c === v.c && prev.f === v.f && prev.n === v.n) return v;
   await kvSet(C, 'CSZ:' + me.user, JSON.stringify(v));
   await sysLog(C, me.name, 'ปรับขนาดการ์ดเมนูหลัก', 'การ์ดระดับ ' + v.c + ' · ตัวอักษรระดับ ' + v.f + ' · ต่อแถว ' + (v.n || 'อัตโนมัติ'));
   return v;
 };
 
+const PASSIVE_ACTIONS = new Set(['เปิดการ์ด', 'เลือกหมวด', 'สลับแท็บ']);
+
 API.logUse = async (C, token, area, action, detail) => {
+  const act = str(action).slice(0, 40);
+  if (PASSIVE_ACTIONS.has(act)) return true;
   const me = await auth(C, token);
-  await sysLogTo(C, me.name, USE_AREAS[str(area)] || 'ระบบ', str(action).slice(0, 40), str(detail).slice(0, 200));
+  await sysLogTo(C, me.name, USE_AREAS[str(area)] || 'ระบบ', act, str(detail).slice(0, 200));
   return true;
 };
 

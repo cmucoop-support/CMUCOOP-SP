@@ -144,8 +144,6 @@ $('#userBody').addEventListener('click', async function (e) {
   }
 });
 /* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่ Admin สร้างเอง */
-
-/* สิทธิ์การ์ดรายคน (ติ๊กเลือก) : การ์ดมาตรฐาน + การ์ดลิงก์ที่ Admin สร้างเอง */
 var PERM_LABELS = {
   barcode: 'รายการบาร์เดี่ยว/บาร์แพ็ค',
   sound: 'ระบบเสียงประกาศ',
@@ -155,11 +153,10 @@ var PERM_LABELS = {
   market: 'เช็คราคาตลาด (ดู)',
   market_edit: 'เช็คราคาตลาด: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)',
   expiry: 'แจ้งเตือนสินค้าหมดอายุ (ดู)',
-  expiry_edit: 'แจ้งเตือนสินค้าหมดอายุ: เพิ่ม/แก้ไข/รับทราบ/ปิดล็อต',
-  product_catalog: 'ข้อมูลสินค้าตามสาขา: ดูทะเบียนและเปรียบเทียบทุกระบบ'
+  expiry_edit: 'แจ้งเตือนสินค้าหมดอายุ: เพิ่ม/แก้ไข/รับทราบ/ปิดล็อต'
 };
 var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false, product_catalog: false };
+var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false };
 function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
 function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
 function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
@@ -253,7 +250,6 @@ var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'expiry', id: 'mExpiry', t: 'แจ้งเตือนสินค้าหมดอายุ' },
-  { k: 'product_catalog', id: 'mCatalog', t: 'ข้อมูลสินค้าตามสาขา' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
@@ -339,9 +335,9 @@ $('#sortSave').addEventListener('click', function () {
   });
   if (bad) { toast('ข้อมูลของการ์ด "' + bad + '" ไม่ถูกต้อง (ต้องมีชื่อ และลิงก์ขึ้นต้นด้วย http:// หรือ https:// ไม่มีช่องว่าง)', true); return; }
   busy(this, async function () {
-    if (CUSTOM.length || cl.length) CUSTOM = await call('setCustomCards', cl);
-    CARD_ORDER = await call('setCardOrder', CARD_WORK);
-    CARD_TITLES = await call('setCardTitles', titles);
+    if (JSON.stringify(CUSTOM) !== JSON.stringify(cl)) CUSTOM = await call('setCustomCards', cl);
+    if (JSON.stringify(CARD_ORDER) !== JSON.stringify(CARD_WORK)) CARD_ORDER = await call('setCardOrder', CARD_WORK);
+    if (JSON.stringify(CARD_TITLES) !== JSON.stringify(titles)) CARD_TITLES = await call('setCardTitles', titles);
     refreshCards(); stCardsLoad(); toast('บันทึกการตั้งค่าการ์ดแล้ว');
   });
 });

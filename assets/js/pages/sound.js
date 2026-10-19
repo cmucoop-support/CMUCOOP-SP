@@ -80,7 +80,7 @@ function showLogin(msg) {
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
-function hasPerm(k) { return !!(S.me && S.me.perms && S.me.perms[k]); }
+function hasPerm(k) { return !!(S.me && (S.me.role === 'admin' || (S.me.perms && S.me.perms[k]))); }
 function goPortal() {
   location.href = pageUrl('index.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/index.html');
 }

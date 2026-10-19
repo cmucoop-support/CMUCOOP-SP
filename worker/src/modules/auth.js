@@ -1,5 +1,5 @@
 import { CUSTOM_KEY, LOCK_SEC, MAX_FAIL, PERM_DEFAULT, PERM_KEYS, ROLES, SESSION_TTL } from '../core/config.js';
-import { all, batch, hashPw, kvJson, kvSet, now, one, passArg, run, stmt, str, uuid } from '../core/database.js';
+import { all, batch, hashPw, kvJson, kvSet, now, one, passArg, run, sha256hex, stmt, str, uuid } from '../core/database.js';
 import { sysLog } from '../core/logging.js';
 import { API } from '../core/registry.js';
 
@@ -41,7 +41,11 @@ async function allUsers(C) { return (await all(C, 'SELECT * FROM users ORDER BY 
 
 async function ensureAdmin(C) {
   const r = await one(C, 'SELECT COUNT(*) AS n FROM users');
-  if (!r || !r.n) { const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin'); await run(C, 'INSERT INTO users(username,salt,hash,role,name,perms) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM users)', '0000', u.salt, u.hash, u.role, u.name, JSON.stringify(u.perms)); }   // เหมือนของเดิม: Admin เริ่มต้น 0000/0000
+  if (!r || !r.n) {
+    const u = await makeUser('0000', 'admin', ''); u.perms = cleanPerms({}, 'admin');
+    try { await run(C, 'INSERT INTO users(username,salt,hash,role,name,perms) SELECT ?,?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM users)', '0000', u.salt, u.hash, u.role, u.name, JSON.stringify(u.perms)); }
+    catch (e) { if (!/exceeded.*write limit|daily row write limit/i.test(String(e))) throw e; }
+  }
 }
 
 async function newLinkRec(username) {
@@ -49,10 +53,37 @@ async function newLinkRec(username) {
   return { key, lk: { salt, hash: await hashPw(salt, key) }, link: '?u=' + encodeURIComponent(username) + '&k=' + key };
 }
 
+async function signStatelessToken(u, username, exp) {
+  const sig = await sha256hex('s1|' + u.salt + '|' + u.hash + '|' + u.role + '|' + username + '|' + exp);
+  return 's1.' + encodeURIComponent(username) + '.' + exp + '.' + sig;
+}
+
+async function verifyStatelessToken(C, raw) {
+  const parts = String(raw || '').split('.');
+  if (parts.length !== 4 || parts[0] !== 's1') return null;
+  let username = '';
+  try { username = decodeURIComponent(parts[1]); } catch (_) { return null; }
+  const exp = Number(parts[2]), sig = parts[3];
+  if (!username || !Number.isFinite(exp) || exp < now()) return null;
+  const r = await one(C, 'SELECT * FROM users WHERE username=?', username);
+  if (!r) return null;
+  const expected = await sha256hex('s1|' + r.salt + '|' + r.hash + '|' + r.role + '|' + username + '|' + exp);
+  return sig === expected ? Object.assign({ exp }, r) : null;
+}
+
 async function auth(C, token, adminOnly) {
-  const s = token ? await one(C, 'SELECT s.exp AS exp, u.* FROM sessions s JOIN users u ON u.username=s.username WHERE s.token=?', String(token)) : null;
-  if (!s || s.exp < now()) { if (token) await run(C, 'DELETE FROM sessions WHERE token=?', String(token)); throw new Error('SESSION_EXPIRED'); }
-  if (s.exp - now() < SESSION_TTL * 500) await run(C, 'UPDATE sessions SET exp=? WHERE token=? AND exp<?', now() + SESSION_TTL * 1000, String(token), now() + SESSION_TTL * 500);   // คำขอพร้อมกันต่ออายุได้ครั้งเดียว
+  const tok = String(token || '');
+  let s = tok && !tok.startsWith('s1.') ? await one(C, 'SELECT s.exp AS exp, u.* FROM sessions s JOIN users u ON u.username=s.username WHERE s.token=?', tok) : null;
+  if (!s && tok.startsWith('s1.')) s = await verifyStatelessToken(C, tok);
+  if (!s || s.exp < now()) {
+    if (tok && !tok.startsWith('s1.')) {
+      try { await run(C, 'DELETE FROM sessions WHERE token=?', tok); } catch (_) {}
+    }
+    throw new Error('SESSION_EXPIRED');
+  }
+  if (!tok.startsWith('s1.') && s.exp - now() < SESSION_TTL * 500) {
+    try { await run(C, 'UPDATE sessions SET exp=? WHERE token=? AND exp<?', now() + SESSION_TTL * 1000, tok, now() + SESSION_TTL * 500); } catch (_) {}
+  }
   const u = rowToUser(s);
   if (adminOnly && u.role !== 'admin') throw new Error('ไม่มีสิทธิ์ใช้งานส่วนนี้');
   const perms = userPerms(u);
@@ -62,18 +93,32 @@ async function auth(C, token, adminOnly) {
 async function authPerm(C, token, key) { const me = await auth(C, token); if (!me.perms[key]) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้'); return me; }
 
 async function startSession(C, username, u, how) {
-  const token = uuid() + uuid(), perms = userPerms(u);
-  await run(C, 'DELETE FROM sessions WHERE exp<?', now());
-  await run(C, 'INSERT INTO sessions(token,username,exp) VALUES(?,?,?)', token, username, now() + SESSION_TTL * 1000);
-  await sysLog(C, u.name || username, 'เข้าสู่ระบบ', 'รหัสผู้ใช้ ' + username + ' (' + how + ')');
+  const exp = now() + SESSION_TTL * 1000, perms = userPerms(u);
+  let token = uuid() + uuid();
+  try {
+    await batch(C, [
+      stmt(C, 'DELETE FROM sessions WHERE exp<?', now()),
+      stmt(C, 'INSERT INTO sessions(token,username,exp) VALUES(?,?,?)', token, username, exp)
+    ]);
+    await sysLog(C, u.name || username, 'เข้าสู่ระบบ', 'รหัสผู้ใช้ ' + username + ' (' + how + ')');
+  } catch (e) {
+    if (!/exceeded.*write limit|daily row write limit/i.test(String(e))) throw e;
+    token = await signStatelessToken(u, username, exp);
+  }
   return { token, user: username, name: u.name || username, role: u.role, assets: perms.assets, perms };
 }
 
 async function failCount(C, k) { const r = await one(C, 'SELECT n, until FROM fails WHERE k=?', k); return r && r.until > now() ? r.n : 0; }
 
-const failBump = (C, k, n) => run(C, 'INSERT INTO fails(k,n,until) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET n=CASE WHEN fails.until>? THEN fails.n+1 ELSE 1 END, until=excluded.until', k, 1, now() + LOCK_SEC * 1000, now());
+const failBump = async (C, k, n) => {
+  try { return await run(C, 'INSERT INTO fails(k,n,until) VALUES(?,?,?) ON CONFLICT(k) DO UPDATE SET n=CASE WHEN fails.until>? THEN fails.n+1 ELSE 1 END, until=excluded.until', k, 1, now() + LOCK_SEC * 1000, now()); }
+  catch (e) { if (!/exceeded.*write limit|daily row write limit/i.test(String(e))) throw e; }
+};
 
-const failClear = (C, k) => run(C, 'DELETE FROM fails WHERE k=?', k);
+const failClear = async (C, k) => {
+  try { return await run(C, 'DELETE FROM fails WHERE k=?', k); }
+  catch (e) { if (!/exceeded.*write limit|daily row write limit/i.test(String(e))) throw e; }
+};
 
 API.login = async (C, username, password) => {
   username = str(username); password = passArg(password);
@@ -82,7 +127,7 @@ API.login = async (C, username, password) => {
   if (fails >= MAX_FAIL) throw new Error('ใส่รหัสผิดหลายครั้ง กรุณารอ 5 นาทีแล้วลองใหม่');
   const u = await getUser(C, username);
   if (!u || u.hash !== await hashPw(u.salt, password)) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); }
-  await failClear(C, lockKey);
+  if (fails > 0) await failClear(C, lockKey);
   return startSession(C, username, u, 'รหัสผ่าน');
 };
 
@@ -95,7 +140,7 @@ API.loginByLink = async (C, username, key) => {
     await failBump(C, lockKey, fails + 1);
     throw new Error('ลิงก์เข้าใช้งานไม่ถูกต้องหรือถูกยกเลิกแล้ว กรุณาขอลิงก์ใหม่จาก Admin');
   }
-  await failClear(C, lockKey);
+  if (fails > 0) await failClear(C, lockKey);
   return startSession(C, username, u, 'ลิงก์');
 };
 
@@ -104,7 +149,9 @@ API.whoami = (C, token) => auth(C, token);
 API.logout = async (C, token) => {
   if (token) {
     try { const me = await auth(C, token); await sysLog(C, me.name, 'ออกจากระบบ', 'รหัสผู้ใช้ ' + me.user); } catch (e) { /* ข้าม */ }
-    await run(C, 'DELETE FROM sessions WHERE token=?', String(token));
+    if (!String(token).startsWith('s1.')) {
+      try { await run(C, 'DELETE FROM sessions WHERE token=?', String(token)); } catch (_) {}
+    }
   }
   return true;
 };
@@ -118,7 +165,7 @@ API.changePassword = async (C, token, oldPassword, newPassword) => {
   const u = await getUser(C, me.user);
   if (!u) throw new Error('SESSION_EXPIRED');
   if (u.hash !== await hashPw(u.salt, oldPassword)) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผ่านเดิมไม่ถูกต้อง'); }
-  await failClear(C, lockKey);
+  if (fails > 0) await failClear(C, lockKey);
   const nu = await makeUser(newPassword, u.role, u.name); nu.perms = u.perms; nu.lk = u.lk;
   await saveUserStmt(C, me.user, nu).run();
   await sysLog(C, me.name, 'เปลี่ยนรหัสผ่านตัวเอง', 'รหัสผู้ใช้ ' + me.user);

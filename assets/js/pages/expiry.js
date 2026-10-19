@@ -89,7 +89,7 @@
     try {
       const [result, source] = await Promise.all([
         call('expiryList', request),
-        call('expiryCatalog').then(value => ({ value }), error => ({ error: error.message }))
+        (quiet && catalog ? Promise.resolve({ value: catalog }) : call('expiryCatalog').then(value => ({ value }), error => ({ error: error.message })))
       ]);
       if (seq !== loadSeq || requestToken !== token) return;
       data = result; catalog = source.value || null; catalogError = source.error || '';

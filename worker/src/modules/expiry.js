@@ -1,4 +1,4 @@
-import { all, batch, guardedApi, jsonBatches, kvSetStmt, now, one, revision, sha256hex, stateJson, stmt, str } from '../core/database.js';
+import { all, batch, guardedApi, now, one, revision, sha256hex, stateJson, stmt, str } from '../core/database.js';
 import { stockBrKey, stockCodeKey, stockDate, stockNames, stockParseRows, stockRowsByGroup, thaiDayIso } from './stock.js';
 import { authPerm } from './auth.js';
 import { API } from '../core/registry.js';
@@ -76,6 +76,10 @@ const expiryCatalogBuilds = new WeakMap();
 
 const expiryCodeKey = value => stockCodeKey(value).replace(/^p(?=\d)/, '');
 
+const cmpText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+const sortCatalogRows = (a, b) => cmpText(a.code, b.code) || cmpText(a.name, b.name) || cmpText(a.branch, b.branch) || cmpText(a.category, b.category);
+
 async function expiryBuildCatalog(C, rev) {
   const [names, state, by] = await Promise.all([stockNames(C), stateJson(C, 'STOCK_GROUPS', null), stockRowsByGroup(C, 0)]);
   let cfg = {};
@@ -106,49 +110,57 @@ async function expiryBuildCatalog(C, rev) {
   }
   by.forEach(rows => rows.forEach(row => {
     addBranch(row[3]);
-    const code = str(row[1]).replace(/\s+/g, '').slice(0, 64), name = str(row[2]).replace(/\s+/g, ' ').slice(0, 200), branch = str(row[3]).replace(/\s+/g, ' ').slice(0, 80), group = str(row[0]);
+    const code = str(row[1]).replace(/\s+/g, '').slice(0, 64), name = str(row[2]).replace(/\s+/g, ' ').slice(0, 200), branch = str(row[3]).replace(/\s+/g, ' ').slice(0, 80), category = str(row[0]);
     if (!code || !name || !branch || removed[stockBrKey(branch)]) return;
-    const record = [expiryCodeKey(code), branch, code, name, group];
-    products.set(JSON.stringify([record[0], branch, group, name]), record);
+    const codeKey = expiryCodeKey(code);
+    products.set(JSON.stringify([codeKey, branch, category, name]), {
+      codeKey, code, name, branch, category,
+      codeLower: code.toLowerCase(), nameLower: name.toLowerCase()
+    });
   }));
-  // Compare the minimal projection before writing. Recreating all product rows
-  // on each stock revision also rewrites their indexes and quickly spends D1's
-  // free daily allowance. Unchanged products require no product-table writes.
-  const existing = await all(C, 'SELECT code_key,branch,code,name,group_code FROM expiry_products'), seen = new Set(), removedKeys = [], changedProducts = [];
-  for (const row of existing) {
-    const key = JSON.stringify([row.code_key, row.branch, row.group_code, row.name]), next = products.get(key);
-    if (!next) removedKeys.push([row.code_key, row.branch, row.group_code, row.name]);
-    else { seen.add(key); if (next[2] !== row.code) changedProducts.push(next); }
+  // สร้างดัชนีค้นหาในหน่วยความจำของ Worker โดยไม่เขียนตารางอนุพันธ์ 30,000 แถวลง D1 (0 Row Writes)
+  const list = [...products.values()].sort(sortCatalogRows);
+  const byCodeKey = new Map(), exactSet = new Set();
+  for (const item of list) {
+    if (!byCodeKey.has(item.codeKey)) byCodeKey.set(item.codeKey, []);
+    byCodeKey.get(item.codeKey).push(item);
+    exactSet.add(JSON.stringify([item.codeKey, item.code, item.name, item.branch]));
   }
-  for (const [key, row] of products) if (!seen.has(key)) changedProducts.push(row);
   const metadata = { version: 1, revision: rev, branches: [...branches].sort(), total: products.size };
-  const ops = [
-    stmt(C, "INSERT OR IGNORE INTO write_revisions(scope,revision) VALUES('expiry_catalog',0)"),
-    stmt(C, "UPDATE write_revisions SET revision=CASE WHEN COALESCE((SELECT revision FROM write_revisions WHERE scope='stock'),0)=? THEN revision+1 ELSE -1 END WHERE scope='expiry_catalog'", rev)
-  ];
-  for (const chunk of jsonBatches(removedKeys)) ops.push(stmt(C, `DELETE FROM expiry_products WHERE (code_key,branch,group_code,name) IN
-    (SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]') FROM json_each(?))`, chunk));
-  for (const chunk of jsonBatches(changedProducts)) ops.push(stmt(C, `INSERT INTO expiry_products(code_key,branch,code,name,group_code)
-    SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]') FROM json_each(?) WHERE 1
-    ON CONFLICT(code_key,branch,group_code,name) DO UPDATE SET code=excluded.code WHERE expiry_products.code<>excluded.code`, chunk));
-  ops.push(kvSetStmt(C, 'EXPIRY_STOCK_CATALOG', JSON.stringify(metadata)));
-  await batch(C, ops);
-  return metadata;
+  return { metadata, list, byCodeKey, exactSet };
+}
+
+async function expiryStockCatalogState(C) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rev = await revision(C, 'stock');
+    if (C.guard && C.guard.scope === 'stock') C.guard.revision = rev;
+    let entry = expiryCatalogBuilds.get(C.env.DB);
+    if (entry && entry.revision === rev && entry.built) return entry.built;
+    if (!entry || entry.revision !== rev) {
+      const promise = expiryBuildCatalog(C, rev);
+      entry = { revision: rev, promise, built: null };
+      expiryCatalogBuilds.set(C.env.DB, entry);
+    }
+    try {
+      const built = await entry.promise;
+      const afterRev = await revision(C, 'stock');
+      if (afterRev !== rev) {
+        if (expiryCatalogBuilds.get(C.env.DB) === entry) expiryCatalogBuilds.delete(C.env.DB);
+        continue;
+      }
+      if (C.guard && C.guard.scope === 'stock') C.guard.revision = afterRev;
+      entry.built = built;
+      return built;
+    } catch (e) {
+      if (expiryCatalogBuilds.get(C.env.DB) === entry) expiryCatalogBuilds.delete(C.env.DB);
+      if (e.code !== 'WRITE_CONFLICT' || attempt === 2) throw e;
+    }
+  }
+  throw new Error('ข้อมูลสินค้ากำลังเปลี่ยนแปลง กรุณาลองใหม่');
 }
 
 async function expiryStockCatalog(C) {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const rev = await revision(C, 'stock'), cached = await stateJson(C, 'EXPIRY_STOCK_CATALOG', null);
-    if (cached && cached.version === 1 && cached.revision === rev && Array.isArray(cached.branches)) return cached;
-    let pending = expiryCatalogBuilds.get(C.env.DB);
-    if (!pending || pending.revision !== rev) {
-      const promise = expiryBuildCatalog(C, rev);
-      pending = { revision: rev, promise }; expiryCatalogBuilds.set(C.env.DB, pending);
-    }
-    try { return await pending.promise; }
-    catch (e) { if (e.code !== 'WRITE_CONFLICT' || attempt === 2) throw e; }
-    finally { if (expiryCatalogBuilds.get(C.env.DB) === pending) expiryCatalogBuilds.delete(C.env.DB); }
-  }
+  return (await expiryStockCatalogState(C)).metadata;
 }
 
 API.expiryCatalog = guardedApi(async (C, token) => {
@@ -157,25 +169,39 @@ API.expiryCatalog = guardedApi(async (C, token) => {
 }, 'stock', true);
 
 API.expiryLookup = guardedApi(async (C, token, query, branch) => {
-  await expiryAuth(C, token); await expiryStockCatalog(C);
+  await expiryAuth(C, token);
   const q = str(query).slice(0, 120), br = str(branch).slice(0, 80);
   if (q.length < 2) return { rows: [], more: false };
+  const state = await expiryStockCatalogState(C);
   const key = expiryCodeKey(q), keys = [key];
   if (/^\d{12}$/.test(key)) keys.push('0' + key);
   if (/^0\d{12}$/.test(key)) keys.push(key.slice(1));
-  const literal = '%' + q.replace(/[!%_]/g, '!$&') + '%';
-  // Exact scans use the primary-key index, even with a large source catalog.
-  let rows = await all(C, `SELECT code,name,branch,group_code AS category FROM expiry_products
-    WHERE code_key IN (SELECT value FROM json_each(?)) AND (?='' OR branch=?) ORDER BY code,name,branch,group_code LIMIT 31`, JSON.stringify(keys), br, br);
-  if (!rows.length) rows = await all(C, `SELECT code,name,branch,group_code AS category FROM expiry_products
-    WHERE (?='' OR branch=?) AND (code LIKE ? ESCAPE '!' OR name LIKE ? ESCAPE '!') ORDER BY code,name,branch,group_code LIMIT 31`, br, br, literal, literal);
-  return { rows: rows.slice(0, 30), more: rows.length > 30 };
+  const exact = [];
+  for (const k of keys) {
+    for (const item of state.byCodeKey.get(k) || []) {
+      if (!br || item.branch === br) exact.push(item);
+    }
+  }
+  exact.sort(sortCatalogRows);
+  let matched = exact.slice(0, 31);
+  if (!matched.length) {
+    const qLower = q.toLowerCase();
+    for (const item of state.list) {
+      if ((br && item.branch !== br) || (!item.codeLower.includes(qLower) && !item.nameLower.includes(qLower))) continue;
+      matched.push(item);
+      if (matched.length >= 31) break;
+    }
+  }
+  return {
+    rows: matched.slice(0, 30).map(r => ({ code: r.code, name: r.name, branch: r.branch, category: r.category })),
+    more: matched.length > 30
+  };
 }, 'stock', true);
 
 async function expiryValidateSource(C, data) {
-  const catalog = await expiryStockCatalog(C);
-  if (!catalog.branches.includes(data.branch)) throw new Error('กรุณาเลือกสาขาจากระบบสินค้าค้างสต็อก');
-  if (!data.barcode || !await one(C, 'SELECT 1 AS found FROM expiry_products WHERE code_key=? AND code=? AND name=? AND branch=? LIMIT 1', expiryCodeKey(data.barcode), data.barcode, data.name, data.branch))
+  const state = await expiryStockCatalogState(C);
+  if (!state.metadata.branches.includes(data.branch)) throw new Error('กรุณาเลือกสาขาจากระบบสินค้าค้างสต็อก');
+  if (!data.barcode || !state.exactSet.has(JSON.stringify([expiryCodeKey(data.barcode), data.barcode, data.name, data.branch])))
     throw new Error('กรุณาค้นหาและเลือกสินค้าจากระบบสินค้าค้างสต็อกอีกครั้ง (ไม่พบสินค้านี้ในสาขาที่เลือก)');
 }
 

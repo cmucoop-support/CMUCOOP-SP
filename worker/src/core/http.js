@@ -3,7 +3,6 @@ import { ensureSchema } from './schema.js';
 import { bannerJson, serveFile } from '../modules/media.js';
 import { NOT_YET, PENDING } from './config.js';
 import { API } from './registry.js';
-import { productCatalog, isProductSave } from '../catalog-sync.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -48,16 +47,6 @@ async function rpc(C) {
     if (!Object.prototype.hasOwnProperty.call(API, fn)) throw new Error('ไม่รู้จักคำสั่ง: ' + fn);
     const data = await API[fn](C, ...(Array.isArray(req.args) ? req.args : []));
     out = { ok: true, data };
-    if (isProductSave(fn)) {
-      try { await productCatalog.sync(C); }
-      catch (error) {
-        console.error('Product catalog pending; source save committed', error);
-        out.catalogSync = { status: 'pending', message: 'บันทึกข้อมูลต้นทางแล้ว ทะเบียนสินค้ารออัปเดต กรุณาเปิดทะเบียนสินค้าเพื่อลองอัปเดตอีกครั้ง' };
-        if (data && typeof data === 'object' && !Array.isArray(data)) {
-          data.catalogSync = out.catalogSync;
-        }
-      }
-    }
   } catch (err) {
     out = { ok: false, error: String((err && err.message) || err) };
   }

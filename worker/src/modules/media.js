@@ -117,6 +117,7 @@ API.updateBanner = async (C, token, id, p) => {
   if (p.title !== undefined) { title = str(p.title).slice(0, 100); detail.push('ชื่อ'); }
   if (p.link !== undefined) { link = checkLink(p.link); detail.push('ลิงก์'); }
   if (p.show !== undefined) { vis = p.show ? 1 : 0; detail.push(p.show ? 'แสดง' : 'ซ่อน'); }
+  if (title === b.title && link === b.link && vis === b.visible) return { ok: true };
   await run(C, 'UPDATE banners SET title=?, link=?, visible=? WHERE id=?', title, link, vis, id);
   await appendLog(C, me.name, 'Banner', '', 'แก้ไข Banner', title + ' (' + detail.join(', ') + ')');
   return { ok: true };

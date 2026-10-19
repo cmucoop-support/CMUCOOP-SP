@@ -85,7 +85,7 @@ function showLogin(msg) {
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
-function hasPerm(k) { return !!(S.me && S.me.perms && S.me.perms[k]); }
+function hasPerm(k) { return !!(S.me && (S.me.role === 'admin' || (S.me.perms && S.me.perms[k]))); }
 function goPortal() {
   location.href = pageUrl('index.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/index.html');
 }
@@ -134,7 +134,7 @@ function muBar() {                                         // คำนวณต
   bar.classList.toggle('paused', !!MU.paused);
   if (!p) { bar.classList.add('unk'); pos.textContent = '--:--'; dur.textContent = ''; return; }
   bar.classList.remove('unk');
-  var age = Math.max(0, Math.min(Date.now() + (MU.skew || 0) - p.ts, 7000));
+  var age = Math.max(0, Math.min(Date.now() + (MU.skew || 0) - p.ts, 300000));
   var cur = (p.pos || 0) + (p.mv && !MU.paused ? age / 1000 : 0);
   if (p.dur > 0) cur = Math.min(cur, p.dur);
   pos.textContent = muFmt(cur);

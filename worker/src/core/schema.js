@@ -1,5 +1,3 @@
-import { PRODUCT_SCHEMA } from '../modules/catalog.js';
-
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT)',
   'CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, salt TEXT, hash TEXT, role TEXT, name TEXT, perms TEXT, lk_salt TEXT, lk_hash TEXT)',
@@ -22,7 +20,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
 
-const SCHEMA_VERSION = 'product-catalog-1';
+const SCHEMA_VERSION = 'expiry-stock-2';
 
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
@@ -69,8 +67,17 @@ const EXPIRY_PRODUCT_SCHEMA = [
   'CREATE INDEX IF NOT EXISTS expiry_products_branch ON expiry_products(branch,code_key)'
 ];
 
-SCHEMA.push(...EXPIRY_PRODUCT_SCHEMA);
-SCHEMA.push(...PRODUCT_SCHEMA);
+const OBSOLETE_CATALOG_CLEANUP = [
+  ...['barcode_items', 'stock_data', 'market_data', 'expiry_lots', 'stock_grp', 'kv', 'kv_chunks'].flatMap(
+    table => ['insert', 'update', 'delete'].map(ev => `DROP TRIGGER IF EXISTS catalog_dirty_${table}_${ev}`)
+  ),
+  'DROP TABLE IF EXISTS product_catalog_records',
+  'DROP TABLE IF EXISTS product_catalog',
+  'DROP TABLE IF EXISTS product_catalog_state',
+  'DROP TABLE IF EXISTS expiry_products'
+];
+
+SCHEMA.push(...EXPIRY_PRODUCT_SCHEMA, ...OBSOLETE_CATALOG_CLEANUP);
 
 const schemaPromises = new WeakMap();
 
@@ -81,24 +88,24 @@ async function ensureSchema(db) {
     ready = (async () => {
       try {
         const version = await db.prepare('SELECT v FROM kv WHERE k=?').bind('SCHEMA_VERSION').first();
-        if (version && version.v === SCHEMA_VERSION) {
-          const cols = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
-          if (cols.some(c => c.name === 'perPack')) return false;
-        }
+        if (version && version.v === SCHEMA_VERSION) return false;
       } catch (e) { if (!/no such table/i.test(String(e))) throw e; }
-      // Install with the migration command before production traffic. This is a
-      // compatibility fallback for existing deployments, shared within an isolate.
-      await db.batch(SCHEMA.map(sql => db.prepare(sql)));
-      const cols = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
-      if (!cols.some(c => c.name === 'perPack')) {
-        try { await db.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); }
-        catch (e) {
-          const after = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
-          if (!after.some(c => c.name === 'perPack')) throw e;
+      try {
+        await db.batch(SCHEMA.map(sql => db.prepare(sql)));
+        const cols = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+        if (!cols.some(c => c.name === 'perPack')) {
+          try { await db.prepare('ALTER TABLE barcode_items ADD COLUMN perPack TEXT').run(); }
+          catch (e) {
+            const after = (await db.prepare('PRAGMA table_info(barcode_items)').all()).results || [];
+            if (!after.some(c => c.name === 'perPack')) throw e;
+          }
         }
+        await db.prepare('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE kv.v<>excluded.v').bind('SCHEMA_VERSION', SCHEMA_VERSION).run();
+        return true;
+      } catch (e) {
+        if (/exceeded.*write limit|daily row write limit/i.test(String(e))) return false;
+        throw e;
       }
-      await db.prepare('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').bind('SCHEMA_VERSION', SCHEMA_VERSION).run();
-      return true;
     })();
     schemaPromises.set(db, ready);
     ready.catch(() => schemaPromises.delete(db));
@@ -106,4 +113,4 @@ async function ensureSchema(db) {
   return (await ready) && first;
 }
 
-export { SCHEMA, SCHEMA_VERSION, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, schemaPromises, ensureSchema };
+export { SCHEMA, SCHEMA_VERSION, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };

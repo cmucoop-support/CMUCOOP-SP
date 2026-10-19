@@ -2479,7 +2479,7 @@ $('#upSave').addEventListener('click', function () {
     var br = UP.branch, fileName = UP.files.join(', ').slice(0, 120), btn = this, label0 = btn.textContent;
     // ส่งทีละชุดและตรวจ revision ทุกครั้ง; ถ้าผลไม่แน่นอนให้โหลดข้อมูลก่อนส่งซ้ำ
     var queue = sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; });
-    var maxG = 4, maxRows = 400, total = queue.length, lastG = '';
+    var maxG = 25, maxRows = 8000, total = queue.length, lastG = '';
     var r = { changed: [], same: [], tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
     var prog = $('#upProg');
     if (!prog) { prog = document.createElement('div'); prog.id = 'upProg'; prog.setAttribute('role', 'status'); prog.setAttribute('aria-live', 'polite'); prog.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:10px;background:#f3ecff;border:1px solid #d9c8ff;font-size:13.5px'; $('#upErr').parentNode.insertBefore(prog, $('#upErr')); }
@@ -2550,8 +2550,8 @@ function knownBranches() {
   Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k && c.br[k].count > 0) set[k] = 1; }); });
   return Object.keys(set).sort();
 }
-$('#bClear').addEventListener('click', function () { closeDlg('#nmDlg'); });
 $('#bClear').addEventListener('click', function () {
+  closeDlg('#nmDlg');
   var bs = knownBranches(), gs = Object.keys(D.gm).sort();
   $('#clErr').textContent = ''; $('#clPw').value = '';
   $('#clBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');

@@ -91,7 +91,7 @@ function goPortal() {
   $('#mSettings').classList.toggle('hidden', !admin);
   loadCardSize();
   loadExpiryCardCount();
-  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket', 'expiry:mExpiry', 'product_catalog:mCatalog'].forEach(function (x) {
+  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket', 'expiry:mExpiry'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่ Admin ติ๊กให้ผู้ใช้คนนี้
   });
 }
@@ -113,7 +113,6 @@ var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'expiry', id: 'mExpiry', t: 'แจ้งเตือนสินค้าหมดอายุ' },
-  { k: 'product_catalog', id: 'mCatalog', t: 'ข้อมูลสินค้าตามสาขา' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
@@ -152,27 +151,6 @@ function loadCardOrder() {
     refreshCards();
   });
 }
-/* ----- บันทึกการใช้งานลงประวัติ (ส่งแบบไม่รอผล ไม่หน่วงหน้าจอ) ----- */
-var USE_LAST = {};
-function logUse(area, action, detail) {
-  if (!S.token) return;
-  var k = area + '|' + action + '|' + (detail || ''), t = Date.now();
-  if (USE_LAST[k] && t - USE_LAST[k] < 1500) return;              // กันกดซ้ำรัว ๆ
-  USE_LAST[k] = t;
-  try {
-    if (window.API_URL && navigator.sendBeacon) {
-      navigator.sendBeacon(window.API_URL, new Blob([JSON.stringify({ fn: 'logUse', args: [S.token, area, action, detail || ''] })], { type: 'text/plain;charset=utf-8' }));
-      return;
-    }
-    google.script.run.withFailureHandler(function () {}).logUse(S.token, area, action, detail || '');
-  } catch (e) {}
-}
-document.querySelector('#portal .menu').addEventListener('click', function (e) {
-  var el = e.target.closest('.mcard'); if (!el) return;
-  if (el.dataset.ck) { logUse('card', 'เปิดการ์ด', cardTitle(el.dataset.ck)); return; }
-  var d = CARD_DEF.filter(function (c) { return c.id === el.id; })[0];
-  if (d) logUse(d.k, 'เปิดการ์ด', cardTitle(d.k));                  // รวมการ์ดที่เป็นลิงก์ออกภายนอก
-});
 
 /* ----- ปรับขนาดการ์ดเมนูหลัก (ผูกกับบัญชีบนเซิร์ฟเวอร์ ตามไปทุกเครื่อง; เก็บสำเนาในเครื่องไว้ให้ขึ้นเร็ว) ----- */
 var SZ_NAMES = ['เล็ก', 'ปกติ', 'กลาง', 'ใหญ่', 'ใหญ่มาก', 'ใหญ่มากๆ'];
@@ -211,7 +189,8 @@ function loadCardSize() {
   try {
     var o = JSON.parse(localStorage.getItem(szKey()) || 'null');
     if (o && o.c >= 0 && o.c < SZ_NAMES.length && o.f >= 0 && o.f < SZ_NAMES.length) {
-      SZ = { c: Number(o.c), f: Number(o.f), n: o.n >= 0 && o.n <= 4 ? Number(o.n) : 0 }; hadLocal = true;
+      SZ = { c: Number(o.c), f: Number(o.f), n: o.n >= 0 && o.n <= 4 ? Number(o.n) : 0 };
+      hadLocal = SZ.c !== 1 || SZ.f !== 1 || SZ.n !== 0;
     }
   } catch (e) {}
   szApply();
@@ -290,7 +269,6 @@ $('#mMusic').addEventListener('click', function () { openCardPage('music.html', 
 $('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
 $('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
 $('#mExpiry').addEventListener('click', function () { openCardPage('expiry.html', 'expiry'); });
-$('#mCatalog').addEventListener('click', function () { openCardPage('catalog.html', 'product_catalog'); });
 async function loadExpiryCardCount() {
   var el = $('#expiryCardCount'), token = S.token;
   if (!hasPerm('expiry')) { el.textContent = ''; return; }

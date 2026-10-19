@@ -2,13 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
-import { API, SCHEMA } from '../index.js';
+import { API, SCHEMA, hashPw } from '../index.js';
 import { D1 } from './d1.mjs';
 
 async function setup() {
   const DB = new D1(); await DB.install(SCHEMA);
-  DB.db.prepare('INSERT INTO users(username,role,name,perms) VALUES(?,?,?,?)').run('admin','admin','ผู้ทดสอบ','{}');
+  const hash = await hashPw('salt', 'pass1234');
+  DB.db.prepare('INSERT INTO users(username,salt,hash,role,name,perms) VALUES(?,?,?,?,?,?)').run('admin','salt',hash,'admin','ผู้ทดสอบ','{}');
   DB.db.prepare('INSERT INTO sessions(token,username,exp) VALUES(?,?,?)').run('token','admin',Date.now()+86400000);
+  DB.db.prepare('INSERT INTO kv(k,v) VALUES(?,?)').run('LOG_PRUNE_BUCKET',String(Math.floor(Date.now()/600000)));
   DB.db.prepare('INSERT INTO barcode_items(pos,cat,name,packBar,unitBar) VALUES(?,?,?,?,?)').run(1,'A','สินค้าเดิม','','8850000000001');
   return { env: { DB } };
 }
@@ -43,6 +45,46 @@ test('stock barcode revision and rows come from the same database snapshot', asy
   assert.equal(changed,true);
   assert.equal(latest.barcodeRevision,1);
   assert.equal(latest.barcodes[0][3],'ข้อมูลล่าสุด');
+});
+
+test('re-importing unchanged barcode rows skips rewriting barcode_items and duplicate backups', async () => {
+  const C = await setup();
+  const grid = [['ชื่อสินค้า', 'เลขบาร์เดี่ยว', 'หมวด'], ...Array.from({ length: 500 }, (_, i) => ['สินค้า ' + i, '885000' + i, 'หมวด A'])];
+  await API.importBarcodeData(C, 'token', [{ name: 'A', grid }], 'replace');
+  C.env.DB.writes = 0;
+  // Re-importing the exact same 500 rows should only write the revision + log, not 500 barcode rows or 500 backup rows!
+  await API.importBarcodeData(C, 'token', [{ name: 'A', grid }], 'replace');
+  assert.ok(C.env.DB.writes <= 5, `expected <= 5 row writes on unchanged re-import, got ${C.env.DB.writes}`);
+});
+
+test('TV music tick deduplicates progress writes during normal continuous playback', async () => {
+  const C = await setup();
+  await API.musicTvTick(C, 'song1', 10, 200, true);
+  C.env.DB.writes = 0;
+  // Subsequent ticks whose position matches elapsed time should perform 0 D1 writes.
+  await API.musicTvTick(C, 'song1', 10.5, 200, true);
+  await API.musicTvTick(C, 'song1', 11.0, 200, true);
+  assert.equal(C.env.DB.writes, 0, 'continuous playback ticks do not write to D1 every 5 seconds');
+});
+
+test('login and whoami fall back to stateless signed tokens when D1 daily write limit is exceeded', async () => {
+  const C = await setup();
+  C.env.DB.fail = q => /^(INSERT|UPDATE|DELETE)/i.test(q.sql);
+  // Simulate Cloudflare D1 free tier daily row write limit error on any write statement
+  const origExec = C.env.DB.execute.bind(C.env.DB);
+  C.env.DB.fail = null;
+  C.env.DB.execute = q => {
+    if (/^(INSERT|UPDATE|DELETE)/i.test(q.sql)) {
+      throw new Error("D1_ERROR: Your account has exceeded D1's free tier daily row write limit.");
+    }
+    return origExec(q);
+  };
+  const session = await API.login(C, 'admin', 'pass1234');
+  assert.ok(session.token.startsWith('s1.'), 'issued stateless signed token when D1 writes are blocked');
+  const me = await API.whoami(C, session.token);
+  assert.equal(me.user, 'admin');
+  assert.equal(me.role, 'admin');
+  assert.equal(await API.logout(C, session.token), true);
 });
 
 test('market draft bursts serialize once and flush the latest draft before exit without crossing accounts', async () => {

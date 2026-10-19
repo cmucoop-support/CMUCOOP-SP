@@ -1,4 +1,4 @@
-import { batch, jsonBatches, revision, stmt, str, uuid } from '../core/database.js';
+import { batch, jsonBatches, stmt, str, uuid } from '../core/database.js';
 import { API } from '../core/registry.js';
 import { auth } from './auth.js';
 import { sysLogTo } from '../core/logging.js';
@@ -60,15 +60,19 @@ API.marketSaveState = async (C, token, state) => {
   marketValidate(state);
   const old = await marketRead(C);
   if (str(state.revision) !== str(old.state.revision)) throw new Error('ข้อมูลถูกแก้ไขจากหน้าหรือผู้ใช้อื่นแล้ว กรุณารีเฟรชข้อมูลล่าสุดก่อนบันทึก');
-  const revision = uuid(), next = Object.assign({}, state, { revision }), data = JSON.stringify(next);
+  const revision = uuid(), next = Object.assign({}, state);
+  delete next.revision; next.revision = revision;
+  const data = JSON.stringify(next);
   if (new TextEncoder().encode(data).byteLength > MARKET_MAX_BYTES) throw new Error('ข้อมูลเช็คราคาตลาดใหญ่เกิน 24 MB กรุณาลดจำนวนฉบับย้อนหลัง');
   const condition = old.raw === null ? 'NOT EXISTS (SELECT 1 FROM kv WHERE k=?)' : 'EXISTS (SELECT 1 FROM kv WHERE k=? AND v=?)';
   const expected = old.raw === null ? ['MARKET_STATE'] : ['MARKET_STATE', old.raw];
-  const ops = [stmt(C, 'DELETE FROM market_data WHERE ' + condition, ...expected)];
   let count = 0;
   const chunks = [];
-  for (let i = 0; i < data.length; i += 80000) chunks.push([count++, data.slice(i, i + 80000)]);
-  for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT INTO market_data(n,data) SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?) WHERE " + condition, payload, ...expected));
+  for (let i = 0; i < data.length; i += 240000) chunks.push([count++, data.slice(i, i + 240000)]);
+  const ops = [stmt(C, 'DELETE FROM market_data WHERE n>=? AND ' + condition, count, ...expected)];
+  for (const payload of jsonBatches(chunks)) {
+    ops.push(stmt(C, "INSERT INTO market_data(n,data) SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?) WHERE " + condition + " ON CONFLICT(n) DO UPDATE SET data=excluded.data WHERE market_data.data<>excluded.data", payload, ...expected));
+  }
   const marker = JSON.stringify({ __marketChunks: true, revision, chunks: count });
   ops.push(old.raw === null
     ? stmt(C, 'INSERT INTO kv(k,v) SELECT ?,? WHERE ' + condition, 'MARKET_STATE', marker, ...expected)

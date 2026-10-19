@@ -187,7 +187,7 @@ async function stockRebuildSummaries(C, state, adj, replacements) {
 function stockInsertOps(C, g, ver, json) {
   const ops = [];
   const chunks = [];
-  for (let i = 0, n = 0; i < json.length; i += 80000, n++) chunks.push([n, json.slice(i, i + 80000)]);
+  for (let i = 0, n = 0; i < json.length; i += 240000, n++) chunks.push([n, json.slice(i, i + 240000)]);
   for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT OR REPLACE INTO stock_grp(g,ver,n,data) SELECT ?,?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?)", g, ver, payload));
   return ops;
 }
@@ -300,7 +300,7 @@ async function stockBarcodeData(C, options) {
   // avoid scanning/transferring the barcode catalog until a barcode save.
   const snapshot = await batch(C, [
     stmt(C, "SELECT COALESCE((SELECT revision FROM write_revisions WHERE scope='barcode'),0) AS revision"),
-    stmt(C, "SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items WHERE ?<0 OR COALESCE((SELECT revision FROM write_revisions WHERE scope='barcode'),0)<>? ORDER BY pos", cached, cached)
+    stmt(C, "SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items WHERE ?<0 OR COALESCE((SELECT revision FROM write_revisions WHERE scope='barcode'),0)<>? ORDER BY pos,id", cached, cached)
   ]);
   const barcodeRevision = snapshot[0].results[0].revision;
   return { barcodeRevision, barcodes: cached === barcodeRevision ? undefined : (snapshot[1].results || []).map(r => [str(r.packBar), str(r.unitBar), str(r.perPack), str(r.name), str(r.cat), str(r.partner)]) };
@@ -336,7 +336,7 @@ API.stockSave = async (C, token, payload) => {
   payload = payload || {};
   if (payload.revision !== undefined && payload.revision !== C.guard.revision) throw new Error('ข้อมูลสต็อกเปลี่ยนไปแล้ว กรุณาโหลดล่าสุดก่อนบันทึก');
   if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
-  if (payload.groups.length > 8) throw new Error('กรุณาแบ่งบันทึกครั้งละไม่เกิน 8 หมวด');
+  if (payload.groups.length > 50) throw new Error('กรุณาแบ่งบันทึกครั้งละไม่เกิน 50 หมวด');
   const branch = str(payload.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
   if (!branch) throw new Error('กรุณาเลือกสาขาก่อนอัปโหลด');
   const bk = stockBrKey(branch);
@@ -360,7 +360,7 @@ API.stockSave = async (C, token, payload) => {
     const existing = oldJson ? stockParseRows(oldJson, 'หมวด ' + g) : [];
     if (existing.some(r => r[0] !== g)) throw new Error('ข้อมูลแถวไม่ตรงกับหมวด ' + g + ' กรุณาติดต่อผู้ดูแล');
     if (!oldJson && state[g] && state[g].cur && state[g].cur.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
-    // อัปเดตเฉพาะแถวที่เปลี่ยน: เทียบรายแถวของสาขานี้ (กลุ่ม+รหัส+ชื่อ+สาขา) · แถวเหมือนเดิมคงไว้ตามเดิม · แถวที่เปลี่ยนแทนที่ตรงตำแหน่งเดิม · แถวใหม่ต่อท้าย · แถวที่หายไปจากไฟล์ใหม่ (ไม่มีของแล้ว) ตัดออก · สาขาอื่นไม่แตะ
+    // อัปเดตเฉพาะแถวที่เปลี่ยน: เทียบรายแถวของสาขานี้ (กลุ่ม+รหัส+ชื่อ+สาขา)
     const dk = r => [r[0], r[1], r[2], stockBrKey(r[3])].join('\u0001'), newMap = new Map(mine.map(r => [dk(r), r])), used = new Set(), merged = [], df = { add: 0, chg: 0, del: 0, same: 0 };
     for (const r of existing) {
       if (stockBrKey(r[3]) !== bk) { merged.push(r); continue; }
@@ -390,7 +390,7 @@ API.stockSave = async (C, token, payload) => {
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
-  // ไม่มีรายการหัก (ของหาย/หมดอายุ/แท็กหักออก) → ยอดสรุปรายหมวดที่คำนวณในลูปถูกต้องแล้ว ไม่ต้องโหลดทุกหมวดมาคำนวณใหม่ (ประหยัด CPU ของ Worker)
+  // ไม่มีรายการหัก (ของหาย/หมดอายุ/แท็กหักออก) → ยอดสรุปรายหมวดที่คำนวณในลูปถูกต้องแล้ว ไม่ต้องโหลดทุกหมวดมาคำนวณใหม่
   if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
@@ -432,7 +432,7 @@ async function stockVerifyPw(C, me, password) {
   const u = await getUser(C, me.user);
   if (!u) throw new Error('SESSION_EXPIRED');
   if (u.hash !== await hashPw(u.salt, password) && !(await checkRecovery(C, password))) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผ่านไม่ถูกต้อง'); }
-  await failClear(C, lockKey);
+  if (fails > 0) await failClear(C, lockKey);
 }
 
 API.stockClear = async (C, token, password, scope) => {
@@ -451,7 +451,7 @@ API.stockClear = async (C, token, password, scope) => {
     });
     const reps = rows.map(r => r[14]).filter(Boolean).sort();
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, JSON.stringify(rows)));
-    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: oc || null };
+    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: oc ? Object.assign({}, oc, { sum: stockSummary(replacements.prev.get(g) || []) }) : null };
     replacements.cur.set(g, rows);
     changed.push(g);
   };
@@ -482,7 +482,7 @@ API.stockClear = async (C, token, password, scope) => {
     desc = 'ล้างทั้งสาขา ' + branch;
   } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
   if (!changed.length) return { ok: true, changed };
-  await stockRebuildSummaries(C, state, lost, replacements);
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort();
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
@@ -542,6 +542,7 @@ API.stockGroupDelete = async (C, token, g, branch) => {
   if (!code) throw new Error('กรุณาระบุหมวดที่จะลบ');
   const [state, names, lost] = await Promise.all([stockState(C), stockNames(C), stockAdjLoad(C)]);
   const ts = now(), ops = [];
+  const replacements = { cur: new Map() };
   if (bk && state[code] && state[code].cur) {
     const rows = stockParseRows((await stockGroupJson(C, code, 0)) || '[]', 'หมวด ' + code);
     const keep = Array.isArray(rows) ? rows.filter(r => stockBrKey(r[3]) !== bk) : [];
@@ -557,6 +558,7 @@ API.stockGroupDelete = async (C, token, g, branch) => {
     } else {
       state[code].cur.count = keep.filter(r => r[4] > 0).length;
       state[code].cur.sum = stockSummary(keep, lost);
+      replacements.cur.set(code, keep);
       ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=0', code), ...stockInsertOps(C, code, 0, JSON.stringify(keep)));
     }
   } else {
@@ -565,12 +567,7 @@ API.stockGroupDelete = async (C, token, g, branch) => {
     Object.keys(names).forEach(k => { if (k.endsWith(':' + code)) delete names[k]; });
     ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
   }
-  const replacements = { cur: new Map() };
-  if (state[code] && state[code].cur && bk) {
-    const rows = stockParseRows((await stockGroupJson(C, code, 0)) || '[]', 'หมวด ' + code);
-    replacements.cur.set(code, rows.filter(r => stockBrKey(r[3]) !== bk));
-  }
-  await stockRebuildSummaries(C, state, lost, replacements);
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code + (br ? ' สาขา ' + br : ''), to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   ops.push(

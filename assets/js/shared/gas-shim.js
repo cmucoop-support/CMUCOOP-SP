@@ -6,33 +6,8 @@ window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.d
   var readOnly = new Set(['whoami', 'listUsers', 'getCardOrder', 'getCustomCards', 'getCardTitles', 'getCardSize',
     'getActivity', 'getPublicBanners', 'getBannerImage', 'adminBannerImage', 'listBanners', 'getSoundConfig',
     'getSoundPublic', 'getSoundAudio', 'listSounds', 'adminSoundAudio', 'musicList', 'getInit', 'getCategoryData',
-    'findBarcode', 'getLog', 'barcodeBackupList', 'barcodeBackupData', 'stockGet', 'marketGet', 'getTvPublic', 'getTvConfig', 'expiryList', 'expirySummary', 'expiryCatalog', 'expiryLookup', 'expiryHistory',
-    'productCatalogSummary', 'productCatalogList', 'productCatalogDetail']);
+    'findBarcode', 'getLog', 'barcodeBackupList', 'barcodeBackupData', 'stockGet', 'marketGet', 'getTvPublic', 'getTvConfig', 'expiryList', 'expirySummary', 'expiryCatalog', 'expiryLookup', 'expiryHistory']);
   var active = 0, pending = [], inFlight = new Map();
-  function productSaved(fn, data) {
-    var relevant = /^(?:addItem|editItem|deleteItem|createCategory|importBarcodeData|barcodeRestore|marketSaveState|expiryCreate|expiryUpdate|expirySetStatus)$/.test(fn)
-      || (fn.indexOf('stock') === 0 && fn !== 'stockGet');
-    if (!relevant) return;
-    // Only a tiny invalidation signal crosses tabs; source data and tokens stay
-    // out of localStorage. Never let a notification turn a committed save into
-    // an apparent failure.
-    try { localStorage.setItem('cmucoop_catalog_changed', Date.now() + ':' + Math.random()); } catch (_) {}
-    try { window.dispatchEvent(new CustomEvent('cmucoop:catalog-changed')); } catch (_) {}
-    if (!data || !data.catalogSync || data.catalogSync.status !== 'pending') return;
-    function showPending() {
-      if (!document.body) return;
-      var notice = document.getElementById('catalogSyncNotice');
-      if (!notice) {
-        notice = document.createElement('div'); notice.id = 'catalogSyncNotice'; notice.setAttribute('role', 'status');
-        notice.style.cssText = 'position:fixed;left:16px;right:16px;bottom:16px;z-index:10000;padding:14px 16px;border:1px solid #e9d2a3;border-radius:10px;background:#fff7e6;color:#79551e;font:14px/1.6 Sarabun,Tahoma,sans-serif;box-shadow:0 4px 24px #3d281822;display:flex;gap:12px;align-items:center;';
-        var text = document.createElement('span'); text.style.flex = '1'; text.style.overflowWrap = 'anywhere'; notice.appendChild(text);
-        var dismiss = document.createElement('button'); dismiss.type = 'button'; dismiss.textContent = 'รับทราบ'; dismiss.style.cssText = 'font:inherit;flex:none;padding:6px 10px;border:1px solid #d8be90;border-radius:6px;background:white;color:inherit;cursor:pointer';
-        dismiss.addEventListener('click', function () { notice.remove(); }); notice.appendChild(dismiss); document.body.appendChild(notice);
-      }
-      notice.firstChild.textContent = data.catalogSync.message || 'บันทึกข้อมูลต้นทางแล้ว ทะเบียนสินค้ารออัปเดต กรุณาเปิดทะเบียนสินค้าเพื่อลองอัปเดตอีกครั้ง';
-    }
-    try { if (document.body) showPending(); else document.addEventListener('DOMContentLoaded', showPending, { once: true }); } catch (_) {}
-  }
   function enqueue(job) {
     if (pending.length >= 32) return Promise.reject(new Error('มีคำขอค้างจำนวนมาก กรุณารอให้รายการก่อนหน้าเสร็จ'));
     return new Promise(function (resolve, reject) { pending.push({ job: job, resolve: resolve, reject: reject }); pump(); });
@@ -88,7 +63,6 @@ window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.d
         httpError.transient = [429, 502, 503, 504].includes(r.status); throw httpError;
       }
       if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || 'ไม่สามารถดึงข้อมูลได้');
-      productSaved(fn, payload.catalogSync ? { catalogSync: payload.catalogSync } : payload.data);
       return payload.data;
     }).catch(function (e) {
       if (e && (e.name === 'AbortError' || e instanceof TypeError)) {

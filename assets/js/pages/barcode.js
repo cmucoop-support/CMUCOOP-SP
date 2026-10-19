@@ -368,7 +368,6 @@ async function addItem(force) {
 $('#addForm').addEventListener('change', function (e) {
   if (e.target.id !== 'addCatSel') return;
   var v = e.target.value, inp = $('#addCatNew'), c = curCat();
-  logUse('barcode', 'เลือกหมวด', v === '__all' ? 'ทั้งหมด' : v === '__new' ? 'สร้างหมวดใหม่' : v);
   if (v === '__new') { inp.value = ''; inp.classList.remove('hidden'); inp.focus(); return; }
   if (v === '__all') { inp.classList.add('hidden'); inp.value = ''; if (c && !c.all) selectCat(allCat().key); return; }
   inp.classList.add('hidden'); inp.value = v;
@@ -875,7 +874,7 @@ function switchTab(t) {
 }
 document.querySelector('.tabs').addEventListener('click', function (e) {
   var b = e.target.closest('.tab'); if (!b) return;
-  switchTab(b.dataset.t); logUse('barcode', 'สลับแท็บ', b.textContent.trim());
+  switchTab(b.dataset.t);
 });
 
 
@@ -890,7 +889,7 @@ function showLogin(msg) {
   $('#tbody').innerHTML = ''; $('#pList').innerHTML = ''; $('#catSide').innerHTML = '';
   setTimeout(function () { $('#lgUser').focus(); }, 50);
 }
-function hasPerm(k) { return !!(S.me && S.me.perms && S.me.perms[k]); }
+function hasPerm(k) { return !!(S.me && (S.me.role === 'admin' || (S.me.perms && S.me.perms[k]))); }
 function goPortal() {
   location.href = pageUrl('index.html', 'https://cmucoop-support.github.io/CMUCOOP-SP/index.html');
 }
@@ -969,7 +968,7 @@ $('#btnReload').addEventListener('click', async function () {
   try { await refreshCats(); if (S.cur) await selectCat(S.cur); toast('โหลดข้อมูลล่าสุดแล้ว'); }
   catch (e) { toast(e.message, true); }
 });
-setInterval(function () { if (!S.saving) { renderStatus(); renderSide(); } }, 60000);
+setInterval(function () { if (!S.saving && S.me && !document.hidden) { renderStatus(); renderSide(); } }, 60000);
 
 function linkParams() {
   return new Promise(function (res) {

@@ -1,11 +1,11 @@
-import { all, kvMany, kvSet, now, numSetting, one, run, str, uuid } from '../core/database.js';
+import { all, batch, kvMany, kvSet, kvSetStmt, now, numSetting, one, run, stmt, str, uuid } from '../core/database.js';
 import { API } from '../core/registry.js';
 import { auth, authPerm } from './auth.js';
 import { appendLog } from '../core/logging.js';
 
 const MU_LIVE = "('รออนุมัติ','รอคิว','กำลังเล่น')";
 
-const MU_PROG_MAX_AGE = 7000;
+const MU_PROG_MAX_AGE = 300000;
 
 const MU_MAX_QUEUE = 60, MU_KEEP_DAYS = 7, MU_USER_DEF = 3, MU_TV_ONLINE_MS = 90000;
 
@@ -125,12 +125,13 @@ API.musicPause = async (C, token, id, on) => {
   const r = await one(C, 'SELECT * FROM music_queue WHERE id=?', id);
   if (!r || r.status !== 'กำลังเล่น') throw new Error('เพลงนี้ไม่ได้กำลังเล่นอยู่แล้ว กรุณารีเฟรช');
   const s = await musicState(C), p = s.prog && s.prog.id === id ? s.prog : null;
-  await kvSet(C, 'MUSIC_PAUSED', on ? id : '');
+  const ops = [kvSetStmt(C, 'MUSIC_PAUSED', on ? id : '')];
   if (p) {                                                      // ล็อกตำแหน่งตอนกดหยุด / เริ่มนับต่อตอนกดเล่นต่อ ไม่ต้องรอ TV รายงานรอบหน้า
     const age = Math.min(Math.max(now() - p.ts, 0), MU_PROG_MAX_AGE);
     const pos = on && p.mv ? (p.pos || 0) + age / 1000 : (p.pos || 0);
-    await kvSet(C, 'MUSIC_PROG', JSON.stringify(Object.assign({}, p, { pos: p.dur > 0 ? Math.min(pos, p.dur) : pos, mv: !on, ts: now() })));
+    ops.push(kvSetStmt(C, 'MUSIC_PROG', JSON.stringify(Object.assign({}, p, { pos: p.dur > 0 ? Math.min(pos, p.dur) : pos, mv: !on, ts: now() }))));
   }
+  await batch(C, ops);
   await appendLog(C, me.name, 'Music', '', on ? 'หยุดเพลง' : 'เล่นเพลงต่อ', r.title);
   return { ok: true, paused: on };
 };
@@ -209,26 +210,47 @@ API.musicSetMaxUser = async (C, token, n) => {
 
 let tvSeenWrite = 0;
 
-async function muHeartbeat(C) { if (now() - tvSeenWrite > 20000) { await kvSet(C, 'MUSIC_TV_SEEN', now()); tvSeenWrite = now(); } }
+async function muHeartbeat(C, lastSeen = 0) {
+  const ts = now();
+  if (ts - Math.max(tvSeenWrite, Number(lastSeen) || 0) > 45000) {
+    tvSeenWrite = ts;
+    await kvSet(C, 'MUSIC_TV_SEEN', ts);
+  }
+}
 
-API.musicTvPing = async C => { await muHeartbeat(C); return true; };
+API.musicTvPing = async C => {
+  const s = await musicState(C);
+  await muHeartbeat(C, s.tvSeen);
+  return true;
+};
 
 API.musicTvTick = async (C, curId, pos, dur, mv, idx, n) => {
-  curId = str(curId); await muHeartbeat(C);
-  const p = Number(pos), d = Number(dur);
-  if (curId && pos !== undefined && pos !== null && pos !== '' && isFinite(p) && p >= 0) {     // TV รายงานว่าเพลงเล่นถึงวินาทีที่เท่าไร
-    const o = { id: curId, pos: Math.round(p * 10) / 10, dur: isFinite(d) && d > 0 ? Math.round(d) : 0, mv: mv === true || mv === 'true', ts: now() };
-    if (Number(n) > 1) { o.idx = Math.round(Number(idx)) || 0; o.n = Math.round(Number(n)); }
-    await kvSet(C, 'MUSIC_PROG', JSON.stringify(o));
-  }
+  curId = str(curId);
   const [s, top] = await Promise.all([musicState(C),
     one(C, "SELECT id,kind,ref,title,who,status FROM music_queue WHERE status IN ('กำลังเล่น','รอคิว') ORDER BY CASE status WHEN 'กำลังเล่น' THEN 0 ELSE 1 END, seq LIMIT 1")]);
+  const ts = now(), ops = [];
+  if (ts - Math.max(tvSeenWrite, s.tvSeen || 0) > 45000) {
+    tvSeenWrite = ts;
+    ops.push(kvSetStmt(C, 'MUSIC_TV_SEEN', ts));
+  }
+  const p = Number(pos), d = Number(dur);
+  if (curId && pos !== undefined && pos !== null && pos !== '' && isFinite(p) && p >= 0) {
+    const o = { id: curId, pos: Math.round(p * 10) / 10, dur: isFinite(d) && d > 0 ? Math.round(d) : 0, mv: mv === true || mv === 'true', ts };
+    if (Number(n) > 1) { o.idx = Math.round(Number(idx)) || 0; o.n = Math.round(Number(n)); }
+    const prev = s.prog;
+    const expectedPos = prev && prev.id === o.id ? (prev.pos || 0) + (prev.mv ? Math.max(0, ts - (prev.ts || ts)) / 1000 : 0) : -999;
+    // บันทึก MUSIC_PROG เฉพาะเมื่อเปลี่ยนเพลง/เปลี่ยนสถานะ/เปลี่ยนแทร็ก หรือตำแหน่งคลาดเคลื่อนเกิน 4 วินาที ลดการเขียน D1 ซ้ำทุก 5 วินาที
+    if (!prev || prev.id !== o.id || prev.mv !== o.mv || prev.dur !== o.dur || prev.idx !== o.idx || prev.n !== o.n || Math.abs(o.pos - expectedPos) > 4 || ts - (prev.ts || 0) > 120000) {
+      ops.push(kvSetStmt(C, 'MUSIC_PROG', JSON.stringify(o)));
+    }
+  }
+  if (ops.length) await batch(C, ops);
   const base = { vol: s.vol, avol: s.avol };
   if (!top) return Object.assign({ action: 'idle' }, base);
-  const cmd = s.cmd && s.cmd.id === top.id && now() - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
+  const cmd = s.cmd && s.cmd.id === top.id && ts - s.cmd.seq < 30000 ? s.cmd : null;     // คำสั่งค้างเก่าเกิน 30 วินาทีไม่ทำ (กัน TV รีเฟรชแล้วข้ามซ้ำ)
   const paused = s.pausedId === top.id;                           // เพลงนี้ถูก Admin สั่งหยุดอยู่หรือไม่
   if (top.status === 'กำลังเล่น') return top.id === curId ? Object.assign({ action: 'keep', paused, cmd }, base) : Object.assign({ action: 'play', item: muItem(top), paused }, base);
-  const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว' AND NOT EXISTS (SELECT 1 FROM music_queue WHERE status='กำลังเล่น')", now(), top.id);
+  const r = await run(C, "UPDATE music_queue SET status='กำลังเล่น', t_start=? WHERE id=? AND status='รอคิว' AND NOT EXISTS (SELECT 1 FROM music_queue WHERE status='กำลังเล่น')", ts, top.id);
   return r.meta.changes ? Object.assign({ action: 'play', item: muItem(top), paused: false }, base) : Object.assign({ action: 'keep', paused: false }, base);   // อีกเครื่องรับไปก่อน → รอบหน้าค่อยซิงก์
 };
 

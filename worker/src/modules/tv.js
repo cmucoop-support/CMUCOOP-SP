@@ -1,4 +1,4 @@
-import { kvJson, str } from '../core/database.js';
+import { batch, kvJson, kvSetStmt, str } from '../core/database.js';
 import { BC_FONTS } from './barcode.js';
 import { bannerSettings } from './media.js';
 import { API } from '../core/registry.js';
@@ -75,12 +75,18 @@ API.getTvConfig = async (C, token) => { await auth(C, token, true); return { cfg
 
 API.setTvConfig = async (C, token, o) => {
   const me = await auth(C, token, true);
-  const cfg = tvNorm(Object.assign({}, await tvCfg(C), o && typeof o === 'object' && !Array.isArray(o) ? o : {}), true);
+  const current = await tvCfg(C);
+  const cfg = tvNorm(Object.assign({}, current, o && typeof o === 'object' && !Array.isArray(o) ? o : {}), true);
+  if (JSON.stringify(current) === JSON.stringify(cfg)) return { ok: true, cfg };
   // Keep the existing Banner keys authoritative so older Banner APIs remain compatible.
   const stored = Object.assign({}, cfg);
   delete stored.bannerSpeed; delete stored.bannerPerView; delete stored.bannerHeightPct;
-  const values = [['TV_CFG', JSON.stringify(stored)], ['BANNER_SPEED', String(cfg.bannerSpeed)], ['BANNER_PER_VIEW', String(cfg.bannerPerView)], ['BANNER_HEIGHT_PCT', String(cfg.bannerHeightPct)]];
-  await C.env.DB.batch(values.map(([k, v]) => C.env.DB.prepare('INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').bind(k, v)));
+  await batch(C, [
+    kvSetStmt(C, 'TV_CFG', JSON.stringify(stored)),
+    kvSetStmt(C, 'BANNER_SPEED', String(cfg.bannerSpeed)),
+    kvSetStmt(C, 'BANNER_PER_VIEW', String(cfg.bannerPerView)),
+    kvSetStmt(C, 'BANNER_HEIGHT_PCT', String(cfg.bannerHeightPct))
+  ]);
   await appendLog(C, me.name, 'TV', '', 'ตั้งค่าหน้าแสดงผล โฆษณา', cfg.shop + ' · แบนเนอร์สูง ' + cfg.bannerH + ' · ตัวรับเสียงสูง ' + cfg.receiverH);
   return { ok: true, cfg };
 };

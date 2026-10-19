@@ -1391,9 +1391,8 @@ $('#nmSave').addEventListener('click', function () {
     D.names[inp.dataset.nmk] = inp.value.trim();
   });
   $('#nmDlg').classList.add('hidden');
-  syncToServer();
   renderAll();
-  toast('บันทึกตั้งค่าหมวดแล้ว');
+  syncThen('บันทึกตั้งค่าหมวดแล้ว');
 });
 $('#bClearAll').addEventListener('click', function () {
   var n = Object.keys(D.groups).length;
