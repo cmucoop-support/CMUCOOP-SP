@@ -1,0 +1,10 @@
+/* Shared accessibility rules, including the native hidden attribute. */
+[hidden],.hidden{display:none!important}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
+:focus-visible{outline:3px solid var(--accent,#7a4be0);outline-offset:3px}
+.wcag-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-180%);background:#fff;color:#2a1f47;border:2px solid #7a4be0;padding:10px 16px;border-radius:8px;font-weight:700;text-decoration:none}
+.wcag-skip:focus,.skip-link:focus{transform:none;top:8px}
+[data-nav] input,[data-nav] select,[data-nav] textarea{font-family:inherit}
+:where(button,input[type="button"],input[type="submit"]){touch-action:manipulation}
+[role="dialog"]{scroll-margin:20px}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
