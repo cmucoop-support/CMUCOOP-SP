@@ -12,8 +12,9 @@
 <link href="assets/css/shared/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="assets/css/pages/index.css?v=expiry-1">
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
-<link href="assets/css/shared/app.css" rel="stylesheet"/></head>
-<body class="locked" data-nav="portal"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+</head>
+<body class="locked liquid-ui" data-nav="portal"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== เมนูหลัก (หลังเข้าสู่ระบบ) ========== -->
 <div class="page" id="portal">
 <header class="phead" role="banner">
@@ -22,6 +23,18 @@
 <button class="btn ghost small js-logout">ออกจากระบบ</button>
 </header>
 <div class="pwrap" id="wcag-main" role="main">
+<section class="liquid-welcome" aria-labelledby="welcomeTitle">
+  <div>
+    <span class="liquid-eyebrow">พื้นที่ทำงาน CMUCOOP</span>
+    <h2 id="welcomeTitle">จัดการงานประจำวัน<br/>ได้ในที่เดียว</h2>
+    <p>เลือกเครื่องมือที่ต้องการ เพื่อจัดการสินค้า งานบริการ และข้อมูลของสหกรณ์</p>
+  </div>
+  <div class="liquid-art" aria-hidden="true">
+    <div class="liquid-art-pane"></div>
+    <div class="liquid-art-pane front"><img src="assets/images/logo.png" alt="" width="80" height="80"/></div>
+  </div>
+</section>
+
 <div class="cardrow" style="margin:0"><h2>เลือกระบบที่ต้องการใช้งาน</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><button aria-label="ปรับขนาดการ์ด" class="btn ghost small" id="portalSize" style="padding:0;width:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center" title="ปรับขนาดการ์ด"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="18"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" x2="21" y1="16.5" y2="21"></line></svg></button></span></div>
 <div class="menu">
 <button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b><span>จัดการรายการสินค้าและพิมพ์รายงานบาร์โค้ด</span></button>
@@ -50,6 +63,7 @@
 <div class="loginwrap hidden" id="login">
 <div class="logincard">
 <h2>CMUCOOP SUPPORT</h2>
+<p class="liquid-login-copy">เข้าสู่ระบบเพื่อใช้งานเครื่องมือของ CMUCOOP</p>
 <label>รหัสผู้ใช้<input autocomplete="username" id="lgUser" type="text"/></label>
 <label>รหัสผ่าน<input autocomplete="current-password" id="lgPass" type="password"/></label>
 <div class="err" id="lgErr" role="alert"></div>
