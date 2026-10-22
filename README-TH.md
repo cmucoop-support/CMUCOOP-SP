@@ -1,8 +1,8 @@
-# CMUCOOP SUPPORT — Liquid Glass และตั้งค่าซ่อนการ์ด
+# CMUCOOP SUPPORT — Liquid Glass และตั้งค่าการ์ด
 
 เว็บเข้าใช้งานผ่าน `index.html`, `barcode.html`, `stock.html`, `market.html`, `expiry.html`, `music.html`, `sound.html`, `settings.html`, `tv.html`, `banner.html` และ `receiver.html` ตาม URL เดิม
 
-รุ่นล่าสุดปรับธีมกระจก นำกรอบต้อนรับและไอคอนหน้าฟีเจอร์ออก และเพิ่มช่อง **ซ่อนการ์ดนี้** ในหน้า Admin ตั้งค่า อ่านรายละเอียดใน [UI-UPDATE-TH.md](UI-UPDATE-TH.md) และ [CARD-VISIBILITY-TH.md](CARD-VISIBILITY-TH.md) ชุดรวมมี Worker แบบไฟล์เดียวใน `Cloudflare-Worker/worker-copy.txt` สำหรับคัดลอกลง Dashboard
+รุ่นล่าสุดปรับธีมกระจก นำกรอบต้อนรับและไอคอนหน้าฟีเจอร์ออก เพิ่มช่อง **ซ่อนการ์ดนี้** และตัวเลือก **เปิดแท็บเดิม / เปิดแท็บใหม่** ในหน้า Admin ตั้งค่า อ่านรายละเอียดใน [UI-UPDATE-TH.md](UI-UPDATE-TH.md), [CARD-VISIBILITY-TH.md](CARD-VISIBILITY-TH.md) และ [CARD-TABS-TH.md](CARD-TABS-TH.md) ชุดรวมมี Worker แบบไฟล์เดียวใน `Cloudflare-Worker/worker-copy.txt` สำหรับคัดลอกลง Dashboard
 
 ## สิ่งที่ปรับปรุงในฉบับนี้
 
