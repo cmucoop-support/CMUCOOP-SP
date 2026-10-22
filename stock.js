@@ -1,3296 +1,802 @@
-/* =============================================================================
- * stock.html — แดชบอร์ดสินค้าค้างสต็อก (แยกจากระบบหลัก)
- * ข้อมูล: Admin อัปโหลด Excel (ทีละหมวดหรือหลายหมวด) → อ่านในเบราว์เซอร์ → เก็บที่ Worker แยกรายหมวด (stockSave) → ทุกคนที่มีสิทธิ์เปิดหน้านี้ดู (stockGet)
- * แต่ละหมวดเก็บ 'ฉบับปัจจุบัน' + 'ฉบับก่อนหน้า' 1 ฉบับ · ส่งออก .xlsx รูปแบบเดียวกับไฟล์รายงานต้นฉบับ (ตัวเขียนไฟล์อยู่ในส่วน XLSX-START)
- * ============================================================================= */
-var $ = function (s) { return document.querySelector(s); };
-var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-var pad2 = function (n) { return (n < 10 ? '0' : '') + n; };
-var nf0 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }), nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-var money = function (n) { return nf0.format(Math.round(n || 0)); };
-var nfQty = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
-var qtyF = function (n) { return nfQty.format(Math.round((n || 0) * 100) / 100); };
+import { all, batch, hashPw, jsonBatches, kvMany, kvSet, kvSetStmt, now, one, passArg, stateJson, stmt, str } from '../core/database.js';
+import { API } from '../core/registry.js';
+import { auth, authPerm, checkRecovery, failBump, failClear, failCount, getUser } from './auth.js';
+import { sysLogTo } from '../core/logging.js';
+import { MAX_FAIL } from '../core/config.js';
 
-/* ---------- ส่วนอ่านไฟล์ Excel (ฟังก์ชันล้วน ไม่แตะหน้าจอ) ---------- */
-/*PARSE-START*/
-var COLS = {
-  g: ['กลุ่ม'], code: ['รหัส'], name: ['ชื่อสินค้า'], br: ['สาขา'], qty: ['คงเหลือ'], sold: ['รวมขาย'], avg: ['เฉลี่ยขาย'],
-  recv: ['รับเข้า'], last: ['ขายล่าสุด'], days: ['ค้าง(วัน)', 'ค้างวัน', 'ค้าง(วัน.)'], st: ['สถานะ'], cost: ['ต้นทุน'], price: ['ราคา'], note: ['หมายเหตุ'],
-  below: ['ต่ำกว่าทุน'], profit: ['กำไร฿', 'กำไร'], pct: ['กำไร%'], sales: ['ยอดขาย'], net: ['กำไรสุทธิV', 'กำไรสุทธิ(V)']
-};
-function brKey(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }   // เทียบชื่อสาขาแบบไม่สนช่องว่าง/ตัวพิมพ์
-function normH(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, '').toLowerCase(); }
-function pad(n) { n = Number(n); return (n < 10 ? '0' : '') + n; }
-function calendarDate(year, month, day) {
-  year = Number(year); month = Number(month); day = Number(day);
-  if (year > 2400) year -= 543;
-  var d = new Date(Date.UTC(year, month - 1, day));
-  return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day ? year + '-' + pad(month) + '-' + pad(day) : '';
+const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
+
+const STOCK_GROUP_RE = /^[A-Z0-9_-]{1,12}$/;
+
+const stockCodeKey = s => str(s).replace(/\s+/g, '').toLowerCase();
+
+const STOCK_LOST_MAX = 5000;
+
+const STOCK_ADJ_KV = { lost: 'STOCK_LOST', exp: 'STOCK_EXPIRED', pend: 'STOCK_PENDING', waste: 'STOCK_WASTE' }, STOCK_ADJ_LABEL = { lost: 'ของหาย', exp: 'สินค้าหมดอายุ', pend: 'รอปรับข้อมูล', waste: 'ของเสีย' };
+
+const stockAdjKey = (code, br) => stockCodeKey(code) + (stockBrKey(br) ? '@' + stockBrKey(br) : '');
+
+const STOCK_CT_MAX = 50, STOCK_CT_ID_RE = /^[a-z0-9]{4,16}$/;
+
+async function stockCtagDefs(C) {
+  const raw = (await stateJson(C, 'STOCK_CTAGS', {})) || {}, out = {};
+  Object.keys(raw).forEach(id => { const v = raw[id]; if (STOCK_CT_ID_RE.test(id) && v && typeof v === 'object' && str(v.t)) out[id] = { t: str(v.t).slice(0, 30), mode: v.mode === 'deduct' ? 'deduct' : 'tag', ts: v.ts || 0, who: str(v.who) }; });
+  return out;
 }
-function isoDate(v) {
-  if (v === null || v === undefined || v === '') return '';
-  if (typeof v === 'number') return (v > 20000 && v < 80000) ? new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10) : '';
-  if (v instanceof Date) return isNaN(v) ? '' : v.getFullYear() + '-' + pad(v.getMonth() + 1) + '-' + pad(v.getDate());
-  var s = String(v).trim(), m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return calendarDate(m[1], m[2], m[3]);
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) return calendarDate(m[3], m[2], m[1]);
-  return '';
-}
-function toNum(v) {
-  if (typeof v === 'number') return isFinite(v) ? v : 0;
-  var n = parseFloat(String(v == null ? '' : v).replace(/,/g, ''));
-  return isFinite(n) ? n : 0;
-}
-function optNum(v) {                                // ไม่มีค่า → null (ให้หลังบ้านคำนวณเอง)
-  if (v === null || v === undefined || v === '') return null;
-  var n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
-  return isFinite(n) ? n : null;
-}
-function findHeader(grid) {
-  for (var i = 0; i < Math.min(grid.length, 15); i++) {
-    var row = grid[i] || [], map = {};
-    row.forEach(function (c, j) { var h = normH(c); if (h && map[h] === undefined) map[h] = j; });
-    var idx = {};
-    Object.keys(COLS).forEach(function (k) {
-      for (var a = 0; a < COLS[k].length; a++) { var j = map[normH(COLS[k][a])]; if (j !== undefined) { idx[k] = j; break; } }
+
+function stockCtagMeta(id, def) { return { label: def.t, kv: 'STOCK_CT_' + id }; }
+
+async function stockAdjLoad(C) {
+  const out = {}, defs = await stockCtagDefs(C), kinds = {}, labels = {};
+  Object.keys(STOCK_ADJ_KV).forEach(k => { kinds[k] = STOCK_ADJ_KV[k]; labels[k] = STOCK_ADJ_LABEL[k]; });
+  Object.keys(defs).forEach(id => { if (defs[id].mode === 'deduct') { kinds['c_' + id] = 'STOCK_CT_' + id; labels['c_' + id] = defs[id].t; } });
+  const stored = await kvMany(C, Object.values(kinds));
+  for (const kind of Object.keys(kinds)) {
+    let raw = {};
+    try { raw = stored[kinds[kind]] === undefined ? {} : JSON.parse(stored[kinds[kind]]); }
+    catch (e) { throw new Error('ข้อมูลรายการ' + labels[kind] + 'เสียหาย กรุณาติดต่อผู้ดูแล'); }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('ข้อมูลรายการ' + labels[kind] + 'ไม่ถูกต้อง');
+    const m = Object.create(null);
+    Object.keys(raw).forEach(k => {
+      const v = raw[k];
+      if (!k || !v || typeof v !== 'object' || !str(v.code) || (v.qty != null && (!Number.isFinite(Number(v.qty)) || Number(v.qty) < 0))) throw new Error('ข้อมูลรายการ' + labels[kind] + 'ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+      m[k] = v;
     });
-    if (idx.name !== undefined && idx.qty !== undefined && idx.cost !== undefined) return { row: i, idx: idx };
+    out[kind] = m;
   }
-  return null;
+  return out;
 }
-function reportDate(grid) {
-  for (var i = 0; i < Math.min(grid.length, 8); i++) {
-    var t = String((grid[i] || [])[0] || ''), m = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (m) return calendarDate(m[3], m[2], m[1]);
-  }
-  return '';
+
+function stockApply(rows, adj) {
+  const hit = { lost: Object.create(null), exp: Object.create(null), pend: Object.create(null), waste: Object.create(null) }, by = new Map();
+  if (adj) Object.keys(adj).forEach(kind => { if (!hit[kind]) hit[kind] = Object.create(null); });
+  if (adj) Object.keys(hit).forEach(kind => Object.keys(adj[kind] || {}).forEach(k => {
+    const e = adj[kind][k], ck = stockCodeKey(e.code);
+    if (!ck) return;
+    const h = hit[kind][k] = [];
+    if (!by.has(ck)) by.set(ck, []);
+    by.get(ck).push({ h, bk: stockBrKey(e.br), left: (e.qty === null || e.qty === undefined) ? Infinity : Math.max(0, Number(e.qty) || 0) });
+  }));
+  by.forEach(l => l.sort((a, b) => (b.bk ? 1 : 0) - (a.bk ? 1 : 0)));
+  const out = [], zero = [], cut = [];
+  rows.forEach(r => {
+    if (!(r[4] > 0)) { zero.push(r); return; }                    // คงเหลือ 0 = ไม่เอาไปคำนวณ แยกเป็นรายการต่างหาก
+    const l = by.get(stockCodeKey(r[1]));
+    if (!l) { out.push(r); return; }
+    const rb = stockBrKey(r[3]); let q = r[4];
+    l.forEach(en => {
+      if (!(q > 0) || !(en.left > 0) || (en.bk && en.bk !== rb)) return;
+      const t = Math.min(q, en.left);
+      q -= t; en.left -= t;
+      en.h.push({ g: r[0], br: r[3], qty: stockNum(t, 2), cost: r[11], name: r[2] });
+    });
+    q = stockNum(q, 2);
+    if (q <= 0) { const c = r.slice(); c[4] = 0; c[20] = r[4]; cut.push(c); return; }
+    if (q === r[4]) out.push(r); else { const c = r.slice(); c[4] = q; c[20] = r[4]; out.push(c); }
+  });
+  return { rows: out, hit, zero, cut };
 }
-function reportTitle(grid) {                        // บรรทัด "รายงานวิเคราะห์การขายสินค้า … ข้อมูลวันที่ … เวลา …" (เก็บไว้ใช้ตอนส่งออก)
-  for (var i = 0; i < Math.min(grid.length, 8); i++) {
-    var t = String((grid[i] || [])[0] || '').trim();
-    if (/ข้อมูลวันที่/.test(t)) return t.slice(0, 160);
-  }
-  return '';
+
+const stockBrKey = s => {
+  const key = str(s).replace(/\s+/g, '').toLowerCase();
+  if (key === '__proto__' || key === 'constructor' || key === 'prototype') throw new Error('ชื่อสาขานี้สงวนไว้สำหรับระบบ กรุณาใช้ชื่ออื่น');
+  return key;
+};
+
+const STOCK_DATE_CACHE = new Map();
+
+const stockDate = v => {
+  v = str(v);
+  const hit = STOCK_DATE_CACHE.get(v); if (hit !== undefined) return hit;
+  let out = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) { const d = new Date(v + 'T00:00:00Z'); if (Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v) out = v; }
+  if (STOCK_DATE_CACHE.size > 5000) STOCK_DATE_CACHE.clear();
+  STOCK_DATE_CACHE.set(v, out); return out;
+};
+
+const stockNum = (v, dp) => { const n = Number(v); return isFinite(n) ? Math.round(n * Math.pow(10, dp)) / Math.pow(10, dp) : 0; };
+
+const stockOpt = (v, dp) => (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? null : stockNum(v, dp);
+
+function stockCleanRow(r) {
+  if (!Array.isArray(r)) return null;
+  const g = str(r[0]).toUpperCase().slice(0, 12), name = str(r[2]).slice(0, 200);
+  if (!STOCK_GROUP_RE.test(g) || !name || r[4] === null || r[4] === undefined || str(r[4]) === '' || !Number.isFinite(Number(r[4]))) return null;
+  const qty = stockNum(r[4], 2);
+  if (!isFinite(qty)) return null;                               // เก็บทุกแถว รวมคงเหลือ 0 และติดลบ (แถวคงเหลือ 0 ไม่นับรวมในยอด/สรุป — แสดงแยกเป็นอีกรายการ)
+  const days = (r[9] === null || r[9] === undefined || r[9] === '') ? null : Math.round(Number(r[9])), st = str(r[10]).toUpperCase();
+  const sold = stockNum(r[5], 2), cost = stockNum(r[11], 4), price = stockNum(r[12], 2);
+  let profit = stockOpt(r[16], 4); if (profit === null) profit = stockNum(price - cost, 4);                   // คอลัมน์ท้ายตามไฟล์ต้นฉบับ: ไม่มีในไฟล์ → คำนวณเอง
+  let pct = stockOpt(r[17], 2); if (pct === null) pct = cost > 0 ? stockNum(profit / cost * 100, 2) : 0;
+  let sales = stockOpt(r[18], 2); if (sales === null) sales = stockNum(sold * price, 2);
+  let net = stockOpt(r[19], 2); if (net === null) net = stockNum(sold * profit / 1.07, 2);
+  const bw = str(r[15]).toUpperCase(), below = bw ? (bw === 'B' ? 'B' : '-') : (price < cost ? 'B' : '-');
+  return [g, str(r[1]).slice(0, 30), name, str(r[3]).slice(0, 20), qty, sold, stockNum(r[6], 2), stockDate(r[7]), stockDate(r[8]),
+    days !== null && isFinite(days) ? days : null, STOCK_ST.indexOf(st) >= 0 ? st : '', cost, price, str(r[13]).slice(0, 60), stockDate(r[14]),
+    below, profit, pct, sales, net];
 }
-function dedupeRows(rows) {                       // กลุ่ม+รหัส+ชื่อ+สาขา ซ้ำ → ใช้แถวจากรายงานที่ใหม่กว่า
-  var m = {}, out = [];
-  rows.forEach(function (r) {
-    var k = [r[0], r[1], r[2], r[3]].join('\u0001'), o = m[k];
-    if (o === undefined) { m[k] = out.length; out.push(r); } else if (r[14] >= out[o][14]) out[o] = r;
+
+function stockDedupe(rows) {                                     // กลุ่ม+รหัส+ชื่อ+สาขา ซ้ำกัน → เก็บแถวจากรายงานที่ใหม่กว่า
+  const m = new Map();
+  rows.forEach(r => { const k = [r[0], r[1], r[2], r[3]].join('\u0001'), o = m.get(k); if (!o || r[14] >= o[14]) m.set(k, r); });
+  return Array.from(m.values());
+}
+
+function stockSummary(rows, lost) {                                // lost (ไม่บังคับ) = { lost, exp } จาก stockAdjLoad → หักจำนวนของหาย/หมดอายุก่อนสรุป
+  rows = lost ? stockApply(rows, lost).rows : rows.filter(r => r[4] > 0);       // คงเหลือ 0 ไม่นับในสรุป
+  const out = { items: rows.length, pcs: 0, cost: 0, st: {} };
+  STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
+  rows.forEach(r => {
+    const v = r[4] * r[11], b = out.st[r[10] || 'NA'];
+    out.pcs += r[4]; out.cost += v; b.n++; b.pcs += r[4]; b.cost += v;
+  });
+  out.pcs = Math.round(out.pcs * 100) / 100; out.cost = Math.round(out.cost * 100) / 100;
+  Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
+  return out;
+}
+
+function stockGroupSums(state) {                                  // ยอดทุกช่วงอายุรายหมวด ณ รอบที่บันทึก · { G01: { DS: [รายการ, มูลค่าทุน], T3: [..], T2: [..], T1: [..], NA: [..] } }
+  const out = {};
+  Object.keys(state).forEach(g => {
+    const m = state[g] && state[g].cur, st = m && m.sum && m.sum.st; if (!st) return;
+    out[g] = {};
+    STOCK_ST.forEach(status => {
+      const k = status || 'NA', a = st[k];
+      out[g][k] = [a ? a.n : 0, a ? Math.round(a.cost) : 0];
+    });
   });
   return out;
 }
-/* sheets = [{name, grid}]  →  { groups:{ G01:{ g, rep, title, rows:[…แถวที่ยังมีสต็อก…] } }, info:{ sheets:[…], read, kept, dup, mismatch } }
- * หมวดที่มีแถวสินค้าในไฟล์แต่ไม่มีของค้างเลย ก็นับเป็นหมวด (rows ว่าง) เพื่อให้ล้างของเก่าของหมวดนั้นได้ · หมวดนับตามคอลัมน์ "กลุ่ม" ของแต่ละแถว ไม่ใช่ชื่อชีต */
-function parseSheets(sheets, branch) {                // branch (ไม่บังคับ) = เอาเฉพาะแถวของสาขานี้ · แถวสาขาอื่นข้าม · ไฟล์ที่ไม่มีคอลัมน์สาขา/ช่องสาขาว่าง นับเป็นสาขานี้
-  var rows = [], info = { sheets: [], read: 0, kept: 0, dup: 0, mismatch: 0, other: 0, brs: {} }, meta = {};
-  (sheets || []).forEach(function (sh) {
-    var grid = sh.grid || [], h = findHeader(grid), nm = String(sh.name || '');
-    if (!h) { info.sheets.push({ name: nm, note: 'ไม่พบหัวตาราง (ข้าม)', read: 0, kept: 0 }); return; }
-    var rep = reportDate(grid), title = reportTitle(grid), I = h.idx, read = 0, kept = 0, sheetG = /^G\d+$/i.test(nm) ? nm.toUpperCase() : '';
-    var note = function (g) { if (!meta[g] || rep >= meta[g].rep) meta[g] = { rep: rep, title: title }; };
-    for (var i = h.row + 1; i < grid.length; i++) {
-      var r = grid[i] || [], name = String(I.name !== undefined && r[I.name] != null ? r[I.name] : '').trim();
-      if (!name) continue;                                            // แถวว่าง / แถวสรุปท้ายชีต
-      var g = (I.g !== undefined && r[I.g] != null ? String(r[I.g]).trim().toUpperCase() : '') || sheetG;
-      if (!g) continue;
-      var br = I.br !== undefined && r[I.br] != null ? String(r[I.br]).trim() : '';
-      if (branch) {
-        if (br) info.brs[br] = (info.brs[br] || 0) + 1;
-        if (br && brKey(br) !== brKey(branch)) { info.other++; continue; }
-        br = branch;
-      }
-      read++; note(g);
-      if (sheetG && g !== sheetG) info.mismatch++;
-      var qty = toNum(r[I.qty]);                                      // เก็บทุกแถวก่อน ตัดซ้ำตามรายงานที่ใหม่กว่า แล้วค่อยทิ้งแถวที่ไม่มีของ (กันของเก่าจากรายงานเก่าโผล่กลับมา)
-      var daysRaw = I.days !== undefined ? r[I.days] : null, days = (daysRaw === null || daysRaw === undefined || daysRaw === '') ? null : Math.round(Number(daysRaw));
-      var st = String(I.st !== undefined && r[I.st] != null ? r[I.st] : '').trim().toUpperCase();
-      var bw = String(I.below !== undefined && r[I.below] != null ? r[I.below] : '').trim().toUpperCase();
-      rows.push([g, I.code !== undefined && r[I.code] != null ? String(r[I.code]).trim() : '', name, br,
-        qty, toNum(I.sold !== undefined ? r[I.sold] : 0), toNum(I.avg !== undefined ? r[I.avg] : 0),
-        isoDate(I.recv !== undefined ? r[I.recv] : ''), isoDate(I.last !== undefined ? r[I.last] : ''),
-        days !== null && isFinite(days) ? days : null, ['DS', 'T3', 'T2', 'T1'].indexOf(st) >= 0 ? st : '',
-        toNum(I.cost !== undefined ? r[I.cost] : 0), toNum(I.price !== undefined ? r[I.price] : 0),
-        String(I.note !== undefined && r[I.note] != null ? r[I.note] : '').trim(), rep,
-        bw === 'B' ? 'B' : (bw ? '-' : ''), I.profit !== undefined ? optNum(r[I.profit]) : null, I.pct !== undefined ? optNum(r[I.pct]) : null,
-        I.sales !== undefined ? optNum(r[I.sales]) : null, I.net !== undefined ? optNum(r[I.net]) : null]);
-      kept++;
-    }
-    info.read += read;
-    info.sheets.push({ name: nm, read: read, kept: kept, rep: rep });
-  });
-  var before = rows.length;
-  rows = dedupeRows(rows);
-  info.dup = before - rows.length;
-  rows = rows.filter(function (r) { return isFinite(r[4]); });          // เก็บทุกแถว รวมคงเหลือ 0 และติดลบ (ไม่นับรวมในยอด แสดง/ส่งออกแยกเป็นอีกรายการ)
-  info.kept = rows.length; info.zero = rows.filter(function (r) { return !(r[4] > 0); }).length;
-  var groups = {};
-  Object.keys(meta).forEach(function (g) { groups[g] = { g: g, rep: meta[g].rep, title: meta[g].title, rows: [] }; });
-  rows.forEach(function (r) { var o = groups[r[0]]; o.rows.push(r); if (r[14] > o.rep) o.rep = r[14]; });
-  return { groups: groups, info: info };
-}
-/*PARSE-END*/
 
-/* ---------- เรียกหลังบ้าน ---------- */
-var TOKEN = '';
-function call(fn) {
-  var args = Array.prototype.slice.call(arguments, 1);
-  var ci = String(fn).indexOf(':');
-  if (ci > 0) {                                                   // 'stockCtagAdd:<id>' / 'stockCtagRemove:<id>' → ส่งรหัสแท็กเป็นอาร์กิวเมนต์ท้าย
-    var cid = fn.slice(ci + 1); fn = fn.slice(0, ci);
-    var want = fn === 'stockCtagAdd' ? 3 : 1;
-    while (args.length < want) args.push('');
-    args.length = want; args.push(cid);
-  }
-  if (fn !== 'login') args.unshift(TOKEN);
-  return new Promise(function (res, rej) {
-    var r = google.script.run.withSuccessHandler(res).withFailureHandler(function (e) {
-      var m = (e && e.message) || String(e);
-      if (/SESSION_EXPIRED/.test(m)) { showLogin('หมดเวลาการใช้งาน กรุณาเข้าสู่ระบบอีกครั้ง'); m = 'SESSION_EXPIRED'; }
-      rej(new Error(m));
+function stockTotal(state) {                                      // ผลรวมทั้งร้านจากฉบับปัจจุบันของทุกหมวด
+  const out = { items: 0, pcs: 0, cost: 0, st: {} };
+  STOCK_ST.forEach(k => { out.st[k || 'NA'] = { n: 0, pcs: 0, cost: 0 }; });
+  Object.keys(state).forEach(g => {
+    const s = state[g] && state[g].cur && state[g].cur.sum; if (!s) return;
+    out.items += s.items; out.pcs += s.pcs; out.cost += s.cost;
+    Object.keys(out.st).forEach(k => { const a = s.st && s.st[k]; if (a) { out.st[k].n += a.n; out.st[k].pcs += a.pcs; out.st[k].cost += a.cost; } });
+  });
+  out.pcs = Math.round(out.pcs * 100) / 100; out.cost = Math.round(out.cost * 100) / 100;
+  Object.keys(out.st).forEach(k => { out.st[k].pcs = Math.round(out.st[k].pcs * 100) / 100; out.st[k].cost = Math.round(out.st[k].cost * 100) / 100; });
+  return out;
+}
+
+function stockSideSummaries(state, side, rows) {
+  const by = new Map();
+  rows.forEach(r => { if (!by.has(r[0])) by.set(r[0], []); by.get(r[0]).push(r); });
+  Object.keys(state).forEach(g => { if (state[g] && state[g][side]) state[g][side].sum = stockSummary(by.get(g) || []); });
+}
+
+async function stockRebuildSummaries(C, state, adj, replacements) {
+  const versions = await Promise.all([stockRowsByGroup(C, 0), stockRowsByGroup(C, 1)]);
+  for (let ver = 0; ver < 2; ver++) {
+    const side = ver ? 'prev' : 'cur', by = versions[ver], replace = replacements && replacements[side];
+    if (replace) replace.forEach((rows, g) => by.set(g, rows));
+    const rows = [];
+    Object.keys(state).sort().forEach(g => {
+      const meta = state[g] && state[g][side]; if (!meta) return;
+      if (!by.has(g) && meta.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+      (by.get(g) || []).forEach(r => rows.push(r));
     });
-    r[fn].apply(r, args);
-  });
-}
-var toastT = null;
-function toast(msg, isErr) {
-  var t = $('#toast'); if (t) t.remove();
-  t = document.createElement('div'); t.id = 'toast'; t.className = 'toast' + (isErr ? ' err2' : '');
-  t.setAttribute('role', isErr ? 'alert' : 'status');
-  t.setAttribute('aria-live', isErr ? 'assertive' : 'polite');
-  t.setAttribute('aria-atomic', 'true');
-  t.textContent = msg; document.body.appendChild(t);
-  clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, isErr ? 10000 : 6000);
-}
-async function busy(btn, fn) {
-  btn.disabled = true;
-  try { await fn(); return true; }
-  catch (e) { if (e.message !== 'SESSION_EXPIRED') toast(e.message, true); return false; }
-  finally { btn.disabled = false; }
-}
-
-/* ---------- เซสชัน ---------- */
-function initToken() {
-  var m = location.hash.match(/[#&]t=([^&]+)/);
-  if (m) {                                                           // รับเซสชันจากระบบหลัก แล้วลบออกจากแถบที่อยู่ทันที
-    try { TOKEN = decodeURIComponent(m[1]); sessionStorage.setItem('pm_tok', TOKEN); } catch (e) {}
-    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
-  } else { try { TOKEN = sessionStorage.getItem('pm_tok') || ''; } catch (e) {} }
-}
-function showLogin(msg) {
-  TOKEN = ''; try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
-  D.me = null;
-  $('#main').hidden = true;
-  $('#empty').classList.add('hidden');
-  document.querySelectorAll('.overlay').forEach(function (el) { el.classList.add('hidden'); });
-  ['#bUpload', '#bNames', '#bHist', '#bTrendHist', '#bClear'].forEach(function (s) { if ($(s)) $(s).classList.add('hidden'); });
-  $('#login').classList.remove('hidden');
-  $('#lgMsg').textContent = msg || 'เข้าสู่ระบบด้วยบัญชีเดียวกับระบบหลัก';
-  $('#lgErr').textContent = ''; $('#lgPass').value = '';
-  setTimeout(function () { $('#lgUser').focus(); }, 50);
-}
-$('#lgBtn').addEventListener('click', function () {
-  if (this.disabled) return;
-  var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
-  if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
-  var b = this; b.disabled = true; $('#lgErr').textContent = '';
-  call('login', u, p).then(function (r) {
-    TOKEN = r.token; try { sessionStorage.setItem('pm_tok', TOKEN); sessionStorage.setItem('pm_me', JSON.stringify(r)); } catch (e) {}
-    $('#login').classList.add('hidden'); load();
-  }, function (e) { $('#lgErr').textContent = e.message; $('#lgPass').value = ''; }).then(function () { b.disabled = false; });
-});
-['#lgUser', '#lgPass'].forEach(function (s) { $(s).addEventListener('keydown', function (e) { if (e.key === 'Enter') $('#lgBtn').click(); }); });
-
-/* ---------- ข้อมูล / สถานะหน้า ---------- */
-var D = { me: null, meta: null, gm: {}, ver: 'cur', names: {}, history: [], items: [], zero: [], cut: [], groups: [], branches: [], lost: [], exp: [], pend: [], waste: [] };
-var VIEW = 'cur';        // 'cur' = ฉบับปัจจุบัน · 'prev' = ฉบับก่อนหน้า (ต่อหมวด)
-var DELETED_GROUPS = {}; // หมวดที่ถูกลบในเซสชันนี้
-var DELETED_HIST_DAYS = {};
-var DELETED_PREV_GRPS = {};
-function saveDelHistState() {
-  try {
-    localStorage.removeItem('cmucoop_del_hist_days');
-    localStorage.removeItem('cmucoop_del_prev_grps');
-  } catch (e) {}
-}
-function gOn(g) { return !Object.keys(F.gm).length || !!F.gm[g]; }                 // ไม่ได้เลือกหมวดเลย = ทุกหมวด
-function gSel() { return Object.keys(F.gm).sort(); }
-function gToggle(g) { if (F.gm[g]) delete F.gm[g]; else F.gm[g] = true; F.page = 0; }
-function stOn(sk) { return !Object.keys(F.st).length || !!F.st[sk]; }              // ไม่ได้เลือกช่วงอายุเลย = แสดงทุกช่วงอายุ
-function tagHidden(x) { return Object.keys(F.hide || {}).some(function (k) { return hasTag(x, k); }); }   // ซ่อนสินค้าในแท็ก: ซ่อนรายการที่มีแท็กที่ติ๊กไว้
-function tagOn(x) {
-  if (tagHidden(x)) return false;
-  var ks = Object.keys(F.tags || {});
-  if (!ks.length) return true;                                                       // ยังไม่กรองแท็ก = แสดงทุกรายการ (รวมคงเหลือ 0 ติดลบ และที่ถูกตัดออก)
-  return ks.some(function (k) { return hasTag(x, k); });
-}
-var F = { st: {}, tag: '', tags: {}, hide: {}, gm: {}, br: '', q: '', deductTab: 'waste', deductCollapsed: true, gs: { k: 'vc', d: -1 }, ds: { k: 'vc', d: -1 }, page: 0 };
-var PAGE = 100;
-var ST_DEF = [
-  { k: 'DS', t: 'ค้างเกิน 60 วัน DS' }, { k: 'T3', t: '31–60 วัน T3' }, { k: 'T2', t: '16–30 วัน T2' },
-  { k: 'T1', t: 'ไม่เกิน 15 วัน T1' }, { k: 'NA', t: 'ไม่มีข้อมูลการเคลื่อนไหว' }
-];
-var ST_COLOR = { DS: '#c0392b', T3: '#946200', T2: '#3b7a28', T1: '#176b3f', NA: '#5a6573' };
-var ST_SYM = { DS: '▲', T3: '◆', T2: '●', T1: '■', NA: '○' };
-var ST_NAME = { DS: 'DS ค้างเกิน 60 วัน', T3: 'T3 31–60 วัน', T2: 'T2 16–30 วัน', T1: 'T1 ไม่เกิน 15 วัน', NA: 'ไม่มีข้อมูลเคลื่อนไหว' };
-
-function fmtDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? (+m[3]) + '/' + (+m[2]) + '/' + (+m[1] + 543) : '–'; }
-function fmtTs(ts) { return new Date(ts).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', calendar: 'buddhist' }); }
-var BR_CFG = (function () {
-  try { return JSON.parse(localStorage.getItem('cmucoop_br_cfg') || '{"branches":[],"brGroups":{},"delBranches":{},"delBrGroups":{}}'); }
-  catch (e) { return { branches: [], brGroups: {}, delBranches: {}, delBrGroups: {} }; }
-})();
-function normBrCfg(c) {
-  c = c && typeof c === 'object' ? c : {};
-  if (!Array.isArray(c.branches)) c.branches = [];
-  if (!c.brGroups || typeof c.brGroups !== 'object') c.brGroups = {};
-  if (!c.delBranches || typeof c.delBranches !== 'object') c.delBranches = {};
-  if (!c.delBrGroups || typeof c.delBrGroups !== 'object') c.delBrGroups = {};
-  return c;
-}
-BR_CFG = normBrCfg(BR_CFG);
-function saveBrCfgLocal() {
-  try { localStorage.setItem('cmucoop_br_cfg', JSON.stringify(BR_CFG)); } catch (e) {}
-}
-function getGrpName(g, brOpt) {
-  var b = brOpt !== undefined ? brOpt : F.br;
-  if (b) {
-    var bk = brKey(b);
-    if (D.names && D.names[bk + ':' + g]) return D.names[bk + ':' + g];
+    // Allocate each adjustment once across all categories, matching stockGet.
+    stockSideSummaries(state, side, stockApply(rows, adj).rows);
   }
-  if (D.names && D.names[g]) return D.names[g];
-  if (D.names) {
-    var ks = Object.keys(D.names);
-    for (var i = 0; i < ks.length; i++) {
-      if (ks[i].slice(-1 - g.length) === ':' + g && D.names[ks[i]]) return D.names[ks[i]];
-    }
-  }
-  return '';
+  return state;
 }
-function gl(g, brOpt) { var n = getGrpName(g, brOpt); return n ? g + ' · ' + n : g; }
-function glShort(g, brOpt) { var n = getGrpName(g, brOpt); return n ? g + ' ' + (n.length > 16 ? n.slice(0, 15) + '…' : n) : g; }
-function groupsForBranch(br) {                                          // หมวดจะอิงจากสาขาที่เลือก (ถ้าไม่เลือกสาขา = รวมทุกสาขา)
-  if (!br) return (D.allGroups || D.groups || []).slice();
-  var bk = brKey(br), set = {};
-  var delG = (BR_CFG.delBrGroups && BR_CFG.delBrGroups[bk]) || {};
-  D.items.concat(D.zero || [], D.cut || []).forEach(function (x) {
-    if (x.g && brKey(x.br) === bk && !DELETED_GROUPS[x.g] && !delG[x.g]) set[x.g] = 1;
+
+function stockInsertOps(C, g, ver, json) {
+  const ops = [];
+  const chunks = [];
+  for (let i = 0, n = 0; i < json.length; i += 240000, n++) chunks.push([n, json.slice(i, i + 240000)]);
+  for (const payload of jsonBatches(chunks)) ops.push(stmt(C, "INSERT OR REPLACE INTO stock_grp(g,ver,n,data) SELECT ?,?,json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(?)", g, ver, payload));
+  return ops;
+}
+
+function stockParseRows(json, label) {
+  let rows;
+  try { rows = JSON.parse(json); } catch (e) { /* แสดงข้อผิดพลาดด้านล่าง */ }
+  if (!Array.isArray(rows) || rows.some(r => !stockCleanRow(r))) throw new Error('ข้อมูลสต็อกเสียหาย (' + label + ') กรุณาติดต่อผู้ดูแลก่อนทำรายการ');
+  return rows;
+}
+
+async function stockRowsByGroup(C, ver) {
+  const parts = await all(C, 'SELECT g,n,data FROM stock_grp WHERE ver=? ORDER BY g,n', ver), by = new Map();
+  parts.forEach(p => {
+    if (!by.has(p.g)) by.set(p.g, []);
+    const list = by.get(p.g);
+    if (p.n !== list.length) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + p.g + ') กรุณาติดต่อผู้ดูแล');
+    list.push(p.data);
   });
-  Object.keys(D.gm || {}).forEach(function (g) {
-    if (DELETED_GROUPS[g] || delG[g]) return;
-    var v = gView(g);
-    if (v && v.br && Object.keys(v.br).some(function (k) { return brKey(k) === bk; })) set[g] = 1;
+  by.forEach((parts, g) => {
+    const rows = stockParseRows(parts.join(''), 'หมวด ' + g);
+    if (rows.some(r => str(r[0]).toUpperCase() !== g)) throw new Error('ข้อมูลแถวไม่ตรงกับหมวด ' + g + ' กรุณาติดต่อผู้ดูแล');
+    by.set(g, rows);
   });
-  var cfgG = (BR_CFG.brGroups && BR_CFG.brGroups[bk]) || {};
-  Object.keys(cfgG).forEach(function (g) {
-    if (!DELETED_GROUPS[g] && !delG[g]) set[g] = 1;
+  return by;
+}
+
+async function stockLoadRows(C, ver) {                            // แถวของทุกหมวดตามฉบับที่ขอ (0 = ปัจจุบัน, 1 = ก่อนหน้า) เรียงตามรหัสหมวด
+  const by = await stockRowsByGroup(C, ver), out = [];
+  Array.from(by.keys()).sort().forEach(g => by.get(g).forEach(r => out.push(r)));
+  return out;
+}
+
+async function stockGroupJson(C, g, ver) {
+  const parts = await all(C, 'SELECT n,data FROM stock_grp WHERE g=? AND ver=? ORDER BY n', g, ver);
+  if (parts.some((p, i) => p.n !== i)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+  return parts.length ? parts.map(p => p.data).join('') : null;
+}
+
+async function stockState(C) {
+  const cur = await stateJson(C, 'STOCK_GROUPS', null);
+  if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
+    if (Object.keys(cur).some(g => !STOCK_GROUP_RE.test(g) || !cur[g] || typeof cur[g] !== 'object' || Array.isArray(cur[g]) || ['cur', 'prev'].some(side => cur[g][side] != null && (typeof cur[g][side] !== 'object' || Array.isArray(cur[g][side]))))) throw new Error('ข้อมูลกำกับหมวดสต็อกไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+    return cur;
+  }
+  if (cur !== null) throw new Error('ข้อมูลหมวดสต็อกไม่ถูกต้อง กรุณาติดต่อผู้ดูแล');
+  const parts = await all(C, 'SELECT data FROM stock_data ORDER BY n'), state = {};
+  if (!parts.length) {
+    const existing = await one(C, 'SELECT COUNT(*) AS n FROM stock_grp');
+    if (existing && existing.n > 0) throw new Error('ไม่พบข้อมูลกำกับหมวดสต็อก กรุณาติดต่อผู้ดูแลก่อนทำรายการ');
+  }
+  let legacy = [];
+  if (parts.length) legacy = stockParseRows(parts.map(p => p.data).join(''), 'ข้อมูลเดิม');
+  if (legacy.length) {
+    const meta = (await stateJson(C, 'STOCK_META', null)) || {}, by = {}, ops = [];
+    legacy.map(stockCleanRow).filter(r => r !== null).forEach(r => { (by[r[0]] || (by[r[0]] = [])).push(r); });
+    Object.keys(by).forEach(g => {
+      const rows = by[g], reps = rows.map(r => r[14]).filter(Boolean).sort();
+      ops.push(...stockInsertOps(C, g, 0, JSON.stringify(rows)));
+      state[g] = { cur: { ts: meta.ts || now(), who: str(meta.who), file: str(meta.file), rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows) }, prev: null };
+    });
+    ops.push(stmt(C, 'DELETE FROM stock_data'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+    await batch(C, ops);
+  } else await kvSet(C, 'STOCK_GROUPS', '{}');
+  return state;
+}
+
+const stockNames = async C => {
+  const raw = (await stateJson(C, 'STOCK_NAMES', {})) || {}, out = {};
+  Object.keys(raw).forEach(k => {
+    const t = str(raw[k]);
+    if (!t) return;
+    if (k === '__BR_CFG__') { out[k] = t.slice(0, 20000); return; }
+    if (/^[A-Z0-9_-]{1,12}$/.test(k) || /^[^:\s]{1,25}:[A-Z0-9_-]{1,12}$/.test(k)) out[k] = t.slice(0, 40);
   });
-  Object.keys(D.names || {}).forEach(function (k) {
-    if (k.indexOf(bk + ':') === 0) {
-      var g = k.slice(bk.length + 1);
-      if (g && !DELETED_GROUPS[g] && !delG[g]) set[g] = 1;
+  return out;
+};
+
+function thaiDayIso(ts) {                                         // ไทยเป็น UTC+7 ตายตัว (ไม่มี DST) — ไม่สร้าง Intl.DateTimeFormat ทุกครั้งเพราะกิน CPU มาก
+  var t = ts == null ? Date.now() : Number(ts);
+  if (!Number.isFinite(t)) return '';
+  var d = new Date(t + 7 * 3600000);
+  return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : '';
+}
+
+function stockDayKey(ts) { return thaiDayIso(ts); }
+
+function stockDailyHistory(hist) {
+  if (!Array.isArray(hist)) return [];
+  const byDay = new Map();
+  hist.forEach(x => {
+    if (!x || !x.ts) return;
+    const dk = stockDayKey(x.ts), prev = byDay.get(dk);
+    if (!prev || x.ts >= prev.ts) {
+      // Keep the final snapshot intact. Older per-group sums cannot describe a
+      // newer snapshot and missing legacy age buckets must stay unknown.
+      byDay.set(dk, Object.assign({}, x));
     }
   });
-  return Object.keys(set).sort();
+  return Array.from(byDay.values()).sort((a, b) => a.ts - b.ts);
 }
-function thaiDayIso(ts) {
-  var date = new Date(ts == null ? Date.now() : ts);
-  if (!Number.isFinite(date.getTime())) return '';
-  try {
-    var parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-    var obj = {};
-    parts.forEach(function (part) { obj[part.type] = part.value; });
-    return obj.year + '-' + obj.month + '-' + obj.day;
-  } catch (e) {
-    return new Date(date.getTime() + 7 * 3600000).toISOString().slice(0, 10);
+
+function stockPushHistory(hist, entry) {
+  return stockDailyHistory([...(Array.isArray(hist) ? hist : []), entry]).slice(-STOCK_HISTORY_MAX);
+}
+
+async function stockBarcodeData(C, options) {
+  const cached = options && Number.isSafeInteger(options.barcodeRevision) && options.barcodeRevision >= 0 ? options.barcodeRevision : -1;
+  // Read the revision and its matching rows in one snapshot. Cached clients
+  // avoid scanning/transferring the barcode catalog until a barcode save.
+  const snapshot = await batch(C, [
+    stmt(C, "SELECT COALESCE((SELECT revision FROM write_revisions WHERE scope='barcode'),0) AS revision"),
+    stmt(C, "SELECT partner,cat,name,perPack,packBar,unitBar FROM barcode_items WHERE ?<0 OR COALESCE((SELECT revision FROM write_revisions WHERE scope='barcode'),0)<>? ORDER BY pos,id", cached, cached)
+  ]);
+  const barcodeRevision = snapshot[0].results[0].revision;
+  return { barcodeRevision, barcodes: cached === barcodeRevision ? undefined : (snapshot[1].results || []).map(r => [str(r.packBar), str(r.unitBar), str(r.perPack), str(r.name), str(r.cat), str(r.partner)]) };
+}
+
+API.stockGet = async (C, token, ver, options) => {
+  const me = await authPerm(C, token, 'stock'), v = ver === 'prev' ? 1 : 0;
+  const state = await stockState(C);
+  const [rows0, history, names, lost, hard, barcodeData] = await Promise.all([
+    stockLoadRows(C, v),
+    stateJson(C, 'STOCK_HISTORY', []),
+    stockNames(C),
+    stockAdjLoad(C),
+    stockHardLoad(C),
+    stockBarcodeData(C, options)
+  ]);
+  const ap = stockApply(rows0, lost);
+  const foundGroups = new Set(rows0.map(r => r[0]));
+  Object.keys(state).forEach(g => {
+    const meta = state[g] && state[g][v ? 'prev' : 'cur'];
+    if (meta && meta.count > 0 && !foundGroups.has(g)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+  });
+  stockSideSummaries(state, v ? 'prev' : 'cur', ap.rows);
+  // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
+  const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h }; }).sort((a, b) => b.ts - a.ts);
+  const ctDefs = await stockCtagDefs(C), ctMapRaw = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, ctLists = {}, ctMap = {};
+  Object.keys(ctDefs).forEach(id => { if (ctDefs[id].mode === 'deduct') ctLists[id] = adjList('c_' + id); else ctMap[id] = Object.keys(ctMapRaw[id] || {}); });
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, ...barcodeData, ctags: ctDefs, ctlists: ctLists, ctmap: ctMap };
+};
+
+API.stockSave = async (C, token, payload) => {
+  const me = await stockEditAuth(C, token);
+  payload = payload || {};
+  if (payload.revision !== undefined && payload.revision !== C.guard.revision) throw new Error('ข้อมูลสต็อกเปลี่ยนไปแล้ว กรุณาโหลดล่าสุดก่อนบันทึก');
+  if (!Array.isArray(payload.groups) || !payload.groups.length) throw new Error('ไม่พบข้อมูลในไฟล์');
+  if (payload.groups.length > 50) throw new Error('กรุณาแบ่งบันทึกครั้งละไม่เกิน 50 หมวด');
+  const branch = str(payload.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
+  if (!branch) throw new Error('กรุณาเลือกสาขาก่อนอัปโหลด');
+  const bk = stockBrKey(branch);
+  const state = await stockState(C), ts = now(), file = str(payload.fileName).slice(0, 120), ops = [], changed = [], same = [], seen = {}, diff = {}, lost = await stockAdjLoad(C);
+  const replacements = { cur: new Map(), prev: new Map() };
+  const tot = { add: 0, chg: 0, del: 0, same: 0 };
+  let total = 0;
+  for (const it of payload.groups) {
+    const g = str(it && it.g).toUpperCase();
+    if (!STOCK_GROUP_RE.test(g) || seen[g]) throw new Error('รหัสหมวดไม่ถูกต้องหรือซ้ำกัน: ' + g);
+    seen[g] = 1;
+    // แถวใหม่: เอาเฉพาะของสาขาที่เลือก (แถวที่ไม่มีชื่อสาขานับเป็นสาขานี้)
+    if (!Array.isArray(it.rows)) throw new Error('ข้อมูลหมวด ' + g + ' ไม่ถูกต้อง กรุณาอ่านไฟล์ใหม่');
+    const cleaned = it.rows.map(stockCleanRow);
+    if (cleaned.some(r => !r || r[0] !== g || (r[3] && stockBrKey(r[3]) !== bk))) throw new Error('พบแถวที่ไม่ถูกต้องหรือสาขาไม่ตรงในหมวด ' + g + ' กรุณาตรวจไฟล์ก่อนอัปโหลด');
+    const mine = stockDedupe(cleaned.map(r => { r[3] = branch; return r; }));
+    total += mine.length;
+    if (total > STOCK_MAX_ROWS) throw new Error('มีรายการเกิน ' + STOCK_MAX_ROWS + ' แถว');
+    // แถวเดิมของสาขาอื่นในหมวดนี้เก็บไว้ครบ — ตัดออกเฉพาะแถวของสาขาที่กำลังอัปโหลด
+    const oldJson = await stockGroupJson(C, g, 0);
+    const existing = oldJson ? stockParseRows(oldJson, 'หมวด ' + g) : [];
+    if (existing.some(r => r[0] !== g)) throw new Error('ข้อมูลแถวไม่ตรงกับหมวด ' + g + ' กรุณาติดต่อผู้ดูแล');
+    if (!oldJson && state[g] && state[g].cur && state[g].cur.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
+    // อัปเดตเฉพาะแถวที่เปลี่ยน: เทียบรายแถวของสาขานี้ (กลุ่ม+รหัส+ชื่อ+สาขา)
+    const dk = r => [r[0], r[1], r[2], stockBrKey(r[3])].join('\u0001'), newMap = new Map(mine.map(r => [dk(r), r])), used = new Set(), merged = [], df = { add: 0, chg: 0, del: 0, same: 0 };
+    for (const r of existing) {
+      if (stockBrKey(r[3]) !== bk) { merged.push(r); continue; }
+      const k = dk(r), n = newMap.get(k);
+      if (!n) { df.del++; continue; }
+      used.add(k);
+      if (JSON.stringify(n) === JSON.stringify(r)) { df.same++; merged.push(r); } else { df.chg++; merged.push(n); }
+    }
+    mine.forEach(r => { if (!used.has(dk(r))) { df.add++; merged.push(r); } });
+    const rows = stockDedupe(merged);
+    const reps = rows.map(r => r[14]).filter(Boolean).sort(), rep = reps[reps.length - 1] || stockDate(it.rep) || '';
+    const json = JSON.stringify(rows), old = state[g];
+    diff[g] = df;
+    if (old && old.cur && old.cur.rep === rep && !df.add && !df.chg && !df.del) { same.push(g); continue; }
+    tot.add += df.add; tot.chg += df.chg; tot.del += df.del; tot.same += df.same;
+    // meta รายสาขา: สาขาที่อัปโหลดครั้งนี้ใช้เวลา/ผู้อัป/ไฟล์ใหม่ สาขาอื่นคงของเดิมไว้
+    const oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); if (r[4] > 0) b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    if (!br[branch]) br[branch] = { count: 0, rep: stockDate(it.rep) };
+    Object.keys(br).forEach(k => {
+      const src = k === branch ? { ts, who: me.name, file } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file }));
+      br[k].ts = src.ts; br[k].who = src.who; br[k].file = src.file;
+    });
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, json));
+    state[g] = { cur: { ts, who: me.name, file, rep, title: str(it.title).slice(0, 160), count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: old && old.cur ? old.cur : null };
+    replacements.cur.set(g, rows); replacements.prev.set(g, existing);
+    changed.push(g);
   }
+  if (!changed.length) return { ok: true, changed, same, diff, tot };
+  // ไม่มีรายการหัก (ของหาย/หมดอายุ/แท็กหักออก) → ยอดสรุปรายหมวดที่คำนวณในลูปถูกต้องแล้ว ไม่ต้องโหลดทุกหมวดมาคำนวณใหม่
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
+  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · อัปเดต ' + changed.length + ' หมวด (' + changed.join(',') + ') · เพิ่ม ' + tot.add + ' เปลี่ยน ' + tot.chg + ' ลบ ' + tot.del + ' เหมือนเดิม ' + tot.same + ' แถว' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
+  return { ok: true, changed, same, diff, tot };
+};
+
+API.stockRestore = async (C, token, g) => {
+  const me = await stockEditAuth(C, token);
+  g = str(g).toUpperCase();
+  const state = await stockState(C), s = state[g];
+  if (!s || !s.prev) throw new Error('หมวดนี้ไม่มีฉบับก่อนหน้า');
+  const [curJson, prevJson, adj] = await Promise.all([stockGroupJson(C, g, 0), stockGroupJson(C, g, 1), stockAdjLoad(C)]);
+  if (!prevJson) throw new Error('ข้อมูลฉบับก่อนหน้าไม่ครบ กรุณาติดต่อผู้ดูแล');
+  state[g] = { cur: s.prev, prev: s.cur };
+  await stockRebuildSummaries(C, state, adj, { cur: new Map([[g, stockParseRows(prevJson, g)]]), prev: new Map([[g, stockParseRows(curJson || '[]', g)]]) });
+  const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))]);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
+  return { ok: true, groups: state };
+};
+
+async function stockEditAuth(C, token) {
+  const me = await auth(C, token);
+  if (!me.perms.stock) throw new Error('คุณไม่มีสิทธิ์ใช้งานส่วนนี้');
+  if (me.role !== 'admin' && !me.perms.stock_edit) throw new Error('บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว ไม่สามารถแก้ไขได้');
+  return me;
 }
-function dayKey(ts) { return thaiDayIso(ts); }
-function dailyHistory(hist) {                                           // รวมรอบอัปโหลดเป็นรายวัน (ไม่แตกย่อยหลายรอบในวันเดียวกัน · ยึดรายการล่าสุดของวันนั้น)
-  var byDay = {}, order = [];
-  (Array.isArray(hist) ? hist : []).forEach(function (x) {
-    if (!x || !x.ts || !x.sum || !x.sum.st) return;
-    var dk = dayKey(x.ts);
-    if (!dk) return;
-    if (DELETED_HIST_DAYS['*'] && x.ts <= DELETED_HIST_DAYS['*']) return;
-    if (DELETED_HIST_DAYS[dk] && x.ts <= DELETED_HIST_DAYS[dk]) return;
-    var prev = byDay[dk];
-    if (!prev) {
-      byDay[dk] = Object.assign({}, x, { dayKey: dk, dayCount: 1 });
-      order.push(dk);
-    } else if (x.ts >= prev.ts) {
-      var merged = Object.assign({}, x, { dayKey: dk, dayCount: (prev.dayCount || 1) + 1 });
-      byDay[dk] = merged;
+
+async function stockVerifyPw(C, me, password) {
+  password = passArg(password);
+  if (!password) throw new Error('กรุณาใส่รหัสผ่านเพื่อยืนยัน');
+  const lockKey = 'fail:' + me.user, fails = await failCount(C, lockKey);
+  if (fails >= MAX_FAIL) throw new Error('ใส่รหัสผิดหลายครั้ง กรุณารอ 5 นาทีแล้วลองใหม่');
+  const u = await getUser(C, me.user);
+  if (!u) throw new Error('SESSION_EXPIRED');
+  if (u.hash !== await hashPw(u.salt, password) && !(await checkRecovery(C, password))) { await failBump(C, lockKey, fails + 1); throw new Error('รหัสผ่านไม่ถูกต้อง'); }
+  if (fails > 0) await failClear(C, lockKey);
+}
+
+API.stockClear = async (C, token, password, scope) => {
+  const me = await auth(C, token, true);
+  await stockVerifyPw(C, me, password);
+  scope = scope || {};
+  const mode = str(scope.mode), state = await stockState(C), ts = now(), ops = [], changed = [], lost = await stockAdjLoad(C);
+  const replacements = { cur: new Map(), prev: new Map() };
+  const shiftGroup = (g, rows, clearedBr) => {
+    const old = state[g], oc = old && old.cur, oldBr = (oc && oc.br) || {}, br = {};
+    rows.forEach(r => { const b = br[r[3]] || (br[r[3]] = { count: 0, rep: '' }); if (r[4] > 0) b.count++; if (r[14] > b.rep) b.rep = r[14]; });
+    if (clearedBr && !br[clearedBr]) br[clearedBr] = { count: 0, rep: '' };
+    Object.keys(br).forEach(k => {
+      const src = k === clearedBr ? { ts, who: me.name, file: 'ล้างข้อมูล' } : (oldBr[k] || (oc ? { ts: oc.ts, who: oc.who, file: oc.file } : { ts, who: me.name, file: 'ล้างข้อมูล' }));
+      br[k].ts = src.ts; br[k].who = src.who; br[k].file = src.file;
+    });
+    const reps = rows.map(r => r[14]).filter(Boolean).sort();
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=0', g), ...stockInsertOps(C, g, 0, JSON.stringify(rows)));
+    state[g] = { cur: { ts, who: me.name, file: 'ล้างข้อมูล', rep: reps[reps.length - 1] || '', title: '', count: rows.filter(r => r[4] > 0).length, sum: stockSummary(rows, lost), br }, prev: oc ? Object.assign({}, oc, { sum: stockSummary(replacements.prev.get(g) || []) }) : null };
+    replacements.cur.set(g, rows);
+    changed.push(g);
+  };
+  let desc;
+  if (mode === 'all') {
+    Object.keys(state).forEach(g => changed.push(g));
+    await batch(C, [stmt(C, 'DELETE FROM stock_grp'), kvSetStmt(C, 'STOCK_GROUPS', '{}'), kvSetStmt(C, 'STOCK_HISTORY', '[]')]);
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', 'ล้างข้อมูลทั้งหมด (' + changed.length + ' หมวด) · ลบฉบับก่อนหน้าและประวัติแนวโน้มด้วย');
+    return { ok: true, changed };
+  }
+  if (mode === 'group') {
+    const g = str(scope.g).toUpperCase();
+    if (!state[g]) throw new Error('ไม่พบหมวด ' + g);
+    const rows = stockParseRows((await stockGroupJson(C, g, 0)) || '[]', 'หมวด ' + g);
+    if (rows.length) { replacements.prev.set(g, rows); shiftGroup(g, []); }
+    desc = 'ล้างทั้งหมวด ' + g;
+  } else if (mode === 'branch') {
+    const branch = str(scope.branch).replace(/\s+/g, ' ').trim().slice(0, 20);
+    if (!branch) throw new Error('กรุณาเลือกสาขาที่จะล้าง');
+    const bk = stockBrKey(branch), current = await stockRowsByGroup(C, 0);
+    for (const g of Object.keys(state)) {
+      if (!state[g] || !state[g].cur) continue;
+      const rows = current.get(g) || [];
+      if (!current.has(g) && state[g].cur.count > 0) throw new Error('ข้อมูลสต็อกไม่ครบ หมวด ' + g);
+      const keep = rows.filter(r => stockBrKey(r[3]) !== bk);
+      if (keep.length !== rows.length) { replacements.prev.set(g, rows); shiftGroup(g, keep, branch); }
+    }
+    desc = 'ล้างทั้งสาขา ' + branch;
+  } else throw new Error('เลือกสิ่งที่จะล้างไม่ถูกต้อง');
+  if (!changed.length) return { ok: true, changed };
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
+  const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ล้างข้อมูล · ' + desc, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ล้างข้อมูล', desc + ' · ' + changed.length + ' หมวด (' + changed.join(',') + ') · เก็บเป็นฉบับก่อนหน้า');
+  return { ok: true, changed };
+};
+
+API.stockSetNames = async (C, token, names) => {
+  const me = await stockEditAuth(C, token), out = {};
+  names = (names && typeof names === 'object') ? names : {};
+  Object.keys(names).forEach(k => {
+    if (k === '__BR_CFG__') { out[k] = str(names[k]).slice(0, 20000); return; }
+    const parts = str(k).split(':');
+    if (parts.length === 2) {
+      const bk = stockBrKey(parts[0]), code = str(parts[1]).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ').trim();
+      if (bk && /^[A-Z0-9_-]{1,12}$/.test(code) && t) out[bk + ':' + code] = t.slice(0, 40);
+      return;
+    }
+    const code = str(k).toUpperCase(), t = str(names[k]).replace(/\s+/g, ' ').trim();
+    if (/^[A-Z0-9_-]{1,12}$/.test(code) && t) out[code] = t.slice(0, 40);
+  });
+  await kvSet(C, 'STOCK_NAMES', JSON.stringify(out));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งค่าหมวดและสาขา', Object.keys(out).length + ' รายการ');
+  return out;
+};
+
+API.stockGroupAdd = async (C, token, g, name, branch) => {
+  const me = await stockEditAuth(C, token);
+  const code = str(g).trim().toUpperCase(), br = str(branch).replace(/\s+/g, ' ').trim().slice(0, 20), bk = stockBrKey(br);
+  if (!STOCK_GROUP_RE.test(code)) throw new Error('รหัสหมวดต้องเป็นตัวอักษรภาษาอังกฤษหรือตัวเลข 1–12 ตัว เช่น G01');
+  const [state, names] = await Promise.all([stockState(C), stockNames(C)]);
+  const label = str(name).replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (label) {
+    if (bk) names[bk + ':' + code] = label;
+    if (!names[code]) names[code] = label;
+  }
+  const ts = now(), ops = [kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names))];
+  if (!state[code]) {
+    const brMap = {};
+    if (br) brMap[br] = { count: 0, rep: '', ts, who: me.name, file: 'ตั้งค่าหมวด' };
+    state[code] = { cur: { ts, who: me.name, file: 'เพิ่มหมวดใหม่', rep: '', title: '', count: 0, sum: stockSummary([]), br: brMap }, prev: null };
+    ops.push(...stockInsertOps(C, code, 0, '[]'), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+  } else if (br && state[code].cur) {
+    if (!state[code].cur.br) state[code].cur.br = {};
+    if (!state[code].cur.br[br]) state[code].cur.br[br] = { count: 0, rep: '', ts, who: me.name, file: 'ตั้งค่าหมวด' };
+    ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+  }
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่มหมวดสินค้า', code + (br ? ' · สาขา ' + br : '') + (label ? ' · ' + label : ''));
+  return { ok: true, g: code, names, groups: state };
+};
+
+API.stockGroupDelete = async (C, token, g, branch) => {
+  const me = await stockEditAuth(C, token);
+  const code = str(g).trim().toUpperCase(), br = str(branch).replace(/\s+/g, ' ').trim().slice(0, 20), bk = stockBrKey(br);
+  if (!code) throw new Error('กรุณาระบุหมวดที่จะลบ');
+  const [state, names, lost] = await Promise.all([stockState(C), stockNames(C), stockAdjLoad(C)]);
+  const ts = now(), ops = [];
+  const replacements = { cur: new Map() };
+  if (bk && state[code] && state[code].cur) {
+    const rows = stockParseRows((await stockGroupJson(C, code, 0)) || '[]', 'หมวด ' + code);
+    const keep = Array.isArray(rows) ? rows.filter(r => stockBrKey(r[3]) !== bk) : [];
+    if (state[code].cur.br) {
+      Object.keys(state[code].cur.br).forEach(k => { if (stockBrKey(k) === bk) delete state[code].cur.br[k]; });
+    }
+    delete names[bk + ':' + code];
+    const remBrs = state[code].cur.br ? Object.keys(state[code].cur.br) : [];
+    if (!keep.length && !remBrs.length) {
+      delete state[code];
+      delete names[code];
+      ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
     } else {
-      prev.dayCount = (prev.dayCount || 1) + 1;
+      state[code].cur.count = keep.filter(r => r[4] > 0).length;
+      state[code].cur.sum = stockSummary(keep, lost);
+      replacements.cur.set(code, keep);
+      ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=0', code), ...stockInsertOps(C, code, 0, JSON.stringify(keep)));
     }
-  });
-  order.sort();
-  return order.map(function (k) { return byDay[k]; });
-}
-
-/* ค้าง (วัน) = จำนวนวันตั้งแต่ "ขายล่าสุด" ถึงวันนี้ (เวลาไทย) — คำนวณใหม่ทุกครั้งที่เปิดหน้า · ไม่มีวันที่ขายล่าสุด → ใช้ค่าเดิมจากไฟล์ */
-var TODAY_MS = Date.parse(thaiDayIso() + 'T00:00:00Z');
-function daysSince(iso, fallback) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
-  var normalized = m && calendarDate(m[1], m[2], m[3]);
-  if (!normalized) return fallback;
-  m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
-  return Math.max(0, Math.round((TODAY_MS - Date.UTC(+m[1], +m[2] - 1, +m[3])) / 86400000));
-}
-function stByDays(d, fallback) {                                      // สถานะจากค้าง(วัน): ≤15 = T1 · ≤30 = T2 · ≤60 = T3 · เกิน 60 = DS · ไม่มีข้อมูลวัน → ใช้ค่าเดิมจากไฟล์
-  if (d === null || d === undefined || !isFinite(d)) return fallback;
-  return d <= 15 ? 'T1' : (d <= 30 ? 'T2' : (d <= 60 ? 'T3' : 'DS'));
-}
-function toItem(a) {
-  var dy = D.ver === 'prev' ? a[9] : daysSince(a[8], a[9]), st = D.ver === 'prev' ? a[10] : stByDays(dy, a[10]), origQ = a[20] !== undefined ? Number(a[20]) : a[4];
-  return { g: a[0], code: a[1], name: a[2], br: a[3], qty: a[4], origQty: origQ, cutQty: Math.max(0, Math.round((origQ - a[4]) * 100) / 100),
-    sold: a[5], avg: a[6], recv: a[7], last: a[8], days: dy, st: st, sk: st || 'NA',
-    cost: a[11], price: a[12], note: a[13], rep: a[14], below: a[15], profit: a[16], pct: a[17], sales: a[18], net: a[19],
-    vc: a[4] * a[11], vp: a[4] * a[12], hay: (a[1] + ' ' + a[2] + ' ' + a[13]).toLowerCase() };
-}
-function gView(g) { var m = D.gm[g]; return m ? (D.ver === 'prev' ? m.prev : m.cur) || null : null; }   // เมตาของหมวดตามฉบับที่กำลังดู
-function applyData(r) {
-  TODAY_MS = Date.parse(thaiDayIso() + 'T00:00:00Z');
-  D.revision = r.revision; D.me = r.me; D.gm = r.groups || {}; D.ver = r.ver === 'prev' ? 'prev' : 'cur'; VIEW = D.ver; D.names = r.names || {}; D.history = dailyHistory(r.history || []);
-  Object.keys(DELETED_GROUPS).forEach(function (g) { delete D.gm[g]; delete D.names[g]; });
-  Object.keys(DELETED_PREV_GRPS).forEach(function (g) {
-    if (D.gm[g] && D.gm[g].prev && (!D.gm[g].prev.ts || D.gm[g].prev.ts <= DELETED_PREV_GRPS[g])) D.gm[g].prev = null;
-  });
-  D.items = (r.rows || []).filter(function (a) { return a[4] > 0 && !DELETED_GROUPS[a[0]]; }).map(toItem);
-  D.zero = (r.zero || []).filter(function (a) { return !DELETED_GROUPS[a[0]]; }).map(function (a) { var x = toItem(a); x.isZero = true; return x; });
-  D.lost = r.lost || []; D.exp = r.expired || []; D.pend = r.pending || []; D.waste = r.waste || [];
-  D.hard = r.hard || {};
-  D.ctags = r.ctags || {}; D.ctmapSet = {};
-  Object.keys(r.ctmap || {}).forEach(function (id) { var m = D.ctmapSet[id] = {}; (r.ctmap[id] || []).forEach(function (k) { m[k] = 1; }); });
-  ctSync();
-  Object.keys(r.ctlists || {}).forEach(function (id) { D['c_' + id] = r.ctlists[id] || []; });
-  // รายการที่ถูกตัดออกจนเหลือ 0 (จาก r.cut ของหลังบ้าน หรือสร้างจาก hit ของรายการที่หักหากหลังบ้านยังไม่ส่ง r.cut มา)
-  var itemMap = {};
-  D.items.forEach(function (x) { itemMap[x.g + '|' + codeKey(x.code) + '|' + brKey(x.br)] = x; });
-  if (Array.isArray(r.cut)) {
-    D.cut = r.cut.filter(function (a) { return !DELETED_GROUPS[a[0]]; }).map(function (a) {
-      var x = toItem(a); x.isCut = true; x.isFullCut = true; return x;
-    });
   } else {
-    var cutMap = {};
-    [['lost', D.lost], ['exp', D.exp], ['pend', D.pend], ['waste', D.waste]].forEach(function (p) {
-      (p[1] || []).forEach(function (e) {
-        var ck = codeKey(e.code); if (!ck) return;
-        (e.hit || []).forEach(function (h) {
-          if (DELETED_GROUPS[h.g]) return;
-          var ik = h.g + '|' + ck + '|' + brKey(h.br), exist = itemMap[ik];
-          if (exist) {
-            exist.cutQty = Math.round(((exist.cutQty || 0) + (h.qty || 0)) * 100) / 100;
-            exist.origQty = Math.round((exist.qty + exist.cutQty) * 100) / 100;
-            exist.isCut = true;
-          } else {
-            var c = cutMap[ik];
-            if (!c) {
-              c = toItem([h.g || '', e.code || '', h.name || e.name || '', h.br || e.br || '', 0, 0, 0, '', '', null, 'DS', h.cost || 0, 0, e.note || '', '', '-', 0, 0, 0, 0, 0]);
-              c.isCut = true; c.isFullCut = true; c.cutQty = 0; c.origQty = 0;
-              cutMap[ik] = c;
-            }
-            c.cutQty = Math.round((c.cutQty + (h.qty || 0)) * 100) / 100;
-            c.origQty = c.cutQty;
-          }
-        });
-      });
-    });
-    D.cut = Object.keys(cutMap).map(function (k) { return cutMap[k]; });
+    delete state[code];
+    delete names[code];
+    Object.keys(names).forEach(k => { if (k.endsWith(':' + code)) delete names[k]; });
+    ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=?', code));
   }
-  var adjIdx = {};
-  [['lost', D.lost], ['exp', D.exp], ['pend', D.pend], ['waste', D.waste]].concat(Object.keys(AKI).filter(function (k) { return k.indexOf('c_') === 0; }).map(function (k) { return [k, D[k]]; })).forEach(function (p) {
-    (p[1] || []).forEach(function (e) {
-      var ck = codeKey(e.code); if (!ck) return;
-      var hitRows = {};
-      (e.hit || []).forEach(function (h) { var key = h.g + '|' + brKey(h.br); hitRows[key] = (hitRows[key] || 0) + (h.qty || 0); });
-      (adjIdx[ck] || (adjIdx[ck] = [])).push({ k: p[0], ek: e.k, br: brKey(e.br), hitRows: hitRows, note: e.note || '' });
-    });
-  });
-  D.items.concat(D.zero, D.cut).forEach(function (x) {
-    var ck = codeKey(x.code), bk = brKey(x.br);
-    x.hard = !!(ck && D.hard[ck]); x.tg = {}; x.tn = {}; x.tk = {};
-    if (x.hard && D.hard[ck].note) x.tn.hard = D.hard[ck].note;
-    (adjIdx[ck] || []).forEach(function (e) {
-      var matchBr = !e.br || e.br === bk;
-      var hq = e.hitRows[x.g + '|' + bk];
-      if (matchBr && (hq !== undefined || !Object.keys(e.hitRows).length)) {
-        var qAdd = hq !== undefined ? hq : 0;
-        x.tg[e.k] = Math.round(((x.tg[e.k] || 0) + qAdd) * 100) / 100;
-        x.tk[e.k] = e.ek;
-        if (e.note && (x.tn[e.k] || '').indexOf(e.note) < 0) x.tn[e.k] = (x.tn[e.k] ? x.tn[e.k] + ' / ' : '') + e.note;
-      }
-    });
-    var sumTg = Object.keys(x.tg).reduce(function (s, k) { return s + (x.tg[k] || 0); }, 0);
-    if (sumTg > 0 && !x.cutQty) { x.cutQty = Math.round(sumTg * 100) / 100; x.origQty = Math.round((x.qty + x.cutQty) * 100) / 100; }
-    if (Object.keys(x.tg).length > 0 || x.cutQty > 0 || x.isFullCut) x.isCut = true;
-    if (x.hard) x.hay += ' ขายยาก';
-    Object.keys(x.tg).forEach(function (k) { x.hay += ' ' + TAGS[k].t; });
-    Object.keys(x.tn).forEach(function (k) { x.hay += ' ' + x.tn[k]; });
-    if (x.isZero) x.hay += (x.qty < 0 ? ' ติดลบ' : ' คงเหลือ 0 สินค้า 0');
-    if (x.isCut) x.hay += ' ตัดออก';
-    x.hay = x.hay.toLowerCase();
-  });
-  if (Array.isArray(r.barcodes)) { BC_CACHE = r.barcodes; BC_REVISION = Number.isSafeInteger(r.barcodeRevision) ? r.barcodeRevision : null; buildBcIndex(BC_CACHE); }
-  attachBcToItems();
-  D.items.forEach(function (x, i) { x.i = i; });
-  D.zero.forEach(function (x, i) { x.i = 100000 + i; });
-  D.cut.forEach(function (x, i) { x.i = 200000 + i; });
-  if (D.names && D.names.__BR_CFG__) {
-    try {
-      BR_CFG = normBrCfg(JSON.parse(D.names.__BR_CFG__));
-      saveBrCfgLocal();
-    } catch (e) {}
-  }
-  var gs = {}, bs = {};
-  D.items.concat(D.zero, D.cut).forEach(function (x) {
-    if (x.g && !DELETED_GROUPS[x.g]) gs[x.g] = 1;
-    if (x.br && !BR_CFG.delBranches[brKey(x.br)]) bs[x.br] = 1;
-  });
-  Object.keys(D.gm).forEach(function (g) {
-    if (!DELETED_GROUPS[g]) gs[g] = 1;
-    var c = D.gm[g] && D.gm[g].cur;
-    if (c && c.br) Object.keys(c.br).forEach(function (b) { if (b && !BR_CFG.delBranches[brKey(b)]) bs[b] = 1; });
-  });
-  Object.keys(D.names).forEach(function (k) {
-    if (k === '__BR_CFG__') return;
-    var p = k.split(':'), g = p.length === 2 ? p[1] : p[0];
-    if (g && !DELETED_GROUPS[g]) gs[g] = 1;
-  });
-  (BR_CFG.branches || []).forEach(function (b) { if (b && !BR_CFG.delBranches[brKey(b)]) bs[b] = 1; });
-  Object.keys(BR_CFG.brGroups || {}).forEach(function (bk) {
-    Object.keys(BR_CFG.brGroups[bk] || {}).forEach(function (g) { if (!DELETED_GROUPS[g]) gs[g] = 1; });
-  });
-  D.allGroups = Object.keys(gs).sort();
-  D.branches = Object.keys(bs).sort();
-  if (F.br && !bs[F.br]) F.br = '';
-  D.groups = groupsForBranch(F.br);
-  var ms = Object.keys(D.gm).map(function (g) { return gView(g); }).filter(Boolean), meta = null;
-  if (ms.length) {
-    var last = ms.reduce(function (a, b) { return b.ts > a.ts ? b : a; }), reps = ms.map(function (m) { return m.rep; }).filter(Boolean).sort();
-    meta = { ts: last.ts, who: last.who, file: last.file, from: reps[0] || '', to: reps[reps.length - 1] || '', count: ms.reduce(function (s, m) { return s + m.count; }, 0), n: ms.length };
-  }
-  D.meta = meta;
-  Object.keys(F.gm).forEach(function (k) { if (!gs[k]) delete F.gm[k]; });
-  if (F.br && !bs[F.br]) F.br = '';
-  var admin = D.me && D.me.role === 'admin', edit = !!(D.me && D.me.edit);
-  $('#bUpload').classList.toggle('hidden', !edit);
-  $('#bNames').classList.toggle('hidden', !edit);
-  $('#bHist').classList.toggle('hidden', !edit);
-  if ($('#bTrendHist')) $('#bTrendHist').classList.toggle('hidden', !edit);
-  $('#bClear').classList.toggle('hidden', !admin || !Object.keys(D.gm).length);
-  renderInfo(); renderVerTabs(); fillSelects(); renderLostBtn();
-  var has = D.items.length > 0 || D.zero.length > 0 || D.cut.length > 0 || D.groups.length > 0 || D.ver === 'prev';
-  $('#empty').classList.toggle('hidden', has); $('#main').hidden = !has;
-  if (!has) $('#emptyMsg').textContent = edit ? 'กดปุ่ม "อัปโหลดข้อมูล" ด้านบนเพื่อนำเข้าไฟล์รายงานครั้งแรก' : 'ให้ Admin หรือผู้ที่มีสิทธิ์แก้ไขอัปโหลดไฟล์ Excel ก่อน แล้วรีเฟรชหน้านี้';
-  render();
-  if (!$('#lostDlg').classList.contains('hidden')) renderLost();
-}
-function renderRepCard() {                                              // ประวัติข้อมูลล่าสุดจะขึ้นก็ต่อเมื่อมีการเลือกหมวดแล้ว
-  var box = $('#gHistBox'); if (!box) return;
-  var sel = gSel(), edit = !!(D.me && D.me.edit);
-  if (!sel.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  var cur = D.ver === 'cur';
-  var bk = brKey(F.br);
-  var cards = sel.map(function (g) {
-    var v = gView(g), pv = D.gm[g] && D.gm[g].prev;
-    if (!v) return '<div class="ghist-item"><b>' + esc(gl(g)) + '</b><div class="muted">ยังไม่มีประวัติการอัปโหลดข้อมูลในหมวดนี้</div></div>';
-    var d = v.ts ? Math.floor((Date.now() - v.ts) / 86400000) : 0, bs = v.br ? Object.keys(v.br).filter(function (k) { return !bk || brKey(k) === bk; }).sort() : [];
-    var allInGrp = allPool(true).filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
-    var brCnt = allInGrp || (bk ? 0 : (v.count || 0));
-    var brTxt = bs.map(function (k) {
-      var b = v.br[k] || {}, bAll = allPool(true).filter(function (x) { return x.g === g && brKey(x.br) === brKey(k); }).length || b.count || 0;
-      return '<span style="display:inline-block;margin-right:10px">• สาขา <b>' + esc(k) + '</b>: ' + nf0.format(bAll) + ' รายการ' + ' · อัปเดต ' + (b.ts ? esc(fmtTs(b.ts)) : '–') + (b.who ? ' โดย ' + esc(b.who) : '') + '</span>';
-    }).join('<br>');
-    var prevLine = cur && pv ? '<div class="muted" style="margin-top:4px;font-size:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><span>ข้อมูลย้อนหลังฉบับก่อนหน้า: บันทึกเมื่อ ' + esc(fmtTs(pv.ts)) + '</span>' + (edit ? '<button type="button" class="btn ghost small" style="color:var(--bad);padding:3px 10px;min-height:28px;font-size:12.5px" data-delprev="' + esc(g) + '">ลบประวัติย้อนหลังหมวดนี้</button>' : '') + '</div>' : '';
-    return '<div class="ghist-item">' +
-      '<div><b>' + esc(gl(g)) + '</b> · สินค้าทั้งหมด' + (F.br ? 'สาขา ' + esc(F.br) + ' ' : ' ') + '<b>' + nf0.format(brCnt) + ' รายการ</b></div>' +
-      '<div class="muted">อัปเดตล่าสุด: <b>' + (v.ts ? esc(fmtTs(v.ts)) : '–') + '</b>' + (cur && v.ts && d >= 30 ? ' <b style="color:var(--bad)">· ผ่านมา ' + d + ' วัน</b>' : '') + (v.who ? ' · โดย <b>' + esc(v.who) + '</b>' : '') + (v.file ? ' · ไฟล์ ' + esc(v.file) : '') + '</div>' +
-      (brTxt ? '<div style="margin-top:4px;font-size:12.5px;color:var(--steel)">' + brTxt + '</div>' : '') +
-      prevLine +
-      '</div>';
-  }).join('');
-  box.innerHTML = '<div class="ghist-head"><span>ประวัติข้อมูลล่าสุดของหมวดที่เลือก · ' + sel.length + ' หมวด' + (D.ver === 'prev' ? ' · ฉบับก่อนหน้า' : '') + '</span>' +
-    (edit ? '<button type="button" class="btn ghost small" id="bOpenHistInBox" style="padding:4px 12px;min-height:28px;font-size:12.5px">จัดการประวัติและสถิติย้อนหลัง</button>' : '') +
-    '</div><div class="ghist-grid">' + cards + '</div>';
-  box.classList.remove('hidden');
-}
-function nPrev() { return Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length; }
-function renderVerTabs() {
-  var np = nPrev(), nc = Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].cur && D.gm[g].cur.count > 0; }).length;
-  $('#verTabs').innerHTML = '<button type="button" class="tab' + (D.ver === 'cur' ? ' on' : '') + '" data-v="cur" role="tab" aria-selected="' + (D.ver === 'cur') + '">ฉบับปัจจุบัน ' + nc + ' หมวด</button>' +
-    '<button type="button" class="tab' + (D.ver === 'prev' ? ' on' : '') + '" data-v="prev" role="tab" aria-selected="' + (D.ver === 'prev') + '"' + (np || D.ver === 'prev' ? '' : ' disabled title="ยังไม่มีฉบับก่อนหน้า — จะมีเมื่อมีการอัปโหลดทับหมวดเดิม"') + '>ฉบับก่อนหน้า ' + np + ' หมวด</button>';
-  $('#verNote').innerHTML = D.ver === 'prev'
-    ? '<b style="color:var(--bad)">กำลังดูข้อมูลฉบับก่อนหน้า</b> · วันค้างและสถานะตามไฟล์ที่บันทึกไว้ · เก็บหมวดละ 1 ฉบับก่อนการอัปโหลดทับครั้งล่าสุด'
-    : 'วันค้างและช่วงอายุคำนวณถึงวันนี้ (เวลาไทย) · ' + (np ? 'มีฉบับก่อนหน้า ' + np + ' หมวดสำหรับเปรียบเทียบ' : 'ระบบจะเก็บฉบับก่อนหน้าให้อัตโนมัติเมื่ออัปโหลดทับหมวดเดิม');
-}
-function roNote() { return D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:underline">สิทธิ์: ดูอย่างเดียว</b>' : ''; }
-function renderInfo() {
-  var m = D.meta, el = $('#info');
-  if (!m) { el.innerHTML = D.me ? 'ผู้ใช้: ' + esc(D.me.name) + roNote() : ''; return; }
-  var days = Math.floor((Date.now() - m.ts) / 86400000);
-  el.innerHTML = (D.ver === 'prev' ? '<b style="color:#ffffff;text-decoration:underline">ฉบับก่อนหน้า</b> · ' : '') + 'อัปเดตล่าสุด ' + esc(fmtTs(m.ts)) + ' โดย ' + esc(m.who) + (D.ver === 'cur' && days >= 30 ? ' <b style="color:#ffffff;text-decoration:underline">· ผ่านมา ' + days + ' วันแล้ว ควรอัปโหลดใหม่</b>' : '') +
-    (m.file ? '<br>ไฟล์ ' + esc(m.file) : '') + roNote() + brStatus();
-}
-function brStatus() {                                // อัปเดตล่าสุดรายสาขา (จากเมตาที่เก็บไว้ต่อหมวด) · เกิน 30 วันขึ้นเตือน
-  var bl = {};
-  Object.keys(D.gm).forEach(function (g) { var v = gView(g); if (v && v.br) Object.keys(v.br).forEach(function (k) { var b = v.br[k]; if (b && b.ts && (!bl[k] || b.ts > bl[k].ts)) bl[k] = b; }); });
-  var ks = Object.keys(bl).sort();
-  if (!ks.length) return '';
-  return '<br>รายสาขา: ' + ks.map(function (k) { var d = Math.floor((Date.now() - bl[k].ts) / 86400000); return esc(k) + ' ' + esc(fmtTs(bl[k].ts)) + (D.ver === 'cur' && d >= 30 ? ' <b style="color:#ffffff;text-decoration:underline">(' + d + ' วัน)</b>' : ''); }).join(' · ');
-}
-function fillSelects() {
-  var b = $('#fBr');
-  b.innerHTML = '<option value="">ทุกสาขา</option>' + D.branches.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-  b.value = F.br;
-}
+  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
+  const dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
+  const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'ลบหมวด ' + code + (br ? ' สาขา ' + br : ''), to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
+  ops.push(
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)),
+    kvSetStmt(C, 'STOCK_NAMES', JSON.stringify(names)),
+    kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))
+  );
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบหมวดสินค้า', code + (br ? ' · สาขา ' + br : ''));
+  return { ok: true, g: code, names, groups: state };
+};
 
-var LOAD_SEQ = 0;
-async function load(ver) {
-  var loadId = ++LOAD_SEQ;
-  if (!TOKEN) { showLogin(''); return; }
-  try {
-    var r = await call('stockGet', ver || VIEW, { barcodeRevision: BC_CACHE ? BC_REVISION : null });
-    if (loadId !== LOAD_SEQ) return;
-    if (!r || !r.me || !Array.isArray(r.rows)) throw new Error('รูปแบบข้อมูลสินค้าค้างสต็อกไม่ถูกต้อง กรุณาลองโหลดใหม่');
-    if (!Array.isArray(r.barcodes) && !BC_CACHE) {
-      try {
-        var bcRes = await call('getCategoryData', '', '*');
-        if (bcRes && Array.isArray(bcRes.rows)) {
-          BC_CACHE = bcRes.rows.map(function (row) {
-            var v = row.v || [];
-            return [String(v[5] || ''), String(v[7] || ''), String(v[4] || ''), String(v[3] || ''), String(v[2] || ''), String(v[1] || '')];
-          });
-          buildBcIndex(BC_CACHE);
-        }
-      } catch (e2) {}
-    }
-    if (loadId !== LOAD_SEQ) return;
-    applyData(r);
-  } catch (e) {
-    if (loadId !== LOAD_SEQ) return;
-    if (e.message === 'SESSION_EXPIRED') return;
-    if (/ไม่มีสิทธิ์/.test(e.message)) { showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์การ์ดสินค้าค้างสต็อก — ติดต่อ Admin หรือเข้าสู่ระบบด้วยบัญชีอื่น'); return; }
-    $('#info').textContent = 'โหลดข้อมูลไม่สำเร็จ'; toast(e.message, true);
+API.stockHistoryDelete = async (C, token, payload) => {
+  const me = await stockEditAuth(C, token);
+  payload = payload || {};
+  const mode = str(payload.mode);
+  if (mode === 'all_hist') {
+    await kvSet(C, 'STOCK_HISTORY', '[]');
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบประวัติสถิติแนวโน้ม', 'ล้างประวัติสถิติแนวโน้มทั้งหมด');
+    return { ok: true };
   }
-}
-
-/* ---------- คำนวณ + วาด ---------- */
-function agg(list) {
-  var o = { n: list.length, pcs: 0, vc: 0, vp: 0, dsum: 0, dn: 0, dmax: 0 };
-  list.forEach(function (x) { o.pcs += x.qty; o.vc += x.vc; o.vp += x.vp; if (x.days !== null) { o.dsum += x.days; o.dn++; if (x.days > o.dmax) o.dmax = x.days; } });
-  return o;
-}
-function allPool(includeZero) {                                          // ก่อนกดแท็ก "คงเหลือ 0" จะไม่รวมสินค้าคงเหลือ 0
-  var base = D.items.concat(D.cut || []);
-  base = base.concat(D.zero || []);                                      // รวมคงเหลือ 0 และติดลบเสมอ (ไม่นับรวมในยอดคำนวณ)
-  return base;
-}
-var LAST_TS = [];
-function render() {
-  D.groups = groupsForBranch(F.br);
-  var allowedG = {}; D.groups.forEach(function (g) { allowedG[g] = 1; });
-  Object.keys(F.gm).forEach(function (g) { if (!allowedG[g]) delete F.gm[g]; });
-  var q = F.q.trim().toLowerCase();
-  var A = D.items.filter(function (x) {
-    return (!F.br || x.br === F.br) && tagOn(x) && (!q || x.hay.indexOf(q) >= 0);
-  });
-  var N = A.filter(function (x) { return gOn(x.g); });
-  var G = A.filter(function (x) { return stOn(x.sk); });
-  var S = G.filter(function (x) { return gOn(x.g); });
-  var T_ALL = allPool().filter(function (x) {
-    return (!F.br || x.br === F.br) && tagOn(x) && (!q || x.hay.indexOf(q) >= 0);
-  });
-  var T_N = T_ALL.filter(function (x) { return gOn(x.g); });
-  var T_S = T_N.filter(function (x) { return stOn(x.sk); });
-  LAST_TS = T_S;
-  renderChips(T_N); renderGSelect(); renderPill(); renderRepCard(); renderTagSel(); renderKpis(S, N, T_S);
-  renderGroupChart(S); renderStatusChart(N); renderAgeChart(S); renderTopChart(S); renderTrend();
-  renderGroupTable(G); renderTable(T_S); renderZero(); renderLostBtn(); renderAnalysis(S, N, G);
-  if (!$('#histDlg').classList.contains('hidden')) renderHistDlg();
-}
-function zeroFiltered() {
-  var q = F.q.trim().toLowerCase();
-  return (D.zero || []).filter(function (x) { return gOn(x.g) && (!F.br || x.br === F.br) && !tagHidden(x) && (!q || x.hay.indexOf(q) >= 0); });
-}
-function renderZero() {
-  var sec = $('#zeroCard');
-  if (sec) sec.hidden = true;
-}
-function renderChips(N) {
-  var cnt = {}; N.forEach(function (x) { cnt[x.sk] = (cnt[x.sk] || 0) + 1; });
-  var allOn = !Object.keys(F.st).length;
-  $('#chips').innerHTML = '<button type="button" class="chip' + (allOn ? ' on' : '') + '" data-st="" aria-pressed="' + (allOn ? 'true' : 'false') + '">ทุกช่วงอายุ <b>' + nf0.format(N.length) + ' รายการ</b></button>' +
-    ST_DEF.map(function (s) {
-      var on = !!F.st[s.k];
-      return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-st="' + s.k + '" aria-pressed="' + (on ? 'true' : 'false') + '"><i style="background:' + ST_COLOR[s.k] + '" aria-hidden="true"></i>' + esc(s.t) + ' <b>' + nf0.format(cnt[s.k] || 0) + ' รายการ</b></button>';
-    }).join('');
-}
-function renderTagSel() {                                               // แท็กสินค้าแบบติ๊ก/ไม่ติ๊ก เติมคำว่า "รายการ" ต่อท้ายจำนวน
-  var q = F.q.trim().toLowerCase(), bk = brKey(F.br);
-  var pool = allPool(true).filter(function (x) {
-    return gOn(x.g) && (!bk || brKey(x.br) === bk) && stOn(x.sk) && (!q || x.hay.indexOf(q) >= 0);
-  });
-  var order = BASE_TAGS.filter(function (k) { return !CT.removed[k]; }).concat(ctKeys());
-  var cnt = {}; order.forEach(function (k) { cnt[k] = 0; });
-  pool.forEach(function (x) {
-    order.forEach(function (k) { if (hasTag(x, k)) cnt[k]++; });
-  });
-  renderCtList(cnt);
-  var box = $('#fTagChecks');
-  if (box) {
-    box.innerHTML = order.map(function (k) {
-      var on = !!(F.tags && F.tags[k]);
-      return '<label class="chk-pill"><input type="checkbox" data-ftag="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
-    }).join('') + (Object.keys(F.tags || {}).length ? '<button type="button" class="btn ghost small" id="bClearTags">ล้างตัวกรองแท็ก</button>' : '');
-  }
-  var hbox = $('#fHideChecks');
-  if (hbox) {
-    hbox.innerHTML = order.map(function (k) {
-      var on = !!(F.hide && F.hide[k]);
-      return '<label class="chk-pill"><input type="checkbox" data-fhide="' + k + '"' + (on ? ' checked' : '') + '><span>' + esc(TAGS[k].t) + ' <b>' + nf0.format(cnt[k] || 0) + ' รายการ</b></span></label>';
-    }).join('') + (Object.keys(F.hide || {}).length ? '<button type="button" class="btn ghost small" id="bClearHide">ล้างแท็กซ่อน</button>' : '');
-  }
-}
-function renderCtList(cnt) {
-  var box = $('#ctList'); if (!box) return;
-  var edit = !!(D.me && D.me.edit);
-  var dis = edit ? '' : ' disabled title="ต้องมีสิทธิ์แก้ไขสต็อก"';
-  var dataCnt = { lost: (D.lost || []).length, exp: (D.exp || []).length, pend: (D.pend || []).length, waste: (D.waste || []).length, hard: Object.keys(D.hard || {}).length };
-  var base = BASE_TAGS.map(function (k) {
-    if (CT.removed[k]) return '';
-    var real = dataCnt[k] !== undefined, n = real ? dataCnt[k] : (cnt && cnt[k] || 0);
-    return '<div class="ct-row"><span class="ct-n">' + esc(TAGS[k].t) + ' <span class="muted">(แท็กของระบบ)</span></span>' +
-      '<span class="muted">' + (real ? 'มีข้อมูลจริง ' : 'ตามยอดสต็อก ') + nf0.format(n) + ' รายการ</span><button type="button" class="btn ghost small" data-btdel="' + k + '"' + (real ? dis : '') + ' aria-label="ลบแท็ก ' + esc(TAGS[k].t) + '">× ลบแท็ก' + (real ? 'และข้อมูลจริง' : '') + '</button></div>';
-  }).join('');
-  var custom = ctKeys().map(function (k) {
-    var id = k.slice(2), d = D.ctags[id], deduct = d.mode === 'deduct';
-    var n = deduct ? (D[k] || []).length : Object.keys((D.ctmapSet && D.ctmapSet[id]) || {}).length;
-    return '<div class="ct-row"><span class="ct-n">' + esc(d.t) + '</span><span class="tag t-custom" style="margin-left:0">' + (deduct ? 'หักออก' : 'แท็กเฉยๆ') + '</span><span class="muted">ติดอยู่ ' + nf0.format(n) + ' รายการ</span>' +
-      (deduct ? '<span class="muted">ติด/ยกเลิกรายสินค้าได้ที่ปุ่ม ⋯ ท้ายแถว (ระบุจำนวนที่หัก)</span>'
-              : '<button type="button" class="btn ghost small" data-ctapply="' + id + '"' + dis + '>ติดแท็กให้รายการที่แสดง</button><button type="button" class="btn ghost small" data-ctclear="' + id + '"' + dis + '>ถอดแท็กจากรายการที่แสดง</button>') +
-      '<button type="button" class="btn ghost small" data-ctdel="' + id + '"' + dis + ' aria-label="ลบแท็ก ' + esc(d.t) + '">× ลบแท็ก</button></div>';
-  }).join('');
-  box.innerHTML = base + custom;
-  var add = $('#ctAdd'); if (add) add.disabled = !edit;
-}
-function isAdjTag() { return false; }
-function renderGSelect() {                                              // รายการหมวดแบบลูกศรลง แสดงจำนวนสินค้าทั้งหมดที่มีในหมวดนั้น (ตามสาขาที่เลือก)
-  var cnt = {}, bk = brKey(F.br);
-  var pool = allPool(true).filter(function (x) { return !bk || brKey(x.br) === bk; });
-  pool.forEach(function (x) { cnt[x.g] = (cnt[x.g] || 0) + 1; });
-  var sel = gSel(), lbl = $('#fGrpLabel'), menu = $('#fGrpMenu');
-  if (lbl) {
-    if (!sel.length) lbl.textContent = 'ทุกหมวด · ' + D.groups.length + ' หมวด · ' + nf0.format(pool.length) + ' รายการ';
-    else if (sel.length === 1) lbl.textContent = gl(sel[0]) + ' · ' + nf0.format(cnt[sel[0]] || 0) + ' รายการ';
-    else {
-      var selCnt = sel.reduce(function (s, g) { return s + (cnt[g] || 0); }, 0);
-      lbl.textContent = 'เลือกแล้ว ' + sel.length + ' หมวด · ' + sel.join(', ') + ' · ' + nf0.format(selCnt) + ' รายการ';
-    }
-  }
-  if (menu) {
-    var topHtml = '<div class="mgrp-top">' +
-      '<span class="muted" style="font-size:12.5px">' + (sel.length ? 'เลือกอยู่ ' + sel.length + ' หมวด' : (F.br ? 'สาขา ' + esc(F.br) + ' · ทุกหมวด' : 'แสดงทุกหมวด')) + '</span>' +
-      '<div style="display:flex;gap:6px">' +
-        '<button type="button" class="btn ghost small" data-gact="all" style="padding:3px 10px;min-height:28px;font-size:12.5px">เลือกทั้งหมด</button>' +
-        (sel.length ? '<button type="button" class="btn ghost small" data-gact="clear" style="padding:3px 10px;min-height:28px;font-size:12.5px">ล้างที่เลือก</button>' : '') +
-      '</div></div>';
-    var itemsHtml = D.groups.length ? D.groups.map(function (k) {
-      var on = !!F.gm[k];
-      return '<div class="mgrp-item' + (on ? ' on' : '') + '" data-gitem="' + esc(k) + '">' +
-        '<label><input type="checkbox" data-gchk="' + esc(k) + '"' + (on ? ' checked' : '') + '><span>' + esc(gl(k)) + ' <span class="muted">· ' + nf0.format(cnt[k] || 0) + ' รายการ</span></span></label>' +
-      '</div>';
-    }).join('') : '<div class="muted" style="padding:8px;text-align:center">ยังไม่มีหมวดสินค้า</div>';
-    menu.innerHTML = topHtml + itemsHtml;
-  }
-}
-function renderPill() {
-  var el = $('#gpill'), sel = gSel();
-  if (!sel.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-  el.classList.remove('hidden');
-  el.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
-    sel.map(function (g) {
-      var bk = brKey(F.br), gc = allPool(true).filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
-      return '<span class="pill">หมวด: <b>' + esc(gl(g)) + ' · ' + nf0.format(gc) + ' รายการ</b><button type="button" data-rmg="' + esc(g) + '" title="เอาหมวดนี้ออกจากตัวกรอง">×</button></span>';
-    }).join('') +
-    (sel.length > 1 ? '<button type="button" class="btn ghost small" id="gClear">ล้างหมวดทั้งหมด</button>' : '') +
-    '</div>';
-}
-function renderKpis(S, N, TS) {
-  var a = agg(S), tot = agg(N), stKeys = ST_DEF.filter(function (s) { return F.st[s.k]; }).map(function (s) { return s.k === 'NA' ? 'ไม่มีข้อมูล' : s.k; });
-  var stN = stKeys.length ? stKeys.join('+') : 'ทุกช่วงอายุ';
-  var zeroCnt = (TS || []).filter(function (x) { return x.isZero; }).length;
-  var cutCnt = (TS || []).filter(function (x) { return x.isCut; }).length;
-  $('#kpis').innerHTML =
-    kpi('red', 'รายการสินค้า · ' + stN, nf0.format((TS || S).length), 'รายการ', 'มีสต็อก ' + nf0.format(a.n) + (zeroCnt ? ' · คงเหลือ 0 และ ติดลบ จำนวน ' + nf0.format(zeroCnt) : '') + (cutCnt ? ' · ตัดออก ' + nf0.format(cutCnt) : '')) +
-    kpi('', 'จำนวนคงเหลือรวม', qtyF(a.pcs), 'ชิ้น', 'เฉพาะรายการที่มีสต็อกคงเหลือ') +
-    kpi('red', 'มูลค่าตามต้นทุน', money(a.vc), 'บาท', tot.vc ? Math.round(a.vc / tot.vc * 1000) / 10 + '% ของมูลค่าสต็อกในหมวดที่เลือก' : '') +
-    kpi('amber', 'มูลค่าตามราคาขาย', money(a.vp), 'บาท', 'ถ้าขายหมดตามราคาปัจจุบัน') +
-    kpi('green', 'อายุเฉลี่ย / นานสุด', a.dn ? nf0.format(Math.round(a.dsum / a.dn)) : '–', 'วัน', a.dn ? 'นานสุด ' + nf0.format(a.dmax) + ' วัน' : 'ไม่มีข้อมูลวัน');
-}
-function kpi(cls, l, v, u, s) { return '<div class="kpi ' + cls + '"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '<small>' + esc(u) + '</small></div><div class="s">' + esc(s) + '</div></div>'; }
-
-/* ----- กราฟ ----- */
-var CH = {};
-function setChartA11y(canvasId, label, headers, rows) {
-  var cv = $('#' + canvasId);
-  if (!cv) return;
-  cv.setAttribute('role', 'img');
-  cv.setAttribute('aria-label', label || 'กราฟสรุปข้อมูล');
-  var old = $('#' + canvasId + '_tbl');
-  if (old) old.remove();
-  if (headers && rows && rows.length) {
-    cv.innerHTML = '<table class="sr-only"><caption>' + esc(label) + '</caption><thead><tr>' +
-      headers.map(function (h) { return '<th scope="col" class="nosort">' + esc(h) + '</th>'; }).join('') +
-      '</tr></thead><tbody>' +
-      rows.map(function (r) { return '<tr>' + r.map(function (c, i) { return i === 0 ? '<th scope="row" class="nosort">' + esc(c) + '</th>' : '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') +
-      '</tbody></table>';
-  } else {
-    cv.innerHTML = '';
-  }
-}
-function chart(id, cfg, label, headers, rows) {
-  if (typeof Chart === 'undefined') { var b = $('#' + id).parentNode; b.innerHTML = '<div class="cnote">โหลดไลบรารีกราฟไม่สำเร็จ ลองรีเฟรชหน้านี้</div>'; return; }
-  if (CH[id]) CH[id].destroy();
-  CH[id] = new Chart($('#' + id), cfg);
-  setChartA11y(id, label, headers, rows);
-}
-if (typeof Chart !== 'undefined') { Chart.defaults.font.family = "'Sarabun','Noto Sans Thai',Tahoma,sans-serif"; Chart.defaults.font.size = 13; Chart.defaults.color = '#2a1f47'; }
-function ensureCanvas(boxId, canvasId) {                                      // ใช้ซ้ำหลังแสดงข้อความแทนกราฟ
-  var box = $('#' + boxId); if (!box.querySelector('canvas')) box.innerHTML = '<canvas id="' + canvasId + '" role="img" aria-label="กราฟสรุปข้อมูล"></canvas>';
-}
-function noData(boxId, canvasId, msg) {                                        // แสดงข้อความแทนกราฟ (และเลิกใช้กราฟเดิม)
-  if (CH[canvasId]) { CH[canvasId].destroy(); delete CH[canvasId]; }
-  $('#' + boxId).innerHTML = '<div class="cnote">' + (msg || 'ไม่มีข้อมูลตามตัวกรองนี้') + '</div>';
-}
-function renderGroupChart(G) {
-  var m = {}; G.forEach(function (x) { var o = m[x.g] || (m[x.g] = { g: x.g, n: 0, vc: 0 }); o.n++; o.vc += x.vc; });
-  var arr = Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return b.vc - a.vc; }).slice(0, 15);
-  var box = $('#boxGroup'); box.style.height = Math.max(180, arr.length * 28 + 50) + 'px';
-  if (!arr.length) { noData('boxGroup', 'chGroup'); return; }
-  ensureCanvas('boxGroup', 'chGroup');
-  chart('chGroup', {
-    type: 'bar',
-    data: { labels: arr.map(function (o) { return glShort(o.g); }), datasets: [{ data: arr.map(function (o) { return Math.round(o.vc); }), backgroundColor: arr.map(function (o) { return F.gm[o.g] ? '#6a3fd1' : '#b99aff'; }), borderRadius: 4 }] },
-    options: {
-      indexAxis: 'y', maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return ' ' + money(c.parsed.x) + ' บาท · ' + arr[c.dataIndex].n + ' รายการ'; } } } },
-      scales: { x: { ticks: { callback: function (v) { return nf0.format(v); } } }, y: { grid: { display: false } } },
-      onClick: function (e, els) { if (els.length) { gToggle(arr[els[0].index].g); render(); } },
-      onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
-    }
-  }, 'กราฟแท่งแสดงมูลค่าทุนแยกตามหมวดสินค้า ' + arr.length + ' หมวด สูงสุดคือ ' + gl(arr[0].g) + ' ' + money(arr[0].vc) + ' บาท',
-  ['หมวดสินค้า', 'มูลค่าทุน (บาท)', 'จำนวนรายการ'],
-  arr.map(function (o) { return [gl(o.g), money(o.vc), nf0.format(o.n)]; }));
-}
-var PCT_PLUGIN = { id: 'pctLabels', afterDatasetsDraw: function (ch) {         // เขียน % บนชิ้นของโดนัท (ชิ้นเล็กกว่า 4% ไม่เขียน — ดูในคำอธิบายด้านล่างแทน)
-  var ds = ch.data.datasets[0], tot = ds.data.reduce(function (a, b) { return a + b; }, 0), c = ch.ctx, meta = ch.getDatasetMeta(0);
-  if (!tot) return;
-  c.save(); c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '600 13px ' + Chart.defaults.font.family; c.fillStyle = '#fff'; c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 3;
-  meta.data.forEach(function (arc, i) { var p = ds.data[i] / tot * 100; if (p < 4) return; var pos = arc.tooltipPosition(); c.fillText((Math.round(p * 10) / 10) + '%', pos.x, pos.y); });
-  c.restore();
-} };
-function renderStatusChart(N) {
-  var m = {}; N.forEach(function (x) { var o = m[x.sk] || (m[x.sk] = { n: 0, vc: 0 }); o.n++; o.vc += x.vc; });
-  var keys = ST_DEF.map(function (s) { return s.k; }).filter(function (k) { return m[k] && m[k].vc > 0; });
-  if (!keys.length) { noData('boxStatus', 'chStatus'); return; }
-  var tot = keys.reduce(function (s, x) { return s + m[x].vc; }, 0), pc = function (k) { return (Math.round(m[k].vc / tot * 1000) / 10) + '%'; };
-  ensureCanvas('boxStatus', 'chStatus');
-  chart('chStatus', {
-    type: 'doughnut', plugins: [PCT_PLUGIN],
-    data: { labels: keys.map(function (k) { return ST_NAME[k] + ' · ' + pc(k); }), datasets: [{ data: keys.map(function (k) { return Math.round(m[k].vc); }), backgroundColor: keys.map(function (k) { return ST_COLOR[k]; }), borderWidth: 2 }] },
-    options: {
-      maintainAspectRatio: false, cutout: '55%',
-      plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function (c) { var k = keys[c.dataIndex]; return ' ' + money(m[k].vc) + ' บาท (' + pc(k) + ') · ' + m[k].n + ' รายการ'; } } } }
-    }
-  }, 'กราฟวงกลมสัดส่วนมูลค่าทุนตามช่วงอายุสินค้า รวม ' + money(tot) + ' บาท (' + keys.map(function (k) { return ST_NAME[k] + ' ' + pc(k); }).join(', ') + ')',
-  ['ช่วงอายุสินค้า', 'มูลค่าทุน (บาท)', 'สัดส่วน', 'จำนวนรายการ'],
-  keys.map(function (k) { return [ST_NAME[k], money(m[k].vc), pc(k), nf0.format(m[k].n)]; }));
-}
-var BUCKETS = [[0, 15, '≤15'], [16, 30, '16–30'], [31, 60, '31–60'], [61, 90, '61–90'], [91, 120, '91–120'], [121, 180, '121–180'], [181, 365, '181–365'], [366, 1e9, '>365'], [null, null, 'ไม่ทราบ']];
-var BUCKET_COLOR = ['#176b3f', '#3b7a28', '#946200', '#b85d00', '#a84300', '#c0392b', '#a93226', '#7b241c', '#5a6573'];
-function renderAgeChart(S) {
-  var vals = BUCKETS.map(function () { return { n: 0, vc: 0 }; });
-  S.forEach(function (x) {
-    for (var i = 0; i < BUCKETS.length; i++) {
-      var b = BUCKETS[i];
-      if (b[0] === null ? x.days === null : (x.days !== null && x.days >= b[0] && x.days <= b[1])) { vals[i].n++; vals[i].vc += x.vc; break; }
-    }
-  });
-  var keep = BUCKETS.map(function (b, i) { return i; }).filter(function (i) { return vals[i].n > 0; });
-  if (!keep.length) { noData('boxAge', 'chAge'); return; }
-  ensureCanvas('boxAge', 'chAge');
-  chart('chAge', {
-    type: 'bar',
-    data: { labels: keep.map(function (i) { return BUCKETS[i][2]; }), datasets: [{ data: keep.map(function (i) { return Math.round(vals[i].vc); }), backgroundColor: keep.map(function (i) { return BUCKET_COLOR[i]; }), borderRadius: 4 }] },
-    options: {
-      maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return ' ' + money(c.parsed.y) + ' บาท · ' + vals[keep[c.dataIndex]].n + ' รายการ'; } } } },
-      scales: { y: { ticks: { callback: function (v) { return nf0.format(v); } } }, x: { grid: { display: false }, title: { display: true, text: 'จำนวนวันที่ค้าง' } } }
-    }
-  }, 'กราฟแท่งช่วงอายุสินค้าที่ค้างสต็อก แบ่งตามจำนวนวันที่ค้าง ' + keep.length + ' ช่วง',
-  ['ช่วงวันที่ค้าง (วัน)', 'มูลค่าทุน (บาท)', 'จำนวนรายการ'],
-  keep.map(function (i) { return [BUCKETS[i][2], money(vals[i].vc), nf0.format(vals[i].n)]; }));
-}
-function renderTopChart(S) {
-  var arr = S.slice().sort(function (a, b) { return b.vc - a.vc; }).slice(0, 10);
-  if (!arr.length) { noData('boxTop', 'chTop'); return; }
-  ensureCanvas('boxTop', 'chTop');
-  chart('chTop', {
-    type: 'bar',
-    data: { labels: arr.map(function (x) { return x.name.length > 30 ? x.name.slice(0, 29) + '…' : x.name; }), datasets: [{ data: arr.map(function (x) { return Math.round(x.vc); }), backgroundColor: '#9966FF', borderRadius: 4 }] },
-    options: {
-      indexAxis: 'y', maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (c) { return arr[c[0].dataIndex].name; }, label: function (c) { var x = arr[c.dataIndex]; return [' ' + money(x.vc) + ' บาท', ' คงเหลือ ' + qtyF(x.qty) + ' × ต้นทุน ' + nf2.format(x.cost), ' หมวด ' + x.g + ' · สาขา ' + x.br + (x.days !== null ? ' · ค้าง ' + x.days + ' วัน' : '')]; } } } },
-      scales: { x: { ticks: { callback: function (v) { return nf0.format(v); } } }, y: { grid: { display: false } } }
-    }
-  }, 'กราฟ 10 อันดับสินค้าที่มีมูลค่าทุนค้างสูงสุด อันดับ 1 คือ ' + arr[0].name + ' ' + money(arr[0].vc) + ' บาท',
-  ['อันดับ', 'ชื่อสินค้า', 'หมวด', 'สาขา', 'คงเหลือ', 'มูลค่าทุน (บาท)'],
-  arr.map(function (x, i) { return [String(i + 1), x.name, x.g, x.br, qtyF(x.qty), money(x.vc)]; }));
-}
-var TR_PAL = ['#c0392b', '#2e6fd8', '#1a7f4b', '#d99a1f', '#7a4fd1', '#0e9aa7', '#d6457f', '#6b7a1c', '#e0703a', '#4b5fa8', '#8a5a2b', '#3d8f6e'];
-var TR_KEYS = ['T1', 'T2', 'T3', 'DS', 'NA'];
-var TR_MODE = 'total';
-function trendCost(bucket, index) {                                    // ประวัติเก่าอาจไม่ได้เก็บช่วงอายุนี้: แยกค่าว่างออกจากยอดศูนย์จริง
-  if (!bucket) return null;
-  var v = index === undefined ? bucket.cost : bucket[index];
-  return v === null || v === undefined || v === '' || !isFinite(Number(v)) ? null : Number(v);
-}
-function trendTotalCost(x, key) { return trendCost(x.sum && x.sum.st && x.sum.st[key]); }
-function trendGroupCost(x, g, key) {
-  if (!x.gs) return null;
-  if (Object.prototype.hasOwnProperty.call(x.gs, g)) return trendCost(x.gs[g] && x.gs[g][key], 1);
-  // หมวดที่ยังไม่เกิดในวันนั้นเป็นศูนย์ได้ เฉพาะเมื่อ snapshot ได้บันทึกช่วงอายุนี้จริง
-  return Object.keys(x.gs).some(function (k) { return x.gs[k] && Object.prototype.hasOwnProperty.call(x.gs[k], key); }) ? 0 : null;
-}
-function trendMoney(v) { return v === null ? '–' : money(v); }
-function renderTrend() {
-  var h = dailyHistory(D.history || []), mode = TR_MODE, box = $('#boxTrend'), singleDay = h.length === 1;
-  if (mode !== 'total' && TR_KEYS.indexOf(mode.slice(1)) < 0) mode = TR_MODE = 'total';
-  $('#trMode').value = mode;
-  box.style.height = mode === 'total' ? '' : '380px';
-  if (!h.length) { $('#trNote').textContent = ''; noData('boxTrend', 'chTrend', 'ยังไม่มีประวัติการอัปโหลดสำหรับแสดงแนวโน้มรายวัน'); return; }
-  var lab = h.map(function (x) { return new Date(x.ts).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', calendar: 'buddhist' }); });
-  var opt = function (tip) {
-    return { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 10, boxHeight: 10, padding: 16 } },
-        tooltip: { callbacks: {
-          afterTitle: function (items) {
-            if (!items || !items.length) return '';
-            var x = h[items[0].dataIndex];
-            return 'รายการล่าสุดของวัน: ' + fmtTs(x.ts) + (x.dayCount > 1 ? ' (อัปโหลด ' + x.dayCount + ' ครั้งในวันนี้ · ยึดครั้งล่าสุด)' : '');
-          },
-          label: tip
-        } }
-      },
-      scales: { x: { offset: true, grid: { display: false } }, y: { beginAtZero: true, title: { display: true, text: 'มูลค่าทุน (บาท)' }, ticks: { callback: function (v) { return nf0.format(v); } } } } };
-  };
-  if (mode === 'total') {
-    var missingTotals = h.some(function (x) { return TR_KEYS.some(function (k) { return trendTotalCost(x, k) === null; }); });
-    $('#trNote').textContent = (singleDay ? 'บันทึก ณ วันอัปโหลด 1 วัน · แสดงกราฟแท่งจนกว่าจะมีข้อมูลหลายวัน' : 'บันทึก ณ วันอัปโหลด · ใช้รอบล่าสุดของแต่ละวัน · รวม ' + h.length + ' วัน') + (missingTotals ? ' · ช่วงอายุที่ประวัติเก่าไม่ได้บันทึกแสดงเป็นช่องว่าง' : '');
-    ensureCanvas('boxTrend', 'chTrend');
-    chart('chTrend', { type: singleDay ? 'bar' : 'line', data: { labels: lab, datasets: TR_KEYS.map(function (k, i) {
-      return { label: ST_NAME[k], ageKey: k, data: h.map(function (x) { return trendTotalCost(x, k); }), borderColor: ST_COLOR[k], backgroundColor: ST_COLOR[k], borderDash: !singleDay && i % 2 ? [6, 4] : [], spanGaps: false, tension: .25, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'circle', maxBarThickness: 72, borderRadius: 5 };
-    }) }, options: opt(function (c) { var x = h[c.dataIndex].sum.st[c.dataset.ageKey]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (x && x.n !== undefined ? ' · ' + x.n + ' รายการ' : ''); }) },
-    (singleDay ? 'กราฟแท่ง' : 'กราฟเส้นแนวโน้ม') + 'มูลค่าทุนทุกช่วงอายุตามวันที่อัปโหลด รวม ' + h.length + ' วัน',
-    ['วันที่'].concat(TR_KEYS.map(function (k) { return ST_NAME[k] + ' (บาท)'; })),
-    h.map(function (x, i) { return [lab[i]].concat(TR_KEYS.map(function (k) { return trendMoney(trendTotalCost(x, k)); })); }));
-    return;
-  }
-  var key = mode.slice(1), withGs = h.filter(function (x) { return x.gs; }).length, set = {};
-  h.forEach(function (x) { if (x.gs) Object.keys(x.gs).forEach(function (g) { if (!DELETED_GROUPS[g]) set[g] = 1; }); });
-  if (!withGs) { $('#trNote').textContent = ''; noData('boxTrend', 'chTrend', 'ยังไม่มีข้อมูลแนวโน้มแยกตามหมวด'); return; }
-  var gs = Object.keys(set), val = function (x, g) { return trendGroupCost(x, g, key); };
-  gs.sort(function (a, b) { return (val(h[h.length - 1], b) || 0) - (val(h[h.length - 1], a) || 0); });
-  gs = gs.filter(function (g) { return h.some(function (x) { return val(x, g) !== null; }); });
-  var missingGroups = gs.some(function (g) { return h.some(function (x) { return val(x, g) === null; }); });
-  $('#trNote').textContent = 'บันทึก ณ วันอัปโหลด · ใช้รอบล่าสุดของวัน · ' + h.length + ' วัน · ' + gs.length + ' หมวด' + (singleDay ? ' · แสดงกราฟแท่ง' : '') + (missingGroups ? ' · ช่วงอายุที่ประวัติเก่าไม่ได้บันทึกแสดงเป็นช่องว่าง' : '');
-  if (!gs.length) { noData('boxTrend', 'chTrend', 'ประวัติเดิมยังไม่ได้บันทึก ' + ST_NAME[key] + ' แยกตามหมวด · ระบบจะเริ่มบันทึกเมื่ออัปโหลดข้อมูลครั้งถัดไป'); return; }
-  ensureCanvas('boxTrend', 'chTrend');
-  chart('chTrend', { type: singleDay ? 'bar' : 'line', data: { labels: lab, datasets: gs.map(function (g, i) {
-    var c = TR_PAL[i % TR_PAL.length];
-    return { label: glShort(g), g: g, data: h.map(function (x) { return val(x, g); }), borderColor: c, backgroundColor: c, borderDash: !singleDay && i % 2 ? [5, 3] : [], spanGaps: false, tension: .25, borderWidth: F.gm[g] ? 4 : 2, pointRadius: 4, pointHoverRadius: 6, pointStyle: 'circle', maxBarThickness: 72, borderRadius: 5 };
-  }) }, options: opt(function (c) { var x = h[c.dataIndex], o = x.gs && x.gs[c.dataset.g] && x.gs[c.dataset.g][key]; return c.parsed.y === null ? null : ' ' + c.dataset.label + ': ' + money(c.parsed.y) + ' บาท' + (o ? ' · ' + o[0] + ' รายการ' : ''); }) },
-  (singleDay ? 'กราฟแท่ง' : 'กราฟเส้นแนวโน้ม') + 'มูลค่าทุนแยกตามหมวด (' + ST_NAME[key] + ') รวม ' + gs.length + ' หมวด',
-  ['หมวดสินค้า'].concat(lab),
-  gs.map(function (g) { return [gl(g)].concat(h.map(function (x) { return trendMoney(val(x, g)); })); }));
-}
-$('#trMode').addEventListener('change', function () { TR_MODE = this.value; renderTrend(); });
-
-/* ----- ตาราง ----- */
-function sortBy(list, key, dir, get) {
-  return list.sort(function (a, b) {
-    var x = get(a, key), y = get(b, key);
-    if (x === y) return 0;
-    if (x === null || x === undefined) return 1;                              // ค่าว่างไปท้ายเสมอ
-    if (y === null || y === undefined) return -1;
-    return (typeof x === 'string' ? x.localeCompare(y, 'th') : x - y) * dir;
-  });
-}
-function thead(cols, sort) {
-  return '<thead><tr>' + cols.map(function (c) {
-    return '<th data-k="' + c.k + '"' + (c.nosort ? ' class="nosort"' : (c.num ? ' class="num"' : '')) + (sort.k === c.k ? ' aria-sort="' + (sort.d > 0 ? 'ascending' : 'descending') + '"' : '') + '>' + esc(c.t) + '</th>';
-  }).join('') + '</tr></thead>';
-}
-var GT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'n', t: 'รายการ', num: 1 }, { k: 'pcs', t: 'ชิ้น', num: 1 }, { k: 'vc', t: 'มูลค่าทุน (บาท)', num: 1 }, { k: 'vp', t: 'มูลค่าขาย (บาท)', num: 1 }, { k: 'share', t: 'สัดส่วนมูลค่าทุน' }, { k: 'avg', t: 'อายุเฉลี่ย (วัน)', num: 1 },
-  { k: 'dds', t: 'DS เทียบฉบับก่อนหน้า (บาท)', num: 1 }];
-function dsDelta(g) {                                                  // มูลค่าทุน DS ของฉบับปัจจุบัน − ฉบับก่อนหน้า (จากยอดสรุปที่เก็บไว้ ไม่ขึ้นกับตัวกรอง)
-  var m = D.gm[g]; if (!m || !m.cur || !m.prev || !m.cur.sum || !m.prev.sum || !m.cur.sum.st || !m.prev.sum.st) return null;
-  return ((m.cur.sum.st.DS || {}).cost || 0) - ((m.prev.sum.st.DS || {}).cost || 0);
-}
-function renderGroupTable(G) {
-  var m = {};
-  D.groups.forEach(function (g) { m[g] = []; });
-  G.forEach(function (x) { (m[x.g] || (m[x.g] = [])).push(x); });
-  var prevMode = D.ver === 'prev', cols = GT_COLS.filter(function (c) { return c.k !== 'dds' || !prevMode; });
-  var tot = agg(G), rows = Object.keys(m).map(function (g) {
-    var a = agg(m[g]), gv = gView(g), rep = (gv && gv.rep) || ''; if (!rep) m[g].forEach(function (x) { if (x.rep > rep) rep = x.rep; });
-    return { g: g, n: a.n, pcs: a.pcs, vc: a.vc, vp: a.vp, share: tot.vc ? a.vc / tot.vc : 0, avg: a.dn ? a.dsum / a.dn : null, rep: rep, brs: (gv && gv.br) || null, dds: prevMode ? null : dsDelta(g) };
-  });
-  sortBy(rows, F.gs.k, F.gs.d, function (r, k) { return r[k]; });
-  var maxShare = rows.reduce(function (s, r) { return Math.max(s, r.share); }, 0.0001);
-  $('#gtNote').textContent = rows.length + ' หมวด · คลิกแถวเพื่อเลือก/ยกเลิกได้หลายหมวด';
-  $('#gt').innerHTML = thead(cols, F.gs) + '<tbody>' + rows.map(function (r) {
-    var dd = r.dds === null ? '<span class="muted">–</span>' : '<span class="' + (r.dds > 0 ? 'up' : (r.dds < 0 ? 'down' : '')) + '" title="เทียบฉบับก่อนหน้า' + (D.gm[r.g] && D.gm[r.g].prev && D.gm[r.g].prev.ts ? ' (บันทึกเมื่อ ' + esc(fmtTs(D.gm[r.g].prev.ts)) + ')' : '') + '">' + (r.dds > 0 ? '+ ' : (r.dds < 0 ? '- ' : '')) + money(Math.abs(r.dds)) + '</span>';
-    return '<tr class="click' + (F.gm[r.g] ? ' sel' : '') + '" data-g="' + esc(r.g) + '" tabindex="0" role="button" aria-pressed="' + (F.gm[r.g] ? 'true' : 'false') + '" aria-label="กรองหมวด ' + esc(gl(r.g)) + '"><td>' + esc(gl(r.g)) + '</td><td class="num">' + nf0.format(r.n) + '</td><td class="num">' + qtyF(r.pcs) + '</td><td class="num">' + money(r.vc) + '</td><td class="num">' + money(r.vp) +
-      '</td><td><span class="bar" style="width:' + Math.round(r.share / maxShare * 90) + 'px"></span>' + (Math.round(r.share * 1000) / 10) + '%</td><td class="num">' + (r.avg === null ? '–' : nf0.format(Math.round(r.avg))) + '</td>' +
-      (prevMode ? '' : '<td class="num">' + dd + '</td>') + '</tr>';
-  }).join('') + '</tbody><tfoot><tr><td>รวม</td><td class="num">' + nf0.format(tot.n) + '</td><td class="num">' + qtyF(tot.pcs) + '</td><td class="num">' + money(tot.vc) + '</td><td class="num">' + money(tot.vp) + '</td><td></td><td class="num">' + (tot.dn ? nf0.format(Math.round(tot.dsum / tot.dn)) : '–') + '</td>' + (!prevMode ? '<td></td>' : '') + '</tr></tfoot>';
-}
-var DT_COLS = [{ k: 'g', t: 'หมวด' }, { k: 'code', t: 'รหัส' }, { k: 'name', t: 'ชื่อสินค้า' }, { k: 'br', t: 'สาขา' }, { k: 'qty', t: 'คงเหลือ', num: 1 }, { k: 'cost', t: 'ต้นทุน/หน่วย', num: 1 }, { k: 'vc', t: 'มูลค่าทุน', num: 1 },
-  { k: 'price', t: 'ราคาขาย', num: 1 }, { k: 'recv', t: 'รับเข้า' }, { k: 'last', t: 'ขายล่าสุด' }, { k: 'days', t: 'ค้าง วัน', num: 1 }, { k: 'sk', t: 'ช่วงอายุสินค้า' }, { k: 'note', t: 'หมายเหตุ' }];
-var ST_ORDER = { DS: 0, T3: 1, T2: 2, T1: 3, NA: 4 };
-function sortedItems(S) { return sortBy(S.slice(), F.ds.k, F.ds.d, function (x, k) { return k === 'sk' ? ST_ORDER[x.sk] : (k === 'last' ? (x.last || null) : (k === 'recv' ? (x.recv || null) : x[k])); }); }
-var LAST_S = [], LAST_RAW = [];
-function fmtQtyCell(x) {
-  if (x.isFullCut) {
-    return '0 <span class="tag old" style="font-size:12px;margin-left:4px" title="ถูกตัดออกจากสต็อกแล้ว เดิม ' + qtyF(x.origQty || x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
-  }
-  if (x.cutQty > 0) {
-    return qtyF(x.qty) + ' <span class="muted" style="font-size:12px;display:block" title="เดิม ' + qtyF(x.origQty) + ' ชิ้น · หักออก ' + qtyF(x.cutQty) + ' ชิ้น">ตัดออก ' + qtyF(x.cutQty) + '</span>';
-  }
-  if (x.isZero) {
-    return (x.qty < 0 ? '<span style="color:var(--bad)">' + qtyF(x.qty) + '</span>' : '0') + ' <span class="tag" style="background:#eef1f5;color:var(--steel);font-size:12px;margin-left:4px">' + (x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0') + '</span>';
-  }
-  return qtyF(x.qty);
-}
-function renderTable(S) {
-  LAST_RAW = S.filter(function (x) { return !x.isZero && !x.isFullCut; });
-  LAST_S = sortedItems(S);
-  var pages = Math.max(1, Math.ceil(LAST_S.length / PAGE)); if (F.page >= pages) F.page = pages - 1;
-  var from = F.page * PAGE, part = LAST_S.slice(from, from + PAGE);
-  var nPos = S.filter(function (x) { return x.qty > 0; }).length;
-  var nZero = S.filter(function (x) { return x.isZero; }).length;
-  var nCut = S.filter(function (x) { return x.isCut; }).length;
-  $('#dtNote').textContent = nf0.format(LAST_S.length) + ' รายการ · มีสต็อก ' + nf0.format(nPos) + (nZero ? ' · คงเหลือ 0 และ ติดลบ จำนวน ' + nf0.format(nZero) : '') + (nCut ? ' · ตัดออก ' + nf0.format(nCut) : '');
-  var canLost = !!(D.me && D.me.edit), cols = canLost ? DT_COLS.concat([{ k: '_act', t: 'จัดการ', nosort: 1 }]) : DT_COLS;
-  $('#dt').innerHTML = thead(cols, F.ds) + '<tbody>' + (part.length ? part.map(function (x, idx) {
-    var rowCls = x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : '');
-    var actCell = '';
-    if (canLost) {
-      actCell = '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '" title="จัดการแท็กสินค้า (หาย / หมดอายุ / ของเสีย / รอปรับ / ขายยาก)">&#8943;</button>' : '<span class="muted" title="สินค้านี้ไม่มีรหัส">–</span>') + '</td>';
-    }
-    return '<tr' + rowCls + '><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + tagHtml(x) + '</td><td>' + esc(x.br) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) +
-      '</td><td>' + fmtDate(x.recv) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + actCell + '</tr>';
-  }).join('') : '<tr><td colspan="' + cols.length + '" class="muted" style="text-align:center;padding:24px">ไม่พบรายการตามตัวกรองนี้</td></tr>') + '</tbody>';
-  $('#pgInfo').textContent = LAST_S.length ? 'แสดง ' + nf0.format(from + 1) + '–' + nf0.format(from + part.length) + ' จาก ' + nf0.format(LAST_S.length) + ' · หน้า ' + (F.page + 1) + '/' + pages : '';
-  $('#pgPrev').disabled = F.page <= 0; $('#pgNext').disabled = F.page >= pages - 1;
-}
-
-/* ---------- เมนูจุด 3 จุด (⋯) หลังรายการสินค้า แบบติ๊ก/ไม่ติ๊ก ---------- */
-var DOT_CTX = null;
-function closeDotPop(restoreFocus) {
-  var pop = $('#dotPop'), oldBtn = DOT_CTX && DOT_CTX.btn;
-  if (oldBtn && oldBtn.isConnected) oldBtn.setAttribute('aria-expanded', 'false');
-  if (pop) { pop.classList.add('hidden'); pop.innerHTML = ''; }
-  DOT_CTX = null;
-  if (restoreFocus && oldBtn && oldBtn.isConnected) { try { oldBtn.focus(); } catch (e) {} }
-}
-function findRowItem(code, br, g) {
-  var ck = codeKey(code), bk = brKey(br);
-  var all = D.items.concat(D.cut || [], D.zero || []);
-  return all.filter(function (x) { return codeKey(x.code) === ck && brKey(x.br) === bk && (!g || x.g === g); })[0] ||
-         all.filter(function (x) { return codeKey(x.code) === ck && (!bk || brKey(x.br) === bk); })[0] || null;
-}
-function findAdjEntries(kind, code, br) {
-  var ck = codeKey(code), bk = brKey(br);
-  return (D[kind] || []).filter(function (e) {
-    return codeKey(e.code) === ck && (!e.br || brKey(e.br) === bk);
-  });
-}
-function openDotPop(btn, code, br, g) {
-  var pop = $('#dotPop'); if (!pop) return;
-  if (DOT_CTX && DOT_CTX.btn === btn && !pop.classList.contains('hidden')) { closeDotPop(); return; }
-  var x = findRowItem(code, br, g) || { code: code, br: br, g: g, name: '', qty: 1, tg: {}, hard: !!(D.hard && D.hard[codeKey(code)]) };
-  DOT_CTX = { btn: btn, x: x, code: code, br: br, g: g };
-  var opts = [
-    { k: 'lost', label: 'ของหาย' },
-    { k: 'exp', label: 'หมดอายุ' },
-    { k: 'waste', label: 'ของเสีย' },
-    { k: 'pend', label: 'รอปรับ' },
-    { k: 'hard', label: 'ขายยาก' }
-  ].filter(function (o) { return !CT.removed[o.k]; }).concat(ctKeys().map(function (k) { return { k: k, label: TAGS[k].t, custom: true }; }));
-  pop.innerHTML = '<div class="dot-pop-hd">' + esc(code) + (x.name ? ' · ' + esc(x.name.slice(0, 28)) : '') + (br ? ' <span class="muted">· ' + esc(br) + '</span>' : '') + '</div>' +
-    opts.map(function (o) {
-      var checked = o.k === 'hard' ? !!x.hard : (o.custom && ctTagOnly(o.k) ? ctHas(x, o.k) : !!(x.tg && x.tg[o.k] !== undefined));
-      var qTxt = (o.k !== 'hard' && checked && x.tg[o.k]) ? ' <span class="tag t-' + o.k + '" style="margin-left:4px">' + qtyF(x.tg[o.k]) + ' ชิ้น</span>' : '';
-      var extraBtn = '';
-      if (checked && o.k !== 'hard' && AKI[o.k]) {
-        extraBtn = '<button type="button" class="mini-act" data-dotadd="' + o.k + '" title="เพิ่มจำนวนหรือแก้หมายเหตุ">+เพิ่ม/แก้</button>';
-      } else if (checked && o.k === 'hard') {
-        extraBtn = '<button type="button" class="mini-act" data-dothardnote="1" title="แก้หมายเหตุขายยาก">หมายเหตุ</button>';
-      }
-      return '<div class="dot-opt">' +
-        '<label><input type="checkbox" data-dottag="' + o.k + '"' + (checked ? ' checked' : '') + '><span>' + esc(o.label) + qTxt + '</span></label>' +
-        extraBtn +
-      '</div>';
-    }).join('');
-  pop.classList.remove('hidden');
-  var rect = btn.getBoundingClientRect(), pw = pop.offsetWidth || 260, ph = pop.offsetHeight || 220;
-  var left = Math.min(window.innerWidth - pw - 12, Math.max(12, rect.right - pw));
-  var top = (rect.bottom + ph + 12 > window.innerHeight) ? Math.max(12, rect.top - ph - 6) : (rect.bottom + 6);
-  pop.style.left = left + 'px';
-  pop.style.top = top + 'px';
-  btn.setAttribute('aria-expanded', 'true');
-  var firstInput = pop.querySelector('input,button');
-  if (firstInput) setTimeout(function () { try { firstInput.focus(); } catch (e) {} }, 20);
-}
-$('#dotPop').addEventListener('change', function (e) {
-  var cb = e.target.closest('input[data-dottag]'); if (!cb || !DOT_CTX) return;
-  var kind = cb.dataset.dottag, on = cb.checked, code = DOT_CTX.code, br = DOT_CTX.br, x = DOT_CTX.x, btn = DOT_CTX.btn;
-  if (kind === 'hard') {
-    var hn = '';
-    if (on) {
-      hn = prompt('ติดแท็กสินค้าขายยาก\n' + code + (x && x.name ? ' · ' + x.name : '') + '\n\nหมายเหตุ (ไม่บังคับ — เว้นว่างได้)', '');
-      if (hn === null) { cb.checked = !on; return; }
-    }
-    closeDotPop();
-    busy(btn, async function () {
-      await call('stockHardSet', [code], on, hn);
-      toast((on ? 'ติ๊กแท็กสินค้าขายยาก · ' : 'ยกเลิกแท็กสินค้าขายยาก · ') + code);
-      await load(VIEW);
-    });
-    return;
-  }
-  if (kind.indexOf('c_') === 0 && !AKI[kind]) {                    // แท็กโหมด "แท็กเฉยๆ" — ติด/ถอดแท็กโดยไม่หักยอด
-    closeDotPop();
-    busy(btn, async function () {
-      await call('stockCtagAssign', kind.slice(2), [{ code: code, br: br }], on);
-      toast((on ? 'ติดแท็ก "' : 'ถอดแท็ก "') + TAGS[kind].t + '" · ' + code);
-      await load(VIEW);
-    });
-    return;
-  }
-  var K = AKI[kind];
-  if (on) {
-    var defQty = (x && x.qty > 0) ? x.qty : 1;
-    var inp = prompt('ติ๊กเลือก: ' + K.btn + '\n' + code + (x && x.name ? ' · ' + x.name : '') + '\nสาขา ' + br + (x && x.qty > 0 ? ' · คงเหลือ ' + qtyF(x.qty) + ' ชิ้น' : '') + '\n\nใส่จำนวนที่' + K.verb + ' (ชิ้น):', String(defQty));
-    if (inp === null) { cb.checked = false; return; }
-    var q = Number(String(inp).replace(/,/g, '').trim());
-    if (!(q > 0)) { cb.checked = false; toast('จำนวนไม่ถูกต้อง', true); return; }
-    var an = prompt('หมายเหตุ' + K.btn + ' (ไม่บังคับ — เว้นว่างได้)\n' + code + ' · ' + br, '');
-    if (an === null) { cb.checked = false; return; }
-    closeDotPop();
-    busy(btn, async function () {
-      await call(K.add, [{ code: code, qty: q }], an, br);
-      toast('บันทึก' + K.btn + ' ' + qtyF(q) + ' ชิ้น · ' + code + ' · ' + br);
-      await load(VIEW);
-    });
-  } else {
-    var matches = findAdjEntries(kind, code, br);
-    if (!matches.length) { closeDotPop(); return; }
-    if (!confirm('ยกเลิกการติ๊ก "' + K.btn + '" ของ ' + code + (br ? ' (สาขา ' + br + ')' : '') + ' ?\nจำนวนที่หักไว้จะกลับมานับรวมในค้างสต็อก')) {
-      cb.checked = true; return;
-    }
-    var keys = matches.map(function (m) { return m.k; });
-    closeDotPop();
-    busy(btn, async function () {
-      await call(K.rm, keys);
-      toast('ยกเลิก' + K.btn + 'แล้ว · ' + code);
-      await load(VIEW);
-    });
-  }
-});
-$('#dotPop').addEventListener('click', function (e) {
-  var addBtn = e.target.closest('[data-dotadd]');
-  if (addBtn && DOT_CTX) {
-    var kind = addBtn.dataset.dotadd, K = AKI[kind], code = DOT_CTX.code, br = DOT_CTX.br, x = DOT_CTX.x, btn = DOT_CTX.btn;
-    var matches = findAdjEntries(kind, code, br);
-    var act = prompt(K.btn + ' · ' + code + ' (' + br + ')\nพิมพ์จำนวนชิ้นที่ต้องการบวกเพิ่ม หรือพิมพ์ 0 เพื่อแก้เฉพาะหมายเหตุ:', '0');
-    if (act === null) return;
-    var q = Number(String(act).replace(/,/g, '').trim());
-    var curNote = matches[0] ? (matches[0].note || '') : '';
-    var nv = prompt('หมายเหตุ' + K.btn + ' (เว้นว่างเพื่อลบหมายเหตุ):', curNote);
-    if (nv === null) return;
-    closeDotPop();
-    busy(btn, async function () {
-      if (q > 0) await call(K.add, [{ code: code, qty: q }], nv, br);
-      else if (matches[0]) await call('stockAdjNote', kind, matches[0].k, nv);
-      toast('อัปเดตข้อมูล' + K.btn + 'แล้ว · ' + code);
-      await load(VIEW);
-    });
-    return;
-  }
-  var hnBtn = e.target.closest('[data-dothardnote]');
-  if (hnBtn && DOT_CTX) {
-    var nc = DOT_CTX.code, btn2 = DOT_CTX.btn, cur = (D.hard[codeKey(nc)] || {}).note || '';
-    var nn = prompt('หมายเหตุสินค้าขายยาก\n' + nc + '\n(เว้นว่างเพื่อลบหมายเหตุ)', cur);
-    if (nn === null) return;
-    closeDotPop();
-    busy(btn2, async function () { await call('stockHardSet', [nc], true, nn); toast('บันทึกหมายเหตุแล้ว · ' + nc); await load(VIEW); });
-  }
-});
-document.addEventListener('click', function (e) {
-  if (!e.target.closest('#dotPop') && !e.target.closest('[data-dot]')) closeDotPop();
-});
-window.addEventListener('scroll', function () { if (DOT_CTX) closeDotPop(); }, true);
-
-/* ---------- เพิ่มสาขา / เพิ่มหมวด / ลบแยกรายหมวด (หมวดอิงจากสาขา) ---------- */
-async function syncNamesAndCfg(nextNames) {
-  var payload = Object.assign({}, nextNames || D.names || {});
-  payload.__BR_CFG__ = JSON.stringify(BR_CFG);
-  try {
-    D.names = await call('stockSetNames', payload);
-  } catch (e) {
-    try { BR_CFG = normBrCfg(JSON.parse(D.names.__BR_CFG__ || '{}')); saveBrCfgLocal(); } catch (ignored) {}
-    throw e;
-  }
-}
-async function addCategoryFlow(codeRaw, nameRaw, brRaw, btn) {
-  var code = String(codeRaw || '').trim().toUpperCase();
-  var name = String(nameRaw || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-  var br = String(brRaw || '').replace(/\s+/g, ' ').trim().slice(0, 20);
-  if (!br) {
-    toast('กรุณาเลือกสาขา หรือเพิ่มสาขาใหม่ก่อนเพิ่มหมวด', true);
-    return false;
-  }
-  if (!/^[A-Z0-9_-]{1,12}$/.test(code)) {
-    toast('รหัสหมวดต้องเป็นภาษาอังกฤษหรือตัวเลข 1–12 ตัว เช่น G01, G25', true);
-    return false;
-  }
-  var bk = brKey(br);
-  return await busy(btn || $('#nmAddBtn'), async function () {
-    var result = await call('stockGroupAdd', code, name, br);
-    if (result && result.names) D.names = result.names;
-    delete DELETED_GROUPS[code];
-    if (BR_CFG.delBrGroups[bk]) delete BR_CFG.delBrGroups[bk][code];
-    if (!BR_CFG.brGroups[bk]) BR_CFG.brGroups[bk] = {};
-    BR_CFG.brGroups[bk][code] = 1;
-    if (BR_CFG.branches.indexOf(br) < 0) BR_CFG.branches.push(br);
-    saveBrCfgLocal();
-
-    var nextNames = Object.assign({}, D.names);
-    if (name) {
-      nextNames[bk + ':' + code] = name;
-      if (!nextNames[code]) nextNames[code] = name;
-    }
-    await syncNamesAndCfg(nextNames);
-    toast('เพิ่มหมวด ' + gl(code, br) + ' ในสาขา ' + br + ' แล้ว');
-    await load(VIEW);
-  });
-}
-async function deleteCategoryFlow(g, brRaw, btn) {
-  g = String(g || '').trim().toUpperCase();
-  var br = String(brRaw || '').replace(/\s+/g, ' ').trim().slice(0, 20), bk = brKey(br);
-  if (!g) { toast('กรุณาเลือกหมวดที่ต้องการลบก่อน', true); return; }
-  var cnt = D.items.filter(function (x) { return x.g === g && (!bk || brKey(x.br) === bk); }).length;
-  var scopeTxt = br ? 'ของสาขา ' + br : 'ทุกสาขา';
-  if (!confirm('ยืนยันลบหมวด "' + gl(g, br) + '" ' + scopeTxt + (cnt ? ' · มีสินค้า ' + nf0.format(cnt) + ' รายการ' : '') + ' ?')) return;
-  await busy(btn || $('#nmSave'), async function () {
-    var result = await call('stockGroupDelete', g, br);
-    if (result && result.names) D.names = result.names;
-    if (bk) {
-      if (!BR_CFG.delBrGroups[bk]) BR_CFG.delBrGroups[bk] = {};
-      BR_CFG.delBrGroups[bk][g] = 1;
-      if (BR_CFG.brGroups[bk]) delete BR_CFG.brGroups[bk][g];
-    } else {
-      DELETED_GROUPS[g] = true;
-    }
-    saveBrCfgLocal();
-    var nextNames = Object.assign({}, D.names);
-    if (bk) delete nextNames[bk + ':' + g];
-    else {
-      delete nextNames[g];
-      Object.keys(nextNames).forEach(function (k) { if (k.slice(-1 - g.length) === ':' + g) delete nextNames[k]; });
-    }
-    await syncNamesAndCfg(nextNames);
-    delete F.gm[g];
-    toast('ลบหมวด ' + g + ' ' + scopeTxt + ' เรียบร้อยแล้ว');
-    await load(VIEW);
-  });
-}
-
-/* ---------- เหตุการณ์ของตัวกรอง/ตาราง ---------- */
-function closeGrpMenu(restoreFocus) {
-  var m = $('#fGrpMenu'), b = $('#fGrpBtn');
-  if (m) m.classList.add('hidden');
-  if (b) {
-    b.classList.remove('open');
-    b.setAttribute('aria-expanded', 'false');
-    if (restoreFocus) { try { b.focus(); } catch (e) {} }
-  }
-}
-$('#fGrpBtn').addEventListener('click', function (e) {
-  e.stopPropagation();
-  var m = $('#fGrpMenu'); if (!m) return;
-  var open = m.classList.contains('hidden');
-  m.classList.toggle('hidden', !open);
-  this.classList.toggle('open', open);
-  this.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) {
-    var first = m.querySelector('input[type=checkbox],button');
-    if (first) setTimeout(function () { try { first.focus(); } catch (err) {} }, 20);
-  }
-});
-$('#fGrpWrap').addEventListener('keydown', function (e) {
-  var m = $('#fGrpMenu');
-  if (!m || m.classList.contains('hidden')) {
-    if (e.key === 'ArrowDown' && e.target === $('#fGrpBtn')) { e.preventDefault(); $('#fGrpBtn').click(); }
-    return;
-  }
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeGrpMenu(true); return; }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    var items = Array.prototype.slice.call(m.querySelectorAll('input[type=checkbox],button'));
-    if (!items.length) return;
-    e.preventDefault();
-    var idx = items.indexOf(document.activeElement);
-    var next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
-    items[next].focus();
-  }
-});
-$('#dotPop').addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDotPop(true); return; }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    var items = Array.prototype.slice.call(this.querySelectorAll('input[type=checkbox],button'));
-    if (!items.length) return;
-    e.preventDefault();
-    var idx = items.indexOf(document.activeElement);
-    var next = e.key === 'ArrowDown' ? (idx + 1) % items.length : (idx - 1 + items.length) % items.length;
-    items[next].focus();
-  }
-});
-$('#fGrpMenu').addEventListener('click', function (e) {
-  e.stopPropagation();
-  var del = e.target.closest('[data-gdel]');
-  if (del) { deleteCategoryFlow(del.dataset.gdel, F.br, del); return; }
-  var act = e.target.closest('[data-gact]');
-  if (act) {
-    if (act.dataset.gact === 'all') { F.gm = {}; D.groups.forEach(function (g) { F.gm[g] = true; }); }
-    else { F.gm = {}; }
-    F.page = 0; render();
-    return;
-  }
-  var item = e.target.closest('[data-gitem]');
-  if (item && e.target.tagName !== 'INPUT') {
-    gToggle(item.dataset.gitem);
-    render();
-  }
-});
-$('#fGrpMenu').addEventListener('change', function (e) {
-  var chk = e.target.closest('input[data-gchk]');
-  if (!chk) return;
-  var g = chk.dataset.gchk;
-  if (chk.checked) F.gm[g] = true; else delete F.gm[g];
-  F.page = 0; render();
-});
-document.addEventListener('click', function (e) {
-  if (!e.target.closest('#fGrpWrap')) closeGrpMenu();
-});
-$('#fBr').addEventListener('change', function () { F.br = this.value; F.page = 0; render(); });
-var qT = null;
-$('#fQ').addEventListener('input', function () { var v = this.value; clearTimeout(qT); qT = setTimeout(function () { F.q = v; F.page = 0; render(); }, 200); });
-$('#chips').addEventListener('click', function (e) {
-  var b = e.target.closest('.chip'); if (!b) return;
-  var k = b.dataset.st;
-  if (!k) { F.st = {}; }
-  else { if (F.st[k]) delete F.st[k]; else F.st[k] = true; }
-  F.page = 0; render();
-});
-$('#fTagChecks').addEventListener('change', function (e) {
-  var cb = e.target.closest('input[data-ftag]'); if (!cb) return;
-  var k = cb.dataset.ftag;
-  if (cb.checked) { F.tags[k] = true; delete F.hide[k]; } else delete F.tags[k];
-  F.page = 0; render();
-});
-$('#fHideChecks').addEventListener('change', function (e) {
-  var cb = e.target.closest('input[data-fhide]'); if (!cb) return;
-  var k = cb.dataset.fhide;
-  if (cb.checked) { F.hide[k] = true; delete F.tags[k]; } else delete F.hide[k];
-  F.page = 0; render();
-});
-$('#ctAdd').addEventListener('click', function () {
-  var inp = $('#ctName'), name = inp.value.trim(), mode = $('#ctMode').value;
-  if (!name) { toast('กรุณาพิมพ์ชื่อแท็ก', true); return; }
-  busy(this, async function () {
-    await call('stockCtagCreate', name, mode);
-    inp.value = ''; toast('เพิ่มแท็ก "' + name + '" แล้ว (' + (mode === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
-    await load(VIEW);
-  });
-});
-$('#ctName').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#ctAdd').click(); } });
-$('#ctList').addEventListener('click', function (e) {
-  var b = e.target.closest('button'); if (!b || b.disabled) return;
-  if (b.dataset.btdel) {
-    var bk = b.dataset.btdel, nm = TAGS[bk].t, kinds = { lost: 1, exp: 1, pend: 1, waste: 1 };
-    var keys = kinds[bk] ? (D[bk] || []).map(function (y) { return y.k; }) : [];
-    var hardCodes = bk === 'hard' ? Object.keys(D.hard || {}).map(function (h) { return D.hard[h].code || h; }) : [];
-    var real = kinds[bk] ? keys.length : hardCodes.length, derived = !kinds[bk] && bk !== 'hard';
-    var msg = derived ? 'ลบแท็ก "' + nm + '" ออกจากตัวกรอง ?\n(แท็กนี้คำนวณจากยอดสต็อก ไม่มีข้อมูลให้ลบ)'
-      : 'ลบแท็ก "' + nm + '" พร้อมข้อมูลจริง ' + nf0.format(real) + ' รายการ ?\n' + (kinds[bk] ? 'จำนวนที่หักไว้จะกลับมานับรวมในค้างสต็อกทันที' : 'สินค้าทุกรายการจะถูกถอดแท็ก') + '\nการลบข้อมูลจริงย้อนกลับไม่ได้';
-    if (!confirm(msg)) return;
-    busy(b, async function () {
-      if (keys.length) await call(AKI[bk].rm, keys);
-      if (hardCodes.length) await call('stockHardSet', hardCodes, false, '');
-      CT.removed[bk] = 1; delete F.tags[bk]; delete F.hide[bk]; ctSave(); F.page = 0;
-      toast('ลบแท็ก "' + nm + '"' + (real ? ' และข้อมูลจริง ' + nf0.format(real) + ' รายการ' : '') + ' แล้ว');
-      await load(VIEW);
-    });
-    return;
-  }
-  var id = b.dataset.ctapply || b.dataset.ctclear || b.dataset.ctdel; if (!id) return;
-  var d = D.ctags[id]; if (!d) return;
-  if (b.dataset.ctdel) {
-    var used = d.mode === 'deduct' ? (D['c_' + id] || []).length : Object.keys((D.ctmapSet && D.ctmapSet[id]) || {}).length;
-    if (!confirm('ลบแท็ก "' + d.t + '" ?\nติดอยู่ ' + nf0.format(used) + ' รายการ จะถูกถอดออกทั้งหมด' + (d.mode === 'deduct' ? ' และจำนวนที่หักไว้จะกลับมานับรวมในค้างสต็อก' : '') + '\nย้อนกลับไม่ได้')) return;
-    busy(b, async function () {
-      await call('stockCtagDelete', id);
-      delete F.tags['c_' + id]; delete F.hide['c_' + id]; F.page = 0;
-      toast('ลบแท็ก "' + d.t + '" แล้ว'); await load(VIEW);
-    });
-    return;
-  }
-  var on = !!b.dataset.ctapply, items = LAST_TS.map(function (x) { return { code: x.code, br: x.br }; });
-  if (!items.length) { toast('ไม่มีรายการที่แสดงอยู่', true); return; }
-  if (!confirm((on ? 'ติดแท็ก "' : 'ถอดแท็ก "') + d.t + '" ให้สินค้าที่แสดงอยู่ ' + nf0.format(items.length) + ' รายการ ?')) return;
-  busy(b, async function () {
-    var r = await call('stockCtagAssign', id, items, on);
-    toast((on ? 'ติดแท็ก "' : 'ถอดแท็ก "') + d.t + '" แล้ว ' + nf0.format(r && r.changed || 0) + ' รายการ'); await load(VIEW);
-  });
-});
-$('#fHideChecks').addEventListener('click', function (e) {
-  if (e.target.closest('#bClearHide')) { F.hide = {}; F.page = 0; render(); }
-});
-$('#fTagChecks').addEventListener('click', function (e) {
-  if (e.target.closest('#bClearTags')) { F.tags = {}; F.page = 0; render(); }
-});
-$('#gHistBox').addEventListener('click', function (e) {
-  var dp = e.target.closest('[data-delprev]');
-  if (dp) { deletePrevGroupFlow([dp.dataset.delprev], dp); return; }
-  if (e.target.closest('#bOpenHistInBox')) openHistDlg();
-});
-$('#gpill').addEventListener('click', function (e) {
-  var rm = e.target.closest('[data-rmg]');
-  if (rm) { delete F.gm[rm.dataset.rmg]; F.page = 0; render(); return; }
-  if (e.target.closest('#gClear')) { F.gm = {}; F.page = 0; render(); }
-});
-$('#gt').addEventListener('click', function (e) {
-  var th = e.target.closest('th');
-  if (th) { var k = th.dataset.k; if (k === '_act') return; F.gs = { k: k, d: F.gs.k === k ? -F.gs.d : (k === 'g' ? 1 : -1) }; render(); return; }
-  var tr = e.target.closest('tr[data-g]'); if (!tr) return;
-  gToggle(tr.dataset.g); render();
-});
-
-/* ---------- เปิดดูรายการบาร์กระจาย / บาร์แพ็ค โดยแสดงข้อมูลจากสินค้าค้างสต็อก แยกตามสาขา ---------- */
-var BC_DLG_STATE = null;
-/* การเชื่อมเอง: เก็บในเบราว์เซอร์ { 'สาขา|ประเภทบาร์|รหัสบาร์': [รหัสสินค้าในค้างสต็อก, ...] } */
-var BC_MANUAL = (function () { try { return JSON.parse(localStorage.getItem('cmucoop_bc_manual') || '{}') || {}; } catch (e) { return {}; } })();
-function bcManualSave() { try { localStorage.setItem('cmucoop_bc_manual', JSON.stringify(BC_MANUAL)); } catch (e) {} }
-function bcManualKey(bName, pe) { return brKey(bName) + '|' + pe.role + '|' + pe.rawCode; }
-function openBcPairDlg(code, preferBr) {
-  var keys = splitBarCodes(code), links = [], seenRec = {};
-  keys.forEach(function (k) {
-    (BC_BY_CODE[k] || []).forEach(function (m) {
-      var r = m.rec, id = r.packBar + '|' + r.unitBar;
-      if (!seenRec[id]) { seenRec[id] = 1; links.push(r); }
-    });
-  });
-  if (!links.length) {
-    toast('ไม่พบข้อมูลเชื่อมโยงบาร์เดี่ยว/บาร์แพ็คของรหัส ' + code, true);
-    return;
-  }
-  var roleByKey = {}, codeMeta = {}, pairEntries = [];
-  links.forEach(function (r) {
-    if (r.unitBar) {
-      var uks = splitBarCodes(r.unitBar);
-      uks.forEach(function (uk) {
-        roleByKey[uk] = 'บาร์กระจาย';
-        codeMeta[uk] = { key: uk, rawCode: r.unitBar, role: 'บาร์กระจาย', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
-      });
-      pairEntries.push({ keys: uks, rawCode: r.unitBar, role: 'บาร์กระจาย', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner });
-    }
-    if (r.packBar) {
-      var pks = splitBarCodes(r.packBar);
-      pks.forEach(function (pk) {
-        roleByKey[pk] = 'บาร์แพ็ค';
-        codeMeta[pk] = { key: pk, rawCode: r.packBar, role: 'บาร์แพ็ค', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner };
-      });
-      pairEntries.push({ keys: pks, rawCode: r.packBar, role: 'บาร์แพ็ค', name: r.name, perPack: r.perPack, cat: r.cat, partner: r.partner });
-    }
-  });
-
-  // ค้นหารายการในสินค้าค้างสต็อกทั้งหมดที่มีรหัสตรงกับบาร์กระจายหรือบาร์แพ็คของชุดนี้
-  var pool = allPool(true), matchedStock = [], brSet = {};
-  (D.branches || []).forEach(function (b) { if (b) brSet[b] = 1; });
-  if (preferBr) brSet[preferBr] = 1;
-  pool.forEach(function (x) {
-    var xks = splitBarCodes(x.code);
-    for (var i = 0; i < xks.length; i++) {
-      var k = xks[i];
-      if (roleByKey[k]) {
-        var bName = x.br || 'ไม่ระบุสาขา';
-        brSet[bName] = 1;
-        matchedStock.push({
-          x: x,
-          br: bName,
-          matchKey: k,
-          role: roleByKey[k],
-          isClicked: keys.indexOf(k) >= 0 && (!preferBr || brKey(x.br) === brKey(preferBr))
-        });
-        break;
-      }
-    }
-  });
-
-  var brList = Object.keys(brSet).sort(function (a, b) {
-    var pa = preferBr && brKey(a) === brKey(preferBr) ? 0 : 1;
-    var pb = preferBr && brKey(b) === brKey(preferBr) ? 0 : 1;
-    if (pa !== pb) return pa - pb;
-    return a.localeCompare(b, 'th');
-  });
-  if (!brList.length) brList = ['ไม่ระบุสาขา'];
-
-  BC_DLG_STATE = {
-    code: code,
-    preferBr: preferBr || '',
-    selBr: preferBr || (F.br || '*'),
-    brList: brList,
-    links: links,
-    pairEntries: pairEntries,
-    matchedStock: matchedStock,
-    pool: pool
-  };
-  renderBcPairDlg();
-  $('#bcDlg').classList.remove('hidden');
-}
-
-function renderBcPairDlg() {
-  if (!BC_DLG_STATE) return;
-  var st = BC_DLG_STATE, links = st.links, brList = st.brList, selBr = st.selBr;
-  if (selBr !== '*' && !brList.some(function (b) { return brKey(b) === brKey(selBr); })) selBr = '*';
-
-  $('#bcTitle').textContent = 'รายการสินค้าค้างสต็อก — เชื่อมโยงบาร์กระจายและบาร์แพ็ค (แยกสาขา)';
-  $('#bcSub').textContent = 'อ้างอิงความเชื่อมโยงจากรายการบาร์เดี่ยว/บาร์แพ็ค และแสดงข้อมูลจากรายการสินค้าค้างสต็อกแยกตามสาขา';
-
-  // แท็บเลือกสาขาในหน้าต่างดูรายการเชื่อมโยง
-  var tabsEl = $('#bcBrTabs');
-  if (tabsEl) {
-    var countInBr = function (b) {
-      var bk = brKey(b);
-      return st.matchedStock.filter(function (m) { return brKey(m.br) === bk; }).length;
-    };
-    tabsEl.innerHTML =
-      brList.map(function (b) {
-        var on = selBr !== '*' && brKey(selBr) === brKey(b);
-        return '<button type="button" class="tab' + (on ? ' on' : '') + '" data-bcbr="' + esc(b) + '">สาขา ' + esc(b) + ' (' + nf0.format(countInBr(b)) + ')</button>';
-      }).join('') +
-      (brList.length > 1 ? '<button type="button" class="tab' + (selBr === '*' ? ' on' : '') + '" data-bcbr="*">ดูทุกสาขาแยกตาราง (' + brList.length + ' สาขา)</button>' : '');
-  }
-
-  $('#bcPairInfo').innerHTML = links.map(function (r) {
-    return '<div class="ghist-item" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">' +
-      '<span><b>ชื่อในระบบบาร์:</b> ' + esc(r.name || '–') + '</span>' +
-      '<span><b>บาร์กระจาย:</b> <span class="tag" style="background:#e8f0fe;color:#1967d2">' + esc(r.unitBar || '–') + '</span></span>' +
-      '<span><b>บาร์แพ็ค:</b> <span class="tag" style="background:#e6f4ea;color:#137333">' + esc(r.packBar || '–') + '</span></span>' +
-      (r.perPack ? '<span><b>จำนวนต่อแพ็ค:</b> ' + esc(r.perPack) + '</span>' : '') +
-      (r.partner ? '<span class="muted">คู่ค้า: ' + esc(r.partner) + '</span>' : '') +
-    '</div>';
-  }).join('');
-
-  var canEdit = !!(D.me && D.me.edit);
-  var showBrs = selBr === '*' ? brList : brList.filter(function (b) { return brKey(b) === brKey(selBr); });
-
-  var buildBrSection = function (bName) {
-    var bk = brKey(bName);
-    var brRows = st.matchedStock.filter(function (m) { return brKey(m.br) === bk; }).slice().sort(function (a, b) {
-      if (a.role !== b.role) return a.role === 'บาร์กระจาย' ? -1 : 1;
-      return (a.x.code || '').localeCompare(b.x.code || '', 'th');
-    });
-    // รายการที่เชื่อมเอง (ค้นหาในค้างสต็อกของสาขานี้)
-    st.pairEntries.forEach(function (pe) {
-      var codes = BC_MANUAL[bcManualKey(bName, pe)] || [];
-      codes.forEach(function (c) {
-        st.pool.forEach(function (x) {
-          if (brKey(x.br) === bk && x.code === c) brRows.push({ x: x, br: bName, matchKey: pe.keys[0], role: pe.role, manual: true, pe: pe, isClicked: false });
-        });
-      });
-    });
-    var foundKeysInBr = {};
-    brRows.forEach(function (m) {
-      if (m.manual) m.pe.keys.forEach(function (k) { foundKeysInBr[k] = 1; });
-      else foundKeysInBr[m.matchKey] = 1;
-    });
-
-    var missingInBrHtml = st.pairEntries.filter(function (pe) {
-      return !pe.keys.some(function (k) { return foundKeysInBr[k]; });
-    }).map(function (pe) {
-      var badgeStyle = pe.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
-      return '<tr class="row-zero">' +
-        '<td><span class="tag" style="' + badgeStyle + '">' + esc(pe.role) + '</span></td>' +
-        '<td>–</td>' +
-        '<td><b>' + esc(pe.rawCode) + '</b></td>' +
-        '<td>' + esc(pe.name || '–') + ' <span class="tag old">ไม่พบข้อมูลของสาขา ' + esc(bName) + '</span> ' +
-          '<button type="button" class="btn small" data-bclink="1" data-br="' + esc(bName) + '" data-role="' + esc(pe.role) + '" data-raw="' + esc(pe.rawCode) + '">เชื่อม</button></td>' +
-        '<td>' + esc(bName) + '</td>' +
-        '<td class="num">–</td><td class="num">–</td><td class="num">–</td><td class="num">–</td><td>–</td><td>–</td><td class="num">–</td><td>–</td>' +
-        '<td>' + (pe.perPack ? 'จำนวนต่อแพ็ค ' + esc(pe.perPack) : '–') + '</td>' +
-        (canEdit ? '<td>–</td>' : '') +
-      '</tr>';
-    }).join('');
-
-    var stockRowsHtml = brRows.map(function (m) {
-      var x = m.x;
-      var badgeStyle = m.role === 'บาร์แพ็ค' ? 'background:#e6f4ea;color:#137333' : 'background:#e8f0fe;color:#1967d2';
-      var rowCls = m.isClicked ? ' class="sel"' : (x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : ''));
-      var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '">&#8943;</button>' : '–') + '</td>' : '';
-      return '<tr' + rowCls + '>' +
-        '<td><span class="tag" style="' + badgeStyle + '">' + esc(m.role) + '</span></td>' +
-        '<td>' + esc(gl(x.g, x.br)) + '</td>' +
-        '<td><b>' + esc(x.code) + '</b></td>' +
-        '<td>' + esc(x.name) + tagHtml(x) + (m.manual ? ' <span class="tag new">เชื่อมเอง</span> <button type="button" class="btn ghost small" data-bcunlink="1" data-br="' + esc(bName) + '" data-role="' + esc(m.pe.role) + '" data-raw="' + esc(m.pe.rawCode) + '" data-code="' + esc(x.code) + '" title="ยกเลิกการเชื่อม">ยกเลิก</button>' : '') + '</td>' +
-        '<td>' + esc(x.br) + '</td>' +
-        '<td class="num">' + fmtQtyCell(x) + '</td>' +
-        '<td class="num">' + nf2.format(x.cost) + '</td>' +
-        '<td class="num">' + money(x.vc) + '</td>' +
-        '<td class="num">' + nf2.format(x.price) + '</td>' +
-        '<td>' + fmtDate(x.recv) + '</td>' +
-        '<td>' + fmtDate(x.last) + '</td>' +
-        '<td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td>' +
-        '<td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td>' +
-        '<td>' + esc(x.note) + '</td>' +
-        actCell +
-      '</tr>';
-    }).join('');
-
-    var totVc = brRows.reduce(function (s, m) { return s + (m.x.vc || 0); }, 0);
-    var headHtml = '<thead><tr><th class="nosort">ประเภทบาร์</th><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้าในค้างสต็อก</th><th class="nosort">สาขา</th><th class="nosort">คงเหลือ</th><th class="nosort">ต้นทุน/หน่วย</th><th class="nosort">มูลค่าทุน</th><th class="nosort">ราคาขาย</th><th class="nosort">รับเข้า</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง วัน</th><th class="nosort">ช่วงอายุสินค้า</th><th class="nosort">หมายเหตุ</th>' + (canEdit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead>';
-    var bodyHtml = '<tbody>' + (stockRowsHtml + missingInBrHtml || '<tr><td colspan="15" class="muted" style="text-align:center;padding:16px">ไม่พบข้อมูลในสาขา ' + esc(bName) + '</td></tr>') + '</tbody>';
-    return '<div class="deduct-sub" style="background:#faf7ff;border:1.5px solid #d9c8ff">' +
-      '<h4><span style="color:var(--accent-text)">สาขา: <b>' + esc(bName) + '</b> · พบในค้างสต็อก ' + nf0.format(brRows.length) + ' รายการ · มูลค่าทุนรวม ' + money(totVc) + ' บาท</span></h4>' +
-      '<div class="tscroll" style="max-height:320px"><table class="pvt">' + headHtml + bodyHtml + '</table></div>' +
-    '</div>';
-  };
-
-  var secHtml = showBrs.map(buildBrSection).join('');
-  if ($('#bcBrSections')) $('#bcBrSections').innerHTML = secHtml;
-  if ($('#bcTb')) $('#bcTb').innerHTML = secHtml;
-}
-/* ---------- ค้นหาแล้วเชื่อมเอง ---------- */
-var BC_LINK_CTX = null;
-function openBcLink(bName, role, raw) {
-  if (!BC_DLG_STATE) return;
-  var pe = BC_DLG_STATE.pairEntries.filter(function (e) { return e.role === role && e.rawCode === raw; })[0];
-  if (!pe) return;
-  BC_LINK_CTX = { br: bName, pe: pe };
-  $('#bcLinkTitle').textContent = 'เชื่อม' + role + ' ' + raw + ' · สาขา ' + bName;
-  $('#bcLinkSub').textContent = 'ค้นหาสินค้าในค้างสต็อกของสาขานี้ แล้วกด "เชื่อม" ที่รายการที่ต้องการ' + (pe.name ? ' (ชื่อในระบบบาร์: ' + pe.name + ')' : '');
-  $('#bcLinkQ').value = '';
-  renderBcLinkRes();
-  $('#bcLinkDlg').classList.remove('hidden');
-  setTimeout(function () { $('#bcLinkQ').focus(); }, 30);
-}
-function renderBcLinkRes() {
-  if (!BC_LINK_CTX || !BC_DLG_STATE) return;
-  var bk = brKey(BC_LINK_CTX.br), q = $('#bcLinkQ').value.trim().toLowerCase();
-  var done = BC_MANUAL[bcManualKey(BC_LINK_CTX.br, BC_LINK_CTX.pe)] || [];
-  var rows = BC_DLG_STATE.pool.filter(function (x) {
-    return brKey(x.br) === bk && x.code && (!q || (String(x.code) + ' ' + String(x.name || '')).toLowerCase().indexOf(q) >= 0);
-  });
-  var total = rows.length; rows = rows.slice(0, 60);
-  $('#bcLinkRes').innerHTML = rows.length
-    ? '<table class="pvt"><thead><tr><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">คงเหลือ</th><th class="nosort"></th></tr></thead><tbody>' +
-      rows.map(function (x) {
-        var has = done.indexOf(x.code) >= 0;
-        return '<tr><td><b>' + esc(x.code) + '</b></td><td>' + esc(x.name) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td style="text-align:center">' +
-          (has ? '<span class="tag new">เชื่อมแล้ว</span>' : '<button type="button" class="btn small" data-bcpick="' + esc(x.code) + '">เชื่อม</button>') + '</td></tr>';
-      }).join('') + '</tbody></table>' + (total > rows.length ? '<div class="muted" style="padding:8px">แสดง ' + rows.length + ' จาก ' + nf0.format(total) + ' รายการ — พิมพ์ค้นหาเพิ่มเพื่อกรอง</div>' : '')
-    : '<div class="muted" style="padding:16px;text-align:center">ไม่พบสินค้าในค้างสต็อกของสาขานี้ที่ตรงกับคำค้น</div>';
-}
-$('#bcLinkQ').addEventListener('input', renderBcLinkRes);
-$('#bcLinkClose').addEventListener('click', function () { closeDlg('#bcLinkDlg'); });
-$('#bcLinkDlg').addEventListener('click', function (e) {
-  if (e.target === this) { closeDlg('#bcLinkDlg'); return; }
-  var pk = e.target.closest('[data-bcpick]');
-  if (pk && BC_LINK_CTX) {
-    var key = bcManualKey(BC_LINK_CTX.br, BC_LINK_CTX.pe);
-    var arr = BC_MANUAL[key] || (BC_MANUAL[key] = []);
-    if (arr.indexOf(pk.dataset.bcpick) < 0) arr.push(pk.dataset.bcpick);
-    bcManualSave();
-    closeDlg('#bcLinkDlg');
-    renderBcPairDlg();
-    toast('เชื่อมรายการเรียบร้อย');
-  }
-});
-$('#bcClose').addEventListener('click', function () { closeDlg('#bcDlg'); });
-$('#bcDlg').addEventListener('click', function (e) {
-  if (e.target === this) { closeDlg('#bcDlg'); return; }
-  var lk = e.target.closest('[data-bclink]');
-  if (lk) { e.stopPropagation(); openBcLink(lk.dataset.br, lk.dataset.role, lk.dataset.raw); return; }
-  var ul = e.target.closest('[data-bcunlink]');
-  if (ul && BC_DLG_STATE) {
-    e.stopPropagation();
-    var pe0 = BC_DLG_STATE.pairEntries.filter(function (z) { return z.role === ul.dataset.role && z.rawCode === ul.dataset.raw; })[0];
-    if (pe0) {
-      var k0 = bcManualKey(ul.dataset.br, pe0);
-      BC_MANUAL[k0] = (BC_MANUAL[k0] || []).filter(function (c) { return c !== ul.dataset.code; });
-      if (!BC_MANUAL[k0].length) delete BC_MANUAL[k0];
-      bcManualSave(); renderBcPairDlg();
-    }
-    return;
-  }
-  var brTab = e.target.closest('[data-bcbr]');
-  if (brTab && BC_DLG_STATE) {
-    BC_DLG_STATE.selBr = brTab.dataset.bcbr;
-    renderBcPairDlg();
-    return;
-  }
-  var bcv = e.target.closest('[data-bcview]');
-  if (bcv) {
-    e.stopPropagation();
-    openBcPairDlg(bcv.dataset.bcview, bcv.dataset.br);
-    return;
-  }
-  var dot = e.target.closest('[data-dot]');
-  if (dot) {
-    e.stopPropagation();
-    openDotPop(dot, dot.dataset.code, dot.dataset.br, dot.dataset.g);
-    return;
-  }
-});
-$('#dt').addEventListener('click', function (e) {
-  var bcv = e.target.closest('[data-bcview]');
-  if (bcv) {
-    e.stopPropagation();
-    openBcPairDlg(bcv.dataset.bcview, bcv.dataset.br);
-    return;
-  }
-  var dot = e.target.closest('[data-dot]');
-  if (dot) {
-    e.stopPropagation();
-    openDotPop(dot, dot.dataset.code, dot.dataset.br, dot.dataset.g);
-    return;
-  }
-  var eb = e.target.closest('[data-nk]');
-  if (eb) {
-    var ek = eb.dataset.nk, ekey = eb.dataset.nkey, en = (D[ek] || []).filter(function (y) { return y.k === ekey; })[0], nv = prompt('แก้หมายเหตุ ' + TAGS[ek].t + '\n' + eb.dataset.code + '\n(เว้นว่างเพื่อลบหมายเหตุ)', en ? en.note || '' : '');
-    if (nv === null) return;
-    busy(eb, async function () { await call('stockAdjNote', ek, ekey, nv); toast('บันทึกหมายเหตุแล้ว · ' + eb.dataset.code); await load(VIEW); });
-    return;
-  }
-  var nb = e.target.closest('[data-hardnote]');
-  if (nb) {
-    var nc = nb.dataset.hardnote, cur = (D.hard[codeKey(nc)] || {}).note || '', nn = prompt('หมายเหตุสินค้าขายยาก\n' + nc + '\n(เว้นว่างเพื่อลบหมายเหตุ)', cur);
-    if (nn === null) return;
-    busy(nb, async function () { await call('stockHardSet', [nc], true, nn); toast('บันทึกหมายเหตุแล้ว · ' + nc); await load(VIEW); });
-    return;
-  }
-  var th = e.target.closest('th'); if (!th) return;
-  var k = th.dataset.k; if (k === '_act') return; F.ds = { k: k, d: F.ds.k === k ? -F.ds.d : ((k === 'qty' || k === 'vc' || k === 'cost' || k === 'price' || k === 'days' || k === 'last') ? -1 : 1) }; F.page = 0; render();
-});
-$('#pgPrev').addEventListener('click', function () { F.page--; render(); $('#dt').scrollIntoView({ block: 'start' }); });
-$('#pgNext').addEventListener('click', function () { F.page++; render(); $('#dt').scrollIntoView({ block: 'start' }); });
-$('#bReload').addEventListener('click', function () { busy(this, load); });
-
-/* ---------- ส่งออก Excel (รูปแบบเดียวกับไฟล์รายงานต้นฉบับ: 1 ชีต = 1 หมวด) ---------- */
-/*XLSX-START*/
-/* ตัวเขียนไฟล์ .xlsx (ไม่พึ่งไลบรารี) — ทำหน้าตาให้เหมือนไฟล์รายงานวิเคราะห์การขายต้นฉบับ:
- * หัวรายงาน 3 บรรทัด · ตาราง 20 คอลัมน์ (หัวสีส้ม TH Sarabun New 18) · สรุป "ค้างเกิน 60 วัน" แยกสาขาท้ายชีต · A4 แนวนอน
- * sheets = [{ name, title, rep:'YYYY-MM-DD', items:[{g,code,name,br,qty,sold,avg,recv,last,days,st,cost,price,note,below,profit,pct,sales,net}] }] → Promise<Uint8Array> */
-var XL_HEAD = ['ลำดับ', 'กลุ่ม', 'รหัส', 'ชื่อสินค้า', 'สาขา', 'คงเหลือ', 'รวมขาย', 'เฉลี่ยขาย', 'รับเข้า', 'ขายล่าสุด', 'ค้าง(วัน)', 'สถานะ', 'ต้นทุน', 'ราคา', 'ต่ำกว่าทุน', 'กำไร฿', 'กำไร%', 'ยอดขาย', 'กำไรสุทธิ V', 'หมายเหตุ'];
-var XL_WIDTH = [6.5, 5.8984375, 19.5, 37.796875, 7.59765625, 8.09765625, 8.09765625, 8.796875, 10.5, 11.5, 8.5, 7.59765625, 7.59765625, 7.59765625, 9.19921875, 7.59765625, 7.59765625, 8.19921875, 13.09765625, 28];
-var XL_SHOP = 'ร้านสหกรณ์มหาวิทยาลัยเชียงใหม่ จำกัด';
-var XL_NOTE = 'หมายเหตุ : T1 คือ ขายออกไม่เกิน 15 วัน, T2 ขายออกระหว่าง 16-30 วัน, T3 ขายออกระหว่าง 31-60 วัน, DS สินค้าที่ขายไม่ออกนานเกิน 60 วัน';
-var XL_DSLABEL = 'สินค้าที่ไม่มีความเคลื่อนไหว (ค้างสต็อก) นานเกิน 60 วัน';
-var XL_HEAD_RGB = 'FFC04F15';        // ส้มเข้มของหัวตาราง (accent2 ลดความสว่าง 25% ตามต้นฉบับ)
-var XL_S = { title: 1, head: 2, c: 3, code: 4, left: 5, date: 6, plain: 7, bL: 8, bCw: 9, bC: 10, bW: 11, bCn: 12, bCv: 13, b: 14 };   // ลำดับ cellXfs ใน styles.xml ด้านล่าง
-var XL_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', XL_RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-
-function xlEsc(s) { return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function xlCol(i) { return String.fromCharCode(65 + i); }                         // 0 → A … 19 → T
-function xlSerial(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 + 25569 : null; }
-function xlVis(s) { return String(s || '').replace(/[ัิ-ฺ็-๎]/g, '').length; }   // ไม่นับสระบน/ล่าง/วรรณยุกต์
-function xlAtTxt(ts) {                                                      // 'ณ วันที่ 14/10/2026\nเวลา 14:16 น.' (เขตเวลา Asia/Bangkok)
-  var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-    .formatToParts(new Date(ts || Date.now())).forEach(function (x) { p[x.type] = x.value; });
-  return 'ณ วันที่ ' + p.day + '/' + p.month + '/' + p.year + '\nเวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
-}
-function xlTags(x) {                                                        // แท็กทั้งหมดของสินค้า (ขายยาก · ของหาย x · แท็กที่สร้างเอง · คงเหลือ 0/ติดลบ)
-  var t = [];
-  if (x.hard) t.push('ขายยาก');
-  Object.keys(x.tg || {}).forEach(function (k) { if (TAGS[k]) t.push(TAGS[k].t + (x.tg[k] ? ' ' + x.tg[k] : '')); });
-  ctKeys().forEach(function (k) { if (ctTagOnly(k) && ctHas(x, k)) t.push(TAGS[k].t); });
-  if (x.isZero) t.push(x.qty < 0 ? 'ติดลบ' : 'คงเหลือ 0');
-  return t;
-}
-function xlNote(x) {                                                        // ช่องหมายเหตุ = แท็ก + หมายเหตุ (ไฟล์ต้นฉบับ และที่บันทึกในระบบ)
-  var tg = xlTags(x), nt = [], tn = x.tn || {}, o = [];
-  if (x.note) nt.push(String(x.note));
-  Object.keys(TAGS).forEach(function (k) { if (tn[k]) nt.push(TAGS[k].t + ': ' + tn[k]); });
-  if (tg.length) o.push('แท็ก: ' + tg.join(', '));
-  if (nt.length) o.push('หมายเหตุ: ' + nt.join(' / '));
-  return o.join(' · ');
-}
-function xlNum(v) { return (typeof v === 'number' && isFinite(v)) ? String(v) : null; }
-
-function xlStyles() {
-  var th = function (b) { return '<font>' + (b ? '<b/>' : '') + '<sz val="18"/><color theme="1"/><name val="TH Sarabun New"/><family val="2"/></font>'; };
-  var bd = '<border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border>';
-  var xf = function (num, font, fill, border, h, v, wrap) {
-    return '<xf numFmtId="' + num + '" fontId="' + font + '" fillId="' + fill + '" borderId="' + border + '" xfId="0"' + (num ? ' applyNumberFormat="1"' : '') + ' applyFont="1"' + (fill ? ' applyFill="1"' : '') + (border ? ' applyBorder="1"' : '') +
-      (h || v || wrap ? ' applyAlignment="1"><alignment' + (h ? ' horizontal="' + h + '"' : '') + (v ? ' vertical="' + v + '"' : '') + (wrap ? ' wrapText="1"' : '') + '/></xf>' : '/>');
-  };
-  var xfs = [
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>',                  // 0 ค่าเริ่มต้น
-    xf(0, 1, 0, 0, 'center', 'center', 1),                                              // 1 หัวรายงาน
-    xf(0, 1, 2, 2, 'center', 'center', 1),                                              // 2 หัวตาราง
-    xf(0, 3, 0, 1, 'center', 'center', 1),                                              // 3 ข้อมูลกลางช่อง
-    xf(1, 3, 0, 1, 'center', 'center', 1),                                              // 4 รหัส (เลขล้วน)
-    xf(0, 3, 0, 1, 'left', 'center', 1),                                                // 5 ชื่อสินค้า
-    xf(14, 3, 0, 1, 'center', 'center', 1),                                             // 6 วันที่
-    xf(0, 3, 0, 0, '', '', 0),                                                          // 7 ตัวอักษรธรรมดา ไม่มีเส้น
-    xf(0, 1, 0, 1, 'left', 'center', 1),                                                // 8 ป้ายสรุปท้ายชีต
-    xf(0, 1, 0, 1, 'center', 'center', 1),                                              // 9
-    xf(0, 1, 0, 1, 'center', '', 1),                                                    // 10
-    xf(0, 1, 0, 1, '', '', 1),                                                          // 11
-    xf(0, 1, 0, 1, 'center', '', 0),                                                    // 12
-    xf(0, 1, 0, 1, 'center', 'center', 0),                                              // 13
-    xf(0, 1, 0, 1, '', '', 0)                                                           // 14
-  ];
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="' + XL_NS + '">' +
-    '<fonts count="4"><font><sz val="11"/><color theme="1"/><name val="Tahoma"/><family val="2"/><charset val="222"/></font>' + th(1) + '<font><sz val="18"/><color theme="1"/><name val="Tahoma"/><family val="2"/></font>' + th(0) + '</fonts>' +
-    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="' + XL_HEAD_RGB + '"/><bgColor indexed="64"/></patternFill></fill></fills>' +
-    '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border>' + bd + '<border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top/><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border></borders>' +
-    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs>' +
-    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
-}
-
-function xlSheet(sh, ctx, idx) {
-  var items = sh.items, n = items.length, last = 4 + n, rows = [], merges = [];
-  var sst = function (t) { var k = ctx.sst[t]; if (k === undefined) { k = ctx.sstList.length; ctx.sst[t] = k; ctx.sstList.push(t); } return k; };
-  var S = function (ref, s, t) { return '<c r="' + ref + '" s="' + s + '" t="s"><v>' + sst(t) + '</v></c>'; };        // ข้อความ
-  var N = function (ref, s, v) { var t = xlNum(v); return t === null ? '<c r="' + ref + '" s="' + s + '"/>' : '<c r="' + ref + '" s="' + s + '"><v>' + t + '</v></c>'; };
-  var E = function (ref, s) { return '<c r="' + ref + '" s="' + s + '"/>'; };
-  var T = function (ref, s, v) { return (v === null || v === undefined || v === '') ? E(ref, s) : S(ref, s, String(v)); };
-  var row = function (r, cells, ht) { rows.push('<row r="' + r + '" spans="1:20"' + (ht ? ' ht="' + ht + '" customHeight="1"' : '') + '>' + cells.join('') + '</row>'); };
-  // หัวรายงาน 3 บรรทัด
-  [XL_SHOP, sh.title, XL_NOTE].forEach(function (t, i) {
-    var cells = [S('A' + (i + 1), XL_S.title, t)]; for (var c = 1; c < 20; c++) cells.push(E(xlCol(c) + (i + 1), XL_S.title));
-    row(i + 1, cells); merges.push('A' + (i + 1) + ':T' + (i + 1));
-  });
-  // หัวตาราง
-  row(4, XL_HEAD.map(function (h, c) { return S(xlCol(c) + '4', XL_S.head, h); }), 54);
-  // ข้อมูล
-  items.forEach(function (x, i) {
-    var r = 5 + i, c = XL_S.c, code = String(x.code == null ? '' : x.code).replace(/^[Pp](?=\d)/, ''), cells = [];   // ส่งออก: ตัด P นำหน้ารหัส (เฉพาะตามด้วยตัวเลข) ไม่แตะข้อมูลที่เก็บไว้
-    var note = xlNote(x);
-    var d = function (col, iso) { var v = xlSerial(iso); return v === null ? E(col + r, XL_S.date) : N(col + r, XL_S.date, v); };
-    cells.push(N('A' + r, c, i + 1), T('B' + r, c, x.g));
-    cells.push(/^(0|[1-9]\d{0,14})$/.test(code) ? N('C' + r, XL_S.code, Number(code)) : T('C' + r, c, code));
-    cells.push(T('D' + r, XL_S.left, x.name), T('E' + r, c, x.br), N('F' + r, c, x.qty), N('G' + r, c, x.sold), N('H' + r, c, x.avg), d('I', x.recv), d('J', x.last),
-      N('K' + r, c, x.days), T('L' + r, c, x.st), N('M' + r, c, x.cost), N('N' + r, c, x.price), T('O' + r, c, x.below), N('P' + r, c, x.profit), N('Q' + r, c, x.pct),
-      N('R' + r, c, x.sales), N('S' + r, c, x.net), T('T' + r, c, note));
-    var v = xlVis(x.name), lines = v > 64 ? 3 : (v > 32 ? 2 : 1), nl = Math.ceil(xlVis(note) / 24); if (nl > lines) lines = nl;
-    row(r, cells, lines > 1 ? 27 * lines : 0);
-  });
-  var z = last, lastRow = last;
-  if (!sh.zero) {
-  // สรุปท้ายชีต: ค้างเกิน 60 วัน (DS) แยกสาขา
-  var br = [], bc = {};
-  items.forEach(function (x) { if (x.st === 'DS' && !x.xtra) { if (bc[x.br] === undefined) { bc[x.br] = 0; br.push(x.br); } bc[x.br]++; } });
-  var fr = last + 2, dsN = br.reduce(function (s, b) { return s + bc[b]; }, 0), blank = function (r) { var a = []; for (var c = 0; c < 12; c++) a.push(E(xlCol(c) + r, XL_S.plain)); return a; };
-  var f1 = blank(fr);
-  f1[0] = n ? '<c r="A' + fr + '" s="' + XL_S.plain + '"><f>SUBTOTAL(103,A5:A' + last + ')</f><v>' + n + '</v></c>' : N('A' + fr, XL_S.plain, 0);
-  f1.push(S('M' + fr, XL_S.bL, XL_DSLABEL)); for (var c = 13; c < 20; c++) f1.push(E(xlCol(c) + fr, XL_S.bL));
-  row(fr, f1, 27); merges.push('M' + fr + ':T' + fr);
-  var dateTxt = xlAtTxt(sh.at);                                              // ณ วันที่ dd/mm/yyyy + เวลา (เวลาไทย) ตอนส่งออก
-  var a = fr + 1, z = fr + Math.max(br.length, 0) + 1;                      // แถวสาขา a..z-1, แถว Total = z
-  br.forEach(function (b, i) {
-    var r = a + i, cells = blank(r);
-    cells.push(i === 0 ? S('M' + r, XL_S.bCw, dateTxt) : E('M' + r, XL_S.bCw), E('N' + r, XL_S.bCv), E('O' + r, XL_S.bCv), E('P' + r, XL_S.bCv),
-      S('Q' + r, XL_S.bC, b), E('R' + r, XL_S.bC), N('S' + r, XL_S.bCv, bc[b]), S('T' + r, XL_S.bW, 'รายการ'));
-    row(r, cells, 27); merges.push('Q' + r + ':R' + r);
-  });
-  var tc = blank(z);
-  tc.push(br.length ? E('M' + z, XL_S.bCw) : S('M' + z, XL_S.bCw, dateTxt), E('N' + z, XL_S.bCv), E('O' + z, XL_S.bCv), E('P' + z, XL_S.bCv), S('Q' + z, XL_S.bCn, 'Total'), E('R' + z, XL_S.bCn),
-    br.length ? '<c r="S' + z + '" s="' + XL_S.bCv + '"><f>SUM(S' + a + ':S' + (z - 1) + ')</f><v>' + dsN + '</v></c>' : N('S' + z, XL_S.bCv, 0), S('T' + z, XL_S.b, 'รายการ'));
-  row(z, tc, br.length ? 0 : 54); merges.push('Q' + z + ':R' + z); merges.push('M' + a + ':P' + z);
-  // สรุปรายการที่หักออกจากค้างสต็อก: แยก "ของเสีย" ออกจาก "อื่นๆ" (ของหาย · สินค้าหมดอายุ · รอปรับข้อมูล)
-  lastRow = z;
-  if (sh.adj) {
-    var q = z + 2, A = sh.adj, hd = function (r, a, b2, c, d) { return blank(r).concat([S('M' + r, XL_S.bL, a), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), S('Q' + r, XL_S.bCw, b2), S('R' + r, XL_S.bCw, c), S('S' + r, XL_S.bCw, d), E('T' + r, XL_S.bCv)]); };
-    var ln = function (r, label, o, bold) { return blank(r).concat([S('M' + r, bold ? XL_S.bL : XL_S.bL, label), E('N' + r, XL_S.bL), E('O' + r, XL_S.bL), E('P' + r, XL_S.bL), N('Q' + r, XL_S.bCv, o.n), N('R' + r, XL_S.bCv, o.pcs), N('S' + r, XL_S.bCv, o.val), S('T' + r, XL_S.bW, 'บาท')]); };
-    var tt = blank(q); tt.push(S('M' + q, XL_S.bL, 'สรุปรายการที่หักออกจากค้างสต็อก'));
-    for (var cc = 13; cc < 20; cc++) tt.push(E(xlCol(cc) + q, XL_S.bL));
-    row(q, tt, 27); merges.push('M' + q + ':T' + q);
-    row(q + 1, hd(q + 1, 'ประเภท', 'รายการ', 'ชิ้น', 'มูลค่าทุน'), 27); merges.push('M' + (q + 1) + ':P' + (q + 1));
-    var lines = [['ของเสีย', A.waste], ['ของหาย', A.lost], ['สินค้าหมดอายุ', A.exp], ['รอปรับข้อมูล', A.pend], ['รวมที่หักทั้งหมด', A.all]];
-    lines.forEach(function (l, i) { var r = q + 2 + i; row(r, ln(r, l[0], l[1], i >= 3), 27); merges.push('M' + r + ':P' + r); });
-    lastRow = q + 1 + lines.length;
-  }
-  }
-  var cols = XL_WIDTH.map(function (w, i) { return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }).join('');
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:T' + lastRow + '"/>' +
-    '<sheetViews><sheetView' + (idx === 0 ? ' tabSelected="1"' : '') + ' zoomScale="85" zoomScaleNormal="85" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="27"/><cols>' + cols + '</cols><sheetData>' + rows.join('') + '</sheetData>' +
-    '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
-    '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup paperSize="9" fitToHeight="0" orientation="landscape"/>' + (n ? '<tableParts count="1"><tablePart r:id="rId1"/></tableParts>' : '') + '</worksheet>';
-}
-function xlTable(i, last) {
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><table xmlns="' + XL_NS + '" id="' + (i + 1) + '" name="Table' + (i + 1) + '" displayName="Table' + (i + 1) + '" ref="A4:T' + last + '" totalsRowShown="0"><autoFilter ref="A4:T' + last + '"/>' +
-    '<tableColumns count="20">' + XL_HEAD.map(function (h, k) { return '<tableColumn id="' + (k + 1) + '" name="' + xlEsc(h) + '"/>'; }).join('') + '</tableColumns>' +
-    '<tableStyleInfo name="TableStyleMedium3" showFirstColumn="0" showLastColumn="0" showRowStripes="1" showColumnStripes="0"/></table>';
-}
-/* ---- ZIP (deflate ถ้าเบราว์เซอร์มี CompressionStream ไม่งั้นเก็บแบบไม่บีบอัด) ---- */
-var XL_CRCT = null;
-function xlCrc(u8) {
-  if (!XL_CRCT) { XL_CRCT = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); XL_CRCT[n] = c >>> 0; } }
-  var crc = 0xFFFFFFFF; for (var i = 0; i < u8.length; i++) crc = XL_CRCT[(crc ^ u8[i]) & 255] ^ (crc >>> 8);
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
-async function xlDeflate(u8) {
-  if (typeof CompressionStream === 'undefined') return null;
-  try { var cs = new CompressionStream('deflate-raw'), w = cs.writable.getWriter(); w.write(u8); w.close(); return new Uint8Array(await new Response(cs.readable).arrayBuffer()); } catch (e) { return null; }
-}
-async function xlZip(files) {
-  var enc = new TextEncoder(), now = new Date(), dtime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1), ddate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
-  var out = [], cen = [], off = 0;
-  for (var i = 0; i < files.length; i++) {
-    var f = files[i], raw = enc.encode(f.data), name = enc.encode(f.name), crc = xlCrc(raw), comp = await xlDeflate(raw), body = comp || raw, method = comp ? 8 : 0;
-    var lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, method, true); lh.setUint16(10, dtime, true); lh.setUint16(12, ddate, true);
-    lh.setUint32(14, crc, true); lh.setUint32(18, body.length, true); lh.setUint32(22, raw.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
-    var ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, method, true); ch.setUint16(12, dtime, true); ch.setUint16(14, ddate, true);
-    ch.setUint32(16, crc, true); ch.setUint32(20, body.length, true); ch.setUint32(24, raw.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
-    out.push(new Uint8Array(lh.buffer), name, body); cen.push(new Uint8Array(ch.buffer), name);
-    off += 30 + name.length + body.length;
-  }
-  var csize = cen.reduce(function (s, p) { return s + p.length; }, 0), end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
-  var all = out.concat(cen, [new Uint8Array(end.buffer)]), total = all.reduce(function (s, p) { return s + p.length; }, 0), buf = new Uint8Array(total), pos = 0;
-  all.forEach(function (p) { buf.set(p, pos); pos += p.length; });
-  return buf;
-}
-async function xlsxBuild(sheets) {
-  var ctx = { sst: Object.create(null), sstList: [] }, files = [], N = sheets.length, ct = '', wbSheets = '', wbRels = '', REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-  sheets.forEach(function (sh, i) {
-    files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: xlSheet(sh, ctx, i) });
-    ct += '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
-    if (sh.items.length) {
-      files.push({ name: 'xl/tables/table' + (i + 1) + '.xml', data: xlTable(i, 4 + sh.items.length) });
-      files.push({ name: 'xl/worksheets/_rels/sheet' + (i + 1) + '.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + REL + '/table" Target="../tables/table' + (i + 1) + '.xml"/></Relationships>' });
-      ct += '<Override PartName="/xl/tables/table' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml"/>';
-    }
-    wbSheets += '<sheet name="' + xlEsc(sh.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
-    wbRels += '<Relationship Id="rId' + (i + 1) + '" Type="' + REL + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
-  });
-  wbRels += '<Relationship Id="rId' + (N + 1) + '" Type="' + REL + '/styles" Target="styles.xml"/><Relationship Id="rId' + (N + 2) + '" Type="' + REL + '/sharedStrings" Target="sharedStrings.xml"/>';
-  files.unshift(
-    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
-      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + ct + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>' },
-    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><bookViews><workbookView/></bookViews><sheets>' + wbSheets + '</sheets></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + wbRels + '</Relationships>' },
-    { name: 'xl/styles.xml', data: xlStyles() });
-  files.push({ name: 'xl/sharedStrings.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="' + XL_NS + '" count="' + ctx.sstList.length + '" uniqueCount="' + ctx.sstList.length + '">' + ctx.sstList.map(function (t) { return '<si><t xml:space="preserve">' + xlEsc(t) + '</t></si>'; }).join('') + '</sst>' });
-  return xlZip(files);
-}
-/*XLSX-END*/
-function upTitle(ts) {                                                   // 'รายงานวิเคราะห์การขายสินค้า รายการอัปโหลดวันที่ dd/mm/พ.ศ. เวลา HH:MM น.' (เขตเวลา Asia/Bangkok)
-  if (!ts) return 'รายงานวิเคราะห์การขายสินค้า';
-  var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
-    .formatToParts(new Date(ts)).forEach(function (x) { p[x.type] = x.value; });
-  return 'รายงานวิเคราะห์การขายสินค้า รายการอัปโหลดวันที่ ' + p.day + '/' + p.month + '/' + (+p.year + 543) + ' เวลา ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute + ' น.';
-}
-function synthTitle(rep) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(rep || '');
-  return 'รายงานวิเคราะห์การขายสินค้า' + (m ? ' ปี ' + (+m[1] + 543) + ' ข้อมูลวันที่ ' + m[3] + '/' + m[2] + '/' + (+m[1] + 543) : '');
-}
-/* ---------- ส่งออกภาพรวมและแนวโน้มเป็น PDF (วาดลง canvas ทีละหน้า A4 แนวตั้ง แล้วรวมเป็นไฟล์ PDF) ---------- */
-(function () {
-  var PW = 1240, PH = 1754, MX = 70, MT = 70, MB = 90, CW = PW - MX * 2, FF = "'Sarabun','Noto Sans Thai',Tahoma,sans-serif";
-  var INK = '#2a1f47', MUTE = '#6b6385', LINE = '#ddd6ee', ACC = '#6b5bd0';
-  var KPI_C = { red: '#d64545', amber: '#e0a030', green: '#2e9d6a' };
-  function font(w, px) { return w + ' ' + px + 'px ' + FF; }
-  function wrap(ctx, text, maxW) {
-    var out = [];
-    String(text == null ? '' : text).split('\n').forEach(function (para) {
-      var line = '', brk = -1;
-      for (var i = 0; i < para.length; i++) {
-        line += para[i]; if (para[i] === ' ') brk = line.length;
-        if (ctx.measureText(line).width > maxW && line.length > 1) {
-          var cut = brk > 0 ? brk : line.length - 1;
-          out.push(line.slice(0, cut).trim()); line = line.slice(cut); brk = -1;
-        }
-      }
-      out.push(line.trim());
-    });
-    return out;
-  }
-  function fitText(ctx, text, maxW, w, px, minPx) {
-    var f = px; ctx.font = font(w, f);
-    while (f > minPx && ctx.measureText(text).width > maxW) { f--; ctx.font = font(w, f); }
-    return f;
-  }
-  function jpegBytes(cv) {
-    return new Promise(function (res, rej) {
-      cv.toBlob(function (b) { if (!b) return rej(new Error('สร้างภาพหน้า PDF ไม่สำเร็จ')); b.arrayBuffer().then(function (ab) { res(new Uint8Array(ab)); }, rej); }, 'image/jpeg', 0.92);
-    });
-  }
-  function pdfFromJpegs(jp) {
-    var PWd = (210 / 25.4 * 72).toFixed(2), PHt = (297 / 25.4 * 72).toFixed(2);
-    var enc = new TextEncoder(), parts = [], offs = [], len = 0, N = jp.length;
-    function push(x) { var b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; }
-    function obj(n, fn) { offs[n] = len; push(n + ' 0 obj\n'); fn(); push('\nendobj\n'); }
-    push('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');
-    obj(1, function () { push('<< /Type /Catalog /Pages 2 0 R >>'); });
-    obj(2, function () { push('<< /Type /Pages /Count ' + N + ' /Kids [' + jp.map(function (_, i) { return (3 + 3 * i) + ' 0 R'; }).join(' ') + '] >>'); });
-    jp.forEach(function (j, i) {
-      var p = 3 + 3 * i, c = p + 1, im = p + 2, cs = 'q ' + PWd + ' 0 0 ' + PHt + ' 0 0 cm /Im0 Do Q';
-      obj(p, function () { push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + PWd + ' ' + PHt + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + c + ' 0 R >>'); });
-      obj(c, function () { push('<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream'); });
-      obj(im, function () {
-        push('<< /Type /XObject /Subtype /Image /Width ' + j.w + ' /Height ' + j.h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + j.bytes.length + ' >>\nstream\n');
-        push(j.bytes); push('\nendstream');
-      });
-    });
-    var xref = len, total = 3 * N + 3, x = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
-    for (var n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
-    push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
-    return new Blob(parts, { type: 'application/pdf' });
-  }
-  function raf2() { return new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); }); }
-  function snap(id) {                                   // ภาพกราฟพื้นขาว · ถ้ากราฟไม่มี (ไม่มีข้อมูล) คืนข้อความแทน
-    var ch = CH[id];
-    if (!ch || !ch.canvas || !ch.canvas.width || !ch.canvas.height) {
-      var box = document.getElementById(id) ? document.getElementById(id).parentNode : $('#' + id.replace('ch', 'box'));
-      var note = box && box.querySelector('.cnote');
-      return { text: note ? note.textContent.trim() : 'ไม่มีข้อมูลตามตัวกรองนี้' };
-    }
-    try { ch.resize(); ch.update('none'); } catch (e) {}
-    var src = ch.canvas, c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
-    var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, 0, 0);
-    return { cv: c };
-  }
-
-  async function build(opts) {
-    var prevTab = document.querySelector('[data-work-tab][aria-selected="true"]');
-    var ovTab = $('#ws-stock-tab-overview');
-    var ids = ['chGroup', 'chStatus', 'chAge', 'chTop', 'chTrend'].filter(function (id) { return opts[id]; });
-    var switched = ids.length && prevTab && prevTab !== ovTab;
-    if (switched) { ovTab.click(); await raf2(); await new Promise(function (r) { setTimeout(r, 350); }); }
-    var snaps = {};
-    try { ids.forEach(function (id) { snaps[id] = snap(id); }); }
-    finally { if (switched && prevTab) prevTab.click(); }
-
-    if (document.fonts && document.fonts.load) {
-      try { await Promise.all([document.fonts.load('400 24px Sarabun', 'ทดสอบ'), document.fonts.load('600 24px Sarabun', 'ทดสอบ'), document.fonts.load('700 24px Sarabun', 'ทดสอบ')]); await document.fonts.ready; } catch (e) {}
-    }
-    var pages = [], cv, ctx, y;
-    function newPage(cont) {
-      cv = document.createElement('canvas'); cv.width = PW; cv.height = PH; ctx = cv.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH); ctx.textBaseline = 'alphabetic';
-      pages.push(cv); y = MT;
-      if (cont) { ctx.fillStyle = MUTE; ctx.font = font(500, 22); ctx.fillText('ภาพรวมและแนวโน้มสินค้าค้างสต็อก (ต่อ)', MX, y + 8); y += 36; }
-    }
-    function ensure(h) { if (y + h > PH - MB) newPage(true); }
-    function text(t, px, w, color, x, maxW, lh) {
-      ctx.font = font(w, px); ctx.fillStyle = color;
-      var lines = wrap(ctx, t, maxW || CW); lh = lh || Math.round(px * 1.35);
-      lines.forEach(function (l, i) { ctx.fillText(l, x == null ? MX : x, y + px + i * lh); });
-      y += lines.length * lh; return lines.length;
-    }
-    function heading(t, need) {
-      ensure(need || 80); y += 18; ctx.fillStyle = ACC; ctx.fillRect(MX, y, 8, 36);
-      ctx.fillStyle = INK; ctx.font = font(700, 30); ctx.fillText(t, MX + 22, y + 28); y += 56;
-    }
-
-    newPage(false);
-    var scope = [];
-    scope.push('สาขา: ' + (F.br || 'ทุกสาขา'));
-    var gk = Object.keys(F.gm).filter(function (g) { return F.gm[g]; });
-    scope.push('หมวด: ' + (gk.length ? gk.map(function (g) { return typeof gl === 'function' ? gl(g) : g; }).join(', ') : 'ทุกหมวด'));
-    var stNames = ST_DEF.filter(function (s) { return F.st[s.k]; }).map(function (s) { return s.k === 'NA' ? 'ไม่มีข้อมูล' : s.k; });
-    scope.push('ช่วงอายุ: ' + (stNames.length ? stNames.join('+') : 'ทุกช่วงอายุ'));
-    ctx.fillStyle = ACC; ctx.fillRect(0, 0, PW, 16);
-    text('ภาพรวมและแนวโน้มสินค้าค้างสต็อก', 46, 700, INK, MX, CW);
-    y += 6;
-    text(scope.join('   ·   '), 24, 500, MUTE, MX, CW);
-    var m = D.meta;
-    text('ส่งออกเมื่อ ' + fmtTs(Date.now()) + (m ? '   ·   ข้อมูลอัปเดตล่าสุด ' + fmtTs(m.ts) + (m.who ? ' โดย ' + m.who : '') : '') + (D.ver === 'prev' ? '   ·   ฉบับก่อนหน้า' : ''), 22, 400, MUTE, MX, CW);
-    y += 14;
-
-    /* KPI */
-    var ks = !opts.kpi ? [] : Array.prototype.slice.call(document.querySelectorAll('#kpis .kpi')).map(function (k) {
-      var vEl = k.querySelector('.v'), un = vEl && vEl.querySelector('small');
-      var cls = ['red', 'amber', 'green'].filter(function (c) { return k.classList.contains(c); })[0] || '';
-      return { c: KPI_C[cls] || ACC, l: (k.querySelector('.l') || {}).textContent || '', v: vEl ? vEl.childNodes[0].textContent : '', u: un ? un.textContent : '', s: (k.querySelector('.s') || {}).textContent || '' };
-    });
-    if (ks.length) {
-      var gap = 18, bw = Math.floor((CW - gap * 2) / 3);
-      for (var r0 = 0; r0 < ks.length; r0 += 3) {
-        var row = ks.slice(r0, r0 + 3), hs = row.map(function (k) {
-          ctx.font = font(500, 21); var a = wrap(ctx, k.l, bw - 40).length;
-          ctx.font = font(400, 19); var b = k.s ? wrap(ctx, k.s, bw - 40).length : 0;
-          return 24 + a * 28 + 64 + b * 25 + 18;
-        }), bh = Math.max.apply(null, hs);
-        ensure(bh + 18);
-        row.forEach(function (k, i) {
-          var bx = MX + i * (bw + gap);
-          ctx.fillStyle = '#f7f5fc'; ctx.fillRect(bx, y, bw, bh); ctx.fillStyle = k.c; ctx.fillRect(bx, y, 7, bh);
-          var yy = y + 20; ctx.fillStyle = MUTE; ctx.font = font(500, 21);
-          wrap(ctx, k.l, bw - 40).forEach(function (l) { ctx.fillText(l, bx + 24, yy + 18); yy += 28; });
-          ctx.fillStyle = INK; fitText(ctx, k.v, bw - 150, 700, 44, 28); ctx.fillText(k.v, bx + 24, yy + 46);
-          var vw = ctx.measureText(k.v).width; ctx.font = font(500, 21); ctx.fillStyle = MUTE; ctx.fillText(k.u, bx + 24 + vw + 8, yy + 46);
-          yy += 64; ctx.font = font(400, 19); ctx.fillStyle = MUTE;
-          if (k.s) wrap(ctx, k.s, bw - 40).forEach(function (l) { ctx.fillText(l, bx + 24, yy + 16); yy += 25; });
-        });
-        y += bh + 18;
-      }
-    }
-
-    function chartBlock(title, note, sn) {
-      var w = CW, h = sn.cv ? Math.round(sn.cv.height * w / sn.cv.width) : 90;
-      if (sn.cv && h > 760) { h = 760; w = Math.round(sn.cv.width * h / sn.cv.height); }
-      ensure(34 + (note ? 30 : 0) + h + 16);
-      ctx.fillStyle = INK; ctx.font = font(700, 26); ctx.fillText(title, MX, y + 26); y += 34;
-      if (note) { ctx.fillStyle = MUTE; ctx.font = font(400, 20); ctx.fillText(note, MX, y + 18); y += 30; }
-      if (sn.cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(MX, y, CW, h + 12); ctx.drawImage(sn.cv, MX + Math.round((CW - w) / 2), y + 6, w, h); y += h + 28; }
-      else { ctx.fillStyle = MUTE; ctx.font = font(400, 22); ctx.fillText(sn.text, MX, y + 24); y += 56; }
-    }
-    if (opts.chGroup || opts.chStatus || opts.chAge || opts.chTop) heading('ภาพรวมมูลค่าสต็อก', 560);
-    if (opts.chGroup) chartBlock('มูลค่าทุนทั้งหมดแยกตามหมวด', '', snaps.chGroup);
-    if (opts.chStatus || opts.chAge) {
-      var half = Math.floor((CW - 24) / 2), pair = [];
-      if (opts.chStatus) pair.push(['สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า', snaps.chStatus]);
-      if (opts.chAge) pair.push(['ช่วงอายุสินค้าที่ค้าง (มูลค่าทุน)', snaps.chAge]);
-      var hh = function (sn) { return sn.cv ? Math.round(sn.cv.height * half / sn.cv.width) : 90; };
-      var ph = Math.max.apply(null, pair.map(function (a) { return hh(a[1]); }));
-      ensure(34 + ph + 30);
-      pair.forEach(function (a, k) {
-        var bx = MX + k * (half + 24);
-        ctx.fillStyle = INK; fitText(ctx, a[0], half, 700, 24, 17); ctx.fillText(a[0], bx, y + 24);
-        if (a[1].cv) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.strokeRect(bx, y + 34, half, hh(a[1]) + 12); ctx.drawImage(a[1].cv, bx, y + 40, half, hh(a[1])); }
-        else { ctx.fillStyle = MUTE; ctx.font = font(400, 20); ctx.fillText(a[1].text, bx, y + 64); }
-      });
-      y += 34 + ph + 30;
-    }
-    if (opts.chTop) chartBlock('10 อันดับสินค้ามูลค่าค้างสูงสุด', '', snaps.chTop);
-    if (opts.chTrend) {
-      heading('แนวโน้มตามวันที่อัปโหลด', 640);
-      var trSel = $('#trMode'), trTxt = trSel && trSel.options[trSel.selectedIndex] ? trSel.options[trSel.selectedIndex].text : '';
-      chartBlock('แนวโน้มมูลค่าทุน — ' + trTxt, ($('#trNote') || {}).textContent ? $('#trNote').textContent.trim() : '', snaps.chTrend);
-    }
-
-    /* ตาราง: head/body/foot เป็นอาร์เรย์ของ {t,num} · widths รวมเท่า CW · wrapCols = คอลัมน์ที่ตัดบรรทัดได้ */
-    function drawTable(head, body, foot, widths, wrapCols) {
-      wrapCols = wrapCols || [0];
-      var xs = [], acc = 0; widths.forEach(function (w) { xs.push(acc); acc += w; });
-      var drawRow = function (cs, kind) {
-        var bold = kind === 'h' || kind === 'f', ls = 1;
-        cs.forEach(function (cc, i) { if (kind === 'h' || wrapCols.indexOf(i) >= 0) { ctx.font = font(bold ? 700 : 400, 19); ls = Math.max(ls, wrap(ctx, cc.t, widths[i] - 20).length); } });
-        var rh = ls * 26 + 16; ensure(rh);
-        if (kind === 'h') { ctx.fillStyle = '#efeaf8'; ctx.fillRect(MX, y, CW, rh); }
-        else if (kind === 'f') { ctx.fillStyle = '#f7f5fc'; ctx.fillRect(MX, y, CW, rh); }
-        ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(MX, y + rh); ctx.lineTo(MX + CW, y + rh); ctx.stroke();
-        cs.forEach(function (cc, i) {
-          var bx = MX + xs[i], tx = cc.num ? bx + widths[i] - 10 : bx + 10;
-          ctx.fillStyle = INK; ctx.textAlign = cc.num ? 'right' : 'left';
-          if (kind === 'h' || wrapCols.indexOf(i) >= 0) {
-            ctx.font = font(bold ? 700 : (i === 0 ? 600 : 400), 19);
-            wrap(ctx, cc.t, widths[i] - 20).forEach(function (l, k) { ctx.fillText(l, tx, y + 26 + k * 26); });
-          } else { fitText(ctx, cc.t, widths[i] - 20, bold ? 700 : 400, 19, 13); ctx.fillText(cc.t, tx, y + 26); }
-          ctx.textAlign = 'left';
-        });
-        y += rh;
-      };
-      if (head.length) drawRow(head, 'h');
-      body.forEach(function (cs) { if (y + 60 > PH - MB) { newPage(true); if (head.length) drawRow(head, 'h'); } drawRow(cs, 'b'); });
-      if (foot) drawRow(foot, 'f');
-    }
-
-    /* ตารางสรุปแยกตามหมวด */
-    var tb = $('#gt');
-    if (opts.gt && tb && tb.rows.length) {
-      heading('สรุปแยกตามหมวด', 260);
-      var cells = function (tr) { return Array.prototype.map.call(tr.cells, function (c) { return { t: c.textContent.replace(/[▲▼↑↓]/g, '').replace(/\s+/g, ' ').trim(), num: c.classList.contains('num') }; }); };
-      var head = tb.tHead ? cells(tb.tHead.rows[0]) : [], body = [];
-      Array.prototype.forEach.call(tb.tBodies[0] ? tb.tBodies[0].rows : [], function (tr) { body.push(cells(tr)); });
-      var foot = tb.tFoot && tb.tFoot.rows[0] ? cells(tb.tFoot.rows[0]) : null;
-      var nc = head.length || (body[0] || []).length, w0 = Math.round(CW * 0.22), wr = Math.floor((CW - w0) / Math.max(1, nc - 1)), wd = [w0];
-      for (var c = 1; c < nc; c++) wd.push(wr);
-      drawTable(head, body, foot, wd, [0]);
-    }
-
-    /* รายการสินค้า (ตามตัวกรองที่เลือก) */
-    if (opts.items) {
-      var list = (typeof sortedItems === 'function' ? sortedItems(LAST_RAW) : LAST_RAW);
-      heading('รายการสินค้า (ตามตัวกรอง) · ' + nf0.format(list.length) + ' รายการ', 220);
-      var wt = [80, 150, 310, 80, 85, 95, 115, 75, 85], tw = wt.reduce(function (a, b) { return a + b; }, 0), wi = wt.map(function (v) { return Math.floor(v * CW / tw); });
-      var ih = ['หมวด', 'รหัส', 'ชื่อสินค้า', 'สาขา', 'คงเหลือ', 'ต้นทุน/หน่วย', 'มูลค่าทุน', 'ค้าง (วัน)', 'ช่วงอายุ'].map(function (t, i) { return { t: t, num: [4, 5, 6, 7].indexOf(i) >= 0 }; });
-      var ib = list.map(function (x) {
-        return [{ t: String(x.g || '') }, { t: String(x.code == null ? '' : x.code) }, { t: String(x.name || '') }, { t: String(x.br || '') },
-          { t: qtyF(x.qty), num: 1 }, { t: nf2.format(x.cost || 0), num: 1 }, { t: money(x.vc), num: 1 }, { t: x.days == null ? '–' : nf0.format(x.days), num: 1 },
-          { t: x.sk === 'NA' ? 'ไม่มีข้อมูล' : String(x.sk || '') }];
-      });
-      drawTable(ih, ib, null, wi, [2]);
-    }
-
-    var total = pages.length, jp = [];
-    for (var i = 0; i < total; i++) {
-      var c2 = pages[i].getContext('2d'); c2.fillStyle = MUTE; c2.font = font(400, 20); c2.textAlign = 'left';
-      c2.fillText('CMUCOOP · สินค้าค้างสต็อก', MX, PH - 40);
-      c2.textAlign = 'right'; c2.fillText('หน้า ' + (i + 1) + ' / ' + total, PW - MX, PH - 40); c2.textAlign = 'left';
-      jp.push({ bytes: await jpegBytes(pages[i]), w: PW, h: PH });
-    }
-    return pdfFromJpegs(jp);
-  }
-
-  window.stockPdfRun = function (btn, opts) {            // เรียกจากหน้าต่างดาวน์โหลดข้อมูล · คืน true ถ้าสำเร็จ
-    if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return Promise.resolve(false); }
-    if (!D.items.length) { toast('ไม่มีข้อมูลให้ส่งออก', true); return Promise.resolve(false); }
-    var label = btn.textContent; btn.textContent = 'กำลังสร้าง PDF…';
-    var restore = function (ok) { btn.textContent = label; return ok === true; };
-    return busy(btn, async function () {
-      var blob = await build(opts);
-      var iso = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-      var a = document.createElement('a'), url = URL.createObjectURL(blob);
-      a.href = url; a.download = 'ภาพรวมสินค้าค้างสต็อก_' + (F.br ? F.br + '_' : '') + iso + '.pdf'; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
-      toast('ดาวน์โหลด PDF แล้ว · ' + Math.round(blob.size / 1024) + ' KB');
+  if (mode === 'hist_item') {
+    const day = str(payload.dayKey), ts = Number(payload.ts) || 0;
+    const raw = (await stateJson(C, 'STOCK_HISTORY', [])) || [];
+    const next = raw.filter(x => {
+      if (!x) return false;
+      if (day && stockDayKey(x.ts) === day) return false;
+      if (ts && Number(x.ts) === ts) return false;
       return true;
-    }).then(restore, restore);
-  };
-  $('#bOvPdf').addEventListener('click', function () {   // ปุ่มในแท็บภาพรวม: เปิดหน้าต่างดาวน์โหลดโดยเลือก PDF ไว้ให้
-    $('#bXlsx').click();
-    var r = document.querySelector('input[name=exFmt][value=pdf]'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-})();
-$('#bXlsx').addEventListener('click', function () {
-  if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return; }
-  if (!D.items.length && !D.zero.length && !D.cut.length && !D.lost.length && !D.exp.length && !D.pend.length && !D.waste.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
-  var gsN = function (l) { var o = {}; l.forEach(function (x) { o[x.g] = 1; }); return Object.keys(o).length; };
-  $('#exN1').textContent = nf0.format(LAST_RAW.length) + ' รายการ · ' + gsN(LAST_RAW) + ' หมวด';
-  $('#exN2').textContent = nf0.format(D.items.length) + ' รายการ · ' + D.groups.length + ' หมวด';
-  var bs = D.branches.filter(Boolean), sel = F.br && bs.indexOf(F.br) >= 0 ? F.br : (bs[0] || '');         // ค่าเริ่มต้น = สาขาที่กรองอยู่ในหน้าจอ
-  $('#exBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-  $('#exBr').value = sel; $('#exBr').disabled = !bs.length;
-  document.querySelector('input[name=exMode][value=branch]').disabled = !bs.length;
-  exBrNote(); renderExExtra();
-  $('#exErr').textContent = '';
-  var fx = document.querySelector('input[name=exFmt][value=xlsx]'); fx.checked = true; exSetFmt();
-  $('#exDlg').classList.remove('hidden');
-});
-function renderExExtra() {                                              // ตัวเลือกแท็กตามที่มีอยู่จริงตอนนี้ (ไม่รวมแท็กของระบบที่ลบแล้ว)
-  var ks = ['lost', 'exp', 'waste', 'pend', 'hard', 'zero', 'neg'].filter(function (k) { return !CT.removed[k]; }).concat(ctKeys());
-  $('#exExtra').innerHTML = ks.map(function (k) {
-    return '<label class="chk-pill"><input data-exx="' + k + '"' + (k === 'zero' || k === 'neg' ? ' checked' : '') + ' type="checkbox"/><span>' + esc(TAGS[k].t) + '</span></label>';
-  }).join('');
-}
-function exTagItems(k, mode, brName) {                                  // สินค้าที่มีแท็ก k ตามขอบเขตการส่งออก (ตัวสินค้าจริง ไม่ใช่แถวย่อ)
-  var bk = brKey(brName), fbk = brKey(F.br), hasG = Object.keys(F.gm).length > 0, out = [];
-  var inScope = function (x) { return mode === 'all' || (mode === 'branch' ? brKey(x.br) === bk : ((!fbk || brKey(x.br) === fbk) && (!hasG || F.gm[x.g]))); };
-  if (k === 'zero' || k === 'neg') {
-    var zl = mode === 'all' ? (D.zero || []) : (mode === 'branch' ? (D.zero || []).filter(function (x) { return brKey(x.br) === bk; }) : zeroFiltered());
-    return zl.filter(function (x) { return k === 'neg' ? x.qty < 0 : !(x.qty < 0); });
-  }
-  if (AKI[k]) {
-    (D[k] || []).forEach(function (e) {
-      (e.hit || []).forEach(function (h) {
-        if (!inScope({ g: h.g, br: h.br })) return;
-        var it = findRowItem(e.code, h.br, h.g); if (it) out.push(it);
-      });
     });
-    return out;
+    await kvSet(C, 'STOCK_HISTORY', JSON.stringify(next));
+    await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบประวัติสถิติแนวโน้ม', 'ลบข้อมูลวันที่ ' + (day || ts));
+    return { ok: true, count: next.length };
   }
-  return D.items.concat(D.cut || [], D.zero || []).filter(function (x) { return inScope(x) && hasTag(x, k); });
-}
-function exSetFmt() {
-  var pdf = document.querySelector('input[name=exFmt]:checked').value === 'pdf';
-  $('#exXlsxBox').classList.toggle('hidden', pdf); $('#exPdfBox').classList.toggle('hidden', !pdf);
-  $('#exGo').textContent = pdf ? 'ดาวน์โหลด .pdf' : 'ดาวน์โหลด .xlsx'; $('#exErr').textContent = '';
-}
-document.querySelectorAll('input[name=exFmt]').forEach(function (r) { r.addEventListener('change', exSetFmt); });
-function exBranchItems() { var k = brKey($('#exBr').value); return D.items.filter(function (x) { return brKey(x.br) === k; }); }
-function exAdjItems(kind, mode, brName) {                               // แปลงรายการที่หัก (ของหาย/หมดอายุ/ของเสีย/รอปรับ) เป็นแถวรูปแบบเดียวกับชีตสินค้า
-  var entries = D[kind] || [], out = [], bk = brKey(brName), fbk = brKey(F.br), hasG = Object.keys(F.gm).length > 0, q = (F.q || '').trim().toLowerCase();
-  entries.forEach(function (e) {
-    var hits = (e.hit || []).slice();
-    if (mode === 'branch') hits = hits.filter(function (y) { return brKey(y.br) === bk; });
-    else if (mode === 'filter') hits = hits.filter(function (y) { return (!hasG || F.gm[y.g]) && (!fbk || brKey(y.br) === fbk); });
-    var note = [e.note ? String(e.note) : '', e.who ? 'บันทึกโดย ' + e.who : ''].filter(Boolean).join(' · ');
-    if (hits.length) {
-      hits.forEach(function (y) { out.push({ g: y.g, code: e.code, name: y.name || e.name || '', br: y.br, qty: y.qty, cost: y.cost, note: note }); });
-    } else if (mode === 'all' || (mode === 'branch' && (!e.br || brKey(e.br) === bk)) || (mode === 'filter' && (!fbk || !e.br || brKey(e.br) === fbk) && !hasG && (!q || (e.code + ' ' + (e.name || '') + ' ' + (e.note || '')).toLowerCase().indexOf(q) >= 0))) {
-      out.push({ g: e.g || '', code: e.code, name: e.name || '', br: e.br || '', qty: e.qty, cost: null, note: note + (note ? ' · ' : '') + 'ไม่พบในค้างสต็อก' });
+  if (mode === 'prev_group') {
+    const gs = Array.isArray(payload.groups) ? payload.groups.map(g => str(g).trim().toUpperCase()).filter(Boolean) : [];
+    const state = await stockState(C), ops = [];
+    const targets = gs.length ? gs : Object.keys(state);
+    let n = 0;
+    targets.forEach(g => {
+      if (state[g] && state[g].prev) {
+        state[g].prev = null;
+        ops.push(stmt(C, 'DELETE FROM stock_grp WHERE g=? AND ver=1', g));
+        n++;
+      }
+    });
+    if (ops.length) {
+      ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+      await batch(C, ops);
+      await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบข้อมูลย้อนหลังฉบับก่อนหน้า', n + ' หมวด (' + targets.slice(0, 10).join(',') + ')');
     }
-  });
-  out.sort(function (a, b) { return a.g === b.g ? String(a.code).localeCompare(String(b.code)) : (a.g < b.g ? -1 : 1); });
-  out.forEach(function (x, i) { x.i = i; });
+    return { ok: true, removed: n };
+  }
+  throw new Error('คำสั่งลบประวัติไม่ถูกต้อง');
+};
+
+async function stockHardLoad(C) {
+  const raw = (await stateJson(C, 'STOCK_HARD', {})) || {}, out = Object.create(null);
+  Object.keys(raw).forEach(k => { const e = raw[k]; if (k && e && typeof e === 'object') out[k] = { code: str(e.code), ts: e.ts || 0, who: str(e.who), note: str(e.note).slice(0, 100) }; });
   return out;
 }
-function exBrNote() {
-  var l = $('#exBr').value ? exBranchItems() : [], o = {}; l.forEach(function (x) { o[x.g] = 1; });
-  $('#exN3').textContent = $('#exBr').value ? ' ' + nf0.format(l.length) + ' รายการ · ' + Object.keys(o).length + ' หมวด' : ' ไม่มีข้อมูลสาขา';
-}
-$('#exBr').addEventListener('change', function () { document.querySelector('input[name=exMode][value=branch]').checked = true; exBrNote(); });
-$('#exCancel').addEventListener('click', function () { closeDlg('#exDlg'); });
-$('#exGo').addEventListener('click', function () {
-  if (document.querySelector('input[name=exFmt]:checked').value === 'pdf') {
-    var po = {}; document.querySelectorAll('#exPdfSel [data-pdf]').forEach(function (c) { if (c.checked) po[c.dataset.pdf] = 1; });
-    if (!Object.keys(po).length) { $('#exErr').textContent = 'กรุณาติ๊กเลือกอย่างน้อย 1 ส่วนที่จะส่งออก'; return; }
-    $('#exErr').textContent = '';
-    window.stockPdfRun(this, po).then(function (ok) { if (ok) closeDlg('#exDlg'); });
-    return;
-  }
-  var mode = document.querySelector('input[name=exMode]:checked').value, brName = mode === 'branch' ? $('#exBr').value : '';
-  var list = mode === 'all' ? D.items : (mode === 'branch' ? exBranchItems() : LAST_RAW);
-  var exX = {}; document.querySelectorAll('#exExtra [data-exx]').forEach(function (c) { if (c.checked) exX[c.dataset.exx] = 1; });
-  if (!list.length && !Object.keys(exX).length) { $('#exErr').textContent = mode === 'branch' ? 'ไม่มีรายการของสาขานี้' : 'ไม่มีรายการตามตัวกรองนี้'; return; }
-  busy(this, async function () {
-    var by = {}, seen = {}, ik = function (x) { return x.g + '|' + codeKey(x.code) + '|' + brKey(x.br); };
-    list.forEach(function (x) { seen[ik(x)] = 1; (by[x.g] || (by[x.g] = [])).push(x); });
-    var tagCnt = [], nExtra = 0;                                         // รายการตามแท็กที่เลือก → ใส่ในชีตหมวดเดียวกัน (ต่อท้ายรายการปกติ)
-    Object.keys(exX).forEach(function (k) {
-      if (!TAGS[k]) return;
-      var added = 0;
-      exTagItems(k, mode, brName).forEach(function (x) {
-        if (seen[ik(x)]) return; seen[ik(x)] = 1;
-        var c = Object.assign({}, x); c.xtra = true; c.i = 1000000 + (x.i || 0);
-        (by[x.g] || (by[x.g] = [])).push(c); added++;
-      });
-      if (added) { tagCnt.push(TAGS[k].t + ' ' + nf0.format(added)); nExtra += added; }
-    });
-    var sheets = Object.keys(by).sort().map(function (g) {
-      var items = by[g].slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
-      if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
-      return { name: g, title: upTitle(m.ts), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
-    });
-    var zl = [], adjCnt = tagCnt;
-    if (!sheets.length) { $('#exErr').textContent = 'ไม่มีรายการให้ส่งออก'; return; }
-    var u8 = await xlsxBuild(sheets);
-    var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + thaiDayIso() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    closeDlg('#exDlg'); toast('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (nExtra ? ' + รายการตามแท็ก ' + nf0.format(nExtra) + ' รายการ (' + adjCnt.join(' · ') + ')' : ''));
-  });
-});
 
-/* ---------- อัปโหลด Excel (Admin) — แทนที่เฉพาะหมวดที่เลือก ---------- */
-var UPFILES = null;     // ไฟล์ที่เลือกไว้ล่าสุด (อ่านซ้ำเมื่อเปลี่ยนสาขา)
-var UP = null;          // { branch:'…',  groups:{G01:{g,rep,title,rows,file}}, files:[…], pick:{G01:true}, skipped:[…], dup, mismatch, read, sheets, conflicts:[…] }
-function loadXlsx() {
-  if (typeof XLSX !== 'undefined') return Promise.resolve();
-  return new Promise(function (res, rej) {
-    var s = document.createElement('script'); s.src = 'assets/vendor/xlsx.full.min.js';
-    s.onload = res; s.onerror = function () { rej(new Error('โหลดตัวอ่าน Excel ไม่สำเร็จ ตรวจอินเทอร์เน็ตแล้วลองใหม่')); }; document.head.appendChild(s);
+API.stockHardSet = async (C, token, codes, on, note) => {
+  const me = await stockEditAuth(C, token), list = (Array.isArray(codes) ? codes : [codes]).map(x => str(x).trim().slice(0, 40)).filter(Boolean).slice(0, 500);
+  if (!list.length) throw new Error('ไม่พบรหัสสินค้า');
+  const hard = await stockHardLoad(C), ts = now(), nt = str(note).replace(/\s+/g, ' ').slice(0, 100);
+  let n = 0;
+  list.forEach(code => {
+    const k = stockCodeKey(code); if (!k) return;
+    if (on) { if (!hard[k] || hard[k].note !== nt) n++; hard[k] = { code, ts, who: me.name, note: nt }; }
+    else if (hard[k]) { delete hard[k]; n++; }
   });
-}
-function upBranch() { var s = $('#upBr').value; return s === '__new__' ? $('#upBrNew').value.replace(/\s+/g, ' ').trim().slice(0, 20) : s; }
-function setDropState() { var off = !upBranch(); $('#drop').classList.toggle('off', off); $('#drop').setAttribute('aria-disabled', off ? 'true' : 'false'); }
-function fillUpBr() {                                // สาขาที่รู้จัก = สาขาในข้อมูลที่โหลดอยู่ + สาขาที่บันทึกไว้ในเมตาของแต่ละหมวด
-  var set = {};
-  D.branches.forEach(function (k) { if (k) set[k] = 1; });
-  Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k) set[k] = 1; }); });
-  $('#upBr').innerHTML = '<option value="">— เลือกสาขา —</option>' + Object.keys(set).sort().map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '<option value="__new__">+ เพิ่มสาขาใหม่…</option>';
-  $('#upBr').value = ''; $('#upBrNew').value = ''; $('#upBrNewW').classList.add('hidden');
-}
-function clearPreview() { UP = null; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); }
-function onBranchChange() {                          // เปลี่ยนสาขา → อ่านไฟล์เดิมใหม่ตามสาขานั้น (ถ้ามีไฟล์แล้ว)
-  setDropState(); $('#upErr').textContent = '';
-  if (UPFILES && upBranch()) readFiles(UPFILES); else clearPreview();
-}
-function needBranch() { if (upBranch()) return false; $('#upErr').textContent = 'กรุณาเลือกสาขาก่อนเลือกไฟล์'; (($('#upBr').value === '__new__') ? $('#upBrNew') : $('#upBr')).focus(); return true; }
-$('#upBr').addEventListener('change', function () {
-  $('#upBrNewW').classList.toggle('hidden', this.value !== '__new__');
-  if (this.value === '__new__') $('#upBrNew').focus();
-  onBranchChange();
-});
-$('#upBrNew').addEventListener('change', onBranchChange);
-$('#upBrNew').addEventListener('input', setDropState);
-function brMeta(g, br) {                              // ข้อมูลที่มีในระบบของสาขานี้ในหมวดนั้น { count, rep } หรือ null ถ้ายังไม่มี
-  var m = D.gm[g] && D.gm[g].cur; if (!m) return null;
-  var k = brKey(br);
-  if (m.br) { var key = Object.keys(m.br).filter(function (x) { return brKey(x) === k; })[0]; return key ? m.br[key] : null; }
-  if (D.ver !== 'cur') return null;                  // ข้อมูลเดิมก่อนมีเมตารายสาขา → นับจากแถวที่โหลดอยู่
-  var rows = D.items.filter(function (x) { return x.g === g && brKey(x.br) === k; });
-  return rows.length ? { count: rows.length, rep: rows.reduce(function (a, x) { return x.rep > a ? x.rep : a; }, '') } : null;
-}
-function openUpload() {
-  UP = null; UPFILES = null; $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); $('#upFile').value = '';
-  fillUpBr(); setDropState();
-  $('#upDlg').classList.remove('hidden');
-}
-function closeDlg(id) { $(id).classList.add('hidden'); }
-$('#bUpload').addEventListener('click', openUpload);
-$('#upCancel').addEventListener('click', function () { closeDlg('#upDlg'); });
-$('#drop').addEventListener('click', function () { if (!needBranch()) $('#upFile').click(); });
-$('#drop').addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!needBranch()) $('#upFile').click(); } });
-['dragenter', 'dragover'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.add('over'); }); });
-['dragleave', 'drop'].forEach(function (ev) { $('#drop').addEventListener(ev, function (e) { e.preventDefault(); this.classList.remove('over'); }); });
-$('#drop').addEventListener('drop', function (e) { var fs = e.dataTransfer && e.dataTransfer.files; if (fs && fs.length) { if (needBranch()) return; readFiles(fs); } });
-$('#upFile').addEventListener('change', function () { if (this.files.length) readFiles(this.files); });
-async function readFiles(list) {
-  var files = Array.prototype.slice.call(list), lab = $('#drop').firstElementChild, labOld = lab.textContent, branch = upBranch();
-  $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); UP = null;
-  if (!branch) { $('#upErr').textContent = 'กรุณาเลือกสาขาก่อนเลือกไฟล์'; return; }
-  UPFILES = files;
-  var big = files.filter(function (f) { return f.size > 25 * 1024 * 1024; })[0];
-  if (big) { $('#upErr').textContent = 'ไฟล์ ' + big.name + ' ใหญ่เกิน 25 MB'; return; }
-  try {
-    await loadXlsx();
-    var U = { branch: branch, groups: {}, files: [], skipped: [], dup: 0, mismatch: 0, other: 0, brs: {}, read: 0, sheets: 0, conflicts: [], pick: {} };
-    for (var k = 0; k < files.length; k++) {
-      var f = files[k];
-      lab.textContent = 'กำลังอ่านไฟล์ ' + f.name + ' …';
-      var buf = await f.arrayBuffer();
-      await new Promise(function (r) { setTimeout(r, 30); });                 // ให้หน้าจอแสดงข้อความก่อนเริ่มอ่าน
-      var wb = XLSX.read(buf, { type: 'array' });
-      var sheets = wb.SheetNames.map(function (n) { return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) }; });
-      var r = parseSheets(sheets, branch);
-      U.files.push(f.name); U.read += r.info.read; U.dup += r.info.dup; U.mismatch += r.info.mismatch; U.other += r.info.other;
-      Object.keys(r.info.brs).forEach(function (b) { U.brs[b] = (U.brs[b] || 0) + r.info.brs[b]; });
-      U.sheets += r.info.sheets.filter(function (s) { return !s.note; }).length;
-      r.info.sheets.forEach(function (s) { if (s.note && s.name) U.skipped.push(files.length > 1 ? f.name + ' / ' + s.name : s.name); });
-      Object.keys(r.groups).forEach(function (g) {
-        var n = r.groups[g], o = U.groups[g]; n.file = f.name;
-        if (o) { U.conflicts.push(g); if (n.rep >= o.rep) U.groups[g] = n; } else U.groups[g] = n;      // หมวดเดียวกันอยู่หลายไฟล์ → ใช้อันที่วันที่รายงานใหม่กว่า
-      });
-    }
-    if (!Object.keys(U.groups).length) {
-      var found = Object.keys(U.brs);
-      if (found.length) throw new Error('ไม่พบข้อมูลของสาขา "' + branch + '" ในไฟล์ (จะไม่แตะข้อมูลของสาขานี้) — สาขาที่พบในไฟล์: ' + found.map(function (b) { return b + ' (' + nf0.format(U.brs[b]) + ' แถว)'; }).join(', ') + ' · ตรวจว่าเลือกสาขาถูกต้อง');
-      throw new Error('ไม่พบข้อมูลสินค้าในไฟล์ — ตรวจว่าไฟล์มีหัวคอลัมน์ "ชื่อสินค้า", "คงเหลือ", "ต้นทุน"');
-    }
-    Object.keys(U.groups).forEach(function (g) {                              // ค่าเริ่มต้น: ติ๊กทุกหมวด ยกเว้นหมวดที่รายงานเก่ากว่าที่มีในระบบ (ของสาขานี้)
-      var cur = brMeta(g, branch), n = U.groups[g];
-      U.pick[g] = !(cur && cur.rep && n.rep && n.rep < cur.rep);
-    });
-    UP = U; showPreview();
-  } catch (e) { $('#upErr').textContent = e.message; }
-  lab.textContent = labOld;
-}
-/* ประมาณการหักของหาย/หมดอายุกับแถวในไฟล์ที่กำลังอัปโหลด (ยอดจริงคำนวณที่หลังบ้านรวมทุกสาขาตอนบันทึก) → [[แถว, จำนวนที่เหลือ]] + จำนวนแถวที่ถูกหัก */
-function adjPreview(rows, branch) {
-  var by = {}, bk = codeKey(branch), out = [], nAdj = 0;
-  ['lost', 'exp', 'pend', 'waste'].forEach(function (kind) {
-    (D[kind] || []).forEach(function (x) {
-      var ck = codeKey(x.code), eb = codeKey(x.br); if (!ck || (eb && eb !== bk)) return;
-      (by[ck] || (by[ck] = [])).push({ bk: eb, left: x.qty == null ? Infinity : x.qty });
-    });
-  });
-  Object.keys(by).forEach(function (k) { by[k].sort(function (a, b) { return (b.bk ? 1 : 0) - (a.bk ? 1 : 0); }); });
-  rows.forEach(function (r) {
-    var l = by[codeKey(r[1])], q = r[4];
-    if (l) l.forEach(function (en) { if (q > 0 && en.left > 0) { var t = Math.min(q, en.left); q -= t; en.left -= t; } });
-    q = Math.round(q * 100) / 100;
-    if (q !== r[4]) nAdj++;
-    if (q > 0) out.push([r, q]);
-  });
-  return { rows: out, nAdj: nAdj };
-}
-/* รายการ หาย/หมดอายุ/รอปรับ/เสีย ที่ยอดหักจะเปลี่ยนเมื่อใช้ไฟล์ใหม่ → ให้ผู้ใช้เลือก คงไว้ หรือ ยกเลิก (ประมาณการเฉพาะสาขาและหมวดที่กำลังอัปโหลด)
- * สาขาเจาะจง: ยอดหักใหม่ ≠ ยอดหักเดิม · ทุกสาขา: เฉพาะกรณีไฟล์ใหม่หักได้น้อยกว่าเดิม */
-function adjChanges(sel) {
-  var bk = brKey(UP.branch), gset = {}, rows = [], ents = [], by = {};
-  sel.forEach(function (g) { gset[g] = 1; UP.groups[g].rows.forEach(function (r) { if (r[4] > 0) rows.push(r); }); });
-  ['lost', 'exp', 'pend', 'waste'].forEach(function (kind) {
-    (D[kind] || []).forEach(function (x) {
-      var eb = brKey(x.br), ck = codeKey(x.code); if (!ck || (eb && eb !== bk)) return;
-      var oldH = 0; (x.hit || []).forEach(function (y) { if (gset[y.g] && brKey(y.br) === bk) oldH += y.qty; });
-      var e = { kind: kind, k: x.k, code: x.code, name: x.name, br: x.br, qty: x.qty, oldH: oldH, newH: 0, left: x.qty == null ? Infinity : x.qty, bs: !!eb };
-      ents.push(e); (by[ck] || (by[ck] = [])).push(e);
-    });
-  });
-  Object.keys(by).forEach(function (k) { by[k].sort(function (a, b) { return (b.bs ? 1 : 0) - (a.bs ? 1 : 0); }); });
-  rows.forEach(function (r) {
-    var l = by[codeKey(r[1])]; if (!l) return; var q = r[4];
-    l.forEach(function (e) { if (!(q > 0) || !(e.left > 0)) return; var t = Math.min(q, e.left); q -= t; e.left -= t; e.newH += t; });
-  });
-  return ents.filter(function (e) {
-    e.oldH = Math.round(e.oldH * 100) / 100; e.newH = Math.round(e.newH * 100) / 100;
-    return (e.oldH > 0 || e.newH > 0) && (e.bs ? Math.abs(e.newH - e.oldH) > 0.005 : e.newH < e.oldH - 0.005);
-  });
-}
-function renderPvAdj(sel) {
-  var box = $('#pvAdj'); if (!box) return;
-  var list = UP && sel.length ? adjChanges(sel) : []; UP.adjList = list;
-  if (!UP.adjChoice) UP.adjChoice = {};
-  if (!list.length) { box.innerHTML = ''; return; }
-  box.innerHTML = '<div class="warnbox"><b>ไฟล์ใหม่ทำให้ยอดหักของ ' + nf0.format(list.length) + ' รายการเปลี่ยนไป</b> (ของหาย / สินค้าหมดอายุ / รอปรับข้อมูล / ของเสีย) — เลือกว่าจะ <b>คงไว้</b> หรือ <b>ยกเลิก</b> แต่ละรายการ · ค่าเริ่มต้น = คงไว้ · รายการที่เลือกยกเลิกจะถูกยกเลิกหลังบันทึก (ตัวเลขหักเป็นประมาณการ)</div>' +
-    '<div class="tscroll" style="max-height:240px"><table class="pvt"><thead><tr><th class="nosort">ประเภท</th><th class="nosort">บาร์ / รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวนที่บันทึก</th><th class="nosort">หักเดิม</th><th class="nosort">หักตามไฟล์ใหม่</th><th class="nosort">เลือก</th></tr></thead><tbody>' +
-    list.map(function (e) {
-      var id = e.kind + '|' + e.k, ch = UP.adjChoice[id] === 'cancel';
-      return '<tr><td>' + esc(AKI[e.kind].btn) + '</td><td>' + esc(e.code) + '</td><td>' + esc(e.name || '–') + '</td><td>' + (e.br ? esc(e.br) : '<span class="muted">ทุกสาขา</span>') + '</td><td class="num">' + (e.qty == null ? 'ทั้งหมด' : qtyF(e.qty)) + '</td><td class="num">' + qtyF(e.oldH) + '</td><td class="num">' + (e.newH ? qtyF(e.newH) : '<span class="tag old">ไม่พบ/ไม่พอ</span>') + '</td>' +
-        '<td style="white-space:nowrap"><label style="display:inline-flex;gap:4px;margin-right:8px"><input type="radio" name="pvadj_' + esc(id) + '" data-adjk="' + esc(id) + '" value="keep"' + (ch ? '' : ' checked') + '>คงไว้</label><label style="display:inline-flex;gap:4px"><input type="radio" name="pvadj_' + esc(id) + '" data-adjk="' + esc(id) + '" value="cancel"' + (ch ? ' checked' : '') + '>ยกเลิก</label></td></tr>';
-    }).join('') + '</tbody></table></div>';
-}
-function pvSummary() {
-  var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; }), n = 0, dn = 0, dc = 0, c = 0, nl = 0, all0 = [];
-  sel.forEach(function (g) { UP.groups[g].rows.forEach(function (r) { all0.push(r); }); });
-  var ap = adjPreview(all0, UP.branch); nl = ap.nAdj; renderPvAdj(sel);
-  ap.rows.forEach(function (p) { var r = p[0], v = p[1] * r[11]; n++; c += v; if (r[10] === 'DS') { dn++; dc += v; } });
-  $('#pvK').innerHTML = '<div><b>' + sel.length + '/' + Object.keys(UP.groups).length + '</b><span>หมวดที่จะบันทึก</span></div><div><b>' + nf0.format(n) + '</b><span>รายการที่มีสต็อก</span></div><div><b>' + nf0.format(dn) + '</b><span>ค้างเกิน 60 วัน (DS)</span></div><div><b>' + money(dc) + '</b><span>มูลค่าทุน DS (บาท)</span></div><div><b>' + money(c) + '</b><span>มูลค่าทุนรวม (บาท)</span></div>';
-  var b = $('#upSave'); b.textContent = 'บันทึก ' + sel.length + ' หมวด · สาขา ' + UP.branch; b.disabled = !sel.length;
-  var hasPrev = sel.filter(function (g) { return D.gm[g] && D.gm[g].prev; }).length;
-  $('#pvPrev').textContent = sel.length ? 'จะแทนที่เฉพาะข้อมูลของสาขา ' + UP.branch + ' (' + sel.filter(function (g) { return brMeta(g, UP.branch); }).length + ' หมวดมีข้อมูลสาขานี้อยู่เดิม) · สาขาอื่นในหมวดเดียวกัน หมวดที่ไม่ได้ติ๊ก และหมวดที่ไม่อยู่ในไฟล์ ไม่ถูกแตะ · ก่อนแทนที่ ระบบเก็บหมวดนั้นไว้เป็น "ฉบับก่อนหน้า"' + (hasPrev ? ' (ทับฉบับก่อนหน้าเดิมของ ' + hasPrev + ' หมวด)' : '') + (nl ? ' · หักของหาย/หมดอายุ/รอปรับข้อมูล/ของเสียตามจำนวนที่บันทึกไว้ ' + nf0.format(nl) + ' แถว ออกจากตัวเลขด้านบน (ประมาณการ — ยอดจริงคำนวณรวมทุกสาขาตอนบันทึก · ยังหักต่อไปจนกว่าจะยกเลิก)' : '') : '';
-  var all = $('#pvAll'); if (all) all.checked = sel.length === Object.keys(UP.groups).length;
-}
-function showPreview() {
-  var gs = Object.keys(UP.groups).sort(), warns = [];
-  if (UP.other) warns.push('ข้ามแถวของสาขาอื่น ' + nf0.format(UP.other) + ' แถว (ไม่ใช่สาขา ' + UP.branch + ') — จะไม่ถูกบันทึกและไม่ไปแตะข้อมูลสาขาเหล่านั้น');
-  if (UP.skipped.length) warns.push('ข้ามชีตที่ไม่พบหัวตาราง: ' + UP.skipped.join(', '));
-  if (UP.mismatch) warns.push('พบ ' + nf0.format(UP.mismatch) + ' แถวที่รหัสหมวดไม่ตรงกับชื่อชีต — ระบบใช้รหัสในคอลัมน์ "กลุ่ม"');
-  if (UP.dup) warns.push('ตัดแถวซ้ำ ' + nf0.format(UP.dup) + ' แถว (สินค้า+สาขาเดียวกันอยู่หลายชีต) โดยใช้ข้อมูลจากรายงานที่วันที่ใหม่กว่า');
-  if (UP.conflicts.length) warns.push('หมวด ' + UP.conflicts.join(', ') + ' อยู่ในหลายไฟล์ — ใช้ข้อมูลจากไฟล์ที่อ่านทีหลังสุด');
-  var older = gs.filter(function (g) { var c = brMeta(g, UP.branch); return c && c.rep && UP.groups[g].rep && UP.groups[g].rep < c.rep; });
-  if (older.length) warns.push('หมวด ' + older.join(', ') + ' เป็นรายงานเก่ากว่าที่มีในระบบ จึงไม่ได้ติ๊กไว้ให้ — ติ๊กเองถ้าต้องการใช้จริง');
-  var body = gs.map(function (g) {
-    var n = UP.groups[g], cur = brMeta(g, UP.branch), dn = 0, dc = 0;
-    var pos = 0, zr = 0; n.rows.forEach(function (r) { if (!(r[4] > 0)) { zr++; return; } pos++; if (r[10] === 'DS') { dn++; dc += r[4] * r[11]; } });
-    var tag = !cur ? '<span class="tag new">หมวดใหม่</span>' : (cur.rep && n.rep && n.rep < cur.rep ? '<span class="tag old">เก่ากว่าที่มี</span>' : '<span class="tag">แทนที่</span>');
-    return '<tr><td><input type="checkbox" data-pick="' + esc(g) + '"' + (UP.pick[g] ? ' checked' : '') + ' aria-label="เลือกหมวด ' + esc(g) + '"></td><td>' + esc(gl(g)) + '</td><td class="num">' + nf0.format(pos) + (zr ? ' <span class="muted">(+คงเหลือ 0 และ ติดลบ : ' + nf0.format(zr) + ')</span>' : '') + '</td><td class="num">' + nf0.format(dn) + '</td><td class="num">' + money(dc) + '</td>' +
-      '<td>' + (cur ? nf0.format(cur.count) + ' รายการ' : '–') + '</td><td>' + tag + '</td></tr>';
-  }).join('');
-  $('#pv').innerHTML = '<div>สาขา <b>' + esc(UP.branch) + '</b> · <b>' + esc(UP.files.join(', ')) + '</b> <span class="muted">· อ่านได้ ' + UP.sheets + ' ชีต · ' + nf0.format(UP.read) + ' แถวสินค้า · พบ ' + gs.length + ' หมวด</span></div>' +
-    '<div class="pvk" id="pvK"></div>' + warns.map(function (w) { return '<div class="warnbox">' + esc(w) + '</div>'; }).join('') +
-    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort"><input type="checkbox" id="pvAll" aria-label="เลือกทุกหมวด"></th><th class="nosort">หมวด</th><th class="nosort">รายการมีสต็อก (ใหม่)</th><th class="nosort">DS (รายการ)</th><th class="nosort">DS มูลค่าทุน</th><th class="nosort">สาขา ' + esc(UP.branch) + ' ที่มีในระบบตอนนี้</th><th class="nosort">ผล</th></tr></thead><tbody>' + body + '</tbody></table></div>' +
-    '<div id="pvAdj"></div><div class="muted" id="pvPrev"></div>';
-  $('#pv').classList.remove('hidden'); $('#upSave').classList.remove('hidden'); pvSummary();
-}
-$('#pv').addEventListener('change', function (e) {
-  if (!UP) return;
-  if (e.target.id === 'pvAll') { var on = e.target.checked; Object.keys(UP.groups).forEach(function (g) { UP.pick[g] = on; }); document.querySelectorAll('#pv input[data-pick]').forEach(function (i) { i.checked = on; }); pvSummary(); return; }
-  var ak = e.target.dataset && e.target.dataset.adjk; if (ak) { UP.adjChoice[ak] = e.target.value; return; }
-  var g = e.target.dataset && e.target.dataset.pick; if (g) { UP.pick[g] = e.target.checked; pvSummary(); }
-});
-$('#upSave').addEventListener('click', function () {
-  if (!UP) return;
-  var sel = Object.keys(UP.pick).filter(function (g) { return UP.pick[g]; });
-  if (!sel.length) return;
-  busy(this, async function () {
-    var expectedRevision = D.revision;
-    var br = UP.branch, fileName = UP.files.join(', ').slice(0, 120), btn = this, label0 = btn.textContent;
-    // ส่งทีละชุดและตรวจ revision ทุกครั้ง; ถ้าผลไม่แน่นอนให้โหลดข้อมูลก่อนส่งซ้ำ
-    var queue = sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; });
-    var maxG = 25, maxRows = 8000, total = queue.length, lastG = '';
-    var r = { changed: [], same: [], tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
-    var prog = $('#upProg');
-    if (!prog) { prog = document.createElement('div'); prog.id = 'upProg'; prog.setAttribute('role', 'status'); prog.setAttribute('aria-live', 'polite'); prog.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:10px;background:#f3ecff;border:1px solid #d9c8ff;font-size:13.5px'; $('#upErr').parentNode.insertBefore(prog, $('#upErr')); }
-    var showProg = function (extra) {
-      var pct = total ? Math.round(done / total * 100) : 0;
-      prog.style.display = '';
-      prog.innerHTML = '<b>กำลังบันทึก ' + done + ' / ' + total + ' หมวด (' + pct + '%)</b>' + (lastG ? ' · ล่าสุดเสร็จ ' + esc(lastG) : '') + (extra ? '<br><span class="muted">' + esc(extra) + '</span>' : '') +
-        '<div style="height:6px;border-radius:4px;background:#e4d9fb;margin-top:6px"><div style="height:6px;border-radius:4px;background:var(--accent-text);width:' + pct + '%"></div></div>';
-      btn.textContent = 'กำลังบันทึก ' + done + '/' + total + '…';
-    };
-    var upCancel = $('#upCancel'); if (upCancel) upCancel.disabled = true;
-    $('#upErr').textContent = '';
-    try {
-      showProg('เริ่มบันทึก — กรุณาอย่าปิดหน้านี้');
-      while (queue.length) {
-        var chunk = [], cr = 0;
-        while (queue.length && chunk.length < maxG && (!chunk.length || cr + queue[0].rows.length <= maxRows)) { var it = queue.shift(); chunk.push(it); cr += it.rows.length; }
-        var names = chunk.map(function (x) { return x.g; }).join(', '), rc;
-        showProg('กำลังส่ง ' + names);
-        try {
-          rc = await call('stockSave', { fileName: fileName, branch: br, groups: chunk, revision: expectedRevision });
-          expectedRevision = rc.revision; D.revision = rc.revision;
-        } catch (writeError) {
-          queue = chunk.concat(queue);
-          if (/เชื่อมต่อเซิร์ฟเวอร์/.test(writeError.message)) throw new Error(writeError.message + ' · ผลบันทึกอาจสำเร็จแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนบันทึกต่อ');
-          throw writeError;
-        }
-        r.changed = r.changed.concat(rc.changed || []); r.same = r.same.concat(rc.same || []);
-        ['add', 'chg', 'del', 'same'].forEach(function (k) { r.tot[k] += (rc.tot && rc.tot[k]) || 0; });
-        done += chunk.length; lastG = chunk[chunk.length - 1].g;
-        chunk.forEach(function (x) { if (UP && UP.pick) UP.pick[x.g] = false; });           // เสร็จแล้ว ไม่ต้องส่งซ้ำถ้าต้องกดบันทึกต่อ
-        showProg('');
-      }
-    } catch (er) {
-      btn.textContent = label0; if (upCancel) upCancel.disabled = false;
-      var left = queue.map(function (x) { return x.g; });
-      prog.innerHTML = '<b style="color:var(--bad)">หยุดที่ ' + done + ' / ' + total + ' หมวด</b>' + (lastG ? ' · บันทึกแล้วถึง ' + esc(lastG) : '') + (left.length ? '<br>ยังไม่ได้บันทึก: ' + esc(left.join(', ')) : '') + '<br><span class="muted">กดบันทึกอีกครั้งเพื่อทำต่อ (ส่งเฉพาะหมวดที่เหลือ)</span>';
-      await load(VIEW);
-      throw new Error('บันทึกได้ ' + done + ' จาก ' + total + ' หมวด · ' + er.message);
-    }
-    if (upCancel) upCancel.disabled = false; prog.style.display = 'none';
-    btn.textContent = label0;
-    var cancels = {}, nCan = 0;                                          // รายการที่ผู้ใช้เลือก "ยกเลิก" ในหน้าตัวอย่าง
-    (UP.adjList || []).forEach(function (e) { if (UP.adjChoice && UP.adjChoice[e.kind + '|' + e.k] === 'cancel') { (cancels[e.kind] || (cancels[e.kind] = [])).push(e.k); nCan++; } });
-    closeDlg('#upDlg'); UP = null; UPFILES = null;
-    var canErr = '';
-    for (var kd in cancels) { try { await call(AKI[kd].rm, cancels[kd]); } catch (er) { canErr = er.message; } }
-    var canMsg = nCan ? (canErr ? ' · ยกเลิกรายการหักบางรายการไม่สำเร็จ: ' + canErr : ' · ยกเลิกรายการหักตามที่เลือก ' + nf0.format(nCan) + ' รายการ') : '';
-    var t = r.tot || { add: 0, chg: 0, del: 0, same: 0 };
-    toast((r.changed.length ? 'บันทึกแล้ว · สาขา ' + br + ' · อัปเดต ' + r.changed.length + ' หมวด (เพิ่ม ' + nf0.format(t.add) + ' · เปลี่ยน ' + nf0.format(t.chg) + ' · ลบ ' + nf0.format(t.del) + ' · เหมือนเดิมไม่แตะ ' + nf0.format(t.same) + ' รายการ)' + (r.same.length ? ' · ' + r.same.length + ' หมวดไม่มีอะไรเปลี่ยน' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน') + canMsg);
-    VIEW = 'cur'; await load('cur');
-  });
-});
-async function restoreGroup(g, btn) {
-  var m = D.gm[g]; if (!m || !m.prev || !m.cur) return;
-  if (!confirm('ใช้ฉบับก่อนหน้าของหมวด ' + gl(g) + ' (บันทึกเมื่อ ' + fmtTs(m.prev.ts) + ') เป็นฉบับปัจจุบัน?\nฉบับปัจจุบัน (บันทึกเมื่อ ' + fmtTs(m.cur.ts) + ') จะกลายเป็นฉบับก่อนหน้าแทน')) return;
-  await busy(btn, async function () { await call('stockRestore', g); toast('สลับฉบับของหมวด ' + g + ' แล้ว'); await load('prev'); });
-}
-$('#verTabs').addEventListener('click', function (e) {
-  var b = e.target.closest('.tab'); if (!b || b.disabled || b.dataset.v === VIEW) return;
-  F.page = 0; busy(b, function () { return load(b.dataset.v); });
-});
-
-/* ---------- ล้างข้อมูล (Admin + ใส่รหัส) ---------- */
-function knownBranches() {
-  var set = {};
-  D.branches.forEach(function (k) { if (k) set[k] = 1; });
-  Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k && c.br[k].count > 0) set[k] = 1; }); });
-  return Object.keys(set).sort();
-}
-$('#bClear').addEventListener('click', function () {
-  closeDlg('#nmDlg');
-  var bs = knownBranches(), gs = Object.keys(D.gm).sort();
-  $('#clErr').textContent = ''; $('#clPw').value = '';
-  $('#clBr').innerHTML = bs.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-  $('#clG').innerHTML = gs.map(function (g) { return '<option value="' + esc(g) + '">' + esc(gl(g)) + '</option>'; }).join('');
-  document.querySelector('input[name=clMode][value=' + (bs.length ? 'branch' : 'all') + ']').checked = true;
-  $('#clDlg').classList.remove('hidden');
-});
-$('#clCancel').addEventListener('click', function () { $('#clPw').value = ''; closeDlg('#clDlg'); });
-$('#clGo').addEventListener('click', function () {
-  var mode = document.querySelector('input[name=clMode]:checked').value, pw = $('#clPw').value, sc = { mode: mode };
-  if (mode === 'branch') sc.branch = $('#clBr').value;
-  if (mode === 'group') sc.g = $('#clG').value;
-  if ((mode === 'branch' && !sc.branch) || (mode === 'group' && !sc.g)) { $('#clErr').textContent = 'กรุณาเลือกสาขา/หมวดที่จะล้าง'; return; }
-  if (!pw) { $('#clErr').textContent = 'กรุณาใส่รหัสผ่านเพื่อยืนยัน'; return; }
-  var what = mode === 'all' ? 'ข้อมูลทั้งหมด' : (mode === 'branch' ? 'ข้อมูลทั้งสาขา ' + sc.branch : 'ข้อมูลทั้งหมวด ' + gl(sc.g));
-  if (!confirm('ยืนยันล้าง' + what + ' ?\n' + (mode === 'all' ? 'ย้อนกลับไม่ได้' : 'ฉบับที่ล้างจะเก็บเป็น "ฉบับก่อนหน้า" ให้กู้คืนได้'))) return;
-  busy(this, async function () {
-    $('#clErr').textContent = '';
-    var r;
-    try { r = await call('stockClear', pw, sc); }
-    catch (e) { if (e.message === 'SESSION_EXPIRED') throw e; $('#clErr').textContent = e.message; $('#clPw').value = ''; return; }
-    $('#clPw').value = ''; closeDlg('#clDlg');
-    toast(r.changed.length ? 'ล้าง' + what + 'แล้ว (' + r.changed.length + ' หมวด)' : 'ไม่มีข้อมูลที่ต้องล้าง');
-    VIEW = 'cur'; await load('cur');
-  });
-});
-
-/* ---------- ตั้งค่าหมวด (เพิ่มสาขา / เลือกสาขา / หมวดอิงตามสาขา) ---------- */
-var NM_BR = '';
-function fillNmBr(preferBr) {
-  var bs = D.branches.slice();
-  if (preferBr && bs.indexOf(preferBr) >= 0) NM_BR = preferBr;
-  else if (F.br && bs.indexOf(F.br) >= 0) NM_BR = F.br;
-  else if (!NM_BR || bs.indexOf(NM_BR) < 0) NM_BR = bs[0] || '';
-  var sel = $('#nmBr');
-  if (sel) {
-    sel.innerHTML = bs.length
-      ? bs.map(function (b) { return '<option value="' + esc(b) + '"' + (b === NM_BR ? ' selected' : '') + '>สาขา ' + esc(b) + '</option>'; }).join('')
-      : '<option value="">ยังไม่มีสาขา — เพิ่มสาขาใหม่ด้านขวา</option>';
-    sel.value = NM_BR;
-  }
-  if ($('#nmDelBrBtn')) $('#nmDelBrBtn').disabled = !NM_BR;
-  if ($('#nmBrTitle')) $('#nmBrTitle').textContent = NM_BR ? 'หมวดสินค้าของสาขา ' + NM_BR : 'กรุณาเพิ่มหรือเลือกสาขาก่อนจัดการหมวดสินค้า';
-}
-function renderNmGrid() {
-  var br = $('#nmBr') ? $('#nmBr').value : NM_BR;
-  NM_BR = br;
-  if ($('#nmBrTitle')) $('#nmBrTitle').textContent = br ? 'หมวดสินค้าของสาขา ' + br : 'กรุณาเพิ่มหรือเลือกสาขาก่อนจัดการหมวดสินค้า';
-  if ($('#nmDelBrBtn')) $('#nmDelBrBtn').disabled = !br;
-  if (!br) {
-    $('#nmGrid').innerHTML = '<div class="muted">ยังไม่ได้เลือกสาขา — กรุณาเพิ่มสาขาใหม่ด้านบนก่อน</div>';
-    return;
-  }
-  var bk = brKey(br), cnt = {};
-  allPool(true).forEach(function (x) { if (brKey(x.br) === bk) cnt[x.g] = (cnt[x.g] || 0) + 1; });
-  var gs = groupsForBranch(br);
-  $('#nmGrid').innerHTML = gs.map(function (g) {
-    var val = (D.names && D.names[bk + ':' + g]) || (D.names && D.names[g]) || '';
-    return '<div style="display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 10px;background:#fff">' +
-      '<b style="min-width:48px">' + esc(g) + '</b>' +
-      '<input type="text" data-g="' + esc(g) + '" maxlength="40" value="' + esc(val) + '" placeholder="ชื่อหมวด · ' + nf0.format(cnt[g] || 0) + ' รายการ" style="flex:1">' +
-      '<button type="button" class="btn ghost small" style="color:var(--bad);padding:4px 10px" data-nmdel="' + esc(g) + '" title="ลบหมวด ' + esc(g) + ' ออกจากสาขา ' + esc(br) + '">ลบ</button>' +
-    '</div>';
-  }).join('') || '<div class="muted">สาขา ' + esc(br) + ' ยังไม่มีหมวดสินค้า — เพิ่มหมวดใหม่ด้านบนได้เลย</div>';
-}
-$('#bNames').addEventListener('click', function () {
-  $('#nmErr').textContent = ''; $('#nmNewCode').value = ''; $('#nmNewName').value = ''; $('#nmNewBr').value = '';
-  fillNmBr(F.br);
-  renderNmGrid();
-  $('#nmDlg').classList.remove('hidden');
-});
-$('#nmBr').addEventListener('change', function () {
-  NM_BR = this.value;
-  $('#nmErr').textContent = '';
-  renderNmGrid();
-});
-$('#nmAddBrBtn').addEventListener('click', async function () {
-  var b = $('#nmNewBr').value.replace(/\s+/g, ' ').trim().slice(0, 20);
-  if (!b) { $('#nmErr').textContent = 'กรุณากรอกชื่อสาขาใหม่'; $('#nmNewBr').focus(); return; }
-  $('#nmErr').textContent = '';
-  var bk = brKey(b);
-  delete BR_CFG.delBranches[bk];
-  if (!BR_CFG.branches.some(function (x) { return brKey(x) === bk; })) BR_CFG.branches.push(b);
-  if (!BR_CFG.brGroups[bk]) BR_CFG.brGroups[bk] = {};
-  saveBrCfgLocal();
-  await busy(this, async function () {
-    await syncNamesAndCfg(D.names);
-    if (D.branches.indexOf(b) < 0) { D.branches.push(b); D.branches.sort(); }
-    $('#nmNewBr').value = '';
-    F.br = b;
-    fillSelects();
-    fillNmBr(b);
-    renderNmGrid();
-    render();
-    toast('เพิ่มสาขา ' + b + ' แล้ว');
-  });
-});
-$('#nmDelBrBtn').addEventListener('click', async function () {
-  var b = $('#nmBr').value;
-  if (!b) return;
-  if (!confirm('ยืนยันลบสาขา "' + b + '" ออกจากรายการตั้งค่า ?')) return;
-  var bk = brKey(b);
-  BR_CFG.delBranches[bk] = 1;
-  BR_CFG.branches = (BR_CFG.branches || []).filter(function (x) { return brKey(x) !== bk; });
-  delete BR_CFG.brGroups[bk];
-  saveBrCfgLocal();
-  await busy(this, async function () {
-    var nextNames = Object.assign({}, D.names);
-    Object.keys(nextNames).forEach(function (k) { if (k.indexOf(bk + ':') === 0) delete nextNames[k]; });
-    await syncNamesAndCfg(nextNames);
-    D.branches = D.branches.filter(function (x) { return brKey(x) !== bk; });
-    if (brKey(F.br) === bk) F.br = '';
-    fillSelects();
-    fillNmBr('');
-    renderNmGrid();
-    render();
-    toast('ลบสาขา ' + b + ' แล้ว');
-  });
-});
-$('#nmAddBtn').addEventListener('click', async function () {
-  var br = $('#nmBr').value, code = $('#nmNewCode').value.trim().toUpperCase(), name = $('#nmNewName').value.trim();
-  if (!br) { $('#nmErr').textContent = 'กรุณาเพิ่มหรือเลือกสาขาก่อนเพิ่มหมวด'; $('#nmNewBr').focus(); return; }
-  if (!code) { $('#nmErr').textContent = 'กรุณากรอกรหัสหมวดใหม่ เช่น G25'; $('#nmNewCode').focus(); return; }
-  $('#nmErr').textContent = '';
-  var ok = await addCategoryFlow(code, name, br, this);
-  if (ok) { $('#nmNewCode').value = ''; $('#nmNewName').value = ''; fillNmBr(br); renderNmGrid(); }
-});
-$('#nmGrid').addEventListener('click', async function (e) {
-  var db = e.target.closest('[data-nmdel]'); if (!db) return;
-  var br = $('#nmBr').value;
-  await deleteCategoryFlow(db.dataset.nmdel, br, db);
-  fillNmBr(br);
-  renderNmGrid();
-});
-$('#nmCancel').addEventListener('click', function () { closeDlg('#nmDlg'); });
-$('#nmSave').addEventListener('click', function () {
-  var br = $('#nmBr').value, bk = brKey(br);
-  var nextNames = Object.assign({}, D.names);
-  document.querySelectorAll('#nmGrid input[data-g]').forEach(function (i) {
-    var g = i.dataset.g, v = i.value.trim();
-    if (bk) {
-      if (v) { nextNames[bk + ':' + g] = v; if (!nextNames[g]) nextNames[g] = v; }
-      else delete nextNames[bk + ':' + g];
-    } else {
-      if (v) nextNames[g] = v; else delete nextNames[g];
-    }
-  });
-  busy(this, async function () {
-    await syncNamesAndCfg(nextNames);
-    closeDlg('#nmDlg'); fillSelects(); render(); toast('บันทึกตั้งค่าหมวดแล้ว');
-  });
-});
-document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeDotPop(); closeDlg('#upDlg'); closeDlg('#nmDlg'); closeDlg('#exDlg'); closeDlg('#clDlg'); closeDlg('#lostDlg'); closeDlg('#histDlg'); closeDlg('#bcDlg'); } });
-
-/* ---------- ของหาย / สินค้าหมดอายุ / ของเสีย / รอปรับ (สรุปไว้ท้ายหน้า และแยกการดูข้อมูลแต่ละประเภท) ---------- */
-function codeKey(s) { return String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase(); }     // ต้องตรงกับ stockCodeKey ของหลังบ้าน
-function normBarKey(s) { return String(s == null ? '' : s).trim().replace(/\s+/g, '').replace(/^[Pp](?=\d)/, '').toLowerCase(); }
-function splitBarCodes(s) {
-  var raw = String(s == null ? '' : s).trim();
-  if (!raw) return [];
-  var parts = raw.split(/[\s,;/|]+/).map(normBarKey).filter(Boolean);
-  var full = normBarKey(raw);
-  if (full && parts.indexOf(full) < 0) parts.push(full);
-  return parts;
-}
-var BC_CACHE = null; // รายการบาร์เดี่ยว/บาร์แพ็ค [[packBar, unitBar, perPack, name, cat, partner], ...]
-var BC_REVISION = null;
-var BC_BY_CODE = {}; // normBarKey -> [{ packBar, unitBar, perPack, name, cat, partner, role: 'pack'|'unit' }]
-function buildBcIndex(list) {
-  BC_BY_CODE = {};
-  (list || []).forEach(function (r) {
-    if (!r) return;
-    var packBar = String(r[0] || '').trim(), unitBar = String(r[1] || '').trim();
-    if (!packBar && !unitBar) return;
-    var rec = { packBar: packBar, unitBar: unitBar, perPack: String(r[2] || '').trim(), name: String(r[3] || '').trim(), cat: String(r[4] || '').trim(), partner: String(r[5] || '').trim() };
-    var pks = splitBarCodes(packBar), uks = splitBarCodes(unitBar);
-    pks.forEach(function (pk) {
-      if (!pk) return;
-      (BC_BY_CODE[pk] || (BC_BY_CODE[pk] = [])).push({ rec: rec, role: 'pack' });
-    });
-    uks.forEach(function (uk) {
-      if (!uk) return;
-      (BC_BY_CODE[uk] || (BC_BY_CODE[uk] = [])).push({ rec: rec, role: 'unit' });
-    });
-  });
-}
-function attachBcToItems() {
-  D.items.concat(D.zero || [], D.cut || []).forEach(function (x) {
-    x.hasUnitBar = false;
-    x.hasPackBar = false;
-    x.bcLinks = [];
-    var keys = splitBarCodes(x.code);
-    var seen = {};
-    keys.forEach(function (k) {
-      (BC_BY_CODE[k] || []).forEach(function (m) {
-        var r = m.rec, id = r.packBar + '|' + r.unitBar;
-        if (!seen[id]) { seen[id] = 1; x.bcLinks.push(r); }
-        // ถ้าแถวนี้เป็นบาร์แพ็ค และในฐานข้อมูลมีบาร์เดี่ยว (unitBar) -> แสดง "มีบาร์กระจาย"
-        if (m.role === 'pack' && r.unitBar && normBarKey(r.unitBar) !== k) x.hasUnitBar = true;
-        // ถ้าแถวนี้เป็นบาร์เดี่ยว และในฐานข้อมูลมีบาร์แพ็ค (packBar) -> แสดง "มีบาร์แพ็ค"
-        if (m.role === 'unit' && r.packBar && normBarKey(r.packBar) !== k) x.hasPackBar = true;
-      });
-    });
-    if (x.hasUnitBar && x.hay.indexOf('มีบาร์กระจาย') < 0) x.hay += ' มีบาร์กระจาย บาร์กระจาย บาร์เดี่ยว';
-    if (x.hasPackBar && x.hay.indexOf('มีบาร์แพ็ค') < 0) x.hay += ' มีบาร์แพ็ค บาร์แพ็ค';
-  });
-}
-var AK = 'lost';
-var TAGS = { hard: { t: 'ขายยาก' }, lost: { t: 'ของหาย' }, exp: { t: 'หมดอายุ' }, pend: { t: 'รอปรับ' }, waste: { t: 'ของเสีย' }, zero: { t: 'คงเหลือ 0' }, neg: { t: 'ติดลบ' } };
-var CT = (function () {                                                // CT.removed = แท็กของระบบที่ซ่อนจากตัวกรอง (เก็บในเบราว์เซอร์) · แท็กที่สร้างเองเก็บที่เซิร์ฟเวอร์ (D.ctags)
-  try { var o = JSON.parse(localStorage.getItem('cmucoop_stock_ctags') || 'null'); if (o && o.removed) return { removed: o.removed }; } catch (e) {}
-  return { removed: {} };
-})();
-var BASE_TAGS = ['lost', 'exp', 'waste', 'pend', 'hard', 'zero', 'neg'];
-function ctSave() { try { localStorage.setItem('cmucoop_stock_ctags', JSON.stringify(CT)); } catch (e) {} }
-function ctSync() {
-  Object.keys(TAGS).forEach(function (k) { if (k.indexOf('c_') === 0) delete TAGS[k]; });
-  Object.keys(AKI).forEach(function (k) { if (k.indexOf('c_') === 0) delete AKI[k]; });
-  var defs = D.ctags || {};
-  Object.keys(defs).forEach(function (id) {
-    var d = defs[id]; TAGS['c_' + id] = { t: d.t, custom: true, mode: d.mode };
-    if (d.mode === 'deduct') AKI['c_' + id] = { btn: d.t, verb: d.t, add: 'stockCtagAdd:' + id, rm: 'stockCtagRemove:' + id, cid: id, bid: '' };
-  });
-}
-function ctItemKey(x) { return codeKey(x.code) + '|' + brKey(x.br); }
-function ctKeys() { return Object.keys(D.ctags || {}).sort(function (a, b) { return (D.ctags[a].ts || 0) - (D.ctags[b].ts || 0); }).map(function (id) { return 'c_' + id; }); }
-function ctTagOnly(k) { var d = D.ctags && D.ctags[k.slice(2)]; return !!d && d.mode === 'tag'; }
-function ctHas(x, k) { var set = D.ctmapSet && D.ctmapSet[k.slice(2)]; return !!(set && set[ctItemKey(x)]); }
-function hasTag(x, k) { if (k.indexOf('c_') === 0 && ctTagOnly(k)) return ctHas(x, k); return k === 'hard' ? !!x.hard : (k === 'zero' ? (!!x.isZero && !(x.qty < 0)) : (k === 'neg' ? (!!x.isZero && x.qty < 0) : !!(x.tg && x.tg[k] !== undefined))); }
-function tagHtml(x) {
-  var tn = x.tn || {}, h = '', nl = [];
-  if (x.hasUnitBar) {
-    h += '<button type="button" class="bc-btn bc-unit" data-bcview="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="คลิกเพื่อดูข้อมูลสินค้าค้างสต็อกของบาร์กระจายและบาร์แพ็ค">มีบาร์กระจาย</button>';
-  }
-  if (x.hasPackBar) {
-    h += '<button type="button" class="bc-btn bc-pack" data-bcview="' + esc(x.code) + '" data-br="' + esc(x.br) + '" title="คลิกเพื่อดูข้อมูลสินค้าค้างสต็อกของบาร์แพ็คและบาร์กระจาย">มีบาร์แพ็ค</button>';
-  }
-  if (x.hard) {
-    if (D.me && D.me.edit) {
-      h += '<button type="button" class="tag hard" data-hardnote="' + esc(x.code) + '" aria-label="แก้หมายเหตุสินค้าขายยาก ' + esc(x.name || x.code) + '" title="ติดแท็กสินค้าขายยาก — คลิกเพื่อแก้หมายเหตุ">ขายยาก</button>';
-    } else {
-      h += '<span class="tag hard" title="ติดแท็กสินค้าขายยาก">ขายยาก</span>';
-    }
-  }
-  Object.keys(x.tg || {}).forEach(function (k) { var q = x.tg[k]; h += '<span class="tag t-' + k + '" title="' + esc(TAGS[k].t + (q ? ' ' + qtyF(q) + ' ชิ้น หักออกจากค้างสต็อกแล้ว' : ' ทั้งหมด')) + '">' + esc(TAGS[k].t) + (q ? ' ' + qtyF(q) : '') + '</span>'; });
-  ctKeys().forEach(function (k) { if (ctTagOnly(k) && ctHas(x, k)) h += '<span class="tag t-custom" title="แท็กที่สร้างเอง (ไม่หักยอด)">' + esc(TAGS[k].t) + '</span>'; });
-  Object.keys(TAGS).forEach(function (k) { if (tn[k]) nl.push(TAGS[k].t + ': ' + tn[k]); });
-  return h + (nl.length ? '<div class="tagnote">หมายเหตุ — ' + esc(nl.join(' · ')) + '</div>' : '');
-}
-var AKI = {
-  lost: { btn: 'ของหาย', verb: 'หาย', add: 'stockLostAdd', rm: 'stockLostRemove', bid: '#bLost' },
-  exp: { btn: 'สินค้าหมดอายุ', verb: 'หมดอายุ', add: 'stockExpiredAdd', rm: 'stockExpiredRemove', bid: '#bExp' },
-  pend: { btn: 'รอปรับข้อมูล', verb: 'รอปรับข้อมูล', add: 'stockPendingAdd', rm: 'stockPendingRemove', bid: '#bPend' },
-  waste: { btn: 'ของเสีย', verb: 'เสีย', add: 'stockWasteAdd', rm: 'stockWasteRemove', bid: '#bWaste' }
+  await kvSet(C, 'STOCK_HARD', JSON.stringify(hard));
+  if (n) await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', on ? 'ติดแท็กสินค้าขายยาก' : 'ยกเลิกแท็กสินค้าขายยาก', n + ' รายการ (' + list.slice(0, 10).join(',') + (list.length > 10 ? ',…' : '') + ')' + (nt ? ' · ' + nt : ''));
+  return hard;
 };
-function adjPcs(list) { var p = 0; (list || []).forEach(function (x) { (x.hit || []).forEach(function (h) { p += h.qty; }); }); return p; }
-function adjSumOf(list, g, br) {
-  var o = { n: 0, pcs: 0, val: 0 };
-  (list || []).forEach(function (x) {
-    var hit = (x.hit || []).filter(function (y) { return (!g || y.g === g) && (!br || brKey(y.br) === brKey(br)); });
-    if (!hit.length) return;
-    o.n++; hit.forEach(function (y) { o.pcs += y.qty; o.val += y.qty * y.cost; });
-  });
-  o.pcs = Math.round(o.pcs * 100) / 100; o.val = Math.round(o.val * 100) / 100; return o;
-}
-function adjSummary(g, br) {
-  var A = { waste: adjSumOf(D.waste, g, br), lost: adjSumOf(D.lost, g, br), exp: adjSumOf(D.exp, g, br), pend: adjSumOf(D.pend, g, br) };
-  var add = function (a, b) { return { n: a.n + b.n, pcs: Math.round((a.pcs + b.pcs) * 100) / 100, val: Math.round((a.val + b.val) * 100) / 100 }; };
-  A.others = add(add(A.lost, A.exp), A.pend); A.all = add(A.others, A.waste);
-  return A.all.n ? A : null;
-}
-function deductEntriesForScope(kind) {                                  // กรองรายการที่หักออกตามหมวด (F.gm) และสาขา (F.br) ที่เลือก
-  var q = (F.q || '').trim().toLowerCase(), bk = brKey(F.br), hasG = Object.keys(F.gm).length > 0;
-  return (D[kind] || []).filter(function (x) {
-    var matchG = !hasG || (x.g && F.gm[x.g]) || (x.hit || []).some(function (y) { return F.gm[y.g]; });
-    var matchBr = !bk || !x.br || brKey(x.br) === bk || (x.hit || []).some(function (y) { return brKey(y.br) === bk; });
-    var matchQ = !q || (x.code + ' ' + (x.name || '') + ' ' + (x.note || '') + ' ' + (x.br || '')).toLowerCase().indexOf(q) >= 0;
-    return matchG && matchBr && matchQ;
-  });
-}
-function adjSumInScope(list) {                                          // ยอดรวมที่หักจริงเฉพาะหมวดและสาขาที่เลือก
-  var o = { n: 0, pcs: 0, val: 0 }, bk = brKey(F.br), hasG = Object.keys(F.gm).length > 0;
-  (list || []).forEach(function (x) {
-    var hit = (x.hit || []).filter(function (y) { return (!hasG || F.gm[y.g]) && (!bk || brKey(y.br) === bk); });
-    if (!hit.length) return;
-    o.n++; hit.forEach(function (y) { o.pcs += y.qty; o.val += y.qty * y.cost; });
-  });
-  o.pcs = Math.round(o.pcs * 100) / 100; o.val = Math.round(o.val * 100) / 100; return o;
-}
-function buildDeductSubTable(kind, edit) {
-  var K = AKI[kind], raw = deductEntriesForScope(kind), bk = brKey(F.br), hasG = Object.keys(F.gm).length > 0;
-  if (!raw.length) return '';
-  var pcs = 0, val = 0;
-  raw.forEach(function (x) {
-    (x.hit || []).forEach(function (h) {
-      if ((!hasG || F.gm[h.g]) && (!bk || brKey(h.br) === bk)) { pcs += h.qty; val += h.qty * h.cost; }
-    });
-  });
-  var headColor = { waste: '#455a64', lost: '#b3261e', exp: '#6a1b9a', pend: '#0b5394' }[kind] || 'var(--ink)';
-  return '<div class="deduct-sub" style="margin-top:10px">' +
-    '<h4><span style="color:' + headColor + '">' + esc(K.btn) + ' · ' + nf0.format(raw.length) + ' รายการ · หัก ' + qtyF(pcs) + ' ชิ้น · ' + money(val) + ' บาท</span>' +
-    '<button type="button" class="btn ghost small" data-openadj="' + kind + '">จัดการ / เพิ่มรายการ</button></h4>' +
-    '<div class="tscroll" style="max-height:300px"><table class="pvt"><thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">จำนวนบันทึก</th><th class="nosort">หักจริง</th><th class="nosort">มูลค่าทุน</th><th class="nosort">หมายเหตุ</th>' + (edit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead><tbody>' +
-      raw.map(function (x) {
-        var h = (x.hit || []).filter(function (y) { return (!hasG || F.gm[y.g]) && (!bk || brKey(y.br) === bk); });
-        var got = h.reduce(function (s, y) { return s + y.qty; }, 0), v = h.reduce(function (s, y) { return s + y.qty * y.cost; }, 0);
-        var gTxt = (h[0] && h[0].g) || x.g || '–';
-        var brTxt = x.br ? esc(x.br) : (h.length ? esc(h.map(function (y) { return y.br; }).join(', ')) : '<span class="muted">ทุกสาขา</span>');
-        return '<tr><td>' + esc(gTxt) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name || '–') + '</td><td>' + brTxt + '</td><td class="num">' + (x.qty == null ? 'ทั้งหมด' : qtyF(x.qty)) + '</td><td class="num">' + (h.length ? qtyF(got) : '<span class="tag old">ไม่พบ</span>') + '</td><td class="num">' + (h.length ? money(v) : '–') + '</td><td>' + esc(x.note || '') + '</td>' +
-          (edit ? '<td style="white-space:nowrap"><button type="button" class="btn ghost small" data-dednote="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">แก้หมายเหตุ</button> <button type="button" class="btn ghost small" style="color:var(--bad)" data-dedrm="' + kind + '" data-key="' + esc(x.k) + '" data-code="' + esc(x.code) + '">ยกเลิก</button></td>' : '') + '</tr>';
-      }).join('') + '</tbody></table></div>' +
-  '</div>';
-}
-function renderLostBtn() {
-  var card = $('#deductCard'); if (!card) return;
-  var byKind = {
-    waste: deductEntriesForScope('waste'),
-    lost: deductEntriesForScope('lost'),
-    exp: deductEntriesForScope('exp'),
-    pend: deductEntriesForScope('pend')
-  };
-  var S = {
-    waste: adjSumInScope(byKind.waste),
-    lost: adjSumInScope(byKind.lost),
-    exp: adjSumInScope(byKind.exp),
-    pend: adjSumInScope(byKind.pend)
-  };
-  var add = function (x, y) { return { n: x.n + y.n, pcs: Math.round((x.pcs + y.pcs) * 100) / 100, val: Math.round((x.val + y.val) * 100) / 100 }; };
-  S.oth = add(add(S.lost, S.exp), S.pend); S.all = add(S.oth, S.waste);
-  var cnt = function (k) { return byKind[k].length; };
-  var totalEntries = cnt('waste') + cnt('lost') + cnt('exp') + cnt('pend');
-  // แสดงการ์ดสรุปรายการที่หักออกก็ต่อเมื่อมีรายการที่หักออกในหมวด/สาขานั้น
-  card.hidden = totalEntries === 0;
-  if (!totalEntries) return;
 
-  $('#deductNote').textContent = 'รวม ' + nf0.format(totalEntries) + ' รายการ · หัก ' + qtyF(S.all.pcs) + ' ชิ้น · มูลค่าทุน ' + money(S.all.val) + ' บาท';
-  var allTabDefs = [
-    { k: 'waste', label: 'ของเสีย', sum: S.waste, n: cnt('waste') },
-    { k: 'lost', label: 'ของหาย', sum: S.lost, n: cnt('lost') },
-    { k: 'exp', label: 'สินค้าหมดอายุ', sum: S.exp, n: cnt('exp') },
-    { k: 'pend', label: 'รอปรับข้อมูล', sum: S.pend, n: cnt('pend') }
-  ];
-  var activeTabs = allTabDefs.filter(function (tb) { return tb.n > 0; });
-  var tabMode = activeTabs.some(function (tb) { return tb.k === F.deductTab; }) ? F.deductTab : (activeTabs[0] ? activeTabs[0].k : 'waste');
-  F.deductTab = tabMode;
+async function stockResumState(C, lost) {
+  const state = await stockState(C);
+  return stockRebuildSummaries(C, state, lost);
+}
 
-  var collapsed = !!F.deductCollapsed;
-  if ($('#deductBody')) $('#deductBody').classList.toggle('hidden', collapsed);
-  if ($('#deductTabs')) $('#deductTabs').classList.toggle('hidden', collapsed);
-  if ($('#bToggleDeduct')) { $('#bToggleDeduct').innerHTML = collapsed ? 'ขยายดูข้อมูล &#9662;' : 'ย่อพับเก็บ &#9652;'; $('#bToggleDeduct').setAttribute('aria-expanded', collapsed ? 'false' : 'true'); }
-  if ($('#deductHead')) $('#deductHead').style.marginBottom = collapsed ? '0' : '';
-  if ($('#deductTabs')) {
-    $('#deductTabs').innerHTML = activeTabs.map(function (tb) {
-      return '<button type="button" class="tab' + (tabMode === tb.k ? ' on' : '') + '" data-dedtab="' + tb.k + '">' + esc(tb.label) + ' ' + nf0.format(tb.n) + ' รายการ</button>';
-    }).join('');
-  }
-  var tr = function (label, o, cls) { return '<tr' + (cls ? ' style="font-weight:700"' : '') + '><td>' + label + '</td><td class="num">' + nf0.format(o.n) + '</td><td class="num">' + qtyF(o.pcs) + '</td><td class="num">' + money(o.val) + '</td></tr>'; };
-  var rowsHtml = activeTabs.map(function (tb, idx) {
-    return tr((idx + 1) + '. ' + tb.label, tb.sum);
-  }).join('') + tr('รวมที่หักออกจากค้างสต็อกทั้งหมด', S.all, 1);
-  $('#lostNote').innerHTML =
-    '<div class="tscroll"><table class="pvt"><thead><tr><th class="nosort">ประเภทที่หักออกจากค้างสต็อก</th><th class="nosort">รายการที่หักได้จริง</th><th class="nosort">จำนวนที่หัก (ชิ้น)</th><th class="nosort">มูลค่าทุนที่หัก (บาท)</th></tr></thead><tbody>' +
-    rowsHtml + '</tbody></table></div>';
-  var edit = !!(D.me && D.me.edit);
-  if ($('#deductDetailBox')) {
-    $('#deductDetailBox').innerHTML = buildDeductSubTable(tabMode, edit);
-  }
+function stockAdjItems(items) {                                   // items = [{ code, qty }]
+  if (!Array.isArray(items)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง (ลองรีเฟรชหน้าเว็บแล้วทำใหม่)');
+  return items.map(x => {
+    const code = str(x && x.code).trim().slice(0, 40), qty = stockNum(x && x.qty, 2);
+    if (!code) return null;
+    if (!(qty > 0) || qty > 1000000) throw new Error('จำนวนต้องมากกว่า 0 (บาร์ ' + code + ')');
+    return { code, qty };
+  }).filter(item => item !== null);
 }
-$('#deductCard').addEventListener('click', function (e) {
-  var tb = e.target.closest('[data-dedtab]');
-  if (tb) { F.deductTab = tb.dataset.dedtab; F.deductCollapsed = false; renderLostBtn(); return; }
-  if (e.target.closest('#bToggleDeduct') || (e.target.closest('#deductHead') && !e.target.closest('#deductTabs'))) {
-    F.deductCollapsed = !F.deductCollapsed;
-    renderLostBtn();
-    return;
-  }
-  var oa = e.target.closest('[data-openadj]');
-  if (oa) { openAdj(oa.dataset.openadj); return; }
-  var dn = e.target.closest('[data-dednote]');
-  if (dn) {
-    var kind = dn.dataset.dednote, key = dn.dataset.key, code = dn.dataset.code;
-    var en = (D[kind] || []).filter(function (y) { return y.k === key; })[0];
-    var nv = prompt('แก้หมายเหตุ ' + AKI[kind].btn + '\n' + code + '\n(เว้นว่างเพื่อลบหมายเหตุ)', en ? en.note || '' : '');
-    if (nv === null) return;
-    busy(dn, async function () { await call('stockAdjNote', kind, key, nv); toast('บันทึกหมายเหตุแล้ว · ' + code); await load(VIEW); });
-    return;
-  }
-  var drm = e.target.closest('[data-dedrm]');
-  if (drm) {
-    var kind2 = drm.dataset.dedrm, key2 = drm.dataset.key, code2 = drm.dataset.code, K = AKI[kind2];
-    if (!confirm('ยกเลิก' + K.btn + ' รหัส ' + code2 + ' ?\nจำนวนที่หักไว้จะกลับมานับรวมในค้างสต็อก')) return;
-    busy(drm, async function () { await call(K.rm, [key2]); toast('ยกเลิก' + K.btn + 'แล้ว · ' + code2); await load(VIEW); });
-  }
-});
 
-/* ---------- จัดการประวัติข้อมูลและสถิติย้อนหลัง (ลบประวัติ/สถิติที่บันทึกทิ้งไว้) ---------- */
-function renderHistDlg() {
-  var h = dailyHistory(D.history || []).slice().reverse();
-  $('#hsTrendNote').textContent = h.length ? h.length + ' วัน' : 'ไม่มีข้อมูลสถิติ';
-  $('#hsClearAllHist').classList.toggle('hidden', !h.length);
-  $('#hsTrendTb').innerHTML = h.length ? h.map(function (x) {
-    var fb = [x.branch ? 'สาขา ' + x.branch : '', x.file || ''].filter(Boolean).join(' · ') || '–';
-    return '<tr><td><b>' + fmtDate(x.dayKey) + '</b></td><td>' + esc(fmtTs(x.ts)) + '</td><td>' + esc(x.who || '–') + '</td><td>' + esc(fb) + '</td>' + TR_KEYS.map(function (k) { return '<td class="num">' + trendMoney(trendTotalCost(x, k)) + '</td>'; }).join('') +
-      '<td><button type="button" class="btn ghost small" style="color:var(--bad)" data-delhistday="' + esc(x.dayKey) + '" data-delhistts="' + x.ts + '">ลบ</button></td></tr>';
-  }).join('') : '<tr><td colspan="10" class="muted" style="text-align:center;padding:16px">ไม่มีประวัติสถิติแนวโน้มที่บันทึกไว้</td></tr>';
-
-  var prevGs = Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; }).sort();
-  $('#hsPrevNote').textContent = prevGs.length ? prevGs.length + ' หมวด' : 'ไม่มีข้อมูลฉบับก่อนหน้า';
-  $('#hsClearAllPrev').classList.toggle('hidden', !prevGs.length);
-  $('#hsPrevTb').innerHTML = prevGs.length ? prevGs.map(function (g) {
-    var pv = D.gm[g].prev, dsC = (pv.sum && pv.sum.st && pv.sum.st.DS && pv.sum.st.DS.cost) || 0;
-    return '<tr><td><b>' + esc(gl(g)) + '</b></td><td>' + esc(fmtTs(pv.ts)) + '</td><td>' + esc(pv.who || '–') + '</td><td class="num">' + nf0.format(pv.count || 0) + '</td><td class="num">' + money(dsC) + '</td>' +
-      '<td><button type="button" class="btn ghost small" style="color:var(--bad)" data-delprevg="' + esc(g) + '">ลบข้อมูลย้อนหลัง</button></td></tr>';
-  }).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:16px">ไม่มีข้อมูลย้อนหลังฉบับก่อนหน้าที่บันทึกไว้</td></tr>';
-}
-function openHistDlg() {
-  $('#hsErr').textContent = '';
-  renderHistDlg();
-  $('#histDlg').classList.remove('hidden');
-}
-async function deleteHistDayFlow(dk, ts, btn) {
-  if (!confirm('ยืนยันลบประวัติสถิติแนวโน้มของวันที่ ' + fmtDate(dk) + ' ?')) return;
-  await busy(btn, async function () {
-    await call('stockHistoryDelete', { mode: 'hist_item', dayKey: dk, ts: Number(ts) || 0 });
-    DELETED_HIST_DAYS[dk] = Math.max(Number(ts) || Date.now(), Date.now());
-    saveDelHistState();
-    toast('ลบสถิติวันที่ ' + fmtDate(dk) + ' แล้ว');
-    await load(VIEW);
-  });
-}
-async function clearAllHistFlow(btn) {
-  if (!confirm('ยืนยันลบประวัติสถิติแนวโน้มทั้งหมด ?')) return;
-  await busy(btn, async function () {
-    await call('stockHistoryDelete', { mode: 'all_hist' });
-    DELETED_HIST_DAYS['*'] = Date.now();
-    saveDelHistState();
-    toast('ลบสถิติแนวโน้มทั้งหมดแล้ว');
-    await load(VIEW);
-  });
-}
-async function deletePrevGroupFlow(gs, btn) {
-  var msg = gs.length === 1 ? 'ยืนยันลบข้อมูลย้อนหลังฉบับก่อนหน้าของหมวด ' + gl(gs[0]) + ' ?' : 'ยืนยันลบข้อมูลย้อนหลังฉบับก่อนหน้าของทุกหมวด (' + gs.length + ' หมวด) ?';
-  if (!confirm(msg)) return;
-  await busy(btn, async function () {
-    await call('stockHistoryDelete', { mode: 'prev_group', groups: gs });
-    var nowTs = Date.now();
-    gs.forEach(function (g) { DELETED_PREV_GRPS[g] = nowTs; if (D.gm[g]) D.gm[g].prev = null; });
-    saveDelHistState();
-    toast('ลบข้อมูลย้อนหลังเรียบร้อยแล้ว');
-    if (VIEW === 'prev' && !nPrev()) VIEW = 'cur';
-    await load(VIEW);
-  });
-}
-$('#bHist').addEventListener('click', function () { closeDlg('#nmDlg'); });
-$('#bHist').addEventListener('click', openHistDlg);
-if ($('#bTrendHist')) $('#bTrendHist').addEventListener('click', openHistDlg);
-$('#hsClose').addEventListener('click', function () { closeDlg('#histDlg'); });
-$('#hsClearAllHist').addEventListener('click', function () { clearAllHistFlow(this); });
-$('#hsClearAllPrev').addEventListener('click', function () {
-  var prevGs = Object.keys(D.gm).filter(function (g) { return D.gm[g] && D.gm[g].prev; });
-  if (prevGs.length) deletePrevGroupFlow(prevGs, this);
-});
-$('#histDlg').addEventListener('click', function (e) {
-  var hd = e.target.closest('[data-delhistday]');
-  if (hd) { deleteHistDayFlow(hd.dataset.delhistday, hd.dataset.delhistts, hd); return; }
-  var pg = e.target.closest('[data-delprevg]');
-  if (pg) { deletePrevGroupFlow([pg.dataset.delprevg], pg); return; }
-});
-
-/* ---------- วิเคราะห์แนวโน้มข้อมูลท้ายสุดของหน้า พร้อมปุ่มกด "ดู" เพื่อแสดงรายการ ---------- */
-var AN_SETS = {};
-var AN_VIEW_KEY = '';
-function anBtn(key, title, list) {
-  AN_SETS[key] = { title: title, items: list || [] };
-  if (!list || !list.length) return '';
-  var on = AN_VIEW_KEY === key;
-  return '<button type="button" class="btn ghost small an-vbtn' + (on ? ' on' : '') + '" data-anview="' + esc(key) + '">ดู</button>';
-}
-function renderAnListBox() {
-  var box = $('#anListBox'); if (!box) return;
-  var cur = AN_VIEW_KEY && AN_SETS[AN_VIEW_KEY];
-  if (!cur || !cur.items || !cur.items.length) {
-    box.classList.add('hidden');
-    box.innerHTML = '';
-    return;
-  }
-  var list = cur.items.slice().sort(function (a, b) { return b.vc - a.vc; });
-  var a = agg(list), canEdit = !!(D.me && D.me.edit);
-  var showRows = list.slice(0, 200);
-  box.innerHTML = '<div class="cardhead" style="margin-bottom:4px">' +
-      '<div><b style="color:var(--accent-text);font-size:15px">รายการจากผลวิเคราะห์: ' + esc(cur.title) + '</b>' +
-      ' <span class="muted">· ' + nf0.format(list.length) + ' รายการ · คงเหลือรวม ' + qtyF(a.pcs) + ' ชิ้น · มูลค่าทุนรวม ' + money(a.vc) + ' บาท</span></div>' +
-      '<button type="button" class="btn ghost small" id="bCloseAnList">ปิดรายการที่ดู</button>' +
-    '</div>' +
-    '<div class="tscroll" style="max-height:420px"><table class="pvt">' +
-      '<thead><tr><th class="nosort">หมวด</th><th class="nosort">รหัส</th><th class="nosort">ชื่อสินค้า</th><th class="nosort">สาขา</th><th class="nosort">คงเหลือ</th><th class="nosort">ต้นทุน/หน่วย</th><th class="nosort">มูลค่าทุน</th><th class="nosort">ราคาขาย</th><th class="nosort">รับเข้า</th><th class="nosort">ขายล่าสุด</th><th class="nosort">ค้าง วัน</th><th class="nosort">ช่วงอายุสินค้า</th><th class="nosort">หมายเหตุ</th>' + (canEdit ? '<th class="nosort">จัดการ</th>' : '') + '</tr></thead>' +
-      '<tbody>' + showRows.map(function (x) {
-        var rowCls = x.isFullCut ? ' class="row-cut"' : (x.isZero ? ' class="row-zero"' : '');
-        var actCell = canEdit ? '<td style="text-align:center;white-space:nowrap">' + (x.code ? '<button type="button" class="btn ghost small dot-btn" data-dot="1" data-code="' + esc(x.code) + '" data-br="' + esc(x.br) + '" data-g="' + esc(x.g) + '" aria-haspopup="dialog" aria-expanded="false" aria-controls="dotPop" aria-label="จัดการแท็กสินค้า ' + esc(x.name || x.code) + '">&#8943;</button>' : '–') + '</td>' : '';
-        return '<tr' + rowCls + '><td>' + esc(x.g) + '</td><td>' + esc(x.code) + '</td><td>' + esc(x.name) + tagHtml(x) + '</td><td>' + esc(x.br) + '</td><td class="num">' + fmtQtyCell(x) + '</td><td class="num">' + nf2.format(x.cost) + '</td><td class="num">' + money(x.vc) + '</td><td class="num">' + nf2.format(x.price) + '</td><td>' + fmtDate(x.recv) + '</td><td>' + fmtDate(x.last) + '</td><td class="num">' + (x.days === null ? '–' : nf0.format(x.days)) + '</td><td><span class="badge ' + x.sk + '">' + (x.sk === 'NA' ? 'ไม่ทราบ' : x.sk) + '</span></td><td>' + esc(x.note) + '</td>' + actCell + '</tr>';
-      }).join('') + '</tbody></table></div>' +
-    (list.length > 200 ? '<div class="muted">แสดง 200 รายการแรกเรียงตามมูลค่าทุนสูงสุด</div>' : '');
-  box.classList.remove('hidden');
-}
-function renderAnalysis(S, N, G) {
-  var body = $('#analysisBody'), note = $('#analysisNote'); if (!body) return;
-  AN_SETS = {};
-  var h = dailyHistory(D.history || []);
-  var dsItems = N.filter(function (x) { return x.sk === 'DS'; });
-  var t3Items = N.filter(function (x) { return x.sk === 'T3'; });
-  var totAll = agg(N), totDS = agg(dsItems), totT3 = agg(t3Items);
-  var sel = gSel();
-  note.textContent = (sel.length ? 'วิเคราะห์เฉพาะหมวดที่เลือก ' + sel.join(', ') : 'วิเคราะห์ภาพรวมทั้งร้าน') + (F.br ? ' · สาขา ' + F.br : '');
-
-  // 1. แนวโน้มรายวันจากประวัติการอัปโหลด
-  var trendLines = [];
-  if (h.length >= 2) {
-    var last = h[h.length - 1], prev = h[h.length - 2], first = h[0];
-    var curDS = (last.sum && last.sum.st && last.sum.st.DS && last.sum.st.DS.cost) || 0;
-    var prvDS = (prev.sum && prev.sum.st && prev.sum.st.DS && prev.sum.st.DS.cost) || 0;
-    var fstDS = (first.sum && first.sum.st && first.sum.st.DS && first.sum.st.DS.cost) || 0;
-    var diffDS = curDS - prvDS, pctDS = prvDS > 0 ? (diffDS / prvDS * 100) : 0;
-    var curT3 = (last.sum && last.sum.st && last.sum.st.T3 && last.sum.st.T3.cost) || 0;
-    var prvT3 = (prev.sum && prev.sum.st && prev.sum.st.T3 && prev.sum.st.T3.cost) || 0;
-    var diffT3 = curT3 - prvT3, pctT3 = prvT3 > 0 ? (diffT3 / prvT3 * 100) : 0;
-    var dBadge = diffDS > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffDS) + ' บาท · +' + nf2.format(pctDS) + '%</span>' : (diffDS < 0 ? '<span class="an-badge down">ลดลง ' + money(diffDS) + ' บาท · ' + nf2.format(pctDS) + '%</span>' : '<span class="an-badge flat">ทรงตัว</span>');
-    var t3Badge = diffT3 > 0 ? '<span class="an-badge up">เพิ่มขึ้น +' + money(diffT3) + ' บาท · +' + nf2.format(pctT3) + '%</span>' : (diffT3 < 0 ? '<span class="an-badge down">ลดลง ' + money(diffT3) + ' บาท · ' + nf2.format(pctT3) + '%</span>' : '<span class="an-badge flat">ทรงตัว</span>');
-    trendLines.push('เทียบวันอัปโหลดล่าสุด <b>' + fmtDate(last.dayKey) + '</b> กับวันก่อนหน้า <b>' + fmtDate(prev.dayKey) + '</b>: มูลค่าค้างเกิน 60 วัน DS ' + dBadge + anBtn('ds_all', 'สินค้าค้างเกิน 60 วัน DS ทั้งหมด', dsItems));
-    trendLines.push('สินค้ากลุ่มเฝ้าระวัง 31–60 วัน T3 ล่าสุดอยู่ที่ <b>' + money(curT3) + ' บาท</b> ' + t3Badge + (diffT3 > 0 ? ' — มีโอกาสไหลเข้าสู่ DS ในรอบถัดไปมากขึ้น' : ' — แนวโน้มสินค้าใหม่ที่จะไหลเข้า DS ชะลอตัวลง') + anBtn('t3_all', 'สินค้ากลุ่มเฝ้าระวัง 31–60 วัน T3', t3Items));
-    if (h.length >= 3) {
-      var netSpan = curDS - fstDS;
-      trendLines.push('ภาพรวมตลอด <b>' + h.length + ' วัน</b> ที่มีการอัปโหลด ตั้งแต่ ' + fmtDate(first.dayKey) + ': มูลค่าทุน DS สุทธิ ' + (netSpan > 0 ? '<b style="color:var(--bad)">เพิ่มขึ้น +' + money(netSpan) + ' บาท</b>' : (netSpan < 0 ? '<b style="color:var(--ok)">ลดลง ' + money(netSpan) + ' บาท</b>' : '<b>คงที่</b>')));
-    }
-  } else if (h.length === 1) {
-    trendLines.push('ขณะนี้มีข้อมูลการอัปโหลดรายวัน <b>1 วัน</b> · ' + fmtDate(h[0].dayKey) + ' · มูลค่าทุน DS รวมทั้งร้าน <b>' + money((h[0].sum.st.DS && h[0].sum.st.DS.cost) || 0) + ' บาท</b>' + anBtn('ds_all', 'สินค้าค้างเกิน 60 วัน DS ทั้งหมด', dsItems));
-  } else {
-    trendLines.push('ยังไม่มีประวัติรอบอัปโหลดรายวันในระบบ' + anBtn('ds_all', 'สินค้าค้างเกิน 60 วัน DS ทั้งหมด', dsItems));
-  }
-
-  // เปรียบเทียบกับฉบับก่อนหน้ารายหมวด
-  var deltaUp = [], deltaDown = [], netDelta = 0, hasDelta = 0;
-  D.groups.forEach(function (g) {
-    if (!gOn(g)) return;
-    var d = dsDelta(g);
-    if (d === null) return;
-    hasDelta++; netDelta += d;
-    if (d > 0) deltaUp.push({ g: g, d: d });
-    else if (d < 0) deltaDown.push({ g: g, d: d });
-  });
-  deltaUp.sort(function (a, b) { return b.d - a.d; });
-  deltaDown.sort(function (a, b) { return a.d - b.d; });
-  if (hasDelta) {
-    trendLines.push('เทียบกับ <b>ฉบับก่อนหน้า</b> ของหมวดที่มีข้อมูล ' + hasDelta + ' หมวด: มูลค่า DS สุทธิ ' + (netDelta > 0 ? '<b style="color:var(--bad)">เพิ่มขึ้น +' + money(netDelta) + ' บาท</b>' : (netDelta < 0 ? '<b style="color:var(--ok)">ลดลง ' + money(netDelta) + ' บาท</b>' : '<b>ไม่เปลี่ยนแปลง</b>')));
-    if (deltaUp.length) {
-      var u0 = deltaUp[0], u0Items = dsItems.filter(function (x) { return x.g === u0.g; });
-      var u1Txt = '';
-      if (deltaUp[1]) {
-        var u1 = deltaUp[1], u1Items = dsItems.filter(function (x) { return x.g === u1.g; });
-        u1Txt = ', <b>' + esc(gl(u1.g)) + '</b> +' + money(u1.d) + ' บาท' + anBtn('up_' + u1.g, 'สินค้า DS หมวด ' + gl(u1.g), u1Items);
+function stockAdjApi(kind, meta) {                                // meta (ไม่บังคับ) = { label, kv } สำหรับแท็กที่สร้างเอง
+  const label = meta ? meta.label : STOCK_ADJ_LABEL[kind], kv = meta ? meta.kv : STOCK_ADJ_KV[kind];
+  return {
+    add: async (C, token, items, note, br) => {
+      const me = await stockEditAuth(C, token), list = stockAdjItems(items);
+      if (!list.length) throw new Error('กรุณากรอกบาร์โค้ดและจำนวน');
+      if (list.length > 300) throw new Error('เพิ่มได้ครั้งละไม่เกิน 300 รายการ');
+      const adj = await stockAdjLoad(C), cur = adj[kind], ts = now(), nt = str(note).replace(/\s+/g, ' ').slice(0, 100), bn = str(br).replace(/\s+/g, ' ').trim().slice(0, 20), by = new Map();
+      (await stockLoadRows(C, 0)).forEach(r => { const k = stockCodeKey(r[1]); if (k && !by.has(k)) by.set(k, r); });   // หาชื่อจากข้อมูลปัจจุบัน (ถ้าไม่พบก็เก็บไว้ก่อน — ถ้าภายหลังมีในไฟล์ก็หักให้)
+      let added = 0, merged = 0, dup = 0, pcs = 0; const notFound = [];
+      for (const it of list) {
+        const k = stockAdjKey(it.code, bn), r = by.get(stockCodeKey(it.code)), e = cur[k];
+        if (e) {
+          if (e.qty === null || e.qty === undefined) { dup++; continue; }     // รายการเก่าที่หักทั้งบาร์อยู่แล้ว
+          e.qty = stockNum(Number(e.qty) + it.qty, 2); e.ts = ts; e.who = me.name; if (nt) e.note = nt; if (!e.name && r) e.name = str(r[2]).slice(0, 200);
+          merged++; pcs += it.qty; continue;
+        }
+        if (Object.keys(cur).length >= STOCK_LOST_MAX) throw new Error('รายการ' + label + 'เต็ม (' + STOCK_LOST_MAX + ' รายการ) กรุณายกเลิกรายการที่ไม่ใช้แล้วก่อน');
+        cur[k] = { code: it.code, br: bn, qty: it.qty, name: r ? str(r[2]).slice(0, 200) : '', g: r ? str(r[0]) : '', note: nt, ts, who: me.name };
+        added++; pcs += it.qty; if (!r) notFound.push(it.code);
       }
-      trendLines.push('หมวดที่ DS เพิ่มขึ้นสูงสุด: <b>' + esc(gl(u0.g)) + '</b> +' + money(u0.d) + ' บาท' + anBtn('up_' + u0.g, 'สินค้า DS หมวด ' + gl(u0.g), u0Items) + u1Txt);
+      if (!added && !merged) return { ok: true, added, merged, dup, pcs, notFound };
+      const state = await stockResumState(C, adj);
+      await batch(C, [kvSetStmt(C, kv, JSON.stringify(cur)), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))]);
+      await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่ม' + label, (added + merged) + ' รายการ ' + stockNum(pcs, 2) + ' ชิ้น' + (bn ? ' · สาขา ' + bn : '') + ' (' + list.slice(0, 10).map(x => x.code + 'x' + x.qty).join(',') + (list.length > 10 ? ',…' : '') + ')' + (nt ? ' · ' + nt : ''));
+      return { ok: true, added, merged, dup, pcs, notFound };
+    },
+    remove: async (C, token, keys) => {                           // keys = คีย์รายการ (k จาก stockGet) · รับรหัสบาร์ล้วนได้ (= รายการแบบทุกสาขา)
+      const me = await stockEditAuth(C, token), list = (Array.isArray(keys) ? keys : [keys]).map(x => str(x)).filter(Boolean);
+      if (!list.length) throw new Error('ไม่พบรายการที่จะยกเลิก');
+      const adj = await stockAdjLoad(C), cur = adj[kind], gone = [];
+      list.forEach(x => {
+        const k = cur[x] ? x : stockAdjKey(x, ''), e = cur[k];
+        if (e) { gone.push(str(e.code) + (e.br ? '@' + e.br : '') + (e.qty === null || e.qty === undefined ? '' : ' x' + e.qty)); delete cur[k]; }
+      });
+      if (!gone.length) return { ok: true, removed: 0 };
+      const state = await stockResumState(C, adj);
+      await batch(C, [kvSetStmt(C, kv, JSON.stringify(cur)), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))]);
+      await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ยกเลิก' + label, gone.length + ' รายการ (' + gone.slice(0, 10).join(',') + (gone.length > 10 ? ',…' : '') + ')');
+      return { ok: true, removed: gone.length };
     }
-    if (deltaDown.length) {
-      var d0 = deltaDown[0], d0Items = dsItems.filter(function (x) { return x.g === d0.g; });
-      var d1Txt = '';
-      if (deltaDown[1]) {
-        var d1 = deltaDown[1], d1Items = dsItems.filter(function (x) { return x.g === d1.g; });
-        d1Txt = ', <b>' + esc(gl(d1.g)) + '</b> ' + money(d1.d) + ' บาท' + anBtn('dn_' + d1.g, 'สินค้า DS หมวด ' + gl(d1.g), d1Items);
-      }
-      trendLines.push('หมวดที่ระบาย DS ลดลงได้ดีที่สุด: <b>' + esc(gl(d0.g)) + '</b> ' + money(d0.d) + ' บาท' + anBtn('dn_' + d0.g, 'สินค้า DS หมวด ' + gl(d0.g), d0Items) + d1Txt);
-    }
-  }
+  };
+}
 
-  // 2. การกระจุกตัวตามหมวดและสาขา
-  var byG = {}, byBr = {};
-  dsItems.forEach(function (x) {
-    var og = byG[x.g] || (byG[x.g] = { g: x.g, n: 0, vc: 0, list: [] }); og.n++; og.vc += x.vc; og.list.push(x);
-    var bName = x.br || 'ไม่ระบุ';
-    var ob = byBr[bName] || (byBr[bName] = { br: bName, n: 0, vc: 0, list: [] }); ob.n++; ob.vc += x.vc; ob.list.push(x);
+const stockLostApi = stockAdjApi('lost'), stockExpApi = stockAdjApi('exp'), stockPendApi = stockAdjApi('pend'), stockWasteApi = stockAdjApi('waste');
+
+API.stockLostAdd = stockLostApi.add;
+
+API.stockLostRemove = stockLostApi.remove;
+
+API.stockExpiredAdd = stockExpApi.add;
+
+API.stockExpiredRemove = stockExpApi.remove;
+
+API.stockPendingAdd = stockPendApi.add;
+
+API.stockPendingRemove = stockPendApi.remove;
+
+API.stockWasteAdd = stockWasteApi.add;
+
+API.stockWasteRemove = stockWasteApi.remove;
+
+API.stockAdjNote = async (C, token, kind, key, note) => {
+  const me = await stockEditAuth(C, token);
+  let kvName = STOCK_ADJ_KV[kind], kLabel = STOCK_ADJ_LABEL[kind];
+  if (!kvName && /^c_/.test(str(kind))) { const defs = await stockCtagDefs(C), d = defs[str(kind).slice(2)]; if (d && d.mode === 'deduct') { kvName = 'STOCK_CT_' + str(kind).slice(2); kLabel = d.t; } }
+  if (!kvName) throw new Error('ประเภทไม่ถูกต้อง');
+  const adj = await stockAdjLoad(C), cur = adj[kind], k = str(key), e = cur[k];
+  if (!e) throw new Error('ไม่พบรายการนี้ (อาจถูกยกเลิกไปแล้ว) กรุณารีเฟรช');
+  e.note = str(note).replace(/\s+/g, ' ').slice(0, 100);
+  await kvSet(C, kvName, JSON.stringify(cur));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'แก้หมายเหตุ' + kLabel, str(e.code) + (e.br ? '@' + e.br : '') + ' · ' + (e.note || '(ลบหมายเหตุ)'));
+  return { ok: true };
+};
+
+async function stockCtagNeed(C, id, mode) {
+  id = str(id);
+  const defs = await stockCtagDefs(C), d = defs[id];
+  if (!d) throw new Error('ไม่พบแท็กนี้ (อาจถูกลบไปแล้ว) กรุณารีเฟรช');
+  if (mode && d.mode !== mode) throw new Error('แท็ก "' + d.t + '" เป็นโหมด' + (d.mode === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ'));
+  return { id, def: d, defs };
+}
+
+API.stockCtagCreate = async (C, token, name, mode) => {
+  const me = await stockEditAuth(C, token), nm = str(name).replace(/\s+/g, ' ').trim().slice(0, 30), md = str(mode) === 'deduct' ? 'deduct' : 'tag';
+  if (!nm) throw new Error('กรุณาใส่ชื่อแท็ก');
+  const defs = await stockCtagDefs(C), reserved = ['ขายยาก', 'ของหาย', 'หมดอายุ', 'รอปรับ', 'ของเสีย', 'คงเหลือ 0', 'ติดลบ'];
+  if (reserved.indexOf(nm) >= 0 || Object.keys(defs).some(k => defs[k].t === nm)) throw new Error('มีแท็กชื่อนี้อยู่แล้ว');
+  if (Object.keys(defs).length >= STOCK_CT_MAX) throw new Error('สร้างแท็กได้ไม่เกิน ' + STOCK_CT_MAX + ' แท็ก');
+  let id = '';
+  do { id = ('t' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).slice(0, 14); } while (defs[id]);
+  defs[id] = { t: nm, mode: md, ts: now(), who: me.name };
+  await kvSet(C, 'STOCK_CTAGS', JSON.stringify(defs));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สร้างแท็ก', nm + ' (' + (md === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
+  return { ok: true, id };
+};
+
+API.stockCtagDelete = async (C, token, id) => {
+  const me = await stockEditAuth(C, token), n = await stockCtagNeed(C, id), kind = 'c_' + n.id;
+  const adj = await stockAdjLoad(C), freed = Object.keys(adj[kind] || {}).length;
+  delete adj[kind];
+  const defs = n.defs; delete defs[n.id];
+  const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}; delete map[n.id];
+  const ops = [kvSetStmt(C, 'STOCK_CTAGS', JSON.stringify(defs)), kvSetStmt(C, 'STOCK_CTMAP', JSON.stringify(map)), stmt(C, 'DELETE FROM kv WHERE k=?', 'STOCK_CT_' + n.id)];
+  if (n.def.mode === 'deduct' && freed) { const state = await stockResumState(C, adj); ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))); }
+  await batch(C, ops);
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบแท็ก', n.def.t + (freed ? ' · คืนยอดที่หักไว้ ' + freed + ' รายการ' : ''));
+  return { ok: true, freed };
+};
+
+API.stockCtagAssign = async (C, token, id, items, on) => {
+  const me = await stockEditAuth(C, token), n = await stockCtagNeed(C, id, 'tag');
+  if (!Array.isArray(items)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+  if (items.length > 5000) throw new Error('ทำได้ครั้งละไม่เกิน 5,000 รายการ');
+  const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, m = map[n.id] || (map[n.id] = {});
+  let c = 0;
+  items.forEach(it => {
+    const ck = stockCodeKey(it && it.code); if (!ck) return;
+    const k = ck + '|' + stockBrKey(it.br);
+    if (on) { if (!m[k]) { m[k] = 1; c++; } } else if (m[k]) { delete m[k]; c++; }
   });
-  var topG = Object.keys(byG).map(function (k) { return byG[k]; }).sort(function (a, b) { return b.vc - a.vc; });
-  var topBr = Object.keys(byBr).map(function (k) { return byBr[k]; }).sort(function (a, b) { return b.vc - a.vc; });
-  var concLines = [];
-  if (topG.length && totDS.vc > 0) {
-    var top3Val = topG.slice(0, 3).reduce(function (s, o) { return s + o.vc; }, 0);
-    var top3Items = []; topG.slice(0, 3).forEach(function (o) { top3Items = top3Items.concat(o.list); });
-    var top3Pct = Math.round(top3Val / totDS.vc * 1000) / 10;
-    concLines.push('มูลค่าค้างเกิน 60 วัน DS กระจุกตัวใน 3 หมวดแรกคิดเป็น <b>' + top3Pct + '%</b> ของมูลค่า DS ทั้งหมด · ' + money(top3Val) + ' บาท' + anBtn('top3_g', 'สินค้า DS ใน 3 หมวดแรกที่มีมูลค่าสูงสุด', top3Items));
-    topG.slice(0, 3).forEach(function (o, i) {
-      var p = Math.round(o.vc / totDS.vc * 1000) / 10;
-      concLines.push('อันดับ ' + (i + 1) + ': <b>' + esc(gl(o.g)) + '</b> — ' + money(o.vc) + ' บาท · ' + p + '% · ' + nf0.format(o.n) + ' รายการ' + anBtn('topg_' + o.g, 'สินค้า DS หมวด ' + gl(o.g), o.list));
-    });
-  } else {
-    concLines.push('ไม่พบรายการค้างเกิน 60 วัน DS ในขอบเขตที่เลือก');
-  }
-  if (topBr.length >= 1 && totDS.vc > 0) {
-    concLines.push('สาขาที่มีมูลค่า DS สูงสุด: <b>' + esc(topBr[0].br) + '</b> — ' + money(topBr[0].vc) + ' บาท · ' + (Math.round(topBr[0].vc / totDS.vc * 1000) / 10) + '% · ' + nf0.format(topBr[0].n) + ' รายการ' + anBtn('topbr_' + topBr[0].br, 'สินค้า DS สาขา ' + topBr[0].br, topBr[0].list));
-  }
+  if (!c) return { ok: true, changed: 0 };
+  await kvSet(C, 'STOCK_CTMAP', JSON.stringify(map));
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', (on ? 'ติดแท็ก ' : 'ถอดแท็ก ') + n.def.t, c + ' รายการ');
+  return { ok: true, changed: c };
+};
 
-  // 3. โครงสร้างอายุสินค้าและความเสี่ยงสะสม
-  var over180 = dsItems.filter(function (x) { return x.days !== null && x.days > 180; });
-  var over365 = dsItems.filter(function (x) { return x.days !== null && x.days > 365; });
-  var nearDS = t3Items.filter(function (x) { return x.days !== null && x.days >= 45 && x.days <= 60; });
-  var cutItems = allPool().filter(function (x) { return x.isCut && gOn(x.g) && (!F.br || x.br === F.br); });
-  var hardItems = N.filter(function (x) { return x.hard; });
-  var v180 = agg(over180), v365 = agg(over365), vNear = agg(nearDS);
-  var dsShare = totAll.vc > 0 ? (Math.round(totDS.vc / totAll.vc * 1000) / 10) : 0;
-  var riskLines = [
-    'สัดส่วนมูลค่าค้างเกิน 60 วัน DS คิดเป็น <b>' + dsShare + '%</b> ของมูลค่าสต็อกทั้งหมดในขอบเขตที่เลือก · ' + money(totDS.vc) + ' จาก ' + money(totAll.vc) + ' บาท · <b>' + nf0.format(totDS.n) + ' รายการ</b>' + anBtn('risk_ds', 'สินค้าค้างเกิน 60 วัน DS', dsItems),
-    'สินค้าค้างสะสมระยะยาวเกิน 180 วัน: <b>' + nf0.format(v180.n) + ' รายการ</b> · มูลค่าทุน <b>' + money(v180.vc) + ' บาท</b>' + anBtn('over180', 'สินค้าค้างสะสมเกิน 180 วัน', over180) + (v365.n ? ' และค้างเกิน 1 ปี 365 วัน จำนวน <b>' + nf0.format(v365.n) + ' รายการ</b> · ' + money(v365.vc) + ' บาท' + anBtn('over365', 'สินค้าค้างสะสมเกิน 365 วัน', over365) : ''),
-    'สัญญาณเตือนระยะสั้น ค้าง 45–60 วัน กำลังจะข้ามเป็น DS ใน 15 วัน: <b>' + nf0.format(vNear.n) + ' รายการ</b> · มูลค่าทุน <b>' + money(vNear.vc) + ' บาท</b>' + anBtn('near_ds', 'สินค้าค้าง 45–60 วัน กำลังจะข้ามเป็น DS', nearDS),
-    'รายการที่ตัดออกจากสต็อกแล้วรวม <b>' + money((adjSummary(sel.length === 1 ? sel[0] : '', F.br) || { all: { val: 0 } }).all.val) + ' บาท</b> · <b>' + nf0.format(cutItems.length) + ' รายการ</b>' + anBtn('cut_all', 'รายการที่มีการตัดออกจากสต็อก', cutItems) + ' และสินค้าติดแท็กขายยาก <b>' + nf0.format(hardItems.length) + ' รายการ</b>' + anBtn('hard_all', 'สินค้าที่ติดแท็กขายยาก', hardItems)
-  ];
+API.stockCtagAdd = async (C, token, items, note, br, id) => {
+  await stockEditAuth(C, token);
+  const n = await stockCtagNeed(C, id, 'deduct');
+  return stockAdjApi('c_' + n.id, stockCtagMeta(n.id, n.def)).add(C, token, items, note, br);
+};
 
-  // 4. ข้อเสนอแนะเชิงปฏิบัติการ
-  var recLines = [];
-  if (topG.length) recLines.push('<b>เร่งระบายหมวดหลัก:</b> โฟกัสจัดโปรโมชันหรือปรับลดการสั่งซื้อในหมวด <b>' + esc(gl(topG[0].g)) + '</b> ซึ่งมีมูลค่าทุนจมสูงสุด ' + money(topG[0].vc) + ' บาท · ' + nf0.format(topG[0].n) + ' รายการ' + anBtn('rec_topg', 'สินค้า DS หมวด ' + gl(topG[0].g), topG[0].list));
-  if (vNear.n > 0) recLines.push('<b>สกัดกั้นก่อนกลายเป็น DS:</b> เร่งผลักดันการขายสินค้ากลุ่มอายุ 45–60 วัน จำนวน <b>' + nf0.format(vNear.n) + ' รายการ</b> · ' + money(vNear.vc) + ' บาท ก่อนที่จะข้ามเส้น 60 วัน' + anBtn('rec_near', 'สินค้าค้าง 45–60 วัน กำลังจะข้ามเป็น DS', nearDS));
-  if (v365.n > 0) recLines.push('<b>จัดการสต็อกค้างเกิน 1 ปี:</b> ตรวจสอบสภาพสินค้าที่ค้างเกิน 365 วัน จำนวน <b>' + nf0.format(v365.n) + ' รายการ</b> เพื่อพิจารณาตัดจำหน่าย โอนย้ายสาขา หรือติ๊กแยกของเสีย/หมดอายุ' + anBtn('rec_365', 'สินค้าค้างสะสมเกิน 365 วัน', over365));
-  if (deltaUp.length) {
-    var duItems = dsItems.filter(function (x) { return x.g === deltaUp[0].g; });
-    recLines.push('<b>ติดตามหมวดที่ยอดค้างพุ่งขึ้น:</b> ตรวจสอบการรับเข้าและยอดขายของหมวด <b>' + esc(gl(deltaUp[0].g)) + '</b> ที่มียอด DS เพิ่มขึ้นจากฉบับก่อนหน้า +' + money(deltaUp[0].d) + ' บาท' + anBtn('rec_dup', 'สินค้า DS หมวด ' + gl(deltaUp[0].g), duItems));
-  }
-  if (!recLines.length) recLines.push('ข้อมูลสต็อกอยู่ในเกณฑ์ปกติ แนะนำให้อัปโหลดรายงานอย่างสม่ำเสมอเพื่อติดตามแนวโน้มรายวัน');
+API.stockCtagRemove = async (C, token, keys, id) => {
+  await stockEditAuth(C, token);
+  const n = await stockCtagNeed(C, id, 'deduct');
+  return stockAdjApi('c_' + n.id, stockCtagMeta(n.id, n.def)).remove(C, token, keys);
+};
 
-  body.innerHTML = '<div class="an-grid">' +
-    '<div class="an-box"><h4>1. แนวโน้มมูลค่าทุนรายวันและเทียบฉบับก่อนหน้า</h4><ul>' + trendLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>2. การกระจุกตัวแยกตามหมวดและสาขา</h4><ul>' + concLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>3. โครงสร้างอายุสินค้าและความเสี่ยง</h4><ul>' + riskLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-    '<div class="an-box"><h4>4. ข้อเสนอแนะเชิงปฏิบัติการจากข้อมูล</h4><ul>' + recLines.map(function (l) { return '<li>' + l + '</li>'; }).join('') + '</ul></div>' +
-  '</div>';
-  renderAnListBox();
-}
-$('#analysisCard').addEventListener('click', function (e) {
-  var vb = e.target.closest('[data-anview]');
-  if (vb) {
-    var k = vb.dataset.anview;
-    AN_VIEW_KEY = (AN_VIEW_KEY === k) ? '' : k;
-    document.querySelectorAll('#analysisBody [data-anview]').forEach(function (b) {
-      b.classList.toggle('on', b.dataset.anview === AN_VIEW_KEY);
-    });
-    renderAnListBox();
-    if (AN_VIEW_KEY && $('#anListBox')) $('#anListBox').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    return;
-  }
-  if (e.target.closest('#bCloseAnList')) {
-    AN_VIEW_KEY = '';
-    document.querySelectorAll('#analysisBody [data-anview]').forEach(function (b) { b.classList.remove('on'); });
-    renderAnListBox();
-    return;
-  }
-  var dot = e.target.closest('[data-dot]');
-  if (dot) {
-    e.stopPropagation();
-    openDotPop(dot, dot.dataset.code, dot.dataset.br, dot.dataset.g);
-    return;
-  }
-});
-function fillLsBr() {
-  var set = {}, old = $('#lsBr').value;
-  D.branches.forEach(function (k) { if (k) set[k] = 1; });
-  Object.keys(D.gm).forEach(function (g) { var c = D.gm[g] && D.gm[g].cur; if (c && c.br) Object.keys(c.br).forEach(function (k) { if (k) set[k] = 1; }); });
-  $('#lsBr').innerHTML = '<option value="">ทุกสาขา</option>' + Object.keys(set).sort().map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('');
-  $('#lsBr').value = set[old] ? old : '';
-}
-function renderLost() {
-  var K = AKI[AK], edit = !!(D.me && D.me.edit), q = ($('#lsQ').value || '').trim().toLowerCase(), all = D[AK] || [];
-  $('#lsTitle').textContent = 'รายการ' + K.btn;
-  $('#lsDesc').innerHTML = 'บันทึกบาร์ + จำนวนที่' + K.verb + ' ระบบจะ<b>จำเฉพาะจำนวน</b> แล้ว<b>หักออกจากคงเหลือ</b>ของรายการนั้น (จำนวนรายการ · มูลค่า · กราฟ · ส่งออก Excel) · ถ้าในสต็อกมีมากกว่าจำนวนที่หัก จะ<b>ยังแสดงรายการตามปกติ</b>ด้วยจำนวนที่เหลือ · หักหมดจึงจะไม่แสดง · <b>หักต่อทุกครั้งที่อัปโหลดข้อมูลใหม่</b> จนกว่าจะกด "ยกเลิก" · ใช้ค่าเดียวกับคอลัมน์ "รหัส" ในไฟล์รายงาน · เลือกสาขาเพื่อหักเฉพาะสาขานั้น (ถ้าเลือก "ทุกสาขา" จะหักตามลำดับแถวที่พบ)';
-  $('#lsInLab').textContent = 'กรอกบาร์ที่' + K.verb + ' + จำนวน'; $('#lsAdd').textContent = 'เพิ่มเป็น' + K.btn;
-  $('#lsAddBox').classList.toggle('hidden', !edit); $('#lsThAct').classList.toggle('hidden', !edit);
-  $('#lsCancelAll').classList.toggle('hidden', !edit || !all.length); $('#lsCancelAll').textContent = 'ยกเลิก' + K.btn + 'ทั้งหมด (' + nf0.format(all.length) + ')';
-  var list = all.filter(function (x) { return !q || (x.code + ' ' + x.name + ' ' + x.note + ' ' + x.br).toLowerCase().indexOf(q) >= 0; });
-  var pcs = adjPcs(all), val = 0; all.forEach(function (x) { (x.hit || []).forEach(function (h) { val += h.qty * h.cost; }); });
-  $('#lsSum').textContent = all.length ? nf0.format(all.length) + ' รายการ · หักออกจากยอด ' + qtyF(pcs) + ' ชิ้น · มูลค่าทุน ' + money(val) + ' บาท' + (D.ver === 'prev' ? ' (ตามฉบับก่อนหน้าที่กำลังดู)' : '') : 'ยังไม่มีรายการ' + K.btn;
-  $('#lsTb').innerHTML = list.length ? list.map(function (x) {
-    var h = x.hit || [], got = h.reduce(function (s, y) { return s + y.qty; }, 0), v = h.reduce(function (s, y) { return s + y.qty * y.cost; }, 0);
-    var qtyTxt = x.qty == null ? '<span class="tag old" title="รายการเก่าที่บันทึกก่อนมีจำนวน — หักทั้งบาร์">ทั้งหมด</span>' : qtyF(x.qty);
-    var where = h.length ? h.map(function (y) { return esc(y.g) + ' · ' + esc(y.br) + ' · ' + qtyF(y.qty) + ' ชิ้น'; }).join('<br>') : '<span class="tag old" title="ยังไม่มีบาร์นี้ในข้อมูลสต็อก — ระบบจำไว้ และจะหักให้เมื่อมีในไฟล์ที่อัปโหลด">ไม่พบในข้อมูลปัจจุบัน</span>';
-    if (h.length && x.qty != null && got < x.qty - 0.005) where += '<br><span class="muted">หักได้ ' + qtyF(got) + ' จาก ' + qtyF(x.qty) + ' ชิ้น (สต็อกมีไม่พอ)</span>';
-    return '<tr><td>' + esc(x.code) + '</td><td>' + esc(x.name || '–') + '</td><td class="num">' + qtyTxt + '</td><td>' + (x.br ? esc(x.br) : '<span class="muted">ทุกสาขา</span>') + '</td><td>' + where + '</td><td class="num">' + (h.length ? money(v) : '–') + '</td><td>' + esc(x.note) + '</td><td>' + esc(fmtTs(x.ts)) + '<br><span class="muted">' + esc(x.who) + '</span></td>' +
-      (edit ? '<td><button type="button" class="btn ghost small" data-lcancel="' + esc(x.k) + '">ยกเลิก</button></td>' : '') + '</tr>';
-  }).join('') : '<tr><td colspan="' + (edit ? 9 : 8) + '" class="muted" style="text-align:center;padding:20px">' + (all.length ? 'ไม่พบรายการตามคำค้น' : 'ยังไม่มีรายการ' + K.btn) + '</td></tr>';
-}
-function openAdj(k) {
-  if (!D.me) return;
-  AK = k; $('#lsErr').textContent = ''; $('#lsQ').value = ''; fillLsBr(); renderLost(); $('#lostDlg').classList.remove('hidden');
-  if (D.me.edit) setTimeout(function () { $('#lsIn').focus(); }, 50);
-}
-if ($('#bLost')) $('#bLost').addEventListener('click', function () { openAdj('lost'); });
-if ($('#bExp')) $('#bExp').addEventListener('click', function () { openAdj('exp'); });
-if ($('#bPend')) $('#bPend').addEventListener('click', function () { openAdj('pend'); });
-if ($('#bWaste')) $('#bWaste').addEventListener('click', function () { openAdj('waste'); });
-$('#lsClose').addEventListener('click', function () { closeDlg('#lostDlg'); });
-$('#lsCancelAll').addEventListener('click', function () {
-  var K = AKI[AK], all = D[AK] || []; if (!all.length) return;
-  if (!confirm('ยกเลิก' + K.btn + 'ทั้งหมด ' + nf0.format(all.length) + ' รายการ ?\nจำนวนทั้งหมดจะกลับมานับรวมในค้างสต็อก (ถ้ายังมีในข้อมูล)')) return;
-  var keys = all.map(function (x) { return x.k; });
-  busy(this, async function () { await call(K.rm, keys); toast('ยกเลิก' + K.btn + 'ทั้งหมดแล้ว · ' + nf0.format(keys.length) + ' รายการ'); await load(VIEW); });
-});
-$('#lsQ').addEventListener('input', renderLost);
-$('#lsIn').addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#lsAdd').click(); } });     // สแกนบาร์แล้ว Enter = เพิ่มทันที
-function parseAdjIn(txt, defQ) {                                      // 1 บรรทัด = "บาร์ [จำนวน]" → { items, bad }
-  var items = [], bad = [];
-  String(txt).split(/\r?\n/).forEach(function (ln) {
-    ln = ln.trim(); if (!ln) return;
-    var t = ln.split(/[\s,;]+/).filter(Boolean), q = defQ;
-    if (t.length > 2) { bad.push(ln); return; }
-    if (t.length === 2) { q = Number(t[1].replace(/,/g, '')); if (!Number.isFinite(q) || !(q > 0)) { bad.push(ln); return; } }
-    items.push({ code: t[0], qty: q });
-  });
-  return { items: items, bad: bad };
-}
-$('#lsAdd').addEventListener('click', function () {
-  var K = AKI[AK], defQ = Number($('#lsQty').value);
-  if (!$('#lsIn').value.trim()) { $('#lsErr').textContent = 'กรุณากรอกบาร์โค้ด' + K.verb; return; }
-  if (!Number.isFinite(defQ) || !(defQ > 0)) { $('#lsErr').textContent = 'จำนวนเริ่มต้นต้องเป็นตัวเลขที่มากกว่า 0'; return; }
-  var pr = parseAdjIn($('#lsIn').value, defQ);
-  if (pr.bad.length) { $('#lsErr').textContent = 'รูปแบบบรรทัดไม่ถูกต้อง (ต้องเป็น "บาร์ จำนวน" บรรทัดละ 1 รายการ): ' + pr.bad.slice(0, 3).join(' | ') + (pr.bad.length > 3 ? ' …' : ''); return; }
-  if (!pr.items.length) { $('#lsErr').textContent = 'กรุณากรอกบาร์โค้ด' + K.verb; return; }
-  busy(this, async function () {
-    $('#lsErr').textContent = '';
-    var r;
-    try { r = await call(K.add, pr.items, $('#lsNote').value, $('#lsBr').value); }
-    catch (e) { if (e.message === 'SESSION_EXPIRED') throw e; $('#lsErr').textContent = e.message; return; }
-    $('#lsIn').value = '';
-    var nf = r.notFound ? r.notFound.length : 0, n = (r.added || 0) + (r.merged || 0);
-    toast(n ? 'บันทึก' + K.btn + ' ' + n + ' รายการ (' + qtyF(r.pcs) + ' ชิ้น) — หักออกจากค้างสต็อกแล้ว' + (r.merged ? ' · บวกเพิ่มรายการเดิม ' + r.merged : '') + (r.dup ? ' · เป็นรายการหักทั้งบาร์อยู่แล้ว ' + r.dup : '') + (nf ? ' · ' + nf + ' บาร์ยังไม่พบในข้อมูลสต็อก (จำไว้ จะหักเมื่อมีในไฟล์)' : '') : 'บาร์เหล่านี้เป็นรายการหักทั้งบาร์อยู่แล้ว (' + r.dup + ')');
-    await load(VIEW);
-    $('#lsIn').focus();
-  });
-});
-$('#lsTb').addEventListener('click', function (e) {
-  var b = e.target.closest('[data-lcancel]'); if (!b) return;
-  var K = AKI[AK], x = (D[AK] || []).filter(function (y) { return y.k === b.dataset.lcancel; })[0]; if (!x) return;
-  if (!confirm('ยกเลิก' + K.btn + ' บาร์ ' + x.code + (x.name ? ' (' + x.name + ')' : '') + (x.br ? ' · สาขา ' + x.br : '') + (x.qty != null ? ' · ' + qtyF(x.qty) + ' ชิ้น' : '') + ' ?\nจำนวนนี้จะกลับมานับรวมในค้างสต็อก (ถ้ายังมีในข้อมูล)')) return;
-  busy(b, async function () { await call(K.rm, [x.k]); toast('ยกเลิก' + K.btn + 'แล้ว · ' + x.code); await load(VIEW); });
-});
-
-/* ---------- เริ่มทำงาน ---------- */
-initToken();
-load();
+export { STOCK_MAX_ROWS, STOCK_HISTORY_MAX, STOCK_ST, STOCK_GROUP_RE, stockCodeKey, STOCK_LOST_MAX, STOCK_ADJ_KV, STOCK_ADJ_LABEL, stockAdjKey, STOCK_CT_MAX, STOCK_CT_ID_RE, stockCtagDefs, stockCtagMeta, stockAdjLoad, stockApply, stockBrKey, STOCK_DATE_CACHE, stockDate, stockNum, stockOpt, stockCleanRow, stockDedupe, stockSummary, stockGroupSums, stockTotal, stockSideSummaries, stockRebuildSummaries, stockInsertOps, stockParseRows, stockRowsByGroup, stockLoadRows, stockGroupJson, stockState, stockNames, thaiDayIso, stockDayKey, stockDailyHistory, stockPushHistory, stockEditAuth, stockVerifyPw, stockHardLoad, stockResumState, stockAdjItems, stockAdjApi, stockLostApi, stockExpApi, stockPendApi, stockWasteApi, stockCtagNeed };

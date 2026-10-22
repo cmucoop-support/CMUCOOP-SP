@@ -1,16 +1,12 @@
 {
-  "name": "cmucoop-sp",
+  "name": "cmucoop-api",
   "private": true,
-  "version": "2.0.0",
-  "description": "CMUCOOP static applications and modular D1 Worker",
+  "type": "module",
   "scripts": {
-    "test": "node --test worker/tests/*.test.mjs",
-    "check": "node worker/scripts/check.mjs",
-    "audit": "node worker/scripts/audit.mjs",
-    "verify": "npm run check && npm run audit && npm test",
-    "migrations": "node worker/scripts/migration.mjs",
-    "test:browser": "node worker/tests/browser.e2e.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "audit": "node scripts/audit.mjs",
+    "migration": "node scripts/migration.mjs"
   },
-  "engines": { "node": ">=18" },
-  "devDependencies": { "playwright": "1.62.1" }
+  "engines": { "node": ">=24" }
 }

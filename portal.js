@@ -76,7 +76,11 @@ API.setCustomCards = async (C, token, list) => {     // รับรายกา
   });
   if (JSON.stringify(old) === JSON.stringify(out)) return out;
   const nextOrder = normCardOrder(await kvJson(C, 'CARD_ORDER', null), out.map(c => c.k));
-  await batch(C, [kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(out)), kvSetStmt(C, 'CARD_ORDER', JSON.stringify(nextOrder))]);
+  const rawHidden = await kvJson(C, 'CARD_HIDDEN', []);
+  const nextHidden = normHiddenCards(rawHidden, out.map(c => c.k));
+  const ops = [kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(out)), kvSetStmt(C, 'CARD_ORDER', JSON.stringify(nextOrder))];
+  if (JSON.stringify(rawHidden) !== JSON.stringify(nextHidden)) ops.push(kvSetStmt(C, 'CARD_HIDDEN', JSON.stringify(nextHidden)));
+  await batch(C, ops);
   await sysLog(C, me.name, 'จัดการการ์ดลิงก์', out.map(c => c.t).join(' | ') || '(ไม่มี)');
   return out;
 };
@@ -110,6 +114,34 @@ API.setCardTitles = async (C, token, titles) => {
   if (JSON.stringify(prev) === JSON.stringify(out)) return out;
   await kvSet(C, 'CARD_TITLES', JSON.stringify(out));
   await sysLog(C, me.name, 'แก้ไขชื่อการ์ดเมนูหลัก', JSON.stringify(out));
+  return out;
+};
+
+// Menu visibility is shared presentation configuration, separate from access
+// permissions. Keep settings reachable so an administrator can undo hiding.
+function normHiddenCards(list, custom = []) {
+  const hidden = new Set(Array.isArray(list) ? list : []);
+  return CARD_KEYS.concat(custom).filter(k => k !== 'settings' && hidden.has(k));
+}
+
+API.getHiddenCards = async (C, token) => {
+  await auth(C, token);
+  return normHiddenCards(await kvJson(C, 'CARD_HIDDEN', []), await customIds(C));
+};
+
+API.setHiddenCards = async (C, token, list) => {
+  const me = await auth(C, token, true), ids = await customIds(C);
+  if (!Array.isArray(list) || list.length > CARD_KEYS.length + MAX_CUSTOM_CARDS) {
+    throw new Error('รายการการ์ดที่ซ่อนไม่ถูกต้อง');
+  }
+  const allowed = new Set(CARD_KEYS.concat(ids));
+  if (list.includes('settings')) throw new Error('การ์ดตั้งค่าต้องแสดงเสมอเพื่อให้กลับมาเปิดการ์ดอื่นได้');
+  if (list.some(k => typeof k !== 'string' || !allowed.has(k))) throw new Error('พบการ์ดที่ไม่มีอยู่ กรุณาโหลดการตั้งค่าใหม่');
+  const out = normHiddenCards(list, ids);
+  const prev = normHiddenCards(await kvJson(C, 'CARD_HIDDEN', []), ids);
+  if (JSON.stringify(prev) === JSON.stringify(out)) return out;
+  await kvSet(C, 'CARD_HIDDEN', JSON.stringify(out));
+  await sysLog(C, me.name, 'ซ่อน/แสดงการ์ดเมนูหลัก', out.length ? out.join(',') : 'แสดงทุกการ์ดตามสิทธิ์');
   return out;
 };
 
@@ -179,4 +211,4 @@ API.clearActivity = async (C, token, group) => {
   return { ok: true, removed };
 };
 
-export { normCardOrder, migrateLinks, customCards, customIds, cardTitles, validCardLink, normCardSize };
+export { normCardOrder, migrateLinks, customCards, customIds, cardTitles, validCardLink, normCardSize, normHiddenCards };
