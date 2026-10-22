@@ -3,7 +3,7 @@
 window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.dev';
 
 (function () {
-  var readOnly = new Set(['whoami', 'listUsers', 'getCardOrder', 'getCustomCards', 'getCardTitles', 'getCardSize',
+  var readOnly = new Set(['whoami', 'listUsers', 'getCardOrder', 'getCustomCards', 'getCardTitles', 'getCardSize', 'getHiddenCards',
     'getActivity', 'getPublicBanners', 'getBannerImage', 'adminBannerImage', 'listBanners', 'getSoundConfig',
     'getSoundPublic', 'getSoundAudio', 'listSounds', 'adminSoundAudio', 'musicList', 'getInit', 'getCategoryData',
     'findBarcode', 'getLog', 'barcodeBackupList', 'barcodeBackupData', 'stockGet', 'marketGet', 'getTvPublic', 'getTvConfig', 'expiryList', 'expirySummary', 'expiryCatalog', 'expiryLookup', 'expiryHistory']);

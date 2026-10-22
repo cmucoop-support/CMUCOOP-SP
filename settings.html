@@ -6,7 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>ตั้งค่า · CMUCOOP</title>
 <link href="assets/images/logo.png" rel="icon" type="image/png"/>
-<script src="assets/js/shared/gas-shim.js?v=expiry-1"></script>
+<script src="assets/js/shared/gas-shim.js?v=card-visibility-1"></script>
 <script src="assets/js/pages/tv-designer.js"></script>
 <script src="assets/js/shared/page-url.js?v=d1-opt-1"></script>
 <base target="_top"/>
@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="assets/css/pages/settings.css?v=d1-opt-1">
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
 <link href="assets/css/shared/app.css" rel="stylesheet"/>
-<link href="assets/css/pages/tv-designer.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+<link href="assets/css/pages/tv-designer.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-3" rel="stylesheet"/>
 </head>
 <body class="locked liquid-ui" data-nav="settings"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== ตั้งค่า (Admin) : รวมทุกการตั้งค่าไว้ที่เดียว ========== -->
@@ -47,7 +47,9 @@
 </div>
 <div class="card">
 <div class="cardrow"><h3>จัดการการ์ดเมนูหลัก</h3><button class="btn ghost small" id="sortReset">กลับค่าเริ่มต้น</button></div>
-<div class="muted" style="margin-bottom:8px">▲ ▼ เลื่อนลำดับ · แก้ชื่อในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดลิงก์แก้ปลายทางได้ (ล้างช่อง = ใช้ลิงก์เดิม) · การ์ดที่สร้างเองลบได้ · ใช้กับผู้ใช้ทุกคน (การ์ดที่ผู้ใช้ไม่มีสิทธิ์จะไม่แสดงตามเดิม)</div>
+<div class="muted" style="margin-bottom:8px">ติ๊ก “ซ่อนการ์ดนี้” แล้วกดบันทึก เพื่อซ่อนจากเมนูหลักของทุกคน · การ์ดตั้งค่าแสดงเสมอสำหรับ Admin · การซ่อนไม่เปลี่ยนสิทธิ์เข้าถึงระบบ</div>
+<div class="muted" style="margin-bottom:8px">▲ ▼ เลื่อนลำดับ · แก้ชื่อในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดลิงก์แก้ปลายทางได้ · การ์ดที่สร้างเองลบได้ · ผู้ใช้ยังเห็นเฉพาะการ์ดที่มีสิทธิ์ตามเดิม</div>
+<p id="cardVisibilityNotice" class="muted" role="status" aria-live="polite" hidden></p>
 <div id="sortList" style="display:grid;gap:6px"></div>
 <div class="addbar"><button class="btn" id="sortSave">บันทึก</button></div>
 </div>
@@ -318,7 +320,7 @@
 </div>
 </div>
 <div id="toast" role="status"></div>
-<script src="assets/js/pages/settings.js?v=d1-opt-1"></script>
+<script src="assets/js/pages/settings.js?v=card-visibility-1"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>

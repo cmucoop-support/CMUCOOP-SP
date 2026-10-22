@@ -6,13 +6,13 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>CMUCOOP SUPPORT</title>
 <link href="assets/images/logo.png" rel="icon" type="image/png"/>
-<script src="assets/js/shared/gas-shim.js?v=expiry-1"></script>
+<script src="assets/js/shared/gas-shim.js?v=card-visibility-1"></script>
 <script src="assets/js/shared/page-url.js?v=expiry-1"></script>
 <base target="_top"/>
 <link href="assets/css/shared/fonts.css" rel="stylesheet"/>
 <link rel="stylesheet" href="assets/css/pages/index.css?v=expiry-1">
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
-<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-3" rel="stylesheet"/>
 </head>
 <body class="locked liquid-ui" data-nav="portal"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== เมนูหลัก (หลังเข้าสู่ระบบ) ========== -->
@@ -24,7 +24,8 @@
 </header>
 <div class="pwrap" id="wcag-main" role="main">
 <div class="cardrow" style="margin:0"><h2>เลือกระบบที่ต้องการใช้งาน</h2><span style="display:flex;gap:8px;flex-wrap:wrap"><button aria-label="ปรับขนาดการ์ด" class="btn ghost small" id="portalSize" style="padding:0;width:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center" title="ปรับขนาดการ์ด"><svg aria-hidden="true" fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="18"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" x2="21" y1="16.5" y2="21"></line></svg></button></span></div>
-<div class="menu">
+<div class="portal-card-feedback"><p id="portalCardsStatus" class="muted" role="status" aria-live="polite">กำลังโหลดเมนู…</p><button id="portalReloadCards" class="btn ghost small" type="button" hidden>ลองโหลดเมนูใหม่</button></div>
+<div class="menu" aria-busy="true">
 <button class="mcard" id="mBarcode"><b>รายการบาร์เดี่ยว/บาร์แพ็ค</b><span>จัดการรายการสินค้าและพิมพ์รายงานบาร์โค้ด</span></button>
 <button class="mcard" id="mSound"><b>ระบบเสียงประกาศ</b><span>ควบคุมเสียงประกาศและเรียกพนักงาน</span></button>
 <button class="mcard" id="mMusic"><b>ขอเพลง / คิวเพลง</b><span>จัดการคำขอและลำดับการเล่นเพลง</span></button>
@@ -66,7 +67,7 @@
 </div>
 </div>
 <div id="toast" role="status"></div>
-<script src="assets/js/pages/index.js?v=expiry-1"></script>
+<script src="assets/js/pages/index.js?v=card-visibility-1"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>

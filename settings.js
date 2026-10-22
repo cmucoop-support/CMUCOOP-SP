@@ -255,6 +255,7 @@ var CARD_DEF = [
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
 var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่ Admin แก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
 var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่ Admin สร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
+var CARD_HIDDEN = [], CARD_WORK_HIDDEN = {}, CARD_VISIBILITY_READY = false;
 function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
 function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
 function cardDef(k) { return CARD_DEF.filter(function (c) { return c.k === k; })[0]; }
@@ -262,15 +263,25 @@ function cardEl(k) { var d = cardDef(k); return d ? document.getElementById(d.id
 function cardTitle(k) { var c = customOf(k); return c ? c.t : (CARD_TITLES[k] || cardDef(k).t); }
 function refreshCards() {}                                              // หน้าตั้งค่าไม่มีเมนูหลัก ไม่ต้องวาดการ์ดใหม่
 function loadCardOrder() {
+  CARD_VISIBILITY_READY = false;
   function ok(fn, def) { return call(fn).catch(function () { return def; }); }
-  return Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', [])]).then(function (r) {
+  var visibility = call('getHiddenCards').then(function (list) {
+    if (!Array.isArray(list)) throw new Error('ค่าการแสดงการ์ดไม่ถูกต้อง');
+    return { list: list, ready: true };
+  }).catch(function (e) { return { list: [], ready: false, error: e.message }; });
+  return Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', []), visibility]).then(function (r) {
     CARD_ORDER = Array.isArray(r[0]) ? r[0].slice() : CARD_DEF.map(function (c) { return c.k; }); CARD_DEF.forEach(function (c) { if (CARD_ORDER.indexOf(c.k) < 0) { var si = CARD_ORDER.indexOf('settings'); if (si >= 0) CARD_ORDER.splice(si, 0, c.k); else CARD_ORDER.push(c.k); } }); CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
+    CARD_VISIBILITY_READY = r[3].ready; CARD_HIDDEN = r[3].list;
+    var notice = $('#cardVisibilityNotice');
+    notice.hidden = CARD_VISIBILITY_READY;
+    notice.textContent = CARD_VISIBILITY_READY ? '' : 'ยังโหลดค่าซ่อนการ์ดไม่ได้ กรุณารีเฟรชหน้าเว็บ หากเพิ่งอัปเดตไฟล์เว็บ ให้ deploy Cloudflare Worker รุ่นใหม่ก่อน: ' + r[3].error;
     refreshCards();
   });
 }
 /* ----- ตั้งค่า > การ์ดเมนูหลัก : จัดลำดับ + แก้ชื่อ/ลิงก์ + สร้าง/ลบการ์ดลิงก์ ----- */
 function stCardsLoad() {
-  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CUSTOM_WORK = {};
+  CARD_WORK = CARD_ORDER.slice(); CARD_WORK_T = {}; CUSTOM_WORK = {}; CARD_WORK_HIDDEN = {};
+  CARD_HIDDEN.forEach(function (k) { if (k !== 'settings') CARD_WORK_HIDDEN[k] = true; });
   CUSTOM.forEach(function (c) { CUSTOM_WORK[c.k] = { t: c.t, u: c.u }; });
   renderSortList();
 }
@@ -289,10 +300,12 @@ function renderSortList() {
       title = '<input type="text" data-k="' + esc(k) + '" value="' + esc(cur) + '" maxlength="40" placeholder="' + esc(d.t) + '" style="flex:1;min-width:0">';
       link = '';
     }
-    return '<div class="pitem" style="display:block"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
+    var hidden = k !== 'settings' && !!CARD_WORK_HIDDEN[k];
+    var visibility = '<label class="card-visibility"><input type="checkbox" data-card-hidden="' + esc(k) + '" aria-label="ซ่อนการ์ด ' + esc(cu ? w.t : cur) + '"' + (hidden ? ' checked' : '') + (k === 'settings' || !CARD_VISIBILITY_READY ? ' disabled' : '') + '> <span>' + (k === 'settings' ? 'การ์ดตั้งค่าแสดงเสมอ' : 'ซ่อนการ์ดนี้') + '</span></label>';
+    return '<div class="pitem' + (hidden ? ' is-card-hidden' : '') + '" style="display:block"><div style="display:flex;align-items:center;justify-content:space-between;gap:6px">' +
       '<span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0"><b>' + (i + 1) + '.</b> ' + title + '</span><span style="white-space:nowrap">' +
       '<button class="btn ghost small" data-m="-1" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + '>▲</button> ' +
-      '<button class="btn ghost small" data-m="1" data-i="' + i + '"' + (i === last ? ' disabled' : '') + '>▼</button>' + del + '</span></div>' + link + '</div>';
+      '<button class="btn ghost small" data-m="1" data-i="' + i + '"' + (i === last ? ' disabled' : '') + '>▼</button>' + del + '</span></div>' + visibility + link + '</div>';
   }).join('');
 }
 $('#sortList').addEventListener('input', function (e) {
@@ -301,12 +314,18 @@ $('#sortList').addEventListener('input', function (e) {
   else if (inp.dataset.ck && CUSTOM_WORK[inp.dataset.ck]) CUSTOM_WORK[inp.dataset.ck].t = inp.value;
   else if (inp.dataset.cu && CUSTOM_WORK[inp.dataset.cu]) CUSTOM_WORK[inp.dataset.cu].u = inp.value;
 });
+$('#sortList').addEventListener('change', function (e) {
+  var input = e.target.closest('input[data-card-hidden]');
+  if (!input || input.disabled || !CARD_VISIBILITY_READY || input.dataset.cardHidden === 'settings') return;
+  CARD_WORK_HIDDEN[input.dataset.cardHidden] = input.checked;
+  input.closest('.pitem').classList.toggle('is-card-hidden', input.checked);
+});
 $('#sortList').addEventListener('click', function (e) {
   var del = e.target.closest('button[data-del]');
   if (del) {
     var w = CUSTOM_WORK[del.dataset.del];
     if (!confirm('ลบการ์ด "' + (w ? w.t : '') + '" ?\n\n(มีผลเมื่อกด "บันทึก")')) return;
-    CARD_WORK = CARD_WORK.filter(function (k) { return k !== del.dataset.del; }); delete CUSTOM_WORK[del.dataset.del]; renderSortList(); return;
+    CARD_WORK = CARD_WORK.filter(function (k) { return k !== del.dataset.del; }); delete CUSTOM_WORK[del.dataset.del]; delete CARD_WORK_HIDDEN[del.dataset.del]; renderSortList(); return;
   }
   var b = e.target.closest('button[data-m]'); if (!b || b.disabled) return;
   var i = Number(b.dataset.i), j = i + Number(b.dataset.m), t = CARD_WORK[i];
@@ -315,6 +334,7 @@ $('#sortList').addEventListener('click', function (e) {
 $('#sortReset').addEventListener('click', function () {
   CARD_WORK = CARD_DEF.map(function (c) { return c.k; }).concat(CARD_WORK.filter(isCustom));
   CARD_WORK_T = {};
+  if (CARD_VISIBILITY_READY) CARD_WORK_HIDDEN = {};
   CARD_DEF.forEach(function (c) { CARD_WORK_T[c.k] = c.t; });      // คืนชื่อเริ่มต้น
   renderSortList();
 });
@@ -338,6 +358,10 @@ $('#sortSave').addEventListener('click', function () {
     if (JSON.stringify(CUSTOM) !== JSON.stringify(cl)) CUSTOM = await call('setCustomCards', cl);
     if (JSON.stringify(CARD_ORDER) !== JSON.stringify(CARD_WORK)) CARD_ORDER = await call('setCardOrder', CARD_WORK);
     if (JSON.stringify(CARD_TITLES) !== JSON.stringify(titles)) CARD_TITLES = await call('setCardTitles', titles);
+    if (CARD_VISIBILITY_READY) {
+      var hidden = CARD_WORK.filter(function (k) { return k !== 'settings' && CARD_WORK_HIDDEN[k]; });
+      if (JSON.stringify(CARD_HIDDEN.slice().sort()) !== JSON.stringify(hidden.slice().sort())) CARD_HIDDEN = await call('setHiddenCards', hidden);
+    }
     refreshCards(); stCardsLoad(); toast('บันทึกการตั้งค่าการ์ดแล้ว');
   });
 });

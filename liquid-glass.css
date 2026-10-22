@@ -235,6 +235,19 @@
   body.liquid-ui .logincard label { font-size: 13px; gap: 6px; }
   body.liquid-ui .err:empty { min-height: 0; }
 
+  body.liquid-ui #portal .menu[aria-busy="true"] { visibility: hidden; }
+  body.liquid-ui .portal-card-feedback p { margin: 0 0 10px; }
+  body.liquid-ui #sortList .card-visibility {
+    display: flex; align-items: center; gap: 9px; width: fit-content;
+    margin: 12px 0 0; color: var(--steel); font-size: 13px; cursor: pointer;
+  }
+  body.liquid-ui #sortList .card-visibility input {
+    margin: 0; flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px;
+  }
+  body.liquid-ui #sortList .card-visibility:has(input:disabled) { cursor: default; }
+  body.liquid-ui #sortList .pitem.is-card-hidden { border-style: dashed; background: #f4f0f8; }
+  body.liquid-ui #cardVisibilityNotice { padding: 12px; border: 1px solid #d9c5a0; border-radius: 12px; background: #fff7e9; color: #755021; }
+
   /* Portal: a quiet glass composition with text-led feature cards. */
   body.liquid-ui #portal { background: transparent; }
   body.liquid-ui #portal .pwrap { gap: 24px; padding-top: 30px; }
