@@ -246,7 +246,9 @@
   }
   body.liquid-ui #sortList .card-visibility:has(input:disabled) { cursor: default; }
   body.liquid-ui #sortList .pitem.is-card-hidden { border-style: dashed; background: #f4f0f8; }
-  body.liquid-ui #cardVisibilityNotice { padding: 12px; border: 1px solid #d9c5a0; border-radius: 12px; background: #fff7e9; color: #755021; }
+  body.liquid-ui #cardVisibilityNotice, body.liquid-ui #cardTabNotice { padding: 12px; border: 1px solid #d9c5a0; border-radius: 12px; background: #fff7e9; color: #755021; }
+  body.liquid-ui #sortList .card-open-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 13px; color: var(--steel); }
+  body.liquid-ui #sortList .card-open-mode select { width: auto; min-width: 160px; max-width: 100%; min-height: 40px; padding: 8px 12px; }
 
   /* Portal: a quiet glass composition with text-led feature cards. */
   body.liquid-ui #portal { background: transparent; }
@@ -291,6 +293,7 @@
   body.liquid-ui .liquid-art img { width: 80px; height: 80px; object-fit: contain; transform: rotate(-8deg); }
   body.liquid-ui #portal .menu { gap: 16px; }
   body.liquid-ui #portal .mcard {
+    text-decoration: none;
     display: grid; position: relative; grid-template-columns: minmax(0, 1fr) 10px;
     column-gap: 16px; row-gap: 5px; align-content: center; align-items: center;
     text-align: left; padding: 22px; border: 1px solid var(--glass-border);

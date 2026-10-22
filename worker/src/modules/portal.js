@@ -78,8 +78,11 @@ API.setCustomCards = async (C, token, list) => {     // รับรายกา
   const nextOrder = normCardOrder(await kvJson(C, 'CARD_ORDER', null), out.map(c => c.k));
   const rawHidden = await kvJson(C, 'CARD_HIDDEN', []);
   const nextHidden = normHiddenCards(rawHidden, out.map(c => c.k));
+  const rawNewTabs = await kvJson(C, 'CARD_NEW_TABS', []);
+  const nextNewTabs = normCardNewTabs(rawNewTabs, out.map(c => c.k));
   const ops = [kvSetStmt(C, 'CUSTOM_CARDS', JSON.stringify(out)), kvSetStmt(C, 'CARD_ORDER', JSON.stringify(nextOrder))];
   if (JSON.stringify(rawHidden) !== JSON.stringify(nextHidden)) ops.push(kvSetStmt(C, 'CARD_HIDDEN', JSON.stringify(nextHidden)));
+  if (JSON.stringify(rawNewTabs) !== JSON.stringify(nextNewTabs)) ops.push(kvSetStmt(C, 'CARD_NEW_TABS', JSON.stringify(nextNewTabs)));
   await batch(C, ops);
   await sysLog(C, me.name, 'จัดการการ์ดลิงก์', out.map(c => c.t).join(' | ') || '(ไม่มี)');
   return out;
@@ -142,6 +145,31 @@ API.setHiddenCards = async (C, token, list) => {
   if (JSON.stringify(prev) === JSON.stringify(out)) return out;
   await kvSet(C, 'CARD_HIDDEN', JSON.stringify(out));
   await sysLog(C, me.name, 'ซ่อน/แสดงการ์ดเมนูหลัก', out.length ? out.join(',') : 'แสดงทุกการ์ดตามสิทธิ์');
+  return out;
+};
+
+// Store tab preferences separately from custom-card data so older clients that
+// edit a title or URL cannot erase them. Missing preferences mean the same tab.
+function normCardNewTabs(list, custom = []) {
+  const newTabs = new Set(Array.isArray(list) ? list : []);
+  return CARD_KEYS.concat(custom).filter(k => newTabs.has(k));
+}
+
+API.getCardNewTabs = async (C, token) => {
+  await auth(C, token);
+  return normCardNewTabs(await kvJson(C, 'CARD_NEW_TABS', []), await customIds(C));
+};
+
+API.setCardNewTabs = async (C, token, list) => {
+  const me = await auth(C, token, true), ids = await customIds(C);
+  if (!Array.isArray(list) || list.length > CARD_KEYS.length + MAX_CUSTOM_CARDS) throw new Error('ค่าการเปิดแท็บไม่ถูกต้อง');
+  const allowed = new Set(CARD_KEYS.concat(ids));
+  if (list.some(k => typeof k !== 'string' || !allowed.has(k))) throw new Error('พบการ์ดที่ไม่มีอยู่ กรุณาโหลดการตั้งค่าใหม่');
+  const out = normCardNewTabs(list, ids);
+  const prev = normCardNewTabs(await kvJson(C, 'CARD_NEW_TABS', []), ids);
+  if (JSON.stringify(prev) === JSON.stringify(out)) return out;
+  await kvSet(C, 'CARD_NEW_TABS', JSON.stringify(out));
+  await sysLog(C, me.name, 'ตั้งค่าการเปิดแท็บของการ์ด', out.length ? out.join(',') : 'ทุกการ์ดเปิดในแท็บเดิม');
   return out;
 };
 
@@ -211,4 +239,4 @@ API.clearActivity = async (C, token, group) => {
   return { ok: true, removed };
 };
 
-export { normCardOrder, migrateLinks, customCards, customIds, cardTitles, validCardLink, normCardSize, normHiddenCards };
+export { normCardOrder, migrateLinks, customCards, customIds, cardTitles, validCardLink, normCardSize, normHiddenCards, normCardNewTabs };

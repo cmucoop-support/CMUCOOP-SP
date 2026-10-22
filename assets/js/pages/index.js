@@ -118,7 +118,7 @@ var CARD_DEF = [
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];
 var CARD_TITLES = {}, CARD_WORK_T = {};      // ชื่อที่ Admin แก้เอง (เฉพาะที่เปลี่ยน) / ค่าที่กำลังแก้ในหน้าตั้งค่า
 var CUSTOM = [], CUSTOM_WORK = {};                                               // การ์ดลิงก์ที่ Admin สร้างเอง [{k,t,u}] / ค่าที่กำลังแก้
-var CARD_HIDDEN = [];
+var CARD_HIDDEN = [], CARD_NEW_TABS = [];
 function isCustom(k) { return /^c_[0-9a-f]{8}$/.test(k); }
 function customOf(k) { return CUSTOM.filter(function (c) { return c.k === k; })[0]; }
 function cardDef(k) { return CARD_DEF.filter(function (c) { return c.k === k; })[0]; }
@@ -144,6 +144,16 @@ function renderCustomCards() {                                                  
     b.textContent = c.t; a.appendChild(b); menu.appendChild(a);
   });
 }
+function applyCardTargets() {
+  CARD_DEF.concat(CUSTOM).forEach(function (c) {
+    var el = cardEl(c.k); if (!el) return;
+    var newTab = CARD_NEW_TABS.indexOf(c.k) >= 0;
+    var file = c.k + '.html';
+    el.href = isCustom(c.k) ? c.u : pageUrl(file, 'https://cmucoop-support.github.io/CMUCOOP-SP/' + file) + '#t=' + encodeURIComponent(S.token);
+    el.setAttribute('target', newTab ? '_blank' : '_self');
+    el.setAttribute('rel', newTab ? 'noopener noreferrer' : '');
+  });
+}
 function applyCardVisibility() {
   var shown = 0, admin = S.me && S.me.role === 'admin';
   CARD_DEF.forEach(function (c) {
@@ -164,7 +174,7 @@ function applyCardVisibility() {
   });
   return shown;
 }
-function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); applyCardTitles(); return applyCardVisibility(); }
+function refreshCards() { renderCustomCards(); applyCardOrder(CARD_ORDER); applyCardTitles(); applyCardTargets(); return applyCardVisibility(); }
 function portalCardsStatus(message, retry) {
   var status = $('#portalCardsStatus');
   status.textContent = message || ''; status.hidden = !message;
@@ -177,11 +187,12 @@ async function loadCardOrder() {
   portalCardsStatus('กำลังโหลดเมนู…', false);
   function ok(fn, def) { return call(fn).catch(function () { return def; }); }
   try {
-    var r = await Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', []), call('getHiddenCards')]);
+    var r = await Promise.all([ok('getCardOrder', CARD_ORDER), ok('getCardTitles', {}), ok('getCustomCards', []), call('getHiddenCards'), call('getCardNewTabs')]);
     if (token !== S.token || !S.me) return;
     if (!Array.isArray(r[3])) throw new Error('ค่าการแสดงการ์ดจากเซิร์ฟเวอร์ไม่ถูกต้อง');
+    if (!Array.isArray(r[4])) throw new Error('ค่าการเปิดแท็บจากเซิร์ฟเวอร์ไม่ถูกต้อง');
     CARD_ORDER = Array.isArray(r[0]) ? r[0].slice() : CARD_DEF.map(function (c) { return c.k; }); CARD_DEF.forEach(function (c) { if (CARD_ORDER.indexOf(c.k) < 0) { var si = CARD_ORDER.indexOf('settings'); if (si >= 0) CARD_ORDER.splice(si, 0, c.k); else CARD_ORDER.push(c.k); } }); CARD_TITLES = r[1] || {}; CUSTOM = r[2] || [];
-    CARD_HIDDEN = r[3];
+    CARD_HIDDEN = r[3]; CARD_NEW_TABS = r[4];
     var shown = refreshCards();
     menu.setAttribute('aria-busy', 'false');
     portalCardsStatus(shown ? '' : 'ยังไม่มีการ์ดที่เปิดให้ใช้งาน กรุณาติดต่อผู้ดูแลระบบ', false);
@@ -195,7 +206,7 @@ async function loadCardOrder() {
     });
     menu.setAttribute('aria-busy', 'false');
     portalCardsStatus(/ไม่รู้จักคำสั่ง/.test(e.message)
-      ? 'กรุณาอัปเดต Cloudflare Worker รุ่นที่รองรับการซ่อนการ์ด แล้วลองโหลดเมนูใหม่'
+      ? 'กรุณาอัปเดต Cloudflare Worker รุ่นที่รองรับการซ่อนการ์ดและตั้งค่าการเปิดแท็บ แล้วลองโหลดเมนูใหม่'
       : 'โหลดเมนูไม่สำเร็จ กรุณาลองใหม่: ' + e.message, true);
   }
 }
@@ -305,18 +316,7 @@ document.querySelectorAll('#btnLogout,.js-logout').forEach(function (b) {
 });
 
 
-/* ============================ เมนูหลัก (เปิดหน้าการ์ดแยกในแท็บเดิม เปลี่ยนเป็น URL ใหม่) + Banner (หน้า Admin) ============================ */
-function openCardPage(file, perm) {
-  if (!hasPerm(perm)) return;
-  var u = pageUrl(file, 'https://cmucoop-support.github.io/CMUCOOP-SP/' + file);
-  location.href = u + '#t=' + encodeURIComponent(S.token);
-}
-$('#mBarcode').addEventListener('click', function () { openCardPage('barcode.html', 'barcode'); });
-$('#mSound').addEventListener('click', function () { openCardPage('sound.html', 'sound'); });
-$('#mMusic').addEventListener('click', function () { openCardPage('music.html', 'music'); });
-$('#mStock').addEventListener('click', function () { openCardPage('stock.html', 'stock'); });
-$('#mMarket').addEventListener('click', function () { openCardPage('market.html', 'market'); });
-$('#mExpiry').addEventListener('click', function () { openCardPage('expiry.html', 'expiry'); });
+/* ============================ เมนูหลัก: ลิงก์เปิดตามค่าการเปิดแท็บของแต่ละการ์ด ============================ */
 async function loadExpiryCardCount() {
   var el = $('#expiryCardCount'), token = S.token;
   if (!hasPerm('expiry')) { el.textContent = ''; return; }
@@ -328,8 +328,6 @@ async function loadExpiryCardCount() {
   } catch (e) { if (token === S.token) el.textContent = 'เปิดเพื่อตรวจรายการล่าสุด'; }
 }
 
-/* ----- ตั้งค่า (Admin) : เปิดเป็นหน้าแยก settings.html ----- */
-$('#mSettings').addEventListener('click', function () { if (S.me && S.me.role === 'admin') openCardPage('settings.html', 'settings'); });
 $('#portalReloadCards').addEventListener('click', function () { busy(this, loadCardOrder); });
 /* ============================ เริ่มต้น ============================ */
 function linkParams() {
