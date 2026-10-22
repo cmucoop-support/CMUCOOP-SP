@@ -137,12 +137,13 @@
 <div class="overlay hidden" id="exDlg">
 <div class="dlg">
 <h2 id="exTitle">ดาวน์โหลดข้อมูล</h2>
+<div class="muted">เลือกรูปแบบไฟล์ แล้วเลือกข้อมูลหรือส่วนที่ต้องการส่งออก</div>
 <div style="margin:8px 0 2px"><b>รูปแบบไฟล์</b></div>
-<label class="opt"><input checked="" name="exFmt" type="radio" value="xlsx"/><span><b>Excel (.xlsx)</b><br/><span class="muted">ข้อมูลรายสินค้า 1 ชีต = 1 หมวด</span></span></label>
+<label class="opt"><input name="exFmt" type="radio" value="xlsx"/><span><b>Excel (.xlsx)</b><br/><span class="muted">ข้อมูลรายสินค้า 1 ชีต = 1 หมวด</span></span></label>
 <label class="opt"><input name="exFmt" type="radio" value="pdf"/><span><b>PDF</b><br/><span class="muted">รายงานภาพรวมและแนวโน้ม เลือกส่วนที่ต้องการได้</span></span></label>
-<div id="exXlsxBox">
+<div class="hidden" id="exXlsxBox">
 <div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
-<label class="opt"><input checked="" name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
+<label class="opt"><input name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br/><span class="muted" id="exN2"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="branch"/><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br/><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
 <div style="margin-top:12px"><b>รวมรายการตามแท็กไว้ในชีตหมวดเดียวกัน</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ไม่แยกชีต · ใช้ขอบเขตเดียวกับที่เลือกด้านบน · ช่องหมายเหตุจะระบุแท็กและหมายเหตุให้)</span></div>
@@ -151,18 +152,18 @@
 <div class="hidden" id="exPdfBox">
 <div class="muted" style="margin-top:10px">PDF ใช้ตัวกรองที่เลือกอยู่บนหน้าจอ (สาขา หมวด ช่วงอายุ แท็ก) · ติ๊กส่วนที่ต้องการให้อยู่ในไฟล์</div>
 <div id="exPdfSel" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-<label class="chk-pill"><input checked="" data-pdf="kpi" type="checkbox"/><span>สรุปตัวเลขภาพรวม</span></label>
-<label class="chk-pill"><input checked="" data-pdf="chGroup" type="checkbox"/><span>กราฟมูลค่าทุนแยกหมวด</span></label>
-<label class="chk-pill"><input checked="" data-pdf="chStatus" type="checkbox"/><span>กราฟสัดส่วนตามช่วงอายุ</span></label>
-<label class="chk-pill"><input checked="" data-pdf="chAge" type="checkbox"/><span>กราฟช่วงอายุที่ค้าง</span></label>
-<label class="chk-pill"><input checked="" data-pdf="chTop" type="checkbox"/><span>10 อันดับมูลค่าค้างสูงสุด</span></label>
-<label class="chk-pill"><input checked="" data-pdf="chTrend" type="checkbox"/><span>แนวโน้มตามวันที่อัปโหลด</span></label>
-<label class="chk-pill"><input checked="" data-pdf="gt" type="checkbox"/><span>ตารางสรุปแยกตามหมวด</span></label>
+<label class="chk-pill"><input data-pdf="kpi" type="checkbox"/><span>สรุปตัวเลขภาพรวม</span></label>
+<label class="chk-pill"><input data-pdf="chGroup" type="checkbox"/><span>กราฟมูลค่าทุนแยกหมวด</span></label>
+<label class="chk-pill"><input data-pdf="chStatus" type="checkbox"/><span>กราฟสัดส่วนตามช่วงอายุ</span></label>
+<label class="chk-pill"><input data-pdf="chAge" type="checkbox"/><span>กราฟช่วงอายุที่ค้าง</span></label>
+<label class="chk-pill"><input data-pdf="chTop" type="checkbox"/><span>10 อันดับมูลค่าค้างสูงสุด</span></label>
+<label class="chk-pill"><input data-pdf="chTrend" type="checkbox"/><span>แนวโน้มตามวันที่อัปโหลด</span></label>
+<label class="chk-pill"><input data-pdf="gt" type="checkbox"/><span>ตารางสรุปแยกตามหมวด</span></label>
 <label class="chk-pill"><input data-pdf="items" type="checkbox"/><span>รายการสินค้า (ตามตัวกรอง)</span></label>
 </div>
 </div>
 <div class="err" id="exErr"></div>
-<div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด .xlsx</button></div>
+<div class="row"><button class="btn ghost" id="exCancel">ยกเลิก</button><button class="btn" id="exGo">ดาวน์โหลด</button></div>
 </div>
 </div>
 <!-- ของหาย / สินค้าหมดอายุ (ใช้หน้าต่างเดียวกัน · จำเฉพาะจำนวน) -->
@@ -287,7 +288,7 @@
 </div>
 </div>
 <div aria-label="จัดการแท็กสินค้า" class="dot-pop hidden" id="dotPop" role="dialog"></div>
-<script src="assets/js/pages/stock.js?v=d1-opt-1"></script>
+<script src="assets/js/pages/stock.js?v=export-empty-1"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>
