@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>ขอเพลง / คิวเพลง · CMUCOOP</title>
+<link href="assets/images/logo.png" rel="icon" type="image/png"/>
+<script src="assets/js/shared/gas-shim.js?v=expiry-1"></script>
+<script src="assets/js/shared/page-url.js?v=d1-opt-1"></script>
+<base target="_top"/>
+<link href="assets/css/shared/fonts.css" rel="stylesheet"/>
+<script src="assets/vendor/mqtt.min.js"></script>
+<link rel="stylesheet" href="assets/css/pages/music.css?v=d1-opt-1">
+<link href="assets/css/shared/a11y.css" rel="stylesheet"/>
+<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+</head>
+<body data-workspace="music" class="locked liquid-ui" data-nav="music"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<!-- ========== ขอเพลง / คิวเพลง ========== -->
+<div class="page" id="musicPage">
+<header class="phead" role="banner">
+<h1>ขอเพลง / คิวเพลง</h1>
+<span class="me" id="muMe"></span>
+<button class="btn ghost small" id="muHome">เมนูหลัก</button>
+<button class="btn ghost small js-logout">ออกจากระบบ</button>
+</header>
+<div class="pwrap" id="wcag-main" role="main"><div class="workspace-intro"><div><span class="workspace-eyebrow">CMUCOOP WORKSPACE</span><h2>ขอเพลงและจัดการคิว</h2><p>เพิ่มเพลง ติดตามคิว และข้ามเพลงที่กำลังเล่นได้จากหน้านี้</p></div><button class="btn ghost" id="muRefresh" type="button">อัปเดตคิว</button></div><div class="workspace-stats music-stats" id="musicStats" aria-label="สรุปคิวเพลง"></div><div class="music-board"><section class="card music-player" id="musicNowCard">
+<div class="mu-head"><h3>กำลังเล่นที่ TV</h3><span class="mu-chip" id="muTv"><i></i><span>กำลังตรวจสอบ…</span></span></div>
+<div class="mu-now" id="muNow"></div>
+<div class="row" style="margin-top:12px">
+<label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px">
+           ความดังเพลง <input id="muVol" max="100" min="0" step="5" style="flex:1" type="range" value="70"/> <b id="muVolTxt" style="min-width:48px">70%</b></label>
+</div>
+<div class="muted" style="margin-top:4px">ปรับความดังเพลงได้ทุกคน · ระดับเสียงประกาศตั้งค่าแยกต่างหาก</div>
+</section><section class="card music-request" id="musicRequestCard">
+<div class="mu-head"><h3>ขอเพลง</h3><span class="muted" id="muQuota"></span></div>
+<label for="muUrl" class="music-url-label">ลิงก์เพลงหรือเพลย์ลิสต์</label><div class="row music-request-input">
+<input aria-label="วางลิงก์ YouTube หรือไฟล์เสียง" autocomplete="off" id="muUrl" inputmode="url" placeholder="วางลิงก์ YouTube หรือไฟล์เสียง" style="width:100%;min-width:0" type="text"/>
+<button class="btn" id="muSend">เพิ่มเพลงเข้าคิว</button>
+</div>
+<div class="mu-prev hidden" id="muPrev"></div>
+<div class="muted" id="muNote" style="margin-top:6px"></div>
+<div class="music-request-guide"><b>ขอเพลงได้ใน 3 ขั้นตอน</b><ol><li>คัดลอกลิงก์ YouTube หรือไฟล์เสียง</li><li>วางลิงก์แล้วตรวจตัวอย่าง</li><li>กดเพิ่มเพลงเข้าคิว แล้วติดตามสถานะ</li></ol><p>รองรับวิดีโอ เพลย์ลิสต์ และไฟล์ MP3/M4A/WAV/OGG</p></div></section><section class="card music-queue" id="musicQueueCard">
+<div class="mu-head">
+<div class="mu-tabs"><button class="mu-tab on" data-t="q" id="muTabQ">คิว</button><button class="mu-tab" data-t="h" id="muTabH">ประวัติ</button></div>
+<span class="muted" id="muCount"></span>
+</div>
+<div class="music-queue-tools"><label><span class="sr-only">ค้นหาเพลงในคิวหรือประวัติ</span><input id="muSearch" type="search" placeholder="ค้นหาชื่อเพลงหรือผู้ขอ"/></label><label><span class="sr-only">กรองคิวเพลง</span><select id="muScope"><option value="all">ทุกคน</option><option value="mine">เพลงของฉัน</option><option value="pending">รออนุมัติ</option></select></label></div><div class="mu-list" id="muBody"></div>
+<div class="muted" style="margin-top:8px">เพลงพักระหว่างเสียงประกาศและเล่นต่อเมื่อจบ · ประวัติเก็บไว้ 7 วัน</div>
+</section><details class="card music-admin hidden" id="muAdminCard">
+<summary>จัดการระบบสำหรับ Admin<span class="mu-chip warn hidden" id="muPendBadge"><i></i><span></span></span></summary>
+<div class="row">
+<label class="mu-opt"><input id="muAuto" type="checkbox"/> อนุมัติเพลงอัตโนมัติตลอด</label>
+<button class="btn ghost small" id="muApproveAll">อนุมัติทั้งหมดที่รออยู่</button>
+<label class="mu-opt">จำกัดต่อคน
+          <select id="muMaxUser"></select> เพลง</label>
+<button class="btn ghost small" id="muClear">ล้างประวัติ</button>
+</div>
+<div class="muted" style="margin-top:6px">Admin ขอเพลงแล้วเข้าคิวทันทีและไม่ถูกจำกัดจำนวน · ผู้ใช้ทั่วไปมีเพลงค้างในคิวพร้อมกันได้ไม่เกินจำนวนที่ตั้งไว้</div>
+</details></div></div>
+</div>
+<div class="loginwrap hidden" id="login">
+<div class="logincard">
+<h2>CMUCOOP SUPPORT</h2>
+<p class="liquid-login-copy">เข้าสู่ระบบเพื่อใช้งานเครื่องมือของ CMUCOOP</p>
+<label>รหัสผู้ใช้<input autocomplete="username" id="lgUser" type="text"/></label>
+<label>รหัสผ่าน<input autocomplete="current-password" id="lgPass" type="password"/></label>
+<div class="err" id="lgErr" role="alert"></div>
+<button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
+<a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
+<div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
+<label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
+<button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
+</div>
+</div>
+</div>
+<div id="toast" role="status"></div>
+<script src="assets/js/pages/music.js?v=d1-opt-1"></script>
+<script src="assets/js/shared/a11y.js"></script>
+</body>
+</html>
