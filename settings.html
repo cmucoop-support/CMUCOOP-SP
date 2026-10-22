@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>ตั้งค่า · CMUCOOP</title>
+<link href="assets/images/logo.png" rel="icon" type="image/png"/>
+<script src="assets/js/shared/gas-shim.js?v=card-visibility-1"></script>
+<script src="assets/js/pages/tv-designer.js"></script>
+<script src="assets/js/shared/page-url.js?v=d1-opt-1"></script>
+<base target="_top"/>
+<link href="assets/css/shared/fonts.css" rel="stylesheet"/>
+<script src="assets/vendor/mqtt.min.js"></script>
+<link rel="stylesheet" href="assets/css/pages/settings.css?v=d1-opt-1">
+<link href="assets/css/shared/a11y.css" rel="stylesheet"/>
+<link href="assets/css/shared/app.css" rel="stylesheet"/>
+<link href="assets/css/pages/tv-designer.css" rel="stylesheet"/><link href="assets/css/shared/liquid-glass.css?v=liquid-3" rel="stylesheet"/>
+</head>
+<body class="locked liquid-ui" data-nav="settings"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<!-- ========== ตั้งค่า (Admin) : รวมทุกการตั้งค่าไว้ที่เดียว ========== -->
+<div class="page" id="settingsPage">
+<header class="phead" role="banner">
+<h1>ตั้งค่า</h1>
+<span class="me" id="stMe"></span>
+<a class="btn ghost small" href="index.html" id="stHome">เมนูหลัก</a>
+<button class="btn ghost small js-pw">เปลี่ยนรหัสผ่าน</button>
+<button class="btn ghost small js-logout">ออกจากระบบ</button>
+</header>
+<div class="pwrap" id="wcag-main" role="main">
+<nav class="cnav" id="stNav">
+<button class="on" data-sp="cards">การ์ดเมนูหลัก</button>
+<button data-sp="users">ผู้ใช้งาน</button>
+<button data-sp="sound">เสียงประกาศ</button>
+<button data-sp="tv">ตั้งค่าหน้าแสดงผล โฆษณา</button>
+<button data-sp="history">ประวัติการใช้งาน</button>
+</nav>
+<section class="stp" id="st-cards" style="display:grid;gap:16px">
+<div class="card">
+<h3>สร้างการ์ดลิงก์ใหม่</h3>
+<div class="muted" style="margin-bottom:8px">การ์ดจะขึ้นที่เมนูหลักของทุกคน กดแล้วเปิดลิงก์ในแท็บเดิม · เลือกว่าผู้ใช้คนไหนเห็นได้ที่แท็บ "ผู้ใช้งาน"</div>
+<div class="grid">
+<label>ชื่อการ์ด<input autocomplete="off" id="ncTitle" maxlength="40" type="text"/></label>
+<label class="wide">ลิงก์<input autocomplete="off" id="ncLink" placeholder="https://..." type="text"/></label>
+</div>
+<div class="addbar"><button class="btn" id="ncAdd">+ สร้างการ์ด</button></div>
+</div>
+<div class="card">
+<div class="cardrow"><h3>จัดการการ์ดเมนูหลัก</h3><button class="btn ghost small" id="sortReset">กลับค่าเริ่มต้น</button></div>
+<div class="muted" style="margin-bottom:8px">ติ๊ก “ซ่อนการ์ดนี้” แล้วกดบันทึก เพื่อซ่อนจากเมนูหลักของทุกคน · การ์ดตั้งค่าแสดงเสมอสำหรับ Admin · การซ่อนไม่เปลี่ยนสิทธิ์เข้าถึงระบบ</div>
+<div class="muted" style="margin-bottom:8px">▲ ▼ เลื่อนลำดับ · แก้ชื่อในช่องบน (ล้างช่อง = ใช้ชื่อเดิม) · การ์ดลิงก์แก้ปลายทางได้ · การ์ดที่สร้างเองลบได้ · ผู้ใช้ยังเห็นเฉพาะการ์ดที่มีสิทธิ์ตามเดิม</div>
+<p id="cardVisibilityNotice" class="muted" role="status" aria-live="polite" hidden></p>
+<div id="sortList" style="display:grid;gap:6px"></div>
+<div class="addbar"><button class="btn" id="sortSave">บันทึก</button></div>
+</div>
+</section>
+
+<section class="stp hidden" id="st-users" style="display:grid;gap:16px">
+<div class="card">
+<h3>รหัสกู้คืน Admin</h3>
+<div class="muted" id="recInfo" style="margin-bottom:8px"></div>
+<div class="addbar" style="margin-top:0"><button class="btn ghost" id="recIssue">ออกรหัสกู้คืนใหม่</button></div>
+<div class="muted" style="margin-top:6px">ใช้ที่หน้าเข้าสู่ระบบ &gt; "ลืมรหัสผ่าน" เพื่อตั้งรหัสผ่าน Admin ใหม่ · เมื่อออกรหัสใหม่ รหัสกู้คืนเดิมจะใช้ไม่ได้ทันที · ระบบแสดงรหัสให้เห็นครั้งเดียวและเก็บเฉพาะค่าแฮช กรุณาจดเก็บไว้ในที่ปลอดภัย</div>
+</div>
+<div class="card">
+<h3>ผู้ใช้งานระบบ</h3>
+<div style="overflow:auto">
+<table class="logt"><thead><tr><th>รหัสผู้ใช้</th><th>ชื่อที่แสดง</th><th>สิทธิ์</th><th>การ์ดที่ใช้ได้</th><th></th></tr></thead>
+<tbody id="userBody"></tbody></table>
+</div>
+<h3 id="uFormTitle" style="margin-top:18px">เพิ่มผู้ใช้</h3>
+<div class="uform" id="uForm">
+<label>รหัสผู้ใช้<input autocomplete="off" id="uName" type="text"/></label>
+<label>ชื่อที่แสดง (ไม่บังคับ)<input autocomplete="off" id="uDisp" type="text"/></label>
+<label>รหัสผ่าน<input autocomplete="new-password" disabled="" id="uPass" type="password"/></label>
+<label class="full ulink" id="uLinkRow">
+<input checked="" id="uLink" type="checkbox"/> ไม่ต้องตั้งรหัสผ่าน — ให้ระบบสร้างลิงก์เข้าใช้งานให้</label>
+<label class="full">สิทธิ์
+          <select id="uRole">
+<option value="viewer">ผู้ใช้งาน (ปริ้นรายงานได้เท่านั้น)</option>
+<option value="admin">Admin (ทำได้ทุกอย่าง)</option>
+</select></label>
+<div class="full permwrap">
+<div class="muted">การ์ดที่ผู้ใช้นี้ใช้งาน/มองเห็นได้ (Admin ใช้ได้ทุกการ์ด)</div>
+<div class="permbox" id="uPermBox"></div>
+</div>
+</div>
+<div class="addbar">
+<button class="btn" id="uSave">เพิ่มผู้ใช้</button>
+<button class="btn ghost hidden" id="uCancel">ยกเลิกการแก้ไข</button>
+<span class="muted" id="uHint"></span>
+</div>
+</div>
+</section>
+<section class="stp hidden" id="st-history" style="display:grid;gap:16px">
+<nav class="cnav" id="hiNav"></nav>
+<div class="card">
+<div class="asbar">
+<input aria-label="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" autocomplete="off" id="hiQ" placeholder="ค้นหา ผู้ใช้ / การกระทำ / รายละเอียด" type="search"/>
+<button class="btn ghost small" id="hiReload">โหลดใหม่</button>
+<button class="btn ghost small" id="hiClear" style="color:#c0392b"> ล้างประวัติ</button>
+<span class="muted" id="hiCount"></span>
+</div>
+<div style="overflow:auto"><table class="logt">
+<thead><tr><th>เวลา</th><th>ผู้ใช้</th><th>หมวด</th><th>การกระทำ</th><th>รายละเอียด</th></tr></thead>
+<tbody id="hiBody"></tbody></table></div>
+<div class="muted" style="margin-top:6px">แสดงสูงสุด 300 รายการล่าสุดของหมวดที่เลือก · ระบบเก็บประวัติไว้ 30 วัน รายการที่เก่ากว่า 30 วันจะถูกลบอัตโนมัติ · บันทึกการเข้าสู่ระบบ การจัดการผู้ใช้ การแก้ข้อมูล เสียงประกาศ เพลง Banner สินทรัพย์ และการสร้าง PDF</div>
+</div>
+</section>
+<section class="stp hidden" id="st-tv">
+<div class="tv-designer">
+<div class="tv-editor-heading"><div><h2>ตั้งค่าหน้าแสดงผล โฆษณา</h2><p>จัดการหน้าจอ TV และโฆษณาในที่เดียว · ลองปรับแล้วดูผลทันที</p></div><div class="tv-editor-actions"><button class="btn ghost small" id="tvReload" type="button">โหลดค่าที่บันทึก</button><button class="btn ghost small" id="sTvCopy" type="button">คัดลอกลิงก์ TV</button><a class="btn small" id="sTvOpen" href="#" target="_blank" rel="noopener">เปิดจอจริง</a></div></div>
+<input id="sTv" class="sr-only" type="text" readonly aria-label="ลิงก์หน้าจอ TV"/>
+<div class="tv-editor-error" id="tvEditorError" role="alert" hidden></div>
+<div class="tv-designer-layout">
+<div class="tv-controls"><fieldset id="tvEditorFields" disabled><legend class="sr-only">ปรับหน้าจอ TV</legend>
+<div class="tv-editor-tabs" role="tablist" aria-label="หมวดการออกแบบ TV"><button type="button" role="tab" id="tvTabContent" data-tv-tab="content" aria-controls="tvPaneContent" aria-selected="true">ข้อความ</button><button type="button" role="tab" id="tvTabStyle" data-tv-tab="style" aria-controls="tvPaneStyle" aria-selected="false" tabindex="-1">สีและฟอนต์</button><button type="button" role="tab" id="tvTabLayout" data-tv-tab="layout" aria-controls="tvPaneLayout" aria-selected="false" tabindex="-1">จัดวาง</button><button type="button" role="tab" id="tvTabAds" data-tv-tab="ads" aria-controls="tvPaneAds" aria-selected="false" tabindex="-1">รูปโฆษณา</button></div>
+<div class="tv-editor-pane" id="tvPaneContent" role="tabpanel" aria-labelledby="tvTabContent" data-tv-pane="content">
+<div class="tv-control-section"><h3>ข้อความบนหน้าจอ</h3><p>เว้นว่างในช่องที่ไม่ต้องการแสดงได้</p><label>ชื่อร้าน<input id="tvShop" type="text" maxlength="80" autocomplete="off"/></label><label>ข้อความต้อนรับ<input id="tvHelloMain" type="text" maxlength="60" autocomplete="off"/></label><label>ต้อนรับบรรทัดเล็ก<textarea id="tvHelloSub" maxlength="100" rows="2"></textarea></label><label>ข้อความวิ่งใต้แบนเนอร์<textarea id="tvCaption" maxlength="120" rows="2"></textarea></label></div>
+<div class="tv-control-section"><h3>ส่วนที่ต้องการแสดง</h3><div class="tv-switches"><label class="tv-toggle"><span>โลโก้ร้าน</span><input id="tvShowLogo" type="checkbox"/></label><label class="tv-toggle"><span>นาฬิกาและวันที่</span><input id="tvShowClock" type="checkbox"/></label><label class="tv-toggle"><span>แบนเนอร์ประชาสัมพันธ์</span><input id="tvShowBanner" type="checkbox"/></label></div></div>
+</div>
+<div class="tv-editor-pane" id="tvPaneStyle" role="tabpanel" aria-labelledby="tvTabStyle" data-tv-pane="style" hidden>
+<div class="tv-control-section" id="tvColors"><h3>สีของหน้าจอ</h3><label for="tvBg">สีพื้นหลังหน้า TV</label><div class="tv-color-control"><input id="tvBg" type="color" value="#a07ab8"/><output id="tvBgValue" for="tvBg">#A07AB8</output></div><p>กรอบ Banner เลือกสีแยกหรือใช้สีนี้ร่วมกันได้ที่หัวข้อกรอบโฆษณาด้านล่าง</p><div class="tv-color-row"><label for="tvTextColor">สีตัวอักษรรวม</label><label class="tv-color-auto"><input id="tvTextColorAuto" type="checkbox" checked/>เลือกสีที่อ่านง่ายอัตโนมัติ</label><div class="tv-color-control"><input id="tvTextColor" type="color" value="#ffffff" disabled/><output id="tvTextColorValue" for="tvTextColor">อัตโนมัติ</output></div></div><details class="tv-advanced"><summary>แยกสีแต่ละข้อความ</summary><div class="tv-color-list"><div class="tv-color-row"><label for="tvClockColor">นาฬิกาและวันที่</label><label class="tv-color-auto"><input id="tvClockColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvClockColor" type="color" value="#ffffff" disabled/><output id="tvClockColorValue" for="tvClockColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvShopColor">ชื่อร้าน</label><label class="tv-color-auto"><input id="tvShopColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvShopColor" type="color" value="#ffffff" disabled/><output id="tvShopColorValue" for="tvShopColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvWelcomeColor">ข้อความต้อนรับ</label><label class="tv-color-auto"><input id="tvWelcomeColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvWelcomeColor" type="color" value="#ffffff" disabled/><output id="tvWelcomeColorValue" for="tvWelcomeColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvSubColor">ต้อนรับบรรทัดเล็ก</label><label class="tv-color-auto"><input id="tvSubColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvSubColor" type="color" value="#ffffff" disabled/><output id="tvSubColorValue" for="tvSubColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvCaptionColor">ข้อความวิ่ง</label><label class="tv-color-auto"><input id="tvCaptionColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvCaptionColor" type="color" value="#ffffff" disabled/><output id="tvCaptionColorValue" for="tvCaptionColor">อัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvFootColor">ข้อความท้ายหน้า</label><label class="tv-color-auto"><input id="tvFootColorAuto" type="checkbox" checked/>ใช้สีตัวอักษรรวม</label><div class="tv-color-control"><input id="tvFootColor" type="color" value="#ffffff" disabled/><output id="tvFootColorValue" for="tvFootColor">อัตโนมัติ</output></div></div></div></details></div>
+<div class="tv-control-section" id="tvBannerFrames"><h3>กรอบโฆษณา</h3><p>พื้นหลังหน้า TV → กรอบรวม Banner → กรอบรอบรูป → รูปโฆษณา</p><div class="tv-frame-group"><h4>กรอบรวม Banner</h4><label class="tv-color-auto"><input id="tvBannerBgMatch" type="checkbox"/>ใช้สีเดียวกับพื้นหลังหน้า TV</label><div class="tv-color-row"><label for="tvBannerBg">สีกรอบรวม</label><div class="tv-color-control"><input id="tvBannerBg" type="color" value="#ffffff"/><output id="tvBannerBgValue" for="tvBannerBg">#FFFFFF</output></div></div><label class="tv-range"><span>ความทึบกรอบรวม</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvBannerBgOpacity" aria-label="ความทึบกรอบรวม"/><input id="tvBannerBgOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบกรอบรวม" aria-label="ความทึบกรอบรวม ตัวเลข"/><span>%</span></span></label></div><div class="tv-frame-group"><h4>กรอบรอบรูป</h4><label class="tv-color-auto"><input id="tvBannerFrameMatch" type="checkbox"/>ใช้สีเดียวกับกรอบรวม Banner</label><div class="tv-color-row"><label for="tvBannerFrameColor">สีกรอบรอบรูป</label><div class="tv-color-control"><input id="tvBannerFrameColor" type="color" value="#ffffff"/><output id="tvBannerFrameColorValue" for="tvBannerFrameColor">#FFFFFF</output></div></div><label class="tv-range"><span>ความทึบกรอบรอบรูป</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvBannerFrameOpacity" aria-label="ความทึบกรอบรอบรูป"/><input id="tvBannerFrameOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบกรอบรอบรูป" aria-label="ความทึบกรอบรอบรูป ตัวเลข"/><span>%</span></span></label><label class="tv-range"><span>ความหนากรอบรอบรูป</span><span class="tv-number-pair"><input type="range" min="0" max="60" data-range-for="tvBannerFramePadding" aria-label="ความหนากรอบรอบรูป"/><input id="tvBannerFramePadding" type="number" min="0" max="60" step="1" value="10" data-label="ความหนากรอบรอบรูป" aria-label="ความหนากรอบรอบรูป ตัวเลข"/><span>px</span></span></label><p>ความหนา 0 = ไม่เว้นกรอบ · ความทึบ 0% = โปร่งใส และ 100% = ทึบ โดยรูปยังชัดเท่าเดิม</p></div></div><div class="tv-control-section" id="tvControlColors"><h3>สีปุ่มควบคุมหน้าแสดงผล</h3><p>ใช้กับปุ่มเลื่อนซ้าย/ขวา ปุ่มหยุดแบนเนอร์ และปุ่มท้ายหน้า TV</p><div class="tv-color-row"><label for="tvControlBgColor">สีพื้นปุ่ม</label><label class="tv-color-auto"><input id="tvControlBgColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlBgColor" type="color" value="#ffffff" disabled/><output id="tvControlBgColorValue" for="tvControlBgColor">เลือกอัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvControlColorColor">สีสัญลักษณ์และข้อความ</label><label class="tv-color-auto"><input id="tvControlColorColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlColorColor" type="color" value="#2a1f47" disabled/><output id="tvControlColorColorValue" for="tvControlColorColor">เลือกอัตโนมัติ</output></div></div><div class="tv-color-row"><label for="tvControlBorderColorColor">สีขอบปุ่ม</label><label class="tv-color-auto"><input id="tvControlBorderColorColorAuto" type="checkbox" checked/>เลือกอัตโนมัติ</label><div class="tv-color-control"><input id="tvControlBorderColorColor" type="color" value="#d9c8ff" disabled/><output id="tvControlBorderColorColorValue" for="tvControlBorderColorColor">เลือกอัตโนมัติ</output></div></div><label class="tv-range"><span>ความทึบพื้นปุ่ม</span><span class="tv-number-pair"><input type="range" min="0" max="100" data-range-for="tvControlOpacity" aria-label="ความทึบพื้นปุ่ม"/><input id="tvControlOpacity" type="number" min="0" max="100" step="1" value="100" data-label="ความทึบพื้นปุ่ม" aria-label="ความทึบพื้นปุ่ม ตัวเลข"/><span>%</span></span></label><p>0% = โปร่งใส · 100% = ทึบ เฉพาะพื้นหลังปุ่ม</p></div><div class="tv-control-section"><h3>ฟอนต์และขนาดข้อความ</h3><label>ฟอนต์<select id="tvFont"><option>Sarabun</option><option>Bai Jamjuree</option><option>Mali</option><option>Prompt</option><option>Kanit</option><option>Niramit</option><option>Noto Sans Thai</option><option>Pridi</option><option>Taviraj</option><option>K2D</option><option>Athiti</option><option>Mitr</option><option>Krub</option><option>Maitree</option><option>TH Sarabun New</option><option>Tahoma</option></select></label><label class="tv-range"><span>นาฬิกาและวันที่</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontClock" aria-label="นาฬิกาและวันที่"/><input id="tvFontClock" type="number" min="10" max="200" step="1" data-label="นาฬิกาและวันที่" aria-label="นาฬิกาและวันที่ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ชื่อร้าน</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontShop" aria-label="ชื่อร้าน"/><input id="tvFontShop" type="number" min="10" max="200" step="1" data-label="ชื่อร้าน" aria-label="ชื่อร้าน ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความต้อนรับ</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontHello" aria-label="ข้อความต้อนรับ"/><input id="tvFontHello" type="number" min="10" max="200" step="1" data-label="ข้อความต้อนรับ" aria-label="ข้อความต้อนรับ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ข้อความวิ่ง</span><span class="tv-number-pair"><input type="range" min="10" max="200" data-range-for="tvFontCaption" aria-label="ข้อความวิ่ง"/><input id="tvFontCaption" type="number" min="10" max="200" step="1" data-label="ข้อความวิ่ง" aria-label="ข้อความวิ่ง ตัวเลข"/><span>px</span></span></label></div>
+</div>
+<div class="tv-editor-pane" id="tvPaneLayout" role="tabpanel" aria-labelledby="tvTabLayout" data-tv-pane="layout" hidden>
+<div class="tv-control-section"><h3>เริ่มจากรูปแบบสำเร็จ</h3><div class="tv-preset-grid"><button class="tv-preset" type="button" data-tv-preset="balanced"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="1" y="1" width="46" height="32" rx="3"/><circle cx="10" cy="8" r="3"/><path d="M17 6h23M17 10h17M6 15h36v10H6zM6 29h36"/></svg><span>สมดุล</span></button><button class="tv-preset" type="button" data-tv-preset="banner"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="1" y="1" width="46" height="32" rx="3"/><path d="M7 6h34M6 10h36v17H6zM7 30h34"/></svg><span>เน้นแบนเนอร์</span></button><button class="tv-preset" type="button" data-tv-preset="portrait"><svg aria-hidden="true" viewBox="0 0 48 34"><rect x="15" y="1" width="18" height="32" rx="3"/><path d="M19 6h10M18 10h12v15H18zM19 29h10"/></svg><span>จอแนวตั้ง</span></button></div><p>เปลี่ยนเฉพาะขนาดและการจัดวาง ข้อความและสียังอยู่</p></div>
+<div class="tv-control-section"><h3>ขนาดและการจัดวาง</h3><label>ตำแหน่งโลโก้และข้อความ<select id="tvHeadLayout"><option value="side">โลโก้ซ้าย · ข้อความเรียงลง</option><option value="stack">โลโก้บน · ข้อความเรียงลง</option><option value="row">โลโก้และข้อความแถวเดียว</option><option value="topRow">โลโก้บน · ข้อความแถวเดียว</option></select></label><label class="tv-range"><span>ความกว้างเนื้อหา</span><span class="tv-number-pair"><input type="range" min="480" max="3840" data-range-for="tvWidth" aria-label="ความกว้างเนื้อหา"/><input id="tvWidth" type="number" min="480" max="3840" step="1" data-label="ความกว้างเนื้อหา" aria-label="ความกว้างเนื้อหา ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ความสูงแบนเนอร์</span><span class="tv-number-pair"><input type="range" min="60" max="2000" data-range-for="tvBannerH" aria-label="ความสูงแบนเนอร์"/><input id="tvBannerH" type="number" min="60" max="2000" step="1" data-label="ความสูงแบนเนอร์" aria-label="ความสูงแบนเนอร์ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ขนาดโลโก้</span><span class="tv-number-pair"><input type="range" min="20" max="600" data-range-for="tvLogoSize" aria-label="ขนาดโลโก้"/><input id="tvLogoSize" type="number" min="20" max="600" step="1" data-label="ขนาดโลโก้" aria-label="ขนาดโลโก้ ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ระยะห่างระหว่างส่วน</span><span class="tv-number-pair"><input type="range" min="0" max="200" data-range-for="tvGap" aria-label="ระยะห่างระหว่างส่วน"/><input id="tvGap" type="number" min="0" max="200" step="1" data-label="ระยะห่างระหว่างส่วน" aria-label="ระยะห่างระหว่างส่วน ตัวเลข"/><span>px</span></span></label><label class="tv-range"><span>ความเร็วข้อความวิ่ง</span><span class="tv-number-pair"><input type="range" min="10" max="400" data-range-for="tvCapSpeed" aria-label="ความเร็วข้อความวิ่ง"/><input id="tvCapSpeed" type="number" min="10" max="400" step="1" data-label="ความเร็วข้อความวิ่ง" aria-label="ความเร็วข้อความวิ่ง ตัวเลข"/><span>px/วินาที</span></span></label></div>
+<details class="tv-advanced"><summary>ตั้งค่าระยะห่างและส่วนเสียงเพิ่มเติม</summary><div class="tv-control-section"><label class="tv-range"><span>ความสูงส่วนรับเสียง</span><span class="tv-number-pair"><input type="range" min="150" max="2000" data-range-for="tvReceiverH" aria-label="ความสูงส่วนรับเสียง"/><input id="tvReceiverH" type="number" min="150" max="2000" step="1" data-label="ความสูงส่วนรับเสียง" aria-label="ความสูงส่วนรับเสียง ตัวเลข"/><span>px</span></span></label><div class="tv-fields-two"><label class="tv-unit-field">ความกว้างแบนเนอร์<input id="tvBannerW" type="number" min="0" max="3840" step="1" data-label="ความกว้างแบนเนอร์"/></label><label class="tv-unit-field">ความกว้างส่วนเสียง<input id="tvReceiverW" type="number" min="0" max="3840" step="1" data-label="ความกว้างส่วนเสียง"/></label></div><p>ความกว้าง 0 = เต็มพื้นที่เนื้อหา · ขนาดเป็นพิกเซล</p><div class="tv-fields-two"><label class="tv-unit-field">ระยะขอบบน<input id="tvPadTop" type="number" min="0" max="600" step="1" data-label="ระยะขอบบน"/></label><label class="tv-unit-field">โลโก้ห่างข้อความ<input id="tvHeadGap" type="number" min="0" max="200" step="1" data-label="โลโก้ห่างข้อความ"/></label></div><p>ระยะห่างแยกส่วน เว้นว่างเพื่อใช้ระยะห่างรวม</p><div class="tv-fields-two"><label class="tv-unit-field">เหนือแบนเนอร์<input id="tvGapBanner" type="number" min="0" max="200" step="1" data-label="เหนือแบนเนอร์" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือข้อความวิ่ง<input id="tvGapCaption" type="number" min="0" max="200" step="1" data-label="เหนือข้อความวิ่ง" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือส่วนเสียง<input id="tvGapReceiver" type="number" min="0" max="200" step="1" data-label="เหนือส่วนเสียง" placeholder="ใช้ระยะห่างรวม"/></label><label class="tv-unit-field">เหนือท้ายหน้า<input id="tvGapFoot" type="number" min="0" max="200" step="1" data-label="เหนือท้ายหน้า" placeholder="ใช้ระยะห่างรวม"/></label></div></div></details>
+</div>
+<div class="tv-editor-pane tv-ad-pane" id="tvPaneAds" role="tabpanel" aria-labelledby="tvTabAds" data-tv-pane="ads" hidden>
+<div class="tv-ad-notice">สี ขนาด และการหมุน: ทดลองในพรีวิวแล้วกด “บันทึกและใช้จริง”<br>ไฟล์รูป: อัปโหลด ซ่อน แก้ไข ลบ และเลื่อนลำดับแล้วมีผลทันที</div>
+<div class="card tv-control-section"><h3>การแสดงรูปโฆษณา</h3><div class="tv-fields-two"><label>เวลาแสดงแต่ละรูป (วินาที)<input id="bSpeed" type="number" min="1" max="60" step="0.5" data-label="เวลาแสดงแต่ละรูป"/></label><label>จำนวนรูปพร้อมกัน<input id="bPer" type="number" min="0" max="6" step="1" data-label="จำนวนรูปต่อหน้า"/></label></div><label>ความสูงรูปในกรอบ (%)<input id="bHeight" type="number" min="30" max="100" step="1" data-label="ความสูงรูปในกรอบ"/></label><p>จำนวนรูป 0 = อัตโนมัติ · ความสูง 30–100% · ทดลองในพรีวิวแล้วกด “บันทึกและใช้จริง”</p></div>
+<div class="card">
+<h3>เพิ่มรูปโฆษณา</h3>
+<div class="row">
+<input accept="image/jpeg,image/png,image/webp,image/gif" aria-label="ไฟล์แบนเนอร์" id="bFiles" multiple="" type="file"/>
+<input aria-label="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." autocomplete="off" id="bLink" placeholder="ลิงก์เมื่อกดที่รูป (ไม่บังคับ) เช่น https://..." style="width:100%;min-width:0" type="text"/>
+<button class="btn" disabled="" id="bUpload">อัปโหลด</button>
+</div>
+<div class="muted" id="bUpHint" style="margin-top:6px"></div>
+</div>
+<div class="card">
+<div class="cardrow"><h3>รูปโฆษณาทั้งหมด</h3><span class="muted" id="bCount"></span></div>
+<div class="bgrid" id="bGrid"><div class="muted">กำลังโหลด…</div></div>
+<div class="muted" style="margin-top:8px">ลำดับบนหน้าเว็บเรียงจากซ้ายไปขวาตามลำดับที่เห็นนี้ · ปุ่ม "ซ่อน" ซ่อนรูปจากหน้าเว็บโดยไม่ลบไฟล์ · ปุ่ม "ลบ" ลบไฟล์รูปออกจากระบบถาวร</div>
+</div>
+<div class="card">
+<h3>หน้าแสดง Banner</h3>
+<div class="row">
+<input aria-label="ตัวเลือก bUrl" id="bUrl" readonly="" style="width:100%;min-width:0" type="text"/>
+<button class="btn ghost small" id="bCopyUrl">คัดลอกลิงก์</button>
+<a class="btn small" href="#" id="bOpen" rel="noopener" target="_blank">เปิดดู</a>
+</div>
+<div class="row" style="margin-top:8px">
+<input aria-label="ตัวเลือก bEmbed" id="bEmbed" readonly="" style="width:100%;min-width:0" type="text"/>
+<button class="btn ghost small" id="bCopyEmbed">คัดลอกโค้ดฝังเว็บ</button>
+</div>
+</div>
+
+</div>
+</fieldset></div>
+<div class="tv-preview-panel" id="tvPreviewPanel">
+<div class="tv-preview-toolbar"><div><strong>ตัวอย่างหน้าจอจริง</strong><p>ข้อความ ขนาด สี และรูปแบนเนอร์ที่ใช้งานอยู่</p></div><div class="tv-preview-tools"><select id="tvPreviewSize" aria-label="ขนาดจอสำหรับพรีวิว"><option value="1920x1080">TV 1920 × 1080</option><option value="1366x768">TV 1366 × 768</option><option value="1080x1920">แนวตั้ง 1080 × 1920</option></select><button class="btn ghost small" id="tvPreviewExpand" type="button">เต็มจอ</button><button class="btn ghost small tv-mobile-preview" id="tvMobilePreview" type="button" aria-expanded="true">พับพรีวิว</button></div></div>
+<div class="tv-preview-host" id="tvPreviewHost"><div class="tv-preview-shell" id="tvPreviewShell"><iframe class="tv-live-frame" id="tvLivePreview" title="พรีวิวหน้าจอ TV ตามค่าที่กำลังแก้ไข" tabindex="-1"></iframe></div></div>
+<div class="tv-preview-footer"><div class="tv-preview-state" id="tvPreviewState" role="status">กำลังเตรียมพรีวิว</div><span id="tvPreviewScale"></span><p class="tv-overflow-hint" id="tvOverflowHint" hidden>เนื้อหาสูงกว่าจอที่เลือก ลองลดขนาดหรือความสูงของแต่ละส่วน</p><span>พรีวิวใช้ค่าที่ยังไม่บันทึก และใช้ตัวแทนส่วนเสียงเพื่อให้ดูขนาดได้โดยไม่เปิดเสียง</span></div>
+</div>
+</div>
+<div class="tv-savebar"><div><strong id="tvSaveState" role="status">กำลังโหลดการตั้งค่า</strong><small id="tvSaveHint">จอจริงจะเปลี่ยนเมื่อบันทึก</small></div><button class="btn ghost small tv-jump-preview" id="tvJumpPreview" type="button">ดูพรีวิว</button><div class="tv-save-actions"><button class="btn ghost small" id="tvReset" type="button">ค่าเริ่มต้น</button><button class="btn ghost small" id="tvRevert" type="button" disabled>ยกเลิกที่แก้</button><button class="btn" id="tvSave" type="button" disabled>บันทึกและใช้บน TV</button></div></div>
+</div>
+</section>
+<section class="stp hidden" id="st-sound" style="display:grid;gap:14px">
+<div class="card">
+<h3>หน้ารับสัญญาณสำหรับ TV</h3>
+<div class="row">
+<input aria-label="ตัวเลือก sRecv" id="sRecv" readonly="" style="flex:1;min-width:260px" type="text"/>
+<button class="btn ghost small" id="sRecvCopy">คัดลอกลิงก์</button>
+<a class="btn small" href="#" id="sRecvOpen" rel="noopener" target="_blank">เปิดดู</a>
+</div>
+<div class="muted" style="margin-top:6px">เปิดลิงก์นี้บนเครื่อง TV · เสียงที่เพิ่ม/แก้ไขที่นี่จะถูกใช้บน TV เองภายใน 1 นาที</div>
+</div>
+<div class="card">
+<h3>ความดังเสียงประกาศ</h3>
+<div class="row"><label style="display:flex;gap:10px;align-items:center;flex-direction:row;font-size:15px;color:var(--ink);flex:1;min-width:260px"> ความดังประกาศ
+          <input id="muAVol" max="100" min="10" step="5" style="flex:1" type="range" value="100"/> <b id="muAVolTxt" style="min-width:48px">100%</b></label></div>
+<div class="muted" style="margin-top:6px">ใช้กับเสียงประกาศทุกแบบ (ปุ่ม ตามเวลา เรียกพนักงาน งดรับเงิน) ปรับแยกจากความดังเพลงในหน้า "ขอเพลง / คิวเพลง" · ขั้นต่ำ 10% · TV ปรับตามภายในไม่กี่วินาที ประกาศที่กำลังเล่นอยู่จะใช้ค่าใหม่ครั้งถัดไป</div>
+</div>
+<nav class="cnav" id="cfgNav">
+<button class="on" data-cp="btn">ระบบปุ่มประกาศ</button>
+<button data-cp="sch">ตารางเวลาประกาศ</button>
+<button data-cp="timed">ไฟล์เสียงตามเวลา</button>
+<button data-cp="other">เสียงอื่นๆ</button>
+</nav>
+<div class="card cpanel" id="cp-btn">
+<div class="cardrow"><h3>ระบบปุ่มประกาศ</h3><button class="btn small" id="sAddBtn">+ เพิ่มปุ่ม</button></div>
+<div class="muted" style="margin-bottom:8px">ปุ่มเลขในแท็บ "ปุ่มประกาศ" · แต่ละปุ่มจะเล่นไฟล์เสียงอะไร</div>
+<div style="overflow:auto"><table class="logt"><thead><tr><th>ปุ่ม (รหัส)</th><th>ชื่อปุ่ม</th><th>ไฟล์เสียงที่เล่น</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyBtn"></tbody></table></div>
+</div>
+<div class="cpanel hidden" id="cp-sch" style="display:grid;gap:14px">
+<div class="card">
+<div class="cardrow"><h3>ตารางเวลาประกาศอัตโนมัติ</h3><button class="btn small" id="sAddSch">+ เพิ่มเวลา</button></div>
+<div class="muted" style="margin-bottom:8px">ถึงเวลาที่ตั้ง TV จะเล่นเสียงที่เลือกเองอัตโนมัติ · แก้ไขได้ทั้งเวลา และเลข/ไฟล์เสียงที่จะประกาศ</div>
+<div style="overflow:auto"><table class="logt"><thead><tr><th>เวลา</th><th>เลขเสียงที่ประกาศ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodySch"></tbody></table></div>
+</div>
+<div class="card">
+<h3>ประกาศซ้ำช่วงกลางวัน (09:00–19:00)</h3>
+<div class="muted" style="margin-bottom:8px">เล่นเสียงที่เลือกซ้ำตามช่วงนาทีที่กำหนด</div>
+<div class="row">
+<label style="width:150px">สถานะ<select id="dtOn"><option value="ใช้งาน">เปิดใช้งาน</option><option value="ปิด">ปิด</option></select></label>
+<label style="min-width:220px;flex:1">เสียงที่จะเล่น (เลข / ไฟล์)<select id="dtKey"></select></label>
+<label style="width:150px">ทุกกี่นาที<input autocomplete="off" id="dtInt" inputmode="numeric" type="text"/></label>
+<button class="btn" id="dtSave" style="align-self:end">บันทึก</button>
+</div>
+</div>
+</div>
+<div class="card cpanel hidden" id="cp-timed">
+<div class="cardrow"><h3>ไฟล์เสียงตามเวลา</h3><button class="btn small" id="sAddTimed">+ เพิ่มไฟล์เสียง</button></div>
+<div class="muted" style="margin-bottom:8px">คลังไฟล์ที่ใช้ในตารางเวลา (เล่นพร้อมเสียงเปิด-ปิด) · เพิ่ม/เปลี่ยนไฟล์ที่นี่ แล้วไปเลือกใช้ในแท็บ "ตารางเวลาประกาศ"</div>
+<div style="overflow:auto"><table class="logt"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBodyTimed"></tbody></table></div>
+</div>
+<div class="card cpanel hidden" id="cp-other">
+<div class="cardrow"><h3>เสียงอื่นๆ</h3>
+<div class="row">
+<select aria-label="ตัวเลือก sFilter" id="sFilter" style="width:auto"></select>
+<button class="btn small" id="sAdd">+ เพิ่มรายการ</button>
+<button class="btn ghost small" id="sImport">นำเข้าไฟล์เสียงเดิมจาก GitHub</button>
+</div>
+</div>
+<div class="muted" style="margin-bottom:6px">เสียงเปิด-ปิด · เสียงอ่านชื่อพนักงาน · สถานที่ · แคชเชียร์ · ประเภทงดรับ</div>
+<div class="muted" id="sImpMsg" style="margin-bottom:6px"></div>
+<div style="overflow:auto">
+<table class="logt"><thead><tr><th>ประเภท</th><th>รหัส</th><th>ชื่อที่แสดง</th><th>ค่าเพิ่มเติม</th><th>ไฟล์เสียง</th><th>สถานะ</th><th></th></tr></thead><tbody id="sBody"></tbody></table>
+</div>
+</div>
+</section>
+</div>
+</div>
+<div class="modalwrap hidden" id="recModal">
+<div class="modal" style="width:min(520px,100%)">
+<h3>รหัสกู้คืนใหม่</h3>
+<div class="muted">จดรหัสนี้เก็บไว้ในที่ปลอดภัย รหัสจะแสดงครั้งเดียว ปิดหน้าต่างแล้วดูย้อนหลังไม่ได้ (ถ้าลืมให้ออกรหัสใหม่) · รหัสกู้คืนเดิมใช้ไม่ได้แล้ว</div>
+<input aria-label="รหัสกู้คืน Admin" id="recCode" readonly="" style="font-size:20px;letter-spacing:1px;text-align:center" type="text"/>
+<div class="addbar">
+<button class="btn" id="recCopy">คัดลอกรหัส</button>
+<button class="btn ghost" id="recClose">ปิด</button>
+</div>
+</div>
+</div>
+<div class="modalwrap hidden" id="linkModal">
+<div class="modal" style="width:min(560px,100%)">
+<h3 id="lkTitle">ลิงก์เข้าใช้งาน</h3>
+<div class="muted">ส่งลิงก์นี้ให้ผู้ใช้ เปิดแล้วเข้าระบบได้ทันที ลิงก์จะแสดงครั้งเดียว ถ้าลืมให้กด "ลิงก์ใหม่" ในตารางผู้ใช้ (ลิงก์เดิมจะใช้ไม่ได้)</div>
+<input aria-label="ลิงก์เข้าสู่ระบบ" id="lkUrl" readonly="" type="text"/>
+<div class="addbar">
+<button class="btn" id="lkCopy">คัดลอกลิงก์</button>
+<button class="btn ghost" id="lkClose">ปิด</button>
+</div>
+</div>
+</div>
+<div class="modalwrap hidden" id="schModal">
+<div class="modal" style="width:min(460px,100%)">
+<h3 id="schTitle">เพิ่มเวลาประกาศ</h3>
+<div class="grid">
+<label>เวลา<input id="schTime" type="time"/></label>
+<label>สถานะ<select id="schStatus"><option value="ใช้งาน">ใช้งาน</option><option value="ปิด">ปิด (ไม่เล่น)</option></select></label>
+<label class="wide">เสียงที่จะประกาศ (เลข / ไฟล์)<select id="schKey"></select></label>
+</div>
+<div class="addbar"><button class="btn" id="schSave">บันทึก</button><button class="btn ghost" id="schCancel">ยกเลิก</button></div>
+</div>
+</div>
+<div class="modalwrap hidden" id="sndModal">
+<div class="modal" style="width:min(520px,100%)">
+<h3 id="sdTitle">เพิ่มรายการ</h3>
+<label>ประเภท<select id="sdType"></select></label>
+<div class="muted" id="sdHint"></div>
+<div class="grid">
+<label>รหัส<input autocomplete="off" id="sdCode" type="text"/></label>
+<label>ชื่อที่แสดง<input autocomplete="off" id="sdLabel" type="text"/></label>
+<label>ค่าเพิ่มเติม<input autocomplete="off" id="sdValue" type="text"/></label>
+<label>สถานะ<select id="sdStatus"><option value="ใช้งาน">ใช้งาน</option><option value="ปิด">ปิด (ซ่อน)</option></select></label>
+</div>
+<div id="sdFileRow">
+<label>ไฟล์เสียง (MP3, WAV, M4A, AAC, OGG ไม่เกิน 8 MB)<input accept="audio/*" id="sdFile" type="file"/></label>
+<div class="muted" id="sdCur"></div>
+</div>
+<div class="addbar">
+<button class="btn" id="sdSave">บันทึก</button>
+<button class="btn ghost" id="sdCancel">ยกเลิก</button>
+</div>
+</div>
+</div>
+<div class="loginwrap hidden" id="login">
+<div class="logincard">
+<h2>CMUCOOP SUPPORT</h2>
+<p class="liquid-login-copy">เข้าสู่ระบบเพื่อใช้งานเครื่องมือของ CMUCOOP</p>
+<label>รหัสผู้ใช้<input autocomplete="username" id="lgUser" type="text"/></label>
+<label>รหัสผ่าน<input autocomplete="current-password" id="lgPass" type="password"/></label>
+<div class="err" id="lgErr" role="alert"></div>
+<button class="btn" id="lgBtn">เข้าสู่ระบบ</button>
+<a href="#" id="lgForgot" style="font-size:14px;text-align:center">ลืมรหัสผ่าน</a>
+<div class="hidden" id="rcBox" style="display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px">
+<label>รหัสผู้ใช้ Admin<input autocomplete="off" id="rcUser" type="text"/></label>
+<label>รหัสกู้คืน<input autocomplete="off" id="rcCode" type="password"/></label>
+<label>รหัสผ่านใหม่<input autocomplete="new-password" id="rcPass" type="password"/></label>
+<button class="btn ghost" id="rcBtn">ตั้งรหัสผ่านใหม่</button>
+</div>
+</div>
+</div>
+<div class="modalwrap hidden" id="pwModal">
+<div class="modal" style="width:min(380px,100%)">
+<h3>เปลี่ยนรหัสผ่าน</h3>
+<label>รหัสผ่านเดิม<input autocomplete="current-password" id="pwOld" type="password"/></label>
+<label>รหัสผ่านใหม่ (อย่างน้อย 4 ตัวอักษร)<input autocomplete="new-password" id="pwNew" type="password"/></label>
+<label>ยืนยันรหัสผ่านใหม่<input autocomplete="new-password" id="pwNew2" type="password"/></label>
+<div class="err" id="pwErr" role="alert"></div>
+<div class="addbar" style="margin-top:0">
+<button class="btn" id="pwSave">บันทึก</button>
+<button class="btn ghost" id="pwCancel">ยกเลิก</button>
+</div>
+</div>
+</div>
+<div id="toast" role="status"></div>
+<script src="assets/js/pages/settings.js?v=card-visibility-1"></script>
+<script src="assets/js/shared/a11y.js"></script>
+</body>
+</html>
