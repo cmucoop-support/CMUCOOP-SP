@@ -1,0 +1,375 @@
+var topicFile = 'cmucoop/audio/control/signal_key_v1';
+var topicSpeech = 'cmucoop/audio/control/staff_speech_v1';
+var topicMusic = 'cmucoop/audio/control/music_v1';
+var SOUND_LISTS = ['buttons', 'timed', 'staff', 'locations', 'cashiers', 'notices'];
+var CFGD = null, AU = {}, loadedCount = 0, totalCount = 0;
+var audioUnlocked = false, isPlayingBusy = false, lastPlayedTimeStr = '';
+var $ = function (s) { return document.querySelector(s); };
+function pad(n) { return String(n).padStart(2, '0'); }
+function sleep(sec) { return new Promise(function (r) { setTimeout(r, sec * 1000); }); }
+
+/* ---------- สถานะ ON / OFF / ERROR ---------- */
+var st = { cfgOk: false, cfgErr: false, mqtt: false, mqttErr: false, playing: 0 };
+function render() {
+  var box = $('#state'), k = 'off', t = 'OFF', desc = 'ปิด (OFF)';
+  if (st.cfgErr || st.mqttErr) { k = 'error'; t = 'ERROR'; desc = 'เกิดข้อผิดพลาด (ERROR)'; }
+  else if (st.cfgOk && st.mqtt) { k = 'on'; t = 'ON'; desc = st.playing > 0 ? 'เปิดใช้งาน กำลังเล่นเสียงประกาศ (ON)' : 'เปิดใช้งาน พร้อมรับสัญญาณ (ON)'; }
+  box.className = 'state ' + k + (k === 'on' && st.playing > 0 ? ' playing' : '');
+  $('#stateText').textContent = t;
+  box.setAttribute('aria-label', 'สถานะระบบรับสัญญาณ: ' + desc);
+}
+function setStatus(type, state) {
+  var was = !!st['p' + type], now = state === 'playing';
+  st.playing = Math.max(0, st.playing + (now ? (was ? 0 : 1) : (was ? -1 : 0)));
+  st['p' + type] = now;
+  render();
+}
+var failCount = 0, lastCheck = null;
+function showLoad() {
+  var t = totalCount ? (loadedCount < totalCount ? 'กำลังโหลดเสียง ' + loadedCount + '/' + totalCount : 'โหลดเสียงครบ ' + loadedCount + '/' + totalCount) : (CFGD ? 'ไม่มีไฟล์เสียง' : 'กำลังโหลดการตั้งค่า…');
+  if (failCount) t += ' (โหลดไม่สำเร็จ ' + failCount + ')';
+  if (lastCheck) t += ' · ตรวจอัพเดตล่าสุด ' + pad(lastCheck.getHours()) + ':' + pad(lastCheck.getMinutes());
+  $('#loadInfo').textContent = t;
+}
+function enableAudioContext() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  var a = new Audio(); a.volume = 0.01; a.play().catch(function () {});
+}
+['click', 'keydown', 'touchstart'].forEach(function (ev) { document.addEventListener(ev, enableAudioContext); });
+render();
+
+/* ---------- โหลดไฟล์เสียงจาก Google Drive (ผ่านสคริปต์) แล้วเก็บไว้ในหน่วยความจำ ---------- */
+function getAudio(id) {
+  if (!id) return Promise.resolve(null);
+  if (!AU[id]) {
+    AU[id] = new Promise(function (res) {
+      google.script.run
+        .withSuccessHandler(function (d) { loadedCount++; showLoad(); res(d); })
+        .withFailureHandler(function () { delete AU[id]; failCount++; showLoad(); res(null); })
+        .getSoundAudio(id);
+    });
+  }
+  return AU[id];
+}
+function allIds() {
+  var ids = [];
+  SOUND_LISTS.forEach(function (k) {
+    (CFGD[k] || []).forEach(function (x) { if (x.id && ids.indexOf(x.id) < 0) ids.push(x.id); });
+  });
+  if (CFGD.intro) ids.push(CFGD.intro);
+  if (CFGD.outro) ids.push(CFGD.outro);
+  return ids;
+}
+function preload() {
+  failCount = 0; var ids = allIds().filter(function (id) { return !AU[id]; }), i = 0;
+  totalCount = loadedCount + ids.length; showLoad();
+  function worker() { if (i >= ids.length) return Promise.resolve(); return getAudio(ids[i++]).then(worker); }
+  worker(); worker();
+}
+function loadCfg(first) {
+  google.script.run
+    .withSuccessHandler(function (c) {
+      if (first || !CFGD || c.ver !== CFGD.ver) { CFGD = c; preload(); } else if (failCount > 0) { preload(); }
+      lastCheck = new Date(); st.cfgOk = true; st.cfgErr = false; render(); showLoad();
+    })
+    .withFailureHandler(function () {
+      if (first || !CFGD) { st.cfgErr = true; render(); }
+    })
+    .getSoundPublic();
+}
+function findItem(code) {
+  var all = (CFGD ? CFGD.buttons.concat(CFGD.timed) : []);
+  for (var i = 0; i < all.length; i++) if (all[i].code === code) return all[i];
+  return null;
+}
+function idOf(list, code) {
+  var a = (CFGD && CFGD[list]) || [];
+  for (var i = 0; i < a.length; i++) if (a[i].code === code) return a[i].id;
+  return '';
+}
+
+/* ---------- ระบบเพลงจากคิว ---------- */
+var ANN_VOL = 100;                                           // ความดังเสียงประกาศ (ตั้งจากหน้าขอเพลง แยกจากเพลง)
+var MUS = { cmdSeq: 0, userPaused: false, vol: 70, cur: null, yt: null, ytReady: false, ytWant: null, au: null, held: 0, next: null, calling: false, adMuted: false, adSince: 0 };
+window.onYouTubeIframeAPIReady = function () {
+  MUS.ytReady = true;
+  if (MUS.ytWant) { var w = MUS.ytWant; MUS.ytWant = null; musicStart(w); }
+};
+var ytTag = document.createElement('script'); ytTag.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(ytTag);
+
+function musicSubText() {
+  var c = MUS.cur; if (!c) return '';
+  var t = 'ขอโดย ' + c.by;
+  if (c.kind === 'ytlist' && MUS.yt && MUS.yt.getPlaylist) {
+    try { var l = MUS.yt.getPlaylist() || [], i = MUS.yt.getPlaylistIndex(); if (l.length && i >= 0) t += ' · เพลงที่ ' + (i + 1) + '/' + l.length; } catch (e) {}
+  }
+  return t;
+}
+function musicYtLast() {                                     // จบเพลงสุดท้ายของเพลย์ลิสต์ (หรือเป็นวิดีโอเดี่ยว) หรือไม่
+  if (!MUS.cur || MUS.cur.kind !== 'ytlist') return true;
+  try { var l = MUS.yt.getPlaylist() || [], i = MUS.yt.getPlaylistIndex(); return !l.length || i >= l.length - 1; } catch (e) { return true; }
+}
+function musicApplyVol() {                                  // ความดังเพลงแยกจากเสียงประกาศ
+  if (MUS.au) MUS.au.volume = MUS.vol / 100;
+  if (MUS.yt && MUS.yt.setVolume) {
+    try { if (MUS.adMuted) MUS.yt.mute(); else { MUS.yt.unMute(); MUS.yt.setVolume(MUS.vol); } } catch (e) {}
+  }
+}
+
+/* ---------- ปิดเสียงตอน YouTube เล่นโฆษณา ---------- */
+var AD_MAX_MS = 180000, AD_UNKNOWN_MS = 5000;
+function expectedVideoId() {
+  if (!MUS.cur) return '';
+  if (MUS.cur.kind === 'yt') return MUS.cur.ref;
+  try { var l = MUS.yt.getPlaylist() || [], i = MUS.yt.getPlaylistIndex(); return (l[i] || ''); } catch (e) { return ''; }
+}
+function setAdMute(on) {
+  if (on === MUS.adMuted) return;
+  MUS.adMuted = on;
+  if (on) MUS.adSince = Date.now();
+  musicApplyVol();
+  if (MUS.cur && !MUS.held) $('#musicSub').textContent = on ? ' มีโฆษณา ปิดเสียงชั่วคราว' : musicSubText();
+}
+function adCheck() {
+  if (!MUS.cur || !/^yt/.test(MUS.cur.kind) || !MUS.yt || !MUS.yt.getVideoData || MUS.held) return;
+  var vid = '', exp = expectedVideoId(), ad;
+  try { vid = (MUS.yt.getVideoData() || {}).video_id || ''; } catch (e) { return; }
+  if (exp && vid) ad = vid !== exp;
+  else ad = MUS.adMuted && (Date.now() - MUS.adSince) < AD_UNKNOWN_MS;
+  if (ad && MUS.adMuted && (Date.now() - MUS.adSince) > AD_MAX_MS) ad = false;
+  setAdMute(ad);
+}
+setInterval(adCheck, 400);
+function musicStopMedia() {
+  if (MUS.au) { MUS.au.onended = MUS.au.onerror = null; try { MUS.au.pause(); } catch (e) {} MUS.au = null; }
+  if (MUS.yt && MUS.yt.stopVideo) { try { MUS.yt.stopVideo(); } catch (e) {} }
+}
+function musicStart(item) {
+  musicStopMedia();
+  MUS.cur = item;
+  $('#musicBox').classList.remove('hidden');
+  $('#musicTitle').textContent = ' ' + item.title;
+  $('#musicSub').textContent = musicSubText();
+  var isYt = item.kind === 'yt' || item.kind === 'ytlist';
+  $('#musicWrap').classList.toggle('hidden', !isYt);
+  if (isYt) {
+    var list = item.kind === 'ytlist';
+    if (!MUS.ytReady) { MUS.ytWant = item; return; }
+    MUS.adMuted = true; MUS.adSince = Date.now();
+    if (MUS.yt && MUS.yt.loadVideoById) {
+      if (list) MUS.yt.loadPlaylist({ listType: 'playlist', list: item.ref, index: 0 });
+      else MUS.yt.loadVideoById(item.ref);
+      musicApplyVol(); return;
+    }
+    var pv = { autoplay: 1, playsinline: 1, rel: 0 }, cfg = { width: '100%', height: '100%', playerVars: pv, events: {
+      onReady: function (e) { musicApplyVol(); if (MUS.held || MUS.userPaused) e.target.pauseVideo(); else e.target.playVideo(); },
+      onStateChange: function (e) {
+        if (e.data === 0) { if (musicYtLast()) musicEnd(true); }
+        else if (e.data === 1) { adCheck(); if (!MUS.held && !MUS.adMuted) $('#musicSub').textContent = musicSubText(); }
+      },
+      onError: function () { if (musicYtLast()) musicEnd(MUS.cur && MUS.cur.kind === 'ytlist'); else { try { MUS.yt.nextVideo(); } catch (e) { musicEnd(false); } } }
+    } };
+    if (list) { pv.listType = 'playlist'; pv.list = item.ref; } else cfg.videoId = item.ref;
+    MUS.yt = new YT.Player('ytPlayer', cfg);
+  } else {
+    MUS.adMuted = false;
+    var a = new Audio(item.ref); MUS.au = a; a.volume = MUS.vol / 100;
+    a.onended = function () { musicEnd(true); };
+    a.onerror = function () { musicEnd(false); };
+    if (MUS.userPaused) return;
+    a.play().catch(function (err) {
+      if (err && err.name === 'NotAllowedError') {
+        $('#musicSub').textContent = 'แตะหน้าจอเพื่อเริ่มเล่นเพลง';
+        document.addEventListener('click', function once() { document.removeEventListener('click', once); if (MUS.au === a && !MUS.held) a.play(); });
+      } else musicEnd(false);
+    });
+  }
+}
+function musicEnd(ok) {
+  var c = MUS.cur; if (!c) return;
+  MUS.cur = null; MUS.userPaused = false; musicStopMedia();
+  google.script.run.withSuccessHandler(musicTick).withFailureHandler(musicTick).musicTvEnd(c.id, !!ok);
+}
+function musicHold() {
+  MUS.held++;
+  if (MUS.held !== 1) return;
+  if (MUS.au) MUS.au.pause();
+  if (MUS.cur && /^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.pauseVideo) MUS.yt.pauseVideo();
+  if (MUS.cur) $('#musicSub').textContent = ' หยุดชั่วคราวระหว่างประกาศ';
+}
+function musicRelease() {
+  MUS.held = Math.max(0, MUS.held - 1);
+  if (MUS.held) return;
+  if (MUS.next) { var n = MUS.next; MUS.next = null; musicStart(n); return; }
+  if (!MUS.cur) return;
+  if (MUS.userPaused) { $('#musicSub').textContent = ' หยุดเพลงโดยผู้ดูแล'; return; }
+  $('#musicSub').textContent = musicSubText();
+  if (MUS.au) MUS.au.play().catch(function () {});
+  if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) MUS.yt.playVideo();
+}
+function musicApplyPause(p) {
+  p = !!p; if (p === MUS.userPaused) return;
+  MUS.userPaused = p;
+  if (!MUS.cur) return;
+  if (p) {
+    if (MUS.au) MUS.au.pause();
+    if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.pauseVideo) { try { MUS.yt.pauseVideo(); } catch (e) {} }
+    if (!MUS.held) $('#musicSub').textContent = ' หยุดเพลงโดยผู้ดูแล';
+  } else if (!MUS.held) {
+    $('#musicSub').textContent = musicSubText();
+    if (MUS.au) MUS.au.play().catch(function () {});
+    if (/^yt/.test(MUS.cur.kind) && MUS.yt && MUS.yt.playVideo) { try { MUS.yt.playVideo(); } catch (e) {} }
+  }
+}
+function musicProg() {
+  var c = MUS.cur; if (!c) return {};
+  try {
+    if (MUS.au) return { pos: MUS.au.currentTime || 0, dur: isFinite(MUS.au.duration) ? MUS.au.duration : 0, mv: !MUS.au.paused && !MUS.au.ended };
+    if (/^yt/.test(c.kind) && MUS.yt && MUS.yt.getCurrentTime) {
+      if (MUS.adMuted) return {};
+      var o = { pos: MUS.yt.getCurrentTime() || 0, dur: MUS.yt.getDuration() || 0, mv: MUS.yt.getPlayerState() === 1 };
+      if (c.kind === 'ytlist') { var l = MUS.yt.getPlaylist() || []; if (l.length > 1) { o.idx = MUS.yt.getPlaylistIndex() + 1; o.n = l.length; } }
+      return o;
+    }
+  } catch (e) {}
+  return {};
+}
+function musicNextTrack() {
+  if (!MUS.cur || MUS.cur.kind !== 'ytlist' || !MUS.yt) return;
+  if (musicYtLast()) { musicEnd(true); return; }
+  try { MUS.adMuted = true; MUS.adSince = Date.now(); musicApplyVol(); MUS.yt.nextVideo(); } catch (e) { musicEnd(false); return; }
+  if (MUS.userPaused || MUS.held) setTimeout(function () { try { MUS.yt.pauseVideo(); } catch (e) {} }, 400);
+}
+function musicApply(r) {
+  if (r && r.avol != null) ANN_VOL = Math.max(10, Math.min(100, Number(r.avol) || 100));
+  if (r && r.vol != null && Number(r.vol) !== MUS.vol) { MUS.vol = Math.max(0, Math.min(100, Number(r.vol))); musicApplyVol(); }
+  if (!r || r.action === 'keep') return;
+  if (r.action === 'idle') {
+    MUS.next = null; MUS.userPaused = false;
+    if (MUS.cur) { MUS.cur = null; musicStopMedia(); }
+    $('#musicBox').classList.add('hidden');
+    return;
+  }
+  if (r.action === 'play') { MUS.userPaused = !!r.paused; if (MUS.held > 0) MUS.next = r.item; else musicStart(r.item); return; }
+  if (r.cmd && r.cmd.cmd === 'nexttrack' && r.cmd.seq > MUS.cmdSeq) { MUS.cmdSeq = r.cmd.seq; musicNextTrack(); return; }
+  musicApplyPause(r.paused);
+}
+var lastPing = 0;
+function musicTick() {
+  if (MUS.held > 0) {
+    if (Date.now() - lastPing > 20000) { lastPing = Date.now(); try { google.script.run.withFailureHandler(function () {}).musicTvPing(); } catch (e) {} }
+    return;
+  }
+  if (MUS.calling) return;
+  MUS.calling = true;
+  var pg = musicProg();
+  google.script.run
+    .withSuccessHandler(function (r) { MUS.calling = false; musicApply(r); })
+    .withFailureHandler(function () { MUS.calling = false; })
+    .musicTvTick(MUS.cur ? MUS.cur.id : '', pg.pos, pg.dur, pg.mv, pg.idx, pg.n);
+}
+setInterval(musicTick, 5000); musicTick();
+
+/* ---------- เล่นเสียง ---------- */
+function playId(id) {
+  return getAudio(id).then(function (d) {
+    return new Promise(function (resolve) {
+      if (!d) return resolve(false);
+      var a = new Audio(d), done = false; a.volume = ANN_VOL / 100;
+      function fin(ok) { if (!done) { done = true; resolve(ok); } }
+      a.onended = function () { fin(true); };
+      a.onerror = function () { fin(false); };
+      var p = a.play();
+      if (p && p.catch) p.catch(function () { fin(false); });
+    });
+  });
+}
+async function runAnnouncement(type, body) {
+  if (isPlayingBusy) return;
+  isPlayingBusy = true;
+  musicHold();
+  try { await body(); } catch (e) { console.error(e); }
+  isPlayingBusy = false;
+  musicRelease();
+  setStatus(type, 'active');
+}
+function triggerAnnouncement(mainId, withIntroOutro, label, repeatCount, intervalMinutes) {
+  var loops = Math.max(1, parseInt(repeatCount) || 1), delaySec = (parseInt(intervalMinutes) || 0) * 60;
+  return runAnnouncement('file', async function () {
+    if (withIntroOutro) { setStatus('file', 'playing'); await playId(CFGD.intro); }
+    for (var i = 1; i <= loops; i++) {
+      setStatus('file', 'playing');
+      await playId(mainId);
+      if (i < loops && delaySec > 0) await sleep(delaySec);
+    }
+    if (withIntroOutro) { setStatus('file', 'playing'); await playId(CFGD.outro); }
+  });
+}
+function triggerCashierNotice(cashier, noticeType) {
+  return runAnnouncement('file', async function () {
+    setStatus('file', 'playing');
+    await playId(CFGD.intro);
+    await playId(idOf('cashiers', cashier));
+    await playId(idOf('notices', noticeType));
+    await playId(CFGD.outro);
+  });
+}
+function triggerStaffCall(payload) {
+  return runAnnouncement('speech', async function () {
+    var emp = idOf('staff', String(payload.empCode)), loc = idOf('locations', String(payload.location));
+    setStatus('speech', 'playing');
+    await playId(CFGD.intro);
+    for (var r = 1; r <= 2; r++) { await playId(emp); await playId(loc); }
+    await playId(CFGD.outro);
+  });
+}
+
+/* ---------- ตารางเวลาในตัวเครื่อง (อ่านจากชีต Sound) ---------- */
+function checkInternalSchedule() {
+  if (!CFGD) return;
+  var now = new Date(), h = now.getHours(), m = now.getMinutes(), cur = pad(h) + ':' + pad(m);
+  if (cur === lastPlayedTimeStr) return;
+  var key = null, found = false;
+  CFGD.schedule.forEach(function (s) { if (s.time === cur) { key = s.key; found = true; } });
+  if (!found && CFGD.daytime && CFGD.daytime.on) {
+    var tm = h * 60 + m;
+    if (tm >= 540 && tm <= 1140 && m % CFGD.daytime.interval === 0) key = String(CFGD.daytime.key || '3');
+  }
+  if (!key) return;
+  lastPlayedTimeStr = cur;
+  var it = findItem(key);
+  if (!it) return;
+  try { google.script.run.withFailureHandler(function () {}).soundScheduleLog(cur, key, found ? 'ตามตารางเวลา' : 'ประกาศซ้ำช่วงกลางวัน', isPlayingBusy); } catch (e) {}
+  triggerAnnouncement(it.id, true, it.label, 1, 0);
+}
+setInterval(checkInternalSchedule, 1000);
+
+/* ---------- รับสัญญาณ MQTT ---------- */
+var client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+client.on('connect', function () {
+  st.mqtt = true; st.mqttErr = false; render();
+  client.subscribe(topicFile); client.subscribe(topicSpeech); client.subscribe(topicMusic);
+});
+client.on('close', function () { st.mqtt = false; render(); });
+client.on('offline', function () { st.mqtt = false; render(); });
+client.on('error', function () { st.mqttErr = true; render(); });
+client.on('message', function (topic, message) {
+  if (topic === topicMusic) { musicTick(); return; }
+  if (!CFGD) return;
+  try {
+    var p = JSON.parse(message.toString());
+    if (p.mode === 'cashierNotice') {
+      triggerCashierNotice(p.cashier, p.noticeType);
+    } else if (topic === topicFile || p.mode === 'file' || p.key) {
+      var key = String(p.key), it = findItem(key), label = it ? it.label : 'รหัส ' + key;
+      if (it) triggerAnnouncement(it.id, p.withIntroOutro, label, p.repeatCount || 1, p.intervalMinutes || 0);
+    } else if (topic === topicSpeech || p.mode === 'speech') {
+      triggerStaffCall(p);
+    }
+  } catch (e) { console.error('Payload parse error:', e); }
+});
+
+/* ---------- เริ่มต้น: โหลดการตั้งค่า และตรวจการเปลี่ยนแปลงทุก 60 วินาที ---------- */
+loadCfg(true);
+setInterval(function () { loadCfg(false); }, 60000);

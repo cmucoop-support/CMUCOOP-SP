@@ -1,0 +1,10 @@
+{
+  "package": "@zxing/library",
+  "version": "0.23.0",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/zxing-js/library",
+  "tarball": "https://registry.npmjs.org/@zxing/library/-/library-0.23.0.tgz",
+  "bundle_sha256": "3ede94153fb0c5b67a12d7adff6decd827c2b22714fdc6faecf27a8f20937ea6",
+  "integrity_verified": "sha512-6fkkoFwP8CHxl6ugnPsj74PLJgX2iRv5zczGAyt5OBzQgxFhuhF0NCEc4t4OvSr8xAv2MRLlI0Iu9ZGDZQ2urA==",
+  "runtime_cdn_required": false
+}
