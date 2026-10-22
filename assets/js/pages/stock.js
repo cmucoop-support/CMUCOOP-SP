@@ -2382,8 +2382,8 @@ async function readFiles(list) {
   $('#upErr').textContent = ''; $('#pv').classList.add('hidden'); $('#upSave').classList.add('hidden'); UP = null;
   if (!branch) { $('#upErr').textContent = 'กรุณาเลือกสาขาก่อนเลือกไฟล์'; return; }
   UPFILES = files;
-  var big = files.filter(function (f) { return f.size > 25 * 1024 * 1024; })[0];
-  if (big) { $('#upErr').textContent = 'ไฟล์ ' + big.name + ' ใหญ่เกิน 25 MB'; return; }
+  var big = files.filter(function (f) { return f.size > 100 * 1024 * 1024; })[0];
+  if (big) { $('#upErr').textContent = 'ไฟล์ ' + big.name + ' ใหญ่เกิน 100 MB'; return; }
   try {
     await loadXlsx();
     var U = { branch: branch, groups: {}, files: [], skipped: [], dup: 0, mismatch: 0, other: 0, brs: {}, read: 0, sheets: 0, conflicts: [], pick: {} };
@@ -2392,8 +2392,9 @@ async function readFiles(list) {
       lab.textContent = 'กำลังอ่านไฟล์ ' + f.name + ' …';
       var buf = await f.arrayBuffer();
       await new Promise(function (r) { setTimeout(r, 30); });                 // ให้หน้าจอแสดงข้อความก่อนเริ่มอ่าน
-      var wb = XLSX.read(buf, { type: 'array' });
-      var sheets = wb.SheetNames.map(function (n) { return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) }; });
+      var wb = XLSX.read(buf, { type: 'array', dense: true, cellStyles: false, cellFormula: false, cellHTML: false });
+      buf = null;
+      var sheets = wb.SheetNames.map(function (n) { var g = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }); delete wb.Sheets[n]; return { name: n, grid: g }; });
       var r = parseSheets(sheets, branch);
       U.files.push(f.name); U.read += r.info.read; U.dup += r.info.dup; U.mismatch += r.info.mismatch; U.other += r.info.other;
       Object.keys(r.info.brs).forEach(function (b) { U.brs[b] = (U.brs[b] || 0) + r.info.brs[b]; });

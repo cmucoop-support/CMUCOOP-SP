@@ -1235,7 +1235,7 @@ async function handleUploadFiles(fileList) {
   $('#upSourceBrW').classList.add('hidden');
   try {
     var allGroups = Object.create(null), allNames = Object.create(null), fileNames = [], sNote = '', totalRows = 0;
-    if (files.some(function (f) { return f.size > 25 * 1024 * 1024; })) throw new Error('ไฟล์ใหญ่เกิน 25 MB กรุณาแบ่งไฟล์ก่อนนำเข้า');
+    if (files.some(function (f) { return f.size > 100 * 1024 * 1024; })) throw new Error('ไฟล์ใหญ่เกิน 100 MB กรุณาแบ่งไฟล์ก่อนนำเข้า');
     if (typeof XLSX === 'undefined') throw new Error('ยังโหลดตัวอ่านไฟล์ Excel ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อและลองใหม่');
     var upDateIso = $('#upDate').value || todayIso();
     /* วันที่ข้อมูลล่าสุด: อ่านจากชื่อไฟล์ เช่น PStkall_691017.xls -> 17/10/2569 (ปีปี เดือน วัน แบบ พ.ศ.) */
@@ -1249,9 +1249,12 @@ async function handleUploadFiles(fileList) {
       fileNames.push(f.name);
       var buf = await f.arrayBuffer();
       if (readId !== UP_READ_ID) return;
-      var wb = XLSX.read(buf, { type: 'array' });
+      var wb = XLSX.read(buf, { type: 'array', dense: true, cellStyles: false, cellFormula: false, cellHTML: false });
+      buf = null;
       var sheets = wb.SheetNames.map(function (n) {
-        return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) };
+        var g = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+        delete wb.Sheets[n];
+        return { name: n, grid: g };
       });
       var parsed = parseMarketWorkbook(sheets, defG, defN, upDateIso);
       Object.assign(allNames, parsed.names);

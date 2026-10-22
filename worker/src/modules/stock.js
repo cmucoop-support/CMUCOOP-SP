@@ -4,7 +4,7 @@ import { auth, authPerm, checkRecovery, failBump, failClear, failCount, getUser 
 import { sysLogTo } from '../core/logging.js';
 import { MAX_FAIL } from '../core/config.js';
 
-const STOCK_MAX_ROWS = 30000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
+const STOCK_MAX_ROWS = 100000, STOCK_HISTORY_MAX = 36, STOCK_ST = ['DS', 'T3', 'T2', 'T1', ''];
 
 const STOCK_GROUP_RE = /^[A-Z0-9_-]{1,12}$/;
 

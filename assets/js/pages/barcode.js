@@ -834,15 +834,15 @@ $('#bcBkList').addEventListener('click', async function (e) {
 $('#bcImpFile').addEventListener('change', function () { $('#bcImpBtn').disabled = !this.files.length; });
 $('#bcImpBtn').addEventListener('click', function () {
   var f = $('#bcImpFile').files[0], mode = $('#bcImpMode').value; if (!f) return;
-  if (f.size > 25 * 1024 * 1024) { toast('ไฟล์ใหญ่เกิน 25 MB กรุณาแบ่งไฟล์ก่อนนำเข้า', true); return; }
+  if (f.size > 100 * 1024 * 1024) { toast('ไฟล์ใหญ่เกิน 100 MB กรุณาแบ่งไฟล์ก่อนนำเข้า', true); return; }
   if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
   var fr = new FileReader();
   fr.onerror = function () { toast('อ่านไฟล์ไม่ได้', true); };
   fr.onload = function () {
     var sheets;
     try {
-      var wb = XLSX.read(fr.result, { type: 'array' });
-      sheets = wb.SheetNames.map(function (n) { return { name: n, grid: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }) }; });
+      var wb = XLSX.read(fr.result, { type: 'array', dense: true, cellStyles: false, cellFormula: false, cellHTML: false });
+      sheets = wb.SheetNames.map(function (n) { var g = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }); delete wb.Sheets[n]; return { name: n, grid: g }; });
     } catch (err) { toast('อ่านไฟล์ Excel ไม่สำเร็จ: ' + err.message, true); return; }
     if (!confirm('นำเข้าจากไฟล์ "' + f.name + '" (' + sheets.length + ' แผ่นงาน)\n\n' + (mode === 'replace' ? 'ข้อมูลรายการบาร์ในระบบจะถูกแทนที่ทั้งหมด' : 'เพิ่มต่อท้ายข้อมูลเดิม (ข้ามรายการที่ซ้ำ)') + '\nระบบทำสำเนาข้อมูลเดิมไว้ให้ก่อน')) return;
     busy($('#bcImpBtn'), async function () {
