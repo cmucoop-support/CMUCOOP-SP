@@ -285,7 +285,7 @@ function parseBarGrid(grid, defCat) {
     const cols = {};
     (grid[h] || []).forEach((cell, c) => {
       const label = str(cell); if (!label) return;
-      for (const [k, re, re2] of BC_PATS) if (cols[k] === undefined && re.test(label) && (!re2 || re2.test(label))) { cols[k] = c; break; }
+      for (const [k, re, re2] of BC_PATS) if (typeof k === 'string' && cols[k] === undefined && re instanceof RegExp && re.test(label) && (!(re2 instanceof RegExp) || re2.test(label))) { cols[k] = c; break; }
     });
     if (cols.name === undefined || (cols.packBar === undefined && cols.unitBar === undefined)) continue;
     const items = []; let lastCat = '';
