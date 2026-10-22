@@ -65,7 +65,7 @@
 </div>
 <datalist id="dlCats"></datalist>
 </div><div class="card">
-<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
+<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select aria-label="รูปแบบชีตส่งออก Excel" id="bcExpSheetMode" style="width:auto"><option value="single">ส่งออก: รวมทุกหมวดในชีตเดียว</option><option value="split">ส่งออก: แยกชีตตามหมวด (1 ชีต = 1 หมวด)</option></select><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
 <div class="row">
 <input accept=".xlsx,.xls,.csv" aria-label="ไฟล์นำเข้าบาร์โค้ด" id="bcImpFile" type="file"/>
 <select aria-label="ตัวเลือก bcImpMode" id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>

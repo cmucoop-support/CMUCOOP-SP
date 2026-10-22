@@ -2178,6 +2178,7 @@ function synthTitle(rep) {
   });
 })();
 var lastExMode = null;
+var EX_GRP_MODE = {};
 $('#bXlsx').addEventListener('click', function () {
   if (!D.me) { showLogin('กรุณาเข้าสู่ระบบเพื่อดาวน์โหลดข้อมูล'); return; }
   if (!D.items.length && !D.zero.length && !D.cut.length && !D.lost.length && !D.exp.length && !D.pend.length && !D.waste.length && !ctKeys().some(function (k) { return (D[k] || []).length > 0; })) { toast('ไม่มีรายการให้ส่งออก', true); return; }
@@ -2191,8 +2192,11 @@ $('#bXlsx').addEventListener('click', function () {
   exBrNote(); renderExExtra();
   document.querySelectorAll('#exDlg input[type=radio], #exDlg input[type=checkbox]').forEach(function (input) { input.checked = false; });
   lastExMode = null;
+  EX_GRP_MODE = {};
   var fx = document.querySelector('input[name=exFmt][value=xlsx]'); if (fx) fx.checked = true;
+  var fsm = document.querySelector('input[name=exSheetMode][value=split]'); if (fsm) fsm.checked = true;
   exSetFmt();
+  renderExSheetCustom();
   $('#exDlg').classList.remove('hidden');
 });
 function renderExExtra() {                                              // ตัวเลือกแท็กตามที่มีอยู่จริงตอนนี้ (ไม่รวมแท็กของระบบที่ลบแล้ว)
@@ -2226,6 +2230,49 @@ function exTagItems(k, mode, brName) {                                  // ส�
   });
   return out;
 }
+function exPreviewGroups() {
+  var selectedMode = document.querySelector('input[name=exMode]:checked');
+  var exX = {}; document.querySelectorAll('#exExtra [data-exx]').forEach(function (c) { if (c.checked) exX[c.dataset.exx] = 1; });
+  var hasExX = Object.keys(exX).length > 0;
+  var mode = selectedMode ? selectedMode.value : 'filter';
+  var brName = mode === 'branch' ? $('#exBr').value : (selectedMode ? '' : (F.br || ''));
+  var list = !selectedMode ? (hasExX ? [] : (LAST_RAW.length ? LAST_RAW : D.items)) : (mode === 'all' ? D.items : (mode === 'branch' ? exBranchItems() : (LAST_RAW.length ? LAST_RAW : LAST_S)));
+  var by = {}, seen = {}, ik = function (x) { return x.g + '|' + codeKey(x.code) + '|' + brKey(x.br); };
+  list.forEach(function (x) { seen[ik(x)] = 1; (by[x.g] || (by[x.g] = [])).push(x); });
+  Object.keys(exX).forEach(function (k) {
+    if (!TAGS[k]) return;
+    var tagItems = exTagItems(k, mode, brName);
+    if (!selectedMode && !tagItems.length) tagItems = exTagItems(k, 'all', '');
+    tagItems.forEach(function (x) {
+      if (seen[ik(x)]) return; seen[ik(x)] = 1;
+      (by[x.g] || (by[x.g] = [])).push(x);
+    });
+  });
+  return { by: by, brName: brName };
+}
+function renderExSheetCustom() {
+  var box = $('#exSheetCustomBox'), listEl = $('#exSheetCustomList');
+  if (!box || !listEl) return;
+  var sm = document.querySelector('input[name=exSheetMode]:checked');
+  var isCustom = !!(sm && sm.value === 'custom');
+  box.classList.toggle('hidden', !isCustom);
+  if (!isCustom) return;
+  var info = exPreviewGroups(), by = info.by, brName = info.brName;
+  var gs = Object.keys(by).sort();
+  if (!gs.length) gs = (D.groups || []).slice().sort();
+  listEl.innerHTML = gs.length ? gs.map(function (g) {
+    var cur = EX_GRP_MODE[g] || 'split';
+    var cnt = (by[g] || []).length;
+    return '<label style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(gl(g, brName)) + '"><b>' + esc(glShort(g, brName)) + '</b> <span class="muted">(' + nf0.format(cnt) + ')</span></span>' +
+      '<select data-exgrp="' + esc(g) + '" style="width:auto;padding:2px 6px;font-size:12.5px">' +
+        '<option value="split"' + (cur === 'split' ? ' selected' : '') + '>แยกชีต</option>' +
+        '<option value="merge"' + (cur === 'merge' ? ' selected' : '') + '>รวมชีต</option>' +
+        '<option value="skip"' + (cur === 'skip' ? ' selected' : '') + '>ไม่ส่งออก</option>' +
+      '</select>' +
+    '</label>';
+  }).join('') : '<div class="muted">ไม่มีหมวดในขอบเขตที่เลือก</div>';
+}
 function exSetFmt() {
   var selected = document.querySelector('input[name=exFmt]:checked'), format = selected ? selected.value : '';
   $('#exXlsxBox').classList.toggle('hidden', format !== 'xlsx'); $('#exPdfBox').classList.toggle('hidden', format !== 'pdf');
@@ -2237,9 +2284,34 @@ document.querySelectorAll('input[name=exMode]').forEach(function (r) {
     if (lastExMode === this) { this.checked = false; lastExMode = null; }
     else { lastExMode = this; }
     $('#exErr').textContent = '';
+    renderExSheetCustom();
   });
 });
-$('#exExtra').addEventListener('change', function () { $('#exErr').textContent = ''; });
+document.querySelectorAll('input[name=exSheetMode]').forEach(function (r) {
+  r.addEventListener('change', function () {
+    $('#exErr').textContent = '';
+    renderExSheetCustom();
+  });
+});
+if ($('#exSheetCustomList')) {
+  $('#exSheetCustomList').addEventListener('change', function (e) {
+    var sel = e.target.closest('[data-exgrp]');
+    if (sel) { EX_GRP_MODE[sel.dataset.exgrp] = sel.value; $('#exErr').textContent = ''; }
+  });
+}
+if ($('#exGrpAllSplit')) {
+  $('#exGrpAllSplit').addEventListener('click', function () {
+    document.querySelectorAll('#exSheetCustomList [data-exgrp]').forEach(function (sel) { sel.value = 'split'; EX_GRP_MODE[sel.dataset.exgrp] = 'split'; });
+    $('#exErr').textContent = '';
+  });
+}
+if ($('#exGrpAllMerge')) {
+  $('#exGrpAllMerge').addEventListener('click', function () {
+    document.querySelectorAll('#exSheetCustomList [data-exgrp]').forEach(function (sel) { sel.value = 'merge'; EX_GRP_MODE[sel.dataset.exgrp] = 'merge'; });
+    $('#exErr').textContent = '';
+  });
+}
+$('#exExtra').addEventListener('change', function () { $('#exErr').textContent = ''; renderExSheetCustom(); });
 $('#exPdfSel').addEventListener('change', function () { $('#exErr').textContent = ''; });
 function exBranchItems() { var k = brKey($('#exBr').value); return D.items.filter(function (x) { return brKey(x.br) === k; }); }
 function exAdjItems(kind, mode, brName) {                               // แปลงรายการที่หัก (ของหาย/หมดอายุ/ของเสีย/รอปรับ) เป็นแถวรูปแบบเดียวกับชีตสินค้า
@@ -2268,8 +2340,37 @@ $('#exBr').addEventListener('change', function () {
   if (brRadio) { brRadio.checked = !!this.value; lastExMode = this.value ? brRadio : null; }
   $('#exErr').textContent = '';
   exBrNote();
+  renderExSheetCustom();
 });
 $('#exCancel').addEventListener('click', function () { closeDlg('#exDlg'); });
+function buildSingleStockSheet(g, by, brName) {
+  var items = (by[g] || []).slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
+  if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
+  return { name: g, title: upTitle(m.ts), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
+}
+function buildCombinedStockSheet(gKeys, by, brName, sheetName) {
+  var normalItems = [], extraItems = [], gMap = {}, maxTs = 0, maxRep = '';
+  gKeys.forEach(function (g) {
+    gMap[g] = 1;
+    var m = gView(g) || {};
+    if (m.ts && m.ts > maxTs) maxTs = m.ts;
+    if (m.rep && m.rep > maxRep) maxRep = m.rep;
+    var sorted = (by[g] || []).slice().sort(function (a, b) { return a.i - b.i; });
+    sorted.forEach(function (x) {
+      if (x.rep && x.rep > maxRep) maxRep = x.rep;
+      if (x.xtra) extraItems.push(x);
+      else normalItems.push(x);
+    });
+  });
+  return {
+    name: (sheetName || (gKeys.length === 1 ? gKeys[0] : 'รวมทุกหมวด')).slice(0, 31),
+    title: upTitle(maxTs),
+    rep: maxRep,
+    at: Date.now(),
+    items: normalItems.concat(extraItems),
+    adj: adjSummary(gMap, brName)
+  };
+}
 $('#exGo').addEventListener('click', function () {
   var format = document.querySelector('input[name=exFmt]:checked');
   if (!format) { $('#exErr').textContent = 'กรุณาเลือกรูปแบบไฟล์ก่อนดาวน์โหลด'; return; }
@@ -2305,20 +2406,34 @@ $('#exGo').addEventListener('click', function () {
       });
       if (added) { tagCnt.push(TAGS[k].t + ' ' + nf0.format(added)); nExtra += added; }
     });
-    var sheets = Object.keys(by).sort().map(function (g) {
-      var items = by[g].slice().sort(function (a, b) { return a.i - b.i; }), m = gView(g) || {}, rep = m.rep || '';
-      if (!rep) items.forEach(function (x) { if (x.rep > rep) rep = x.rep; });
-      return { name: g, title: upTitle(m.ts), rep: rep, at: Date.now(), items: items, adj: adjSummary(g, brName) };
-    });
-    var zl = [], adjCnt = tagCnt;
-    if (!sheets.length) { $('#exErr').textContent = 'ไม่พบรายการตามเงื่อนไขที่เลือก'; return; }
+    var smEl = document.querySelector('input[name=exSheetMode]:checked'), sheetMode = smEl ? smEl.value : 'split';
+    var allGs = Object.keys(by).sort(), sheets = [];
+    if (sheetMode === 'single') {
+      if (allGs.length) sheets.push(buildCombinedStockSheet(allGs, by, brName, allGs.length === 1 ? allGs[0] : 'รวมทุกหมวด'));
+    } else if (sheetMode === 'custom') {
+      var splitGs = [], mergeGs = [];
+      allGs.forEach(function (g) {
+        var md = EX_GRP_MODE[g] || 'split';
+        if (md === 'split') splitGs.push(g);
+        else if (md === 'merge') mergeGs.push(g);
+      });
+      splitGs.forEach(function (g) { sheets.push(buildSingleStockSheet(g, by, brName)); });
+      if (mergeGs.length) sheets.push(buildCombinedStockSheet(mergeGs, by, brName, mergeGs.length === 1 ? mergeGs[0] : 'รวมหมวด'));
+    } else {
+      sheets = allGs.map(function (g) { return buildSingleStockSheet(g, by, brName); });
+    }
+    var adjCnt = tagCnt;
+    if (!sheets.length) { $('#exErr').textContent = 'ไม่พบรายการตามเงื่อนไขที่เลือก (หรือหมวดถูกตั้งค่าเป็นไม่ส่งออกทั้งหมด)'; return; }
     var u8 = await xlsxBuild(sheets);
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = 'สินค้าค้างสต็อก' + (brName ? '_สาขา' + brName.replace(/[\\/:*?"<>|]/g, '_') : '') + (D.ver === 'prev' ? '_ฉบับก่อนหน้า' : '') + '_' + thaiDayIso() + '.xlsx'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
     closeDlg('#exDlg');
+    var exportedTotal = sheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
+    var exportedExtra = sheets.reduce(function (s, sh) { return s + sh.items.filter(function (x) { return x.xtra; }).length; }, 0);
+    var exportedNormal = exportedTotal - exportedExtra;
     var msg = list.length
-      ? ('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(list.length) + ' รายการ' + (nExtra ? ' + รายการตามแท็ก ' + nf0.format(nExtra) + ' รายการ (' + adjCnt.join(' · ') + ')' : ''))
-      : ('ส่งออกแล้ว · ' + sheets.length + ' ชีต · รายการตามแท็ก ' + nf0.format(nExtra) + ' รายการ (' + adjCnt.join(' · ') + ')');
+      ? ('ส่งออกแล้ว · ' + sheets.length + ' ชีต · ' + nf0.format(exportedNormal) + ' รายการ' + (exportedExtra ? ' + รายการตามแท็ก ' + nf0.format(exportedExtra) + ' รายการ (' + adjCnt.join(' · ') + ')' : ''))
+      : ('ส่งออกแล้ว · ' + sheets.length + ' ชีต · รายการตามแท็ก ' + nf0.format(exportedTotal) + ' รายการ (' + adjCnt.join(' · ') + ')');
     toast(msg);
   });
 });
@@ -2853,8 +2968,13 @@ var AKI = {
 function adjPcs(list) { var p = 0; (list || []).forEach(function (x) { (x.hit || []).forEach(function (h) { p += h.qty; }); }); return p; }
 function adjSumOf(list, g, br) {
   var o = { n: 0, pcs: 0, val: 0 };
+  var matchG = function (yg) {
+    if (!g) return true;
+    if (typeof g === 'object') return !!g[yg];
+    return yg === g;
+  };
   (list || []).forEach(function (x) {
-    var hit = (x.hit || []).filter(function (y) { return (!g || y.g === g) && (!br || brKey(y.br) === brKey(br)); });
+    var hit = (x.hit || []).filter(function (y) { return matchG(y.g) && (!br || brKey(y.br) === brKey(br)); });
     if (!hit.length) return;
     o.n++; hit.forEach(function (y) { o.pcs += y.qty; o.val += y.qty * y.cost; });
   });

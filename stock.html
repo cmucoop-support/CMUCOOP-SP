@@ -136,14 +136,30 @@
 <h2 id="exTitle">ดาวน์โหลดข้อมูล</h2>
 <div class="muted">เลือกรูปแบบไฟล์ แล้วเลือกข้อมูลหรือส่วนที่ต้องการส่งออก</div>
 <div style="margin:8px 0 2px"><b>รูปแบบไฟล์</b></div>
-<label class="opt"><input name="exFmt" type="radio" value="xlsx"/><span><b>Excel (.xlsx)</b><br/><span class="muted">ข้อมูลรายสินค้า 1 ชีต = 1 หมวด</span></span></label>
+<label class="opt"><input name="exFmt" type="radio" value="xlsx"/><span><b>Excel (.xlsx)</b><br/><span class="muted">ข้อมูลรายสินค้า เลือกแยกชีตตามหมวดหรือรวมชีตได้</span></span></label>
 <label class="opt"><input name="exFmt" type="radio" value="pdf"/><span><b>PDF</b><br/><span class="muted">รายงานภาพรวมและแนวโน้ม เลือกส่วนที่ต้องการได้</span></span></label>
 <div class="hidden" id="exXlsxBox">
-<div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · 1 ชีต = 1 หมวด · เลือกส่งออกรายสาขาได้</div>
+<div class="muted">รูปแบบเดียวกับไฟล์รายงานวิเคราะห์การขายต้นฉบับ · เลือกแยกชีตตามหมวดหรือรวมชีตได้ · เลือกส่งออกรายสาขาได้</div>
 <label class="opt"><input name="exMode" type="radio" value="filter"/><span><b>ตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ข้อมูลทั้งหมด</b> (ทุกหมวด ทุกสาขา ทุกช่วงอายุ)<br/><span class="muted" id="exN2"></span></span></label>
 <label class="opt"><input name="exMode" type="radio" value="branch"/><span><b>เฉพาะสาขาที่เลือก</b> (ทุกหมวด ทุกช่วงอายุ)<br/><select id="exBr"></select><span class="muted" id="exN3"></span></span></label>
-<div style="margin-top:12px"><b>รวมรายการตามแท็กไว้ในชีตหมวดเดียวกัน</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ไม่แยกชีต · ใช้ขอบเขตเดียวกับที่เลือกด้านบน · ช่องหมายเหตุจะระบุแท็กและหมายเหตุให้)</span></div>
+<div style="margin-top:12px"><b>การจัดชีตตามหมวดสินค้า</b> <span class="muted">(เลือกแยกชีตตามหมวด รวมทุกหมวดในชีตเดียว หรือเลือกแยก/รวมรายหมวดเอง)</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:8px;margin-top:6px">
+<label class="opt" style="margin:0"><input checked="" name="exSheetMode" type="radio" value="split"/><span><b>แยกชีตตามหมวด</b><br/><span class="muted">1 ชีต = 1 หมวด</span></span></label>
+<label class="opt" style="margin:0"><input name="exSheetMode" type="radio" value="single"/><span><b>รวมทุกหมวดในชีตเดียว</b><br/><span class="muted">รวมทุกหมวดไว้ใน 1 ชีต</span></span></label>
+<label class="opt" style="margin:0"><input name="exSheetMode" type="radio" value="custom"/><span><b>เลือกแยก/รวมรายหมวดเอง</b><br/><span class="muted">กำหนดทีละหมวดว่าจะแยกหรือรวมชีต</span></span></label>
+</div>
+<div class="hidden" id="exSheetCustomBox" style="margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#faf7ff">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+<span class="muted" style="font-size:12.5px">เลือกให้แต่ละหมวดเป็น <b>แยกชีต</b> (1 ชีตของหมวดนั้น) · <b>รวมชีต</b> (รวมอยู่ในชีต "รวมหมวด") · หรือ <b>ไม่ส่งออก</b></span>
+<span style="display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn ghost small" id="exGrpAllSplit" type="button">ทุกหมวด = แยกชีต</button>
+<button class="btn ghost small" id="exGrpAllMerge" type="button">ทุกหมวด = รวมชีต</button>
+</span>
+</div>
+<div id="exSheetCustomList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;max-height:220px;overflow:auto"></div>
+</div>
+<div style="margin-top:12px"><b>รวมรายการตามแท็กไว้ในหมวดเดียวกัน</b> <span class="muted">(ติ๊กเลือกได้หลายอย่าง · ใช้ขอบเขตเดียวกับที่เลือกด้านบน · ช่องหมายเหตุจะระบุแท็กและหมายเหตุให้)</span></div>
 <div id="exExtra" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
 </div>
 <div class="hidden" id="exPdfBox">
