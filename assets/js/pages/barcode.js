@@ -859,8 +859,32 @@ $('#bcExpBtn').addEventListener('click', function () {
   if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
   busy(this, async function () {
     var d = await call('getCategoryData', allCat().sheet, '*');
-    var aoa = [['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'จำนวนต่อแพ็ค', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว']].concat(d.rows.map(function (x) { return [x.v[0], x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; }));
-    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
+    var mode = ($('#bcExpSheetMode') && $('#bcExpSheetMode').value) || 'single';
+    var head = ['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'จำนวนต่อแพ็ค', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว'];
+    var wb = XLSX.utils.book_new();
+    if (mode === 'split') {
+      var byCat = {}, cats = [], usedNames = {};
+      (d.rows || []).forEach(function (x) {
+        var cat = String(x.v[2] || '').trim() || 'ไม่ระบุหมวด';
+        if (!byCat[cat]) { byCat[cat] = []; cats.push(cat); }
+        byCat[cat].push(x);
+      });
+      if (!cats.length) cats.push('บาร์สินค้า');
+      cats.forEach(function (cat) {
+        var rows = (byCat[cat] || []).map(function (x, i) { return [i + 1, x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; });
+        var base = cat.replace(/[\\/?*[\]:]/g, '_').slice(0, 31) || 'หมวดสินค้า';
+        var shName = base, seq = 2;
+        while (usedNames[shName.toLowerCase()]) {
+          var sfx = '_' + (seq++);
+          shName = base.slice(0, 31 - sfx.length) + sfx;
+        }
+        usedNames[shName.toLowerCase()] = 1;
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head].concat(rows)), shName);
+      });
+    } else {
+      var aoa = [head].concat((d.rows || []).map(function (x) { return [x.v[0], x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
+    }
     XLSX.writeFile(wb, 'รายการบาร์_' + thaiDayIso() + '.xlsx');
   });
 });

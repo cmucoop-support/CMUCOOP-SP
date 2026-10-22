@@ -1762,19 +1762,115 @@ function refreshExHeaders() {
   $('#exRightHead').value = 'ส่งออกข้อมูล วันที่ ' + exDate + (sNote ? ' · ' + sNote : '');
 }
 
+var EX_MKT_GRP_MODE = {};
+function renderExMktSheetCustom() {
+  var box = $('#exSheetCustomBox'), listEl = $('#exSheetCustomList');
+  if (!box || !listEl) return;
+  var sm = document.querySelector('input[name=exSheetMode]:checked');
+  var isCustom = !!(sm && sm.value === 'custom');
+  box.classList.toggle('hidden', !isCustom);
+  if (!isCustom) return;
+  var selMode = document.querySelector('input[name=exMode]:checked'), mode = selMode ? selMode.value : 'filter';
+  var list = mode === 'all' ? D.items : filteredItems();
+  var byG = Object.create(null);
+  list.forEach(function (x) { (byG[x.g] || (byG[x.g] = [])).push(x); });
+  var gs = Object.keys(byG).sort();
+  listEl.innerHTML = gs.length ? gs.map(function (g) {
+    var cur = EX_MKT_GRP_MODE[g] || 'split';
+    var nm = (D.names && D.names[g]) || '';
+    var label = g + (nm ? ' · ' + nm : '');
+    return '<label style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:8px;font-size:13px">' +
+      '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(label) + '"><b>' + esc(label) + '</b> <span class="muted">(' + nf0.format(byG[g].length) + ')</span></span>' +
+      '<select data-exgrp="' + esc(g) + '" style="width:auto;padding:2px 6px;font-size:12.5px">' +
+        '<option value="split"' + (cur === 'split' ? ' selected' : '') + '>แยกชีต</option>' +
+        '<option value="merge"' + (cur === 'merge' ? ' selected' : '') + '>รวมชีต</option>' +
+        '<option value="skip"' + (cur === 'skip' ? ' selected' : '') + '>ไม่ส่งออก</option>' +
+      '</select>' +
+    '</label>';
+  }).join('') : '<div class="muted">ไม่มีหมวดในขอบเขตที่เลือก</div>';
+}
 $('#bXlsx').addEventListener('click', function () {
   if (!D.items.length) { toast('ไม่มีรายการให้ส่งออก', true); return; }
-  var m = curGroupMeta(F.g);
   refreshExHeaders();
   var flt = filteredItems();
   var gSet = Object.create(null); flt.forEach(function (x) { gSet[x.g] = 1; });
   $('#exN1').textContent = nf0.format(flt.length) + ' รายการ · ' + Object.keys(gSet).length + ' หมวด';
   $('#exN2').textContent = nf0.format(D.items.length) + ' รายการ · ' + D.allGroups.length + ' หมวด';
+  EX_MKT_GRP_MODE = {};
+  var fsm = document.querySelector('input[name=exSheetMode][value=split]'); if (fsm) fsm.checked = true;
+  renderExMktSheetCustom();
   $('#exErr').textContent = '';
   $('#exDlg').classList.remove('hidden');
 });
 $('#exYearMode').addEventListener('change', refreshExHeaders);
+document.querySelectorAll('input[name=exMode]').forEach(function (r) {
+  r.addEventListener('change', function () { $('#exErr').textContent = ''; renderExMktSheetCustom(); });
+});
+document.querySelectorAll('input[name=exSheetMode]').forEach(function (r) {
+  r.addEventListener('change', function () { $('#exErr').textContent = ''; renderExMktSheetCustom(); });
+});
+if ($('#exSheetCustomList')) {
+  $('#exSheetCustomList').addEventListener('change', function (e) {
+    var sel = e.target.closest('[data-exgrp]');
+    if (sel) { EX_MKT_GRP_MODE[sel.dataset.exgrp] = sel.value; $('#exErr').textContent = ''; }
+  });
+}
+if ($('#exGrpAllSplit')) {
+  $('#exGrpAllSplit').addEventListener('click', function () {
+    document.querySelectorAll('#exSheetCustomList [data-exgrp]').forEach(function (sel) { sel.value = 'split'; EX_MKT_GRP_MODE[sel.dataset.exgrp] = 'split'; });
+    $('#exErr').textContent = '';
+  });
+}
+if ($('#exGrpAllMerge')) {
+  $('#exGrpAllMerge').addEventListener('click', function () {
+    document.querySelectorAll('#exSheetCustomList [data-exgrp]').forEach(function (sel) { sel.value = 'merge'; EX_MKT_GRP_MODE[sel.dataset.exgrp] = 'merge'; });
+    $('#exErr').textContent = '';
+  });
+}
 $('#exCancel').addEventListener('click', function () { $('#exDlg').classList.add('hidden'); });
+
+function buildMarketSheetObj(gKeys, byG, useBe, customLeft, customRight, totalGroupsCount, sheetName) {
+  var isSingleGroup = gKeys.length === 1;
+  var g = isSingleGroup ? gKeys[0] : (sheetName || 'รวมหมวด');
+  var gItems = [];
+  var latestRep = '';
+  var latestTs = 0;
+  gKeys.forEach(function (k) {
+    (byG[k] || []).forEach(function (x) { gItems.push(x); });
+    var gm = curGroupMeta(k);
+    if (gm && gm.rep && gm.rep > latestRep) latestRep = gm.rep;
+    if (gm && gm.ts && gm.ts > latestTs) latestTs = gm.ts;
+  });
+  var gName = isSingleGroup ? ((D.names && D.names[gKeys[0]]) || '') : ('รวม ' + gKeys.length + ' หมวด');
+  var upDate = fmtDateSlash(latestRep || latestTs || Date.now(), useBe);
+  var leftH = (totalGroupsCount === 1 || !isSingleGroup) && customLeft ? customLeft : ('อัปข้อมูลเข้า วันที่ ' + upDate);
+  var rightH = customRight || ('ส่งออกข้อมูล วันที่ ' + fmtDateSlash(Date.now(), useBe));
+
+  var act = gItems.filter(function (x) { return x.qty > 0; });
+  var inactCnt = gItems.length - act.length;
+  var upCnt = gItems.filter(function (x) { return x.recAct === 'ปรับขึ้น'; }).length;
+  var downCnt = gItems.filter(function (x) { return x.recAct === 'ปรับลง'; }).length;
+  var consCnt = gItems.filter(function (x) { return x.recAct === 'ฝากพิจารณา'; }).length;
+  var adjTot = upCnt + downCnt + consCnt;
+  var projection = summarizePriceProjection(gItems);
+  var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
+  var gListLabel = gKeys.length <= 5 ? gKeys.join(', ') : (gKeys.slice(0, 5).join(', ') + ' ฯลฯ รวม ' + gKeys.length + ' หมวด');
+
+  return {
+    name: g.slice(0, 31),
+    leftHead: leftH,
+    rightHead: rightH,
+    title: isSingleGroup
+      ? ('สำรวจราคาท้องตลาดหมวดสินค้า ' + gKeys[0] + (gName ? ' ' + gName : '') + (D.br ? ' · สาขา ' + D.br : ''))
+      : ('สำรวจราคาท้องตลาด รวมหมวดสินค้า (' + gListLabel + ')' + (D.br ? ' · สาขา ' + D.br : '')),
+    sumTitle: isSingleGroup ? ('สรุปการสำรวจ หมวด ' + gKeys[0] + (gName ? ' ' + gName : '')) : ('สรุปการสำรวจ รวม ' + gKeys.length + ' หมวด'),
+    sumText: buildSummaryText(isSingleGroup ? gKeys[0] : ('รวม ' + gKeys.length + ' หมวด'), isSingleGroup ? gName : '', gItems.length, inactCnt, act.length, adjTot, upCnt, downCnt, consCnt, avgEx, avgInc, projection),
+    surveyor: D.surveyor || '',
+    checker: D.checker || '',
+    approver: D.approver || '',
+    items: gItems
+  };
+}
 
 $('#exGo').addEventListener('click', function () {
   var selMode = document.querySelector('input[name=exMode]:checked'), mode = selMode ? selMode.value : 'filter';
@@ -1786,36 +1882,24 @@ $('#exGo').addEventListener('click', function () {
     var useBe = $('#exYearMode').value === 'be';
     var customLeft = $('#exLeftHead').value.trim();
     var customRight = $('#exRightHead').value.trim();
+    var smEl = document.querySelector('input[name=exSheetMode]:checked'), sheetMode = smEl ? smEl.value : 'split';
+    var allGs = Object.keys(byG).sort(), sheets = [];
 
-    var sheets = Object.keys(byG).sort().map(function (g) {
-      var gItems = byG[g], gName = (D.names && D.names[g]) || '';
-      var gm = curGroupMeta(g);
-      var upDate = fmtDateSlash((gm && (gm.rep || gm.ts)) || Date.now(), useBe);
-      var leftH = Object.keys(byG).length === 1 && customLeft ? customLeft : ('อัปข้อมูลเข้า วันที่ ' + upDate);
-      var rightH = customRight || ('ส่งออกข้อมูล วันที่ ' + fmtDateSlash(Date.now(), useBe));
-
-      var act = gItems.filter(function (x) { return x.qty > 0; });
-      var inactCnt = gItems.length - act.length;
-      var upCnt = gItems.filter(function (x) { return x.recAct === 'ปรับขึ้น'; }).length;
-      var downCnt = gItems.filter(function (x) { return x.recAct === 'ปรับลง'; }).length;
-      var consCnt = gItems.filter(function (x) { return x.recAct === 'ฝากพิจารณา'; }).length;
-      var adjTot = upCnt + downCnt + consCnt;
-      var projection = summarizePriceProjection(gItems);
-      var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
-
-      return {
-        name: g,
-        leftHead: leftH,
-        rightHead: rightH,
-        title: 'สำรวจราคาท้องตลาดหมวดสินค้า ' + g + (gName ? ' ' + gName : '') + (D.br ? ' · สาขา ' + D.br : ''),
-        sumTitle: 'สรุปการสำรวจ หมวด ' + g + (gName ? ' ' + gName : ''),
-        sumText: buildSummaryText(g, gName, gItems.length, inactCnt, act.length, adjTot, upCnt, downCnt, consCnt, avgEx, avgInc, projection),
-        surveyor: D.surveyor || '',
-        checker: D.checker || '',
-        approver: D.approver || '',
-        items: gItems
-      };
-    });
+    if (sheetMode === 'single') {
+      if (allGs.length) sheets.push(buildMarketSheetObj(allGs, byG, useBe, customLeft, customRight, allGs.length, allGs.length === 1 ? allGs[0] : 'รวมทุกหมวด'));
+    } else if (sheetMode === 'custom') {
+      var splitGs = [], mergeGs = [];
+      allGs.forEach(function (g) {
+        var md = EX_MKT_GRP_MODE[g] || 'split';
+        if (md === 'split') splitGs.push(g);
+        else if (md === 'merge') mergeGs.push(g);
+      });
+      splitGs.forEach(function (g) { sheets.push(buildMarketSheetObj([g], byG, useBe, customLeft, customRight, allGs.length, g)); });
+      if (mergeGs.length) sheets.push(buildMarketSheetObj(mergeGs, byG, useBe, customLeft, customRight, allGs.length, mergeGs.length === 1 ? mergeGs[0] : 'รวมหมวด'));
+    } else {
+      sheets = allGs.map(function (g) { return buildMarketSheetObj([g], byG, useBe, customLeft, customRight, allGs.length, g); });
+    }
+    if (!sheets.length) { $('#exErr').textContent = 'ไม่มีหมวดที่เลือกส่งออก'; return; }
 
     var u8 = await xlsxBuildMarket(sheets);
     var firstG = sheets[0].name, firstName = (D.names && D.names[firstG]) || '';
