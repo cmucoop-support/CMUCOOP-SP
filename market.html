@@ -200,18 +200,18 @@
 <div class="overlay hidden" id="exDlg">
 <div class="dlg wide">
 <h2>ดาวน์โหลดไฟล์ Excel สำรวจราคาท้องตลาด</h2>
-<div class="muted">ส่งออกเป็นไฟล์ <code>.xlsx</code> พร้อมข้อมูลอัปเดตล่าสุด สูตรคำนวณกำไร/Vat และสรุปกำไรก่อน–หลังใช้ราคาแนะนำ มีคอลัมน์ผลหลังปรับรายสินค้าเพิ่มเติมทางขวา ส่วนพื้นที่พิมพ์ยังใช้ตารางรายงานและสรุปเดิม โดย<b>แถวบนสุดแสดงวันที่อัปข้อมูลเข้าและวันที่ส่งออกข้อมูล</b></div>
+<div class="muted">ส่งออกเป็นไฟล์ <code>.xlsx</code> จัดกลุ่มหัวตาราง แยกวันที่ปรับราคา พร้อมสูตรกำไรก่อน–หลังปรับและสรุปผล ตรึงชื่อสินค้า เปิดตัวกรอง และตั้งพิมพ์ <b>A3 แนวนอน</b> พร้อมหัวตารางซ้ำทุกหน้า รวมคอลัมน์ผลหลังปรับครบถ้วน</div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px;padding:12px;background:#faf7ff;border:1.5px solid #d9c8ff;border-radius:14px">
 <div style="grid-column:1/-1;font-weight:700;color:var(--accent-text);font-size:14px">ตั้งค่าบรรทัดบนสุดของหัวตาราง (Row 1)</div>
-<label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่อัปข้อมูลเข้าระบบ (มุมซ้ายบน A1:F1)<input id="exLeftHead" type="text"/></label>
-<label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่ส่งออกข้อมูล / ช่วงสำรวจ (มุมขวาบน G1:S1)<input id="exRightHead" type="text"/></label>
+<label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่อัปข้อมูลเข้าระบบ (ด้านซ้ายใต้ชื่อรายงาน)<input id="exLeftHead" type="text"/></label>
+<label style="font-size:13px;font-weight:600;color:var(--ink)">วันที่ส่งออกข้อมูล (ใต้ชื่อรายงาน)<input id="exRightHead" type="text"/></label>
 <label style="font-size:13px;font-weight:600;color:var(--steel)">รูปแบบปี พ.ศ./ค.ศ. สำหรับวันที่เริ่มต้น<select id="exYearMode">
 <option value="ce">ค.ศ. เช่น 15/10/2026 (ตามไฟล์ตัวอย่าง)</option>
 <option value="be">พ.ศ. เช่น 15/10/2569</option>
 </select></label>
 </div>
 <label class="opt"><input checked="" name="exMode" type="radio" value="filter"/><span><b>ส่งออกเฉพาะหมวด/รายการตามตัวกรองที่เลือกอยู่</b><br/><span class="muted" id="exN1"></span></span></label>
-<label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ส่งออกทุกหมวดทั้งหมดในระบบ</b><br/><span class="muted" id="exN2"></span></span></label>
+<label class="opt"><input name="exMode" type="radio" value="all"/><span><b>ส่งออกทุกหมวดในสาขาที่เลือก</b><br/><span class="muted" id="exN2"></span></span></label>
 <div style="margin-top:12px"><b>การจัดชีตตามหมวดสินค้า</b> <span class="muted">(เลือกแยกชีตตามหมวด รวมทุกหมวดในชีตเดียว หรือเลือกแยก/รวมรายหมวดเอง)</span></div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:8px;margin-top:6px">
 <label class="opt" style="margin:0"><input checked="" name="exSheetMode" type="radio" value="split"/><span><b>แยกชีตตามหมวด</b><br/><span class="muted">1 ชีต = 1 หมวด</span></span></label>
@@ -261,7 +261,8 @@
 </div>
 </div>
 </div>
-<script src="assets/js/pages/market.js?v=d1-opt-1"></script>
+<script src="assets/js/pages/market-export.js?v=market-export-2"></script>
+<script src="assets/js/pages/market.js?v=market-export-2"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>
