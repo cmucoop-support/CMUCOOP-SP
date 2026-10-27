@@ -52,6 +52,7 @@ function xlMarketStyles() {
   style('marketMoney',9,10,1,165,'right'); style('marketText',9,10,1,49);
   var fonts=[[10,'302744'],[16,'6036AD',true],[9,'665D77'],[10,'FFFFFF',true],[10,'4F3B6D',true],[10,'6036AD'],[10,'2A1F47'],[10,'3B1D8F',true],[10,'14532D'],[10,'6B1D4A']];
   var fills=['none','gray125','7045C6','EEE8F7','FAF8FD','F6EFFF','F0EAFB','E2D6FA','E6F3EC','F4F0FB','FBEAF4'];
+  // Excel differential fills must not inherit system background index 64.
   var colors=[['FFF3C4','5C4400'],['FFD5D8','8A1C24'],['D9CCF5','3B1D8F'],['D6F0E0','14532D'],['E8E4F0','5B5275']];
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="'+XL_NS+'">'+
     '<numFmts count="4"><numFmt numFmtId="164" formatCode="#,##0.00;[Red](#,##0.00);0.00"/><numFmt numFmtId="165" formatCode="#,##0.00;[Red](#,##0.00);0.00"/><numFmt numFmtId="166" formatCode="0.00%;[Red](0.00%);0.00%"/><numFmt numFmtId="167" formatCode="dd/mm/yyyy"/></numFmts>'+
@@ -59,7 +60,7 @@ function xlMarketStyles() {
     '<fills count="'+fills.length+'">'+fills.map(function(f,i){return i<2?'<fill><patternFill patternType="'+f+'"/></fill>':'<fill><patternFill patternType="solid"><fgColor rgb="FF'+f+'"/><bgColor indexed="64"/></patternFill></fill>';}).join('')+'</fills>'+
     '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="hair"><color rgb="FFE9E3F0"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF665D77"/></bottom><diagonal/></border></borders>'+
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="'+xfs.length+'">'+xfs.join('')+'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
-    '<dxfs count="5">'+colors.map(function(c){return '<dxf><font><b/><color rgb="FF'+c[1]+'"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF'+c[0]+'"/><bgColor indexed="64"/></patternFill></fill></dxf>';}).join('')+'</dxfs></styleSheet>';
+    '<dxfs count="5">'+colors.map(function(c){return '<dxf><font><b/><color rgb="FF'+c[1]+'"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF'+c[0]+'"/><bgColor rgb="FF'+c[0]+'"/></patternFill></fill></dxf>';}).join('')+'</dxfs></styleSheet>';
 }
 var MARKET_STYLES_XML=xlMarketStyles(), XL_MEASURE=null;
 function xlLineCount(value,width) {
