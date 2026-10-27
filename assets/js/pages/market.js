@@ -7,8 +7,6 @@ var nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFrac
 var money = function (n) { return (n === null || n === undefined || n === '' || !isFinite(Number(n))) ? '–' : nf2.format(Number(n)); };
 var pctF = function (n) { return (n === null || n === undefined || !isFinite(Number(n))) ? '–' : nf2.format(Number(n) * 100) + '%'; };
 
-var THEME1_XML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<a:theme xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" name=\"Office Theme\"><a:themeElements><a:clrScheme name=\"Office\"><a:dk1><a:sysClr val=\"windowText\" lastClr=\"000000\"/></a:dk1><a:lt1><a:sysClr val=\"window\" lastClr=\"FFFFFF\"/></a:lt1><a:dk2><a:srgbClr val=\"0E2841\"/></a:dk2><a:lt2><a:srgbClr val=\"E8E8E8\"/></a:lt2><a:accent1><a:srgbClr val=\"156082\"/></a:accent1><a:accent2><a:srgbClr val=\"E97132\"/></a:accent2><a:accent3><a:srgbClr val=\"196B24\"/></a:accent3><a:accent4><a:srgbClr val=\"0F9ED5\"/></a:accent4><a:accent5><a:srgbClr val=\"A02B93\"/></a:accent5><a:accent6><a:srgbClr val=\"4EA72E\"/></a:accent6><a:hlink><a:srgbClr val=\"467886\"/></a:hlink><a:folHlink><a:srgbClr val=\"96607D\"/></a:folHlink></a:clrScheme><a:fontScheme name=\"Office\"><a:majorFont><a:latin typeface=\"Aptos Display\" panose=\"02110004020202020204\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"游ゴシック Light\"/><a:font script=\"Hang\" typeface=\"맑은 고딕\"/><a:font script=\"Hans\" typeface=\"等线 Light\"/><a:font script=\"Hant\" typeface=\"新細明體\"/><a:font script=\"Arab\" typeface=\"Times New Roman\"/><a:font script=\"Hebr\" typeface=\"Times New Roman\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"MoolBoran\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Times New Roman\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/><a:font script=\"Armn\" typeface=\"Arial\"/><a:font script=\"Bugi\" typeface=\"Leelawadee UI\"/><a:font script=\"Bopo\" typeface=\"Microsoft JhengHei\"/><a:font script=\"Java\" typeface=\"Javanese Text\"/><a:font script=\"Lisu\" typeface=\"Segoe UI\"/><a:font script=\"Mymr\" typeface=\"Myanmar Text\"/><a:font script=\"Nkoo\" typeface=\"Ebrima\"/><a:font script=\"Olck\" typeface=\"Nirmala UI\"/><a:font script=\"Osma\" typeface=\"Ebrima\"/><a:font script=\"Phag\" typeface=\"Phagspa\"/><a:font script=\"Syrn\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syrj\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syre\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Sora\" typeface=\"Nirmala UI\"/><a:font script=\"Tale\" typeface=\"Microsoft Tai Le\"/><a:font script=\"Talu\" typeface=\"Microsoft New Tai Lue\"/><a:font script=\"Tfng\" typeface=\"Ebrima\"/></a:majorFont><a:minorFont><a:latin typeface=\"Aptos Narrow\" panose=\"02110004020202020204\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/><a:font script=\"Jpan\" typeface=\"游ゴシック\"/><a:font script=\"Hang\" typeface=\"맑은 고딕\"/><a:font script=\"Hans\" typeface=\"等线\"/><a:font script=\"Hant\" typeface=\"新細明體\"/><a:font script=\"Arab\" typeface=\"Arial\"/><a:font script=\"Hebr\" typeface=\"Arial\"/><a:font script=\"Thai\" typeface=\"Tahoma\"/><a:font script=\"Ethi\" typeface=\"Nyala\"/><a:font script=\"Beng\" typeface=\"Vrinda\"/><a:font script=\"Gujr\" typeface=\"Shruti\"/><a:font script=\"Khmr\" typeface=\"DaunPenh\"/><a:font script=\"Knda\" typeface=\"Tunga\"/><a:font script=\"Guru\" typeface=\"Raavi\"/><a:font script=\"Cans\" typeface=\"Euphemia\"/><a:font script=\"Cher\" typeface=\"Plantagenet Cherokee\"/><a:font script=\"Yiii\" typeface=\"Microsoft Yi Baiti\"/><a:font script=\"Tibt\" typeface=\"Microsoft Himalaya\"/><a:font script=\"Thaa\" typeface=\"MV Boli\"/><a:font script=\"Deva\" typeface=\"Mangal\"/><a:font script=\"Telu\" typeface=\"Gautami\"/><a:font script=\"Taml\" typeface=\"Latha\"/><a:font script=\"Syrc\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Orya\" typeface=\"Kalinga\"/><a:font script=\"Mlym\" typeface=\"Kartika\"/><a:font script=\"Laoo\" typeface=\"DokChampa\"/><a:font script=\"Sinh\" typeface=\"Iskoola Pota\"/><a:font script=\"Mong\" typeface=\"Mongolian Baiti\"/><a:font script=\"Viet\" typeface=\"Arial\"/><a:font script=\"Uigh\" typeface=\"Microsoft Uighur\"/><a:font script=\"Geor\" typeface=\"Sylfaen\"/><a:font script=\"Armn\" typeface=\"Arial\"/><a:font script=\"Bugi\" typeface=\"Leelawadee UI\"/><a:font script=\"Bopo\" typeface=\"Microsoft JhengHei\"/><a:font script=\"Java\" typeface=\"Javanese Text\"/><a:font script=\"Lisu\" typeface=\"Segoe UI\"/><a:font script=\"Mymr\" typeface=\"Myanmar Text\"/><a:font script=\"Nkoo\" typeface=\"Ebrima\"/><a:font script=\"Olck\" typeface=\"Nirmala UI\"/><a:font script=\"Osma\" typeface=\"Ebrima\"/><a:font script=\"Phag\" typeface=\"Phagspa\"/><a:font script=\"Syrn\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syrj\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Syre\" typeface=\"Estrangelo Edessa\"/><a:font script=\"Sora\" typeface=\"Nirmala UI\"/><a:font script=\"Tale\" typeface=\"Microsoft Tai Le\"/><a:font script=\"Talu\" typeface=\"Microsoft New Tai Lue\"/><a:font script=\"Tfng\" typeface=\"Ebrima\"/></a:minorFont></a:fontScheme><a:fmtScheme name=\"Office\"><a:fillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"110000\"/><a:satMod val=\"105000\"/><a:tint val=\"67000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"103000\"/><a:tint val=\"73000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"105000\"/><a:satMod val=\"109000\"/><a:tint val=\"81000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:satMod val=\"103000\"/><a:lumMod val=\"102000\"/><a:tint val=\"94000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:satMod val=\"110000\"/><a:lumMod val=\"100000\"/><a:shade val=\"100000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:lumMod val=\"99000\"/><a:satMod val=\"120000\"/><a:shade val=\"78000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:fillStyleLst><a:lnStyleLst><a:ln w=\"12700\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"19050\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln><a:ln w=\"25400\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\"><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst><a:outerShdw blurRad=\"57150\" dist=\"19050\" dir=\"5400000\" algn=\"ctr\" rotWithShape=\"0\"><a:srgbClr val=\"000000\"><a:alpha val=\"63000\"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill><a:solidFill><a:schemeClr val=\"phClr\"><a:tint val=\"95000\"/><a:satMod val=\"170000\"/></a:schemeClr></a:solidFill><a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\"><a:schemeClr val=\"phClr\"><a:tint val=\"93000\"/><a:satMod val=\"150000\"/><a:shade val=\"98000\"/><a:lumMod val=\"102000\"/></a:schemeClr></a:gs><a:gs pos=\"50000\"><a:schemeClr val=\"phClr\"><a:tint val=\"98000\"/><a:satMod val=\"130000\"/><a:shade val=\"90000\"/><a:lumMod val=\"103000\"/></a:schemeClr></a:gs><a:gs pos=\"100000\"><a:schemeClr val=\"phClr\"><a:shade val=\"63000\"/><a:satMod val=\"120000\"/></a:schemeClr></a:gs></a:gsLst><a:lin ang=\"5400000\" scaled=\"0\"/></a:gradFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements><a:objectDefaults><a:lnDef><a:spPr/><a:bodyPr/><a:lstStyle/><a:style><a:lnRef idx=\"2\"><a:schemeClr val=\"accent1\"/></a:lnRef><a:fillRef idx=\"0\"><a:schemeClr val=\"accent1\"/></a:fillRef><a:effectRef idx=\"1\"><a:schemeClr val=\"accent1\"/></a:effectRef><a:fontRef idx=\"minor\"><a:schemeClr val=\"tx1\"/></a:fontRef></a:style></a:lnDef></a:objectDefaults><a:extraClrSchemeLst/><a:extLst><a:ext uri=\"{05A4C25C-085E-4340-85A3-A5531E510DB2}\"><thm15:themeFamily xmlns:thm15=\"http://schemas.microsoft.com/office/thememl/2012/main\" name=\"Office Theme\" id=\"{2E142A2C-CD16-42D6-873A-C26D2A0506FA}\" vid=\"{1BDDFF52-6CD6-40A5-AB3C-68EB2F1E4D0A}\"/></a:ext></a:extLst></a:theme>";
-var STYLES_XML = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" mc:Ignorable=\"x14ac x16r2 xr\" xmlns:x14ac=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac\" xmlns:x16r2=\"http://schemas.microsoft.com/office/spreadsheetml/2015/02/main\" xmlns:xr=\"http://schemas.microsoft.com/office/spreadsheetml/2014/revision\"><numFmts count=\"2\"><numFmt numFmtId=\"44\" formatCode=\"_-&quot;฿&quot;* #,##0.00_-;\\-&quot;฿&quot;* #,##0.00_-;_-&quot;฿&quot;* &quot;-&quot;??_-;_-@_-\"/><numFmt numFmtId=\"164\" formatCode=\"&quot;฿&quot;#,##0.00\"/></numFmts><fonts count=\"7\" x14ac:knownFonts=\"1\"><font><sz val=\"11\"/><color theme=\"1\"/><name val=\"Aptos Narrow\"/><family val=\"2\"/><charset val=\"222\"/><scheme val=\"minor\"/></font><font><sz val=\"12\"/><color theme=\"1\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font><font><sz val=\"10\"/><color theme=\"1\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font><font><b/><sz val=\"10\"/><color theme=\"1\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font><font><b/><sz val=\"12\"/><color theme=\"1\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font><font><b/><u/><sz val=\"12\"/><color rgb=\"FFFF0000\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font><font><sz val=\"12\"/><color theme=\"0\"/><name val=\"TH Sarabun New\"/><family val=\"2\"/></font></fonts><fills count=\"9\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"0\" tint=\"-0.14999847407452621\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"0\" tint=\"-0.34998626667073579\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"5\" tint=\"0.39997558519241921\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"3\" tint=\"0.749992370372631\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"5\" tint=\"0.59999389629810485\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"0\"/><bgColor indexed=\"64\"/></patternFill></fill><fill><patternFill patternType=\"solid\"><fgColor theme=\"0\" tint=\"-4.9989318521683403E-2\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"14\"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top/><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left/><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right/><top/><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right style=\"thin\"><color indexed=\"64\"/></right><top/><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top/><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left style=\"thin\"><color indexed=\"64\"/></left><right style=\"thin\"><color indexed=\"64\"/></right><top style=\"thin\"><color indexed=\"64\"/></top><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style=\"thin\"><color indexed=\"64\"/></bottom><diagonal/></border><border><left/><right/><top style=\"thin\"><color indexed=\"64\"/></top><bottom/><diagonal/></border></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"120\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"2\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"3\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"4\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"10\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"5\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" readingOrder=\"2\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\"/><xf numFmtId=\"0\" fontId=\"4\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"1\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"2\" fillId=\"8\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"5\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"6\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"2\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"2\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"10\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" readingOrder=\"2\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/><xf numFmtId=\"0\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFill=\"1\"/><xf numFmtId=\"0\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"10\" fontId=\"1\" fillId=\"7\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"10\" fontId=\"1\" fillId=\"7\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"4\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"top\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" readingOrder=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFill=\"1\" applyAlignment=\"1\"><alignment wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\"/></xf><xf numFmtId=\"44\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment readingOrder=\"1\"/></xf><xf numFmtId=\"10\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\"/><xf numFmtId=\"44\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\"/><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"6\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" readingOrder=\"2\"/></xf><xf numFmtId=\"164\" fontId=\"3\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"164\" fontId=\"1\" fillId=\"6\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"6\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\" readingOrder=\"2\"/></xf><xf numFmtId=\"164\" fontId=\"1\" fillId=\"6\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\" readingOrder=\"2\"/></xf><xf numFmtId=\"164\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"164\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"44\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" readingOrder=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"164\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"top\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"14\" fontId=\"3\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"0\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\" applyFill=\"1\"/><xf numFmtId=\"14\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"3\" fillId=\"2\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"14\" fontId=\"3\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"3\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"4\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"5\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"10\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"3\" fillId=\"2\" borderId=\"4\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"3\" fillId=\"2\" borderId=\"5\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"1\" fontId=\"3\" fillId=\"2\" borderId=\"10\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"14\" fontId=\"3\" fillId=\"2\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"3\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"4\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"5\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"10\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"6\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"7\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"8\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"9\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"4\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" readingOrder=\"2\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"5\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" readingOrder=\"2\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"10\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\" readingOrder=\"2\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"4\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"5\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"44\" fontId=\"3\" fillId=\"2\" borderId=\"10\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"13\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"14\" fontId=\"1\" fillId=\"7\" borderId=\"13\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"3\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"4\" fillId=\"7\" borderId=\"1\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"4\" fillId=\"7\" borderId=\"2\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"14\" fontId=\"4\" fillId=\"7\" borderId=\"3\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\" wrapText=\"1\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"12\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\"/></xf><xf numFmtId=\"14\" fontId=\"1\" fillId=\"7\" borderId=\"12\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"12\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"center\"/></xf><xf numFmtId=\"0\" fontId=\"1\" fillId=\"7\" borderId=\"12\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"right\"/></xf><xf numFmtId=\"14\" fontId=\"1\" fillId=\"7\" borderId=\"11\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"left\" vertical=\"top\" wrapText=\"1\"/></xf></cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles><dxfs count=\"8\"><dxf><fill><patternFill><bgColor theme=\"0\" tint=\"-0.24994659260841701\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor theme=\"6\" tint=\"0.59996337778862885\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor rgb=\"FFFF7C80\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor rgb=\"FFFFFF66\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor theme=\"3\" tint=\"0.89996032593768116\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor theme=\"0\" tint=\"-0.24994659260841701\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor theme=\"0\" tint=\"-0.24994659260841701\"/></patternFill></fill></dxf><dxf><fill><patternFill><bgColor theme=\"0\" tint=\"-0.24994659260841701\"/></patternFill></fill></dxf></dxfs><tableStyles count=\"0\" defaultTableStyle=\"TableStyleMedium2\" defaultPivotStyle=\"PivotStyleLight16\"/><extLst><ext uri=\"{EB79DEF2-80B8-43e5-95BD-54CBDDF9020C}\" xmlns:x14=\"http://schemas.microsoft.com/office/spreadsheetml/2009/9/main\"><x14:slicerStyles defaultSlicerStyle=\"SlicerStyleLight1\"/></ext><ext uri=\"{9260A510-F301-46a8-8635-F512D64BE5F5}\" xmlns:x15=\"http://schemas.microsoft.com/office/spreadsheetml/2010/11/main\"><x15:timelineStyles defaultTimelineStyle=\"TimeSlicerStyleLight1\"/></ext></extLst></styleSheet>";
 
 /* ---------- เซสชัน & การเรียกหลังบ้าน ---------- */
 var TOKEN = '';
@@ -892,7 +890,7 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
       var mSurv = rowStr.match(/(สุ่มสำรวจ[^,\r\n]*)/);
       if (mSurv) sNote = mSurv[1].trim();
       var mCat = rowStr.match(/หมวด(?:สินค้า)?\s*([A-Za-z0-9_-]+)\s+([^,\r\n]+)/);
-      if (mCat) { grpCode = mCat[1].trim().toUpperCase(); grpName = mCat[2].trim(); }
+      if (mCat) { grpCode = mCat[1].trim().toUpperCase(); grpName = mCat[2].split(" · สาขา ")[0].trim(); }
     }
     if (!grpCode) {
       if (/^[A-Za-z0-9_-]{1,12}$/.test(shName)) grpCode = shName.toUpperCase();
@@ -907,17 +905,20 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
     if (sNote) surveyNote = sNote;
 
     /* ตรวจว่าเป็นไฟล์สำรวจราคาตลาด (แบบ 34ผลิตภัณฑ์ดูแลผ้า.xlsx) หรือไฟล์รายงานสต็อก POS */
-    var isMarketFmt = false, dataStartRow = -1, colMap = {};
-    for (var i = 0; i < Math.min(grid.length, 12); i++) {
+    var nativeHeader = grid.slice(0, 12).findIndex(function (r) { return r && normH(r[22]) === normH("หมวดสินค้า") && normH(r[1]) === normH("รหัสสินค้า"); });
+    var nativeMarket = nativeHeader >= 0, isMarketFmt = nativeMarket, dataStartRow = nativeMarket ? nativeHeader + 1 : -1;
+    for (var i = 0; !isMarketFmt && i < Math.min(grid.length, 12); i++) {
       var r0 = grid[i] || [];
       var joined = r0.map(normH).join('|');
       if (joined.indexOf('ราคาท้องตลาด') >= 0 || joined.indexOf('รายการแนะนำ') >= 0 || joined.indexOf('ต้นทุน+vat') >= 0) {
         isMarketFmt = true;
-        dataStartRow = i + 3;
+        nativeMarket = normH(r0[22]) === normH("หมวดสินค้า");
+        dataStartRow = nativeMarket ? i + 1 : i + 3;
         break;
       }
     }
     if (isMarketFmt) {
+      if (nativeMarket) delete names[grpCode];
       while (dataStartRow < grid.length) {
         var rr = grid[dataStartRow] || [];
         var c0 = normH(rr[0]), c4 = normH(rr[4]), c14 = normH(rr[14]);
@@ -942,9 +943,13 @@ function parseMarketWorkbook(sheets, defGrp, defName, upDateIso) {
         var recAct = String(row[16] == null || row[16] === '' ? (qty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่') : row[16]).trim();
         var recPrice = marketCell(row[17]);
         var editNote = String(row[18] == null ? '' : row[18]).trim();
-        (groups[grpCode] || (groups[grpCode] = { g: grpCode, rep: repDate, surveyNote: sNote, items: [] })).items.push({
-          g: grpCode, code: code, name: name, qty: qty, chgTxt: chgTxt, chgDate: chgDate,
-          cost: cost, price: price, mktMin: mktMin, mktMax: mktMax, recAct: recAct, recPrice: recPrice, editNote: editNote, rep: repDate, hasMarketCols: true
+        var rowGroup = nativeMarket ? String(row[22] || grpCode).trim().toUpperCase() : grpCode;
+        var rowRep = nativeMarket && row[23] != null ? parseDateCell(row[23]) : repDate;
+        if (!rowRep || rowRep === "-") rowRep = repDate;
+        if (nativeMarket && row[24] != null && String(row[24]).trim()) names[rowGroup] = String(row[24]).trim();
+        (groups[rowGroup] || (groups[rowGroup] = { g: rowGroup, rep: rowRep, surveyNote: sNote, items: [] })).items.push({
+          g: rowGroup, code: code, name: name, qty: qty, chgTxt: chgTxt, chgDate: chgDate,
+          cost: cost, price: price, mktMin: mktMin, mktMax: mktMax, recAct: recAct, recPrice: recPrice, editNote: editNote, rep: rowRep, hasMarketCols: true
         });
         totalRead++;
       }
@@ -1411,354 +1416,16 @@ $('#bClearAll').addEventListener('click', function () {
   syncThen('ลบข้อมูลทุกหมวดของสาขา ' + D.br + ' แล้ว');
 });
 
-/* =============================================================================
- * ตัวสร้างไฟล์ Excel (.xlsx) รูปแบบเหมือนไฟล์ตัวอย่าง 34ผลิตภัณฑ์ดูแลผ้า.xlsx 100%
- * - แถวที่ 1 (บนสุดของหัวตาราง): ซ้าย (A1:F1) = วันที่อัปข้อมูลเข้า · ขวา (G1:S1) = วันที่ส่งออกข้อมูล + ช่วงสำรวจ
- * - แถวที่ 2 (A2:S2): สำรวจราคาท้องตลาดหมวดสินค้า {รหัสหมวด} {ชื่อหมวด}
- * - แถวที่ 3–6: หัวตาราง 4 ชั้น (ข้อมูลในระบบ ไม่รวม Vat / อื่นๆ รวม Vat)
- * - แถวที่ 7..last: ข้อมูล + สูตรคำนวณ (=ROUND(H7-G7,2), =ROUND((H7-G7)/G7,4), =ROUND(G7*1.07,2), =H7-K7, =ROUND(((H7-K7)/K7),4), =ROUND((G7*1.07*1.3),2))
- * - Conditional Formatting ไฮไลต์สี คงที่ (เหลือง) / ปรับขึ้น (ชมพูแดง) / ปรับลง (ม่วง) / ฝากพิจารณา (เขียวอ่อน) / สินค้าไม่เคลื่อนไหว (เทา)
- * - ท้ายตาราง: สูตร COUNTIF, AVERAGEIF, SUBTOTAL, ตารางกำไรเฉลี่ย, กล่องสรุปการสำรวจ และช่องลงชื่อ 3 ตำแหน่ง
- * ============================================================================= */
-var XL_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
-var XL_RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-var XL_COLS_XML = '<cols><col min="1" max="1" width="4.796875" customWidth="1"/><col min="2" max="2" width="12.69921875" style="55" customWidth="1"/><col min="3" max="3" width="17.5" customWidth="1"/><col min="4" max="4" width="5.796875" customWidth="1"/><col min="5" max="5" width="8.796875" customWidth="1"/><col min="6" max="6" width="8.5" style="73" customWidth="1"/><col min="7" max="8" width="6.69921875" customWidth="1"/><col min="9" max="9" width="6.19921875" customWidth="1"/><col min="10" max="10" width="5.796875" customWidth="1"/><col min="11" max="11" width="6.69921875" customWidth="1"/><col min="12" max="12" width="6" customWidth="1"/><col min="13" max="13" width="6" bestFit="1" customWidth="1"/><col min="14" max="14" width="6.69921875" customWidth="1"/><col min="15" max="15" width="6.69921875" style="66" customWidth="1"/><col min="16" max="16" width="6.69921875" style="67" customWidth="1"/><col min="17" max="17" width="7.8984375" customWidth="1"/><col min="18" max="18" width="5.5" customWidth="1"/><col min="19" max="19" width="4.796875" customWidth="1"/><col min="20" max="20" width="3.69921875" customWidth="1"/></cols>';
-
-function xlEsc(s) {
-  return String(s == null ? '' : s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-function xlCol(i) { return String.fromCharCode(65 + i); }
-function xlSerial(iso) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
-  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000 + 25569 : null;
-}
-
-function projectionSummaryFormula(last, vat) {
-  var col = vat ? 'V' : 'U';
-  return 'IFERROR(AVERAGEIFS(' + col + '7:' + col + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")';
-}
-
-function xlMarketSheet(sh, ctx, idx) {
-  var items = sh.items, n = items.length, last = 6 + Math.max(n, 1), rows = [];
-  var sst = function (t) {
-    t = String(t == null ? '' : t);
-    var k = ctx.sst[t];
-    if (k === undefined) { k = ctx.sstList.length; ctx.sst[t] = k; ctx.sstList.push(t); }
-    return k;
-  };
-  var S = function (ref, s, t) { return '<c r="' + ref + '" s="' + s + '" t="s"><v>' + sst(t) + '</v></c>'; };
-  var N = function (ref, s, v) { return (v === null || v === undefined || v === '' || !isFinite(Number(v))) ? '<c r="' + ref + '" s="' + s + '"/>' : '<c r="' + ref + '" s="' + s + '"><v>' + Number(v) + '</v></c>'; };
-  var F = function (ref, s, fml, v) {
-    var valTag = (v !== null && v !== undefined && isFinite(Number(v))) ? '<v>' + Number(v) + '</v>' : '';
-    return '<c r="' + ref + '" s="' + s + '"><f>' + fml + '</f>' + valTag + '</c>';
-  };
-  var E = function (ref, s) { return '<c r="' + ref + '" s="' + s + '"/>'; };
-  var pushRow = function (r, cells, ht) {
-    rows.push('<row r="' + r + '" spans="1:22"' + (ht ? ' ht="' + ht + '" customHeight="1"' : '') + '>' + cells.join('') + '</row>');
-  };
-
-  /* Row 1: บนสุดของหัวตาราง = วันที่อัปข้อมูลเข้า (A1:F1) กับ วันที่ส่งออกข้อมูล (G1:S1) */
-  var r1 = [
-    S('A1', 76, sh.leftHead), E('B1', 76), E('C1', 76), E('D1', 76), E('E1', 76), E('F1', 76),
-    S('G1', 77, sh.rightHead)
-  ];
-  for (var c1 = 7; c1 < 19; c1++) r1.push(E(xlCol(c1) + '1', 77));
-  pushRow(1, r1, 18.6);
-
-  /* Row 2: ชื่อรายงานหมวดสินค้า (A2:S2) */
-  var r2Styles = [78,79,79,79,79,80,79,79,79,79,79,79,79,79,81,81,79,79,82];
-  var r2 = r2Styles.map(function (st, c) { return c === 0 ? S('A2', st, sh.title) : E(xlCol(c) + '2', st); });
-  pushRow(2, r2, 18);
-
-  /* Row 3–6: หัวตาราง 4 ชั้นตามไฟล์ตัวอย่าง 34ผลิตภัณฑ์ดูแลผ้า.xlsx */
-  pushRow(3, [
-    S('A3', 83, 'ลำดับ'), S('B3', 86, 'รหัส'), S('C3', 83, 'ชื่อสินค้า'),
-    S('D3', 89, 'ข้อมูลในระบบ (ไม่รวม Vat)'), E('E3', 90), E('F3', 91), E('G3', 90), E('H3', 90), E('I3', 90), E('J3', 92),
-    S('K3', 78, 'อื่นๆ (รวม Vat)'), E('L3', 79), E('M3', 79), E('N3', 79), E('O3', 81), E('P3', 81), E('Q3', 79), E('R3', 79), E('S3', 82),
-    S('T3', 83, 'ผลหลังใช้ราคาแนะนำ'), E('U3', 83), E('V3', 83)
-  ], 17.4);
-
-  pushRow(4, [
-    E('A4', 84), E('B4', 87), E('C4', 84),
-    S('D4', 83, 'จำนวนคงเหลือสินค้า'), S('E4', 74, 'ปรับครั้งล่าสุด'), E('F4', 75),
-    S('G4', 93, 'ต้นทุน'), S('H4', 93, 'ราคาขาย'), S('I4', 93, 'กำไร'), S('J4', 83, 'กำไร%'),
-    S('K4', 103, 'ต้นทุน+Vat'), S('L4', 93, 'กำไร'), S('M4', 83, 'กำไร%'), S('N4', 100, 'ราคาขาย ถ้ากำไร 30%'),
-    S('O4', 74, 'ราคาท้องตลาด'), E('P4', 74), S('Q4', 96, 'รายการแนะนำ'), E('R4', 97), S('S4', 83, 'แก้ไข'),
-    S('T4', 83, 'ราคาหลังปรับ'), S('U4', 83, 'กำไร% ไม่รวม Vat'), S('V4', 83, 'กำไร% รวม Vat')
-  ], 16.8);
-
-  pushRow(5, [
-    E('A5', 84), E('B5', 87), E('C5', 84), E('D5', 84), E('E5', 74), E('F5', 75),
-    E('G5', 94), E('H5', 94), E('I5', 94), E('J5', 84), E('K5', 104), E('L5', 94), E('M5', 84), E('N5', 101),
-    E('O5', 74), E('P5', 74), E('Q5', 98), E('R5', 99), E('S5', 84), E('T5', 84), E('U5', 84), E('V5', 84)
-  ], 16.8);
-
-  pushRow(6, [
-    E('A6', 85), E('B6', 88), E('C6', 85), E('D6', 85), E('E6', 3), E('F6', 71),
-    E('G6', 95), E('H6', 95), E('I6', 95), E('J6', 85), E('K6', 105), E('L6', 95), E('M6', 85), E('N6', 102),
-    S('O6', 3, 'ต่ำสุด'), S('P6', 57, 'สูงสุด'), S('Q6', 3, 'ปรับ'), S('R6', 3, 'ราคา'), E('S6', 85), E('T6', 85), E('U6', 85), E('V6', 85)
-  ], 34.2);
-
-  /* Data Rows 7..last */
-  items.forEach(function (x, i) {
-    var r = 7 + i;
-    var codeStr = String(x.code == null ? '' : x.code).trim();
-    var codeCell = /^(0|[1-9]\d{0,14})$/.test(codeStr) ? N('B' + r, 5, Number(codeStr)) : S('B' + r, 5, codeStr);
-    var update = latestUpdate(x);
-    var projected = priceProjection(x);
-    var eTxt = update.text ? update.text : '';
-    var oCell = (x.mktMin === '' || x.mktMin === null || x.mktMin === undefined)
-      ? E('O' + r, 56)
-      : (typeof x.mktMin === 'number' && isFinite(x.mktMin) ? N('O' + r, 59, x.mktMin) : S('O' + r, 59, String(x.mktMin)));
-    var pCell = (x.mktMax === '' || x.mktMax === null || x.mktMax === undefined)
-      ? E('P' + r, 58)
-      : (typeof x.mktMax === 'number' && isFinite(x.mktMax) ? N('P' + r, 60, x.mktMax) : S('P' + r, 60, String(x.mktMax)));
-    var rCell = (x.recPrice === '' || x.recPrice === null || x.recPrice === undefined)
-      ? E('R' + r, 17)
-      : (typeof x.recPrice === 'number' && isFinite(x.recPrice) ? N('R' + r, 17, x.recPrice) : S('R' + r, 17, String(x.recPrice)));
-    var sCell = x.editNote ? (isFinite(Number(x.editNote)) ? N('S' + r, 18, Number(x.editNote)) : S('S' + r, 18, x.editNote)) : E('S' + r, 18);
-
-    pushRow(r, [
-      N('A' + r, 4, i + 1),
-      codeCell,
-      S('C' + r, 6, x.name),
-      N('D' + r, 7, x.qty),
-      eTxt ? S('E' + r, 8, eTxt) : E('E' + r, 8),
-      E('F' + r, 9),
-      N('G' + r, 10, x.cost),
-      N('H' + r, 11, x.price),
-      F('I' + r, 12, 'ROUND(H' + r + '-G' + r + ',2)', x.profitEx),
-      F('J' + r, 13, 'IFERROR(ROUND((H' + r + '-G' + r + ')/G' + r + ',4),0)', x.marginEx),
-      F('K' + r, 14, 'ROUND(G' + r + '*1.07,2)', x.costVat),
-      F('L' + r, 15, 'H' + r + '-K' + r, x.profitInc),
-      F('M' + r, 13, 'IFERROR(ROUND(((H' + r + '-K' + r + ')/K' + r + '),4),0)', x.marginInc),
-      F('N' + r, 16, 'ROUND((G' + r + '*1.07*1.3),2)', x.price30),
-      oCell,
-      pCell,
-      S('Q' + r, 17, x.recAct || (x.qty <= 0 ? 'สินค้าไม่เคลื่อนไหว' : 'คงที่')),
-      rCell,
-      sCell,
-      F('T' + r, 11, 'IF(AND(OR(Q' + r + '="ปรับขึ้น",Q' + r + '="ปรับลง",Q' + r + '="ฝากพิจารณา"),ISNUMBER(R' + r + '),R' + r + '>0,IFERROR(ABS(R' + r + '-H' + r + '),0)>=0.005),R' + r + ',H' + r + ')', projected.price),
-      F('U' + r, 13, 'IF(AND(G' + r + '>0,K' + r + '>0),ROUND((T' + r + '-G' + r + ')/G' + r + ',4),"")', x.cost > 0 && x.costVat > 0 ? projected.marginEx : null),
-      F('V' + r, 13, 'IF(AND(G' + r + '>0,K' + r + '>0),ROUND((T' + r + '-K' + r + ')/K' + r + ',4),"")', x.cost > 0 && x.costVat > 0 ? projected.marginInc : null)
-    ], 37.2);
-  });
-
-  /* แถวสรุปท้ายตาราง (เหมือน Row 346..355 ในไฟล์ตัวอย่าง) */
-  var activeItems = items.filter(function (x) { return x.qty > 0; });
-  var projection = summarizePriceProjection(items);
-  var avgEx = projection.avgBeforeEx, avgInc = projection.avgBeforeInc;
-
-  var rAvg = last + 1;     // Row 346
-  var rBlank1 = last + 2;  // Row 347
-  var rSumHd = last + 3;   // Row 348
-  var rSum1 = last + 4;    // Row 349
-  var rSum2 = last + 5;    // Row 350
-  var rSum3 = last + 6;    // Row 351
-  var rSum4 = last + 7;    // Row 352
-  var rBlank2 = last + 8;  // Row 353
-  var rSig1 = last + 9;    // Row 354
-  var rSig2 = last + 10;   // Row 355
-
-  pushRow(rAvg, [
-    E('A' + rAvg, 25), E('B' + rAvg, 26), E('C' + rAvg, 27),
-    F('D' + rAvg, 28, 'COUNTIF(D7:D' + last + ',">0")', activeItems.length),
-    E('E' + rAvg, 29), E('F' + rAvg, 30), E('G' + rAvg, 31), E('H' + rAvg, 31), E('I' + rAvg, 31),
-    F('J' + rAvg, 32, 'IFERROR(AVERAGEIFS(J7:J' + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")', avgEx),
-    E('K' + rAvg, 33), E('L' + rAvg, 33),
-    F('M' + rAvg, 32, 'IFERROR(AVERAGEIFS(M7:M' + last + ',D7:D' + last + ',">0",G7:G' + last + ',">0",K7:K' + last + ',">0"),"")', avgInc),
-    E('N' + rAvg, 34), E('O' + rAvg, 61), E('P' + rAvg, 62), E('Q' + rAvg, 35), E('R' + rAvg, 35), E('S' + rAvg, 36)
-  ], 18.6);
-
-  pushRow(rBlank1, [
-    E('A' + rBlank1, 25), E('B' + rBlank1, 26), E('C' + rBlank1, 27), E('D' + rBlank1, 35), E('E' + rBlank1, 29), E('F' + rBlank1, 30),
-    E('G' + rBlank1, 31), E('H' + rBlank1, 31), E('I' + rBlank1, 31), E('J' + rBlank1, 32), E('K' + rBlank1, 33), E('L' + rBlank1, 33),
-    E('M' + rBlank1, 32), E('N' + rBlank1, 34), E('O' + rBlank1, 61), E('P' + rBlank1, 62), E('Q' + rBlank1, 35), E('R' + rBlank1, 35), E('S' + rBlank1, 36)
-  ], 18.6);
-
-  pushRow(rSumHd, [
-    F('A' + rSumHd, 25, 'COUNTIF(D7:D' + last + ',">0")', activeItems.length),
-    E('B' + rSumHd, 26), S('C' + rSumHd, 110, 'กำไรเฉลี่ยของสินค้าที่มีอยู่'), E('D' + rSumHd, 111), E('E' + rSumHd, 29),
-    S('F' + rSumHd, 112, sh.sumTitle),
-    E('G' + rSumHd, 113), E('H' + rSumHd, 113), E('I' + rSumHd, 113), E('J' + rSumHd, 113), E('K' + rSumHd, 113), E('L' + rSumHd, 113),
-    E('M' + rSumHd, 113), E('N' + rSumHd, 113), E('O' + rSumHd, 113), E('P' + rSumHd, 113), E('Q' + rSumHd, 113), E('R' + rSumHd, 114), E('S' + rSumHd, 36)
-  ], 18.6);
-
-  pushRow(rSum1, [
-    E('A' + rSum1, 37), E('B' + rSum1, 38), S('C' + rSum1, 39, 'กำไรเฉลี่ยหักเดิม'), F('D' + rSum1, 40, 'J' + rAvg, avgEx), E('E' + rSum1, 37),
-    S('F' + rSum1, 119, sh.sumText),
-    E('G' + rSum1, 119), E('H' + rSum1, 119), E('I' + rSum1, 119), E('J' + rSum1, 119), E('K' + rSum1, 119), E('L' + rSum1, 119),
-    E('M' + rSum1, 119), E('N' + rSum1, 119), E('O' + rSum1, 119), E('P' + rSum1, 119), E('Q' + rSum1, 119), E('R' + rSum1, 119), E('S' + rSum1, 37)
-  ], 44);
-
-  pushRow(rSum2, [
-    E('A' + rSum2, 37), E('B' + rSum2, 38), S('C' + rSum2, 39, 'กำไรเฉลี่ยหัก Vat แล้ว'), F('D' + rSum2, 41, 'M' + rAvg, avgInc), E('E' + rSum2, 37),
-    E('F' + rSum2, 119), E('G' + rSum2, 119), E('H' + rSum2, 119), E('I' + rSum2, 119), E('J' + rSum2, 119), E('K' + rSum2, 119), E('L' + rSum2, 119),
-    E('M' + rSum2, 119), E('N' + rSum2, 119), E('O' + rSum2, 119), E('P' + rSum2, 119), E('Q' + rSum2, 119), E('R' + rSum2, 119), E('S' + rSum2, 37)
-  ], 44);
-
-  [rSum3, rSum4].forEach(function (rr, idx) {
-    pushRow(rr, [
-      E('A' + rr, 42), E('B' + rr, 35), S('C' + rr, 39, idx ? 'หลังปรับ (รวม Vat)' : 'หลังปรับ (ไม่รวม Vat)'),
-      F('D' + rr, 41, projectionSummaryFormula(last, !!idx), idx ? projection.avgAfterInc : projection.avgAfterEx), E('E' + rr, 29),
-      E('F' + rr, 119), E('G' + rr, 119), E('H' + rr, 119), E('I' + rr, 119), E('J' + rr, 119), E('K' + rr, 119), E('L' + rr, 119),
-      E('M' + rr, 119), E('N' + rr, 119), E('O' + rr, 119), E('P' + rr, 119), E('Q' + rr, 119), E('R' + rr, 119), E('S' + rr, 36)
-    ], 44);
-  });
-
-  pushRow(rBlank2, [
-    E('A' + rBlank2, 37), E('B' + rBlank2, 38), E('C' + rBlank2, 37), E('D' + rBlank2, 37), E('E' + rBlank2, 37), E('F' + rBlank2, 72),
-    E('G' + rBlank2, 37), E('H' + rBlank2, 37), E('I' + rBlank2, 37), E('J' + rBlank2, 37), E('K' + rBlank2, 37), E('L' + rBlank2, 37),
-    E('M' + rBlank2, 37), E('N' + rBlank2, 37), E('O' + rBlank2, 63), E('P' + rBlank2, 64), E('Q' + rBlank2, 37), E('R' + rBlank2, 37), E('S' + rBlank2, 37)
-  ], 18.6);
-
-  pushRow(rSig1, [
-    E('A' + rSig1, 43), E('B' + rSig1, 44), E('C' + rSig1, 68), E('D' + rSig1, 36),
-    S('E' + rSig1, 115, 'ลงชื่อ' + (sh.surveyor ? '            ' + sh.surveyor : '')), E('F' + rSig1, 116), E('G' + rSig1, 115), E('H' + rSig1, 45),
-    S('I' + rSig1, 117, 'ลงชื่อ' + (sh.checker ? '            ' + sh.checker : '')), E('J' + rSig1, 117), E('K' + rSig1, 117), E('L' + rSig1, 33),
-    S('M' + rSig1, 115, 'ลงชื่อ' + (sh.approver ? '            ' + sh.approver : '')), E('N' + rSig1, 115), E('O' + rSig1, 118), E('P' + rSig1, 118),
-    E('Q' + rSig1, 46), E('R' + rSig1, 46), E('S' + rSig1, 37)
-  ], 18.6);
-
-  pushRow(rSig2, [
-    E('A' + rSig2, 43), E('B' + rSig2, 44), E('C' + rSig2, 69), E('D' + rSig2, 47),
-    S('E' + rSig2, 106, 'ผู้สำรวจราคาตลาด'), E('F' + rSig2, 107), E('G' + rSig2, 106), E('H' + rSig2, 48),
-    S('I' + rSig2, 108, 'ผู้ตรวจสอบความถูกต้อง'), E('J' + rSig2, 108), E('K' + rSig2, 108), E('L' + rSig2, 49),
-    S('M' + rSig2, 108, 'ผู้ปรับแก้ไขราคาสินค้า'), E('N' + rSig2, 108), E('O' + rSig2, 109), E('P' + rSig2, 109),
-    E('Q' + rSig2, 47), E('R' + rSig2, 47), E('S' + rSig2, 37)
-  ], 18.6);
-
-  var merges = [
-    'A1:F1', 'G1:S1', 'A2:S2',
-    'A3:A6', 'B3:B6', 'C3:C6', 'D3:J3', 'K3:S3',
-    'D4:D6', 'E4:F6', 'G4:G6', 'H4:H6', 'I4:I6', 'J4:J6',
-    'K4:K6', 'L4:L6', 'M4:M6', 'N4:N6', 'O4:P5', 'Q4:R5', 'S4:S6',
-    'T3:V3', 'T4:T6', 'U4:U6', 'V4:V6',
-    'C' + rSumHd + ':D' + rSumHd, 'F' + rSumHd + ':R' + rSumHd,
-    'F' + rSum1 + ':R' + rSum4,
-    'E' + rSig1 + ':G' + rSig1, 'I' + rSig1 + ':K' + rSig1, 'M' + rSig1 + ':P' + rSig1,
-    'E' + rSig2 + ':G' + rSig2, 'I' + rSig2 + ':K' + rSig2, 'M' + rSig2 + ':P' + rSig2
-  ];
-
-  for (var mr = 7; mr <= last; mr++) merges.push('E' + mr + ':F' + mr);
-  var cfXml =
-    '<conditionalFormatting sqref="O7:O' + last + '"><cfRule type="expression" dxfId="7" priority="1"><formula>$O7="-"</formula></cfRule></conditionalFormatting>' +
-    '<conditionalFormatting sqref="O7:R' + last + '"><cfRule type="expression" dxfId="6" priority="6"><formula>$Q7="สินค้าไม่เคลื่อนไหว"</formula></cfRule></conditionalFormatting>' +
-    '<conditionalFormatting sqref="P7:P' + last + '"><cfRule type="expression" dxfId="5" priority="5"><formula>$P7="-"</formula></cfRule></conditionalFormatting>' +
-    '<conditionalFormatting sqref="Q7:R' + last + '">' +
-      '<cfRule type="expression" dxfId="4" priority="2"><formula>$Q7="ฝากพิจารณา"</formula></cfRule>' +
-      '<cfRule type="expression" dxfId="3" priority="7"><formula>$Q7="คงที่"</formula></cfRule>' +
-      '<cfRule type="expression" dxfId="2" priority="8"><formula>$Q7="ปรับขึ้น"</formula></cfRule>' +
-      '<cfRule type="expression" dxfId="1" priority="9"><formula>$Q7="ปรับลง"</formula></cfRule>' +
-    '</conditionalFormatting>' +
-    '<conditionalFormatting sqref="R7:R' + last + '"><cfRule type="expression" dxfId="0" priority="4"><formula>$R7="-"</formula></cfRule></conditionalFormatting>';
-
-  var dvXml = '<dataValidations count="1"><dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="Q7:Q' + last + '"><formula1>"คงที่,ปรับขึ้น,ปรับลง,สินค้าไม่เคลื่อนไหว,ฝากพิจารณา"</formula1></dataValidation></dataValidations>';
-
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<worksheet xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '">' +
-    '<sheetPr filterMode="1"><pageSetUpPr fitToPage="1"/></sheetPr>' +
-    '<dimension ref="A1:V' + rSig2 + '"/>' +
-    '<sheetViews><sheetView' + (idx === 0 ? ' tabSelected="1"' : '') + ' zoomScale="115" zoomScaleNormal="115" workbookViewId="0"><pane ySplit="6" topLeftCell="A7" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
-    '<sheetFormatPr defaultColWidth="5.69921875" defaultRowHeight="16.8"/>' +
-    XL_COLS_XML.replace('<col min="20" max="20" width="3.69921875" customWidth="1"/>', '<col min="20" max="20" width="12" customWidth="1"/><col min="21" max="22" width="13" customWidth="1"/>') +
-    '<sheetData>' + rows.join('') + '</sheetData>' +
-    '<mergeCells count="' + merges.length + '">' + merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join('') + '</mergeCells>' +
-    cfXml + dvXml +
-    '<pageMargins left="0.23622047244094491" right="0.23622047244094491" top="0" bottom="0" header="0.31496062992125984" footer="0.31496062992125984"/>' +
-    '<pageSetup paperSize="9" scale="89" fitToHeight="0" orientation="landscape"/>' +
-    '</worksheet>';
-}
-
-/* ---- ตัวบีบอัด ZIP สำหรับไฟล์ .xlsx ---- */
-var XL_CRCT = null;
-function xlCrc(u8) {
-  if (!XL_CRCT) {
-    XL_CRCT = new Uint32Array(256);
-    for (var n = 0; n < 256; n++) {
-      var c = n;
-      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-      XL_CRCT[n] = c >>> 0;
-    }
-  }
-  var crc = 0xFFFFFFFF;
-  for (var i = 0; i < u8.length; i++) crc = XL_CRCT[(crc ^ u8[i]) & 255] ^ (crc >>> 8);
-  return (crc ^ 0xFFFFFFFF) >>> 0;
-}
-async function xlDeflate(u8) {
-  if (typeof CompressionStream === 'undefined') return null;
-  try {
-    var cs = new CompressionStream('deflate-raw'), w = cs.writable.getWriter();
-    w.write(u8); w.close();
-    return new Uint8Array(await new Response(cs.readable).arrayBuffer());
-  } catch (e) { return null; }
-}
-async function xlZip(files) {
-  var enc = new TextEncoder(), now = new Date();
-  var dtime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
-  var ddate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
-  var out = [], cen = [], off = 0;
-  for (var i = 0; i < files.length; i++) {
-    var f = files[i], raw = enc.encode(f.data), name = enc.encode(f.name), crc = xlCrc(raw);
-    var comp = await xlDeflate(raw), body = comp || raw, method = comp ? 8 : 0;
-    var lh = new DataView(new ArrayBuffer(30));
-    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, method, true);
-    lh.setUint16(10, dtime, true); lh.setUint16(12, ddate, true); lh.setUint32(14, crc, true);
-    lh.setUint32(18, body.length, true); lh.setUint32(22, raw.length, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
-    var ch = new DataView(new ArrayBuffer(46));
-    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
-    ch.setUint16(10, method, true); ch.setUint16(12, dtime, true); ch.setUint16(14, ddate, true); ch.setUint32(16, crc, true);
-    ch.setUint32(20, body.length, true); ch.setUint32(24, raw.length, true); ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
-    out.push(new Uint8Array(lh.buffer), name, body);
-    cen.push(new Uint8Array(ch.buffer), name);
-    off += 30 + name.length + body.length;
-  }
-  var csize = cen.reduce(function (s, p) { return s + p.length; }, 0), end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
-  end.setUint32(12, csize, true); end.setUint32(16, off, true);
-  var all = out.concat(cen, [new Uint8Array(end.buffer)]), total = all.reduce(function (s, p) { return s + p.length; }, 0);
-  var buf = new Uint8Array(total), pos = 0;
-  all.forEach(function (p) { buf.set(p, pos); pos += p.length; });
-  return buf;
-}
-
-async function xlsxBuildMarket(sheets) {
-  var ctx = { sst: Object.create(null), sstList: [] }, files = [], N = sheets.length, ct = '', wbSheets = '', wbRels = '', printAreas = '';
-  var REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
-  sheets.forEach(function (sh, i) {
-    files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: xlMarketSheet(sh, ctx, i) });
-    ct += '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
-    wbSheets += '<sheet name="' + xlEsc(sh.name.slice(0, 31)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
-    printAreas += '<definedName name="_xlnm.Print_Area" localSheetId="' + i + '">' + xlEsc("'" + sh.name.slice(0, 31).replace(/'/g, "''") + "'!$A$1:$S$" + (16 + Math.max(sh.items.length, 1))) + '</definedName>';
-    wbRels += '<Relationship Id="rId' + (i + 1) + '" Type="' + REL + '/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
-  });
-  wbRels += '<Relationship Id="rId' + (N + 1) + '" Type="' + REL + '/styles" Target="styles.xml"/>' +
-            '<Relationship Id="rId' + (N + 2) + '" Type="' + REL + '/sharedStrings" Target="sharedStrings.xml"/>' +
-            '<Relationship Id="rId' + (N + 3) + '" Type="' + REL + '/theme" Target="theme/theme1.xml"/>';
-  files.unshift(
-    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' + ct + '<Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>' },
-    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="' + REL + '/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="' + XL_NS + '" xmlns:r="' + XL_RNS + '"><bookViews><workbookView/></bookViews><sheets>' + wbSheets + '</sheets><definedNames>' + printAreas + '</definedNames></workbook>' },
-    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + wbRels + '</Relationships>' },
-    { name: 'xl/theme/theme1.xml', data: THEME1_XML },
-    { name: 'xl/styles.xml', data: STYLES_XML }
-  );
-  files.push({
-    name: 'xl/sharedStrings.xml',
-    data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="' + XL_NS + '" count="' + ctx.sstList.length + '" uniqueCount="' + ctx.sstList.length + '">' +
-      ctx.sstList.map(function (t) { return '<si><t xml:space="preserve">' + xlEsc(t) + '</t></si>'; }).join('') + '</sst>'
-  });
-  return xlZip(files);
-}
-
 /* ---------- เปิดหน้าต่างส่งออก Excel ---------- */
+var EX_MKT_DEFAULT_LEFT = "";
 function refreshExHeaders() {
   var useBe = $('#exYearMode').value === 'be';
   var m = curGroupMeta(F.g);
   var upDate = fmtDateSlash((m && (m.rep || m.ts)) || Date.now(), useBe);
   var exDate = fmtDateSlash(Date.now(), useBe);
   var sNote = stripOldNote((m && m.surveyNote) || D.surveyNote || '');
-  $('#exLeftHead').value = 'อัปข้อมูลเข้า วันที่ ' + upDate;
+  EX_MKT_DEFAULT_LEFT = 'อัปข้อมูลเข้า วันที่ ' + upDate;
+  $('#exLeftHead').value = EX_MKT_DEFAULT_LEFT;
   $('#exRightHead').value = 'ส่งออกข้อมูล วันที่ ' + exDate + (sNote ? ' · ' + sNote : '');
 }
 
@@ -1835,15 +1502,18 @@ function buildMarketSheetObj(gKeys, byG, useBe, customLeft, customRight, totalGr
   var gItems = [];
   var latestRep = '';
   var latestTs = 0;
+  var groupDates = Object.create(null), groupNames = Object.create(null);
   gKeys.forEach(function (k) {
     (byG[k] || []).forEach(function (x) { gItems.push(x); });
     var gm = curGroupMeta(k);
+    groupDates[k] = gm && (gm.rep || thaiDayIso(gm.ts)) || todayIso();
+    groupNames[k] = D.names && D.names[k] || "";
     if (gm && gm.rep && gm.rep > latestRep) latestRep = gm.rep;
     if (gm && gm.ts && gm.ts > latestTs) latestTs = gm.ts;
   });
   var gName = isSingleGroup ? ((D.names && D.names[gKeys[0]]) || '') : ('รวม ' + gKeys.length + ' หมวด');
   var upDate = fmtDateSlash(latestRep || latestTs || Date.now(), useBe);
-  var leftH = (totalGroupsCount === 1 || !isSingleGroup) && customLeft ? customLeft : ('อัปข้อมูลเข้า วันที่ ' + upDate);
+  var leftH = customLeft || ('อัปข้อมูลเข้า วันที่ ' + upDate);
   var rightH = customRight || ('ส่งออกข้อมูล วันที่ ' + fmtDateSlash(Date.now(), useBe));
 
   var act = gItems.filter(function (x) { return x.qty > 0; });
@@ -1857,7 +1527,11 @@ function buildMarketSheetObj(gKeys, byG, useBe, customLeft, customRight, totalGr
   var gListLabel = gKeys.length <= 5 ? gKeys.join(', ') : (gKeys.slice(0, 5).join(', ') + ' ฯลฯ รวม ' + gKeys.length + ' หมวด');
 
   return {
-    name: g.slice(0, 31),
+    name: g,
+    multiGroup: !isSingleGroup,
+    groupDates: groupDates,
+    groupNames: groupNames,
+    versionLabel: D.ver === "prev" ? "ข้อมูลฉบับก่อนหน้า" : "ข้อมูลปัจจุบัน",
     leftHead: leftH,
     rightHead: rightH,
     title: isSingleGroup
@@ -1881,6 +1555,7 @@ $('#exGo').addEventListener('click', function () {
     list.forEach(function (x) { (byG[x.g] || (byG[x.g] = [])).push(x); });
     var useBe = $('#exYearMode').value === 'be';
     var customLeft = $('#exLeftHead').value.trim();
+    if (customLeft === EX_MKT_DEFAULT_LEFT) customLeft = '';
     var customRight = $('#exRightHead').value.trim();
     var smEl = document.querySelector('input[name=exSheetMode]:checked'), sheetMode = smEl ? smEl.value : 'split';
     var allGs = Object.keys(byG).sort(), sheets = [];
@@ -1907,6 +1582,7 @@ $('#exGo').addEventListener('click', function () {
     var fn = sheets.length === 1
       ? (brPre + firstG + (firstName ? firstName : '_สำรวจราคาตลาด') + '.xlsx')
       : (brPre + 'สำรวจราคาตลาด_' + todayIso() + '.xlsx');
+    fn = fn.replace(/[\\/:*?"<>|\u0000-\u001F]/g, '_');
     var a = document.createElement('a'), url = URL.createObjectURL(new Blob([u8], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     a.href = url; a.download = fn; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);

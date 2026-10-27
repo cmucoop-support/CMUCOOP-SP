@@ -60,10 +60,10 @@ async function signStatelessToken(u, username, exp) {
 
 async function verifyStatelessToken(C, raw) {
   const parts = String(raw || '').split('.');
-  if (parts.length !== 4 || parts[0] !== 's1') return null;
+  if (parts.length < 4 || parts[0] !== 's1') return null;
   let username = '';
-  try { username = decodeURIComponent(parts[1]); } catch (_) { return null; }
-  const exp = Number(parts[2]), sig = parts[3];
+  try { username = decodeURIComponent(parts.slice(1, -2).join('.')); } catch (_) { return null; }
+  const exp = Number(parts[parts.length - 2]), sig = parts[parts.length - 1];
   if (!username || !Number.isFinite(exp) || exp < now()) return null;
   const r = await one(C, 'SELECT * FROM users WHERE username=?', username);
   if (!r) return null;
