@@ -28,6 +28,8 @@ function xlSheetNames(sheets) {
     return Object.assign({},sh,{name:name});
   });
 }
+/* Colors match computed screen styles in shared/liquid-glass.css and pages/market.css.
+ * The solid XLSX fills retain the website's purple palette and market column/status colors. */
 function xlMarketStyles() {
   var xfs=[];
   function style(name,font,fill,border,fmt,align) {
@@ -45,15 +47,19 @@ function xlMarketStyles() {
     style('pct_'+stripe,0,fill,1,166,'right'); style('date_'+stripe,0,fill,1,167,'center');
     style('input_'+stripe,5,5,1,49); style('inputMoney_'+stripe,5,5,1,165,'right');
   });
-  var fonts=[[10,'243447'],[16,'183B56',true],[9,'58697A'],[10,'FFFFFF',true],[10,'183B56',true],[10,'174B8C']];
-  var fills=['none','gray125','183B56','E6EFF5','F5F8FA','FFFBEA'], colors=['FFF3CD','FDE2E2','EDE4FA','E0F2E6','E7EBEF'];
+  style('cost',6,6,1,165,'right'); style('sale',7,7,1,165,'right');
+  style('vat',8,8,1,165,'right'); style('price30',6,9,1,165,'right');
+  style('marketMoney',9,10,1,165,'right'); style('marketText',9,10,1,49);
+  var fonts=[[10,'302744'],[16,'6036AD',true],[9,'665D77'],[10,'FFFFFF',true],[10,'4F3B6D',true],[10,'6036AD'],[10,'2A1F47'],[10,'3B1D8F',true],[10,'14532D'],[10,'6B1D4A']];
+  var fills=['none','gray125','7045C6','EEE8F7','FAF8FD','F6EFFF','F0EAFB','E2D6FA','E6F3EC','F4F0FB','FBEAF4'];
+  var colors=[['FFF3C4','5C4400'],['FFD5D8','8A1C24'],['D9CCF5','3B1D8F'],['D6F0E0','14532D'],['E8E4F0','5B5275']];
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="'+XL_NS+'">'+
     '<numFmts count="4"><numFmt numFmtId="164" formatCode="#,##0.00;[Red](#,##0.00);0.00"/><numFmt numFmtId="165" formatCode="#,##0.00;[Red](#,##0.00);0.00"/><numFmt numFmtId="166" formatCode="0.00%;[Red](0.00%);0.00%"/><numFmt numFmtId="167" formatCode="dd/mm/yyyy"/></numFmts>'+
     '<fonts count="'+fonts.length+'">'+fonts.map(function(f){return '<font><sz val="'+f[0]+'"/><color rgb="FF'+f[1]+'"/><name val="Tahoma"/>'+(f[2]?'<b/>':'')+'</font>';}).join('')+'</fonts>'+
     '<fills count="'+fills.length+'">'+fills.map(function(f,i){return i<2?'<fill><patternFill patternType="'+f+'"/></fill>':'<fill><patternFill patternType="solid"><fgColor rgb="FF'+f+'"/><bgColor indexed="64"/></patternFill></fill>';}).join('')+'</fills>'+
-    '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="hair"><color rgb="FFD5DFE7"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF8296A7"/></bottom><diagonal/></border></borders>'+
+    '<borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="hair"><color rgb="FFE9E3F0"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF665D77"/></bottom><diagonal/></border></borders>'+
     '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="'+xfs.length+'">'+xfs.join('')+'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'+
-    '<dxfs count="5">'+colors.map(function(c){return '<dxf><fill><patternFill patternType="solid"><fgColor rgb="FF'+c+'"/><bgColor indexed="64"/></patternFill></fill></dxf>';}).join('')+'</dxfs></styleSheet>';
+    '<dxfs count="5">'+colors.map(function(c){return '<dxf><font><b/><color rgb="FF'+c[1]+'"/></font><fill><patternFill patternType="solid"><fgColor rgb="FF'+c[0]+'"/><bgColor indexed="64"/></patternFill></fill></dxf>';}).join('')+'</dxfs></styleSheet>';
 }
 var MARKET_STYLES_XML=xlMarketStyles(), XL_MEASURE=null;
 function xlLineCount(value,width) {
@@ -91,23 +97,23 @@ function xlMarketSheet(sh,ctx,idx) {
   function merged(ref,style,value){merges.push(ref);return string(ref.split(':')[0],style,value);}
   row(1,[merged('A1:V1',S.title,sh.title)],Math.max(30,xlLineCount(sh.title,200)*20+8));
   row(2,[merged('A2:F2',S.meta,sh.leftHead),merged('G2:N2',S.meta,sh.rightHead),merged('O2:V2',S.meta,sh.versionLabel||'ข้อมูลปัจจุบัน')],24);
-  row(3,[merged('A3:V3',S.meta,'หน่วยราคา: บาท   VAT 7%   กำไร% คิดเทียบต้นทุน   ช่องพื้นเหลืองใช้กรอกผลสำรวจและข้อเสนอแนะ')],20);
+  row(3,[merged('A3:V3',S.meta,'หน่วยราคา: บาท   VAT 7%   กำไร% คิดเทียบต้นทุน   ใช้คอลัมน์ผลสำรวจและข้อเสนอแนะสำหรับกรอกข้อมูล')],20);
   row(4,[],8);
   row(5,[merged('A5:C5',S.band,'ข้อมูลสินค้า'),merged('D5:J5',S.band,'ข้อมูลในระบบ (ไม่รวม VAT)'),merged('K5:N5',S.band,'คำนวณต้นทุนรวม VAT'),merged('O5:S5',S.band,'ผลสำรวจและข้อเสนอแนะ'),merged('T5:V5',S.band,'ผลหลังใช้ราคาแนะนำ')],24);
   var headings=[sh.multiGroup?'ลำดับ /\nหมวด':'ลำดับ','รหัสสินค้า','ชื่อสินค้า','จำนวน\nคงเหลือ','ปรับครั้งล่าสุด','วันที่ปรับ','ต้นทุน','ราคาขาย','กำไร\n(บาท)','กำไร\n(%)','ต้นทุน+VAT','กำไร\n(บาท)','กำไร\n(%)','ราคาเมื่อกำไร\n30%','ราคาท้องตลาด\nต่ำสุด','ราคาท้องตลาด\nสูงสุด','รายการแนะนำ','ราคาแนะนำ','หมายเหตุ\nการแก้ไข','ราคาหลังปรับ','กำไร%\nไม่รวม VAT','กำไร%\nรวม VAT','หมวดสินค้า','วันที่ข้อมูล','ชื่อหมวด'];
   row(6,headings.map(function(h,c){return string(xlCol(c)+'6',S.header,h);}),48);
   items.forEach(function(x,i){
     var r=i+7,stripe=i%2?'odd':'even';
-    function st(name){return S[name+'_'+stripe];}
+    function st(name){return S[name+'_'+stripe] === undefined ? S[name] : S[name+'_'+stripe];}
     function num(c,name,v){return number(c+r,st(name),v);}
     function txt(c,name,v){return string(c+r,st(name),v);}
     function f(c,name,expression,v){return formula(c+r,st(name),expression.replace(/\$/g,r),v);}
-    function input(c,v){var n=marketNumber(v);return n===null?txt(c,'input',v):num(c,'inputMoney',n);}
+    function input(c,v){var n=marketNumber(v),market=c==='O'||c==='P';return n===null?txt(c,market?'marketText':'input',v):num(c,market?'marketMoney':'inputMoney',n);}
     var update=latestUpdate(x),projected=priceProjection(x),date=xlSerial(parseDateCell(update.date));
-    var cells=[sh.multiGroup?txt('A','center',(i+1)+'\n'+x.g):num('A','qty',i+1),txt('B','text',x.code),txt('C','text',x.name),num('D','qty',x.qty),txt('E','text',update.text),date===null?txt('F','center',update.date):num('F','date',date),num('G','money',x.cost),num('H','money',x.price),
-      f('I','money','ROUND(H$-G$,2)',x.profitEx),f('J','pct','IFERROR(ROUND((H$-G$)/G$,4),0)',x.marginEx),f('K','money','ROUND(G$*1.07,2)',x.costVat),f('L','money','ROUND(H$-K$,2)',x.profitInc),f('M','pct','IFERROR(ROUND((H$-K$)/K$,4),0)',x.marginInc),f('N','money','ROUND(G$*1.07*1.3,2)',x.price30),
+    var cells=[sh.multiGroup?txt('A','center',(i+1)+'\n'+x.g):num('A','qty',i+1),txt('B','text',x.code),txt('C','text',x.name),num('D','qty',x.qty),txt('E','text',update.text),date===null?txt('F','center',update.date):num('F','date',date),num('G','cost',x.cost),num('H','sale',x.price),
+      f('I','money','ROUND(H$-G$,2)',x.profitEx),f('J','pct','IFERROR(ROUND((H$-G$)/G$,4),0)',x.marginEx),f('K','vat','ROUND(G$*1.07,2)',x.costVat),f('L','money','ROUND(H$-K$,2)',x.profitInc),f('M','pct','IFERROR(ROUND((H$-K$)/K$,4),0)',x.marginInc),f('N','price30','ROUND(G$*1.07*1.3,2)',x.price30),
       input('O',x.mktMin),input('P',x.mktMax),txt('Q','input',x.recAct),input('R',x.recPrice),txt('S','input',x.editNote),
-      f('T','money','IF(AND(OR(Q$="ปรับขึ้น",Q$="ปรับลง",Q$="ฝากพิจารณา"),ISNUMBER(R$),R$>0,IFERROR(ABS(R$-H$),0)>=0.005),R$,H$)',projected.price),
+      f('T','sale','IF(AND(OR(Q$="ปรับขึ้น",Q$="ปรับลง",Q$="ฝากพิจารณา"),ISNUMBER(R$),R$>0,IFERROR(ABS(R$-H$),0)>=0.005),R$,H$)',projected.price),
       f('U','pct','IF(AND(G$>0,K$>0),ROUND((T$-G$)/G$,4),"")',x.cost>0&&x.costVat>0?projected.marginEx:null),
       f('V','pct','IF(AND(G$>0,K$>0),ROUND((T$-K$)/K$,4),"")',x.cost>0&&x.costVat>0?projected.marginInc:null),
       txt('W','text',x.g),num('X','date',xlSerial(x.rep||(sh.groupDates&&sh.groupDates[x.g])||sh.rep)),txt('Y','text',sh.groupNames&&sh.groupNames[x.g]||'')];
@@ -133,7 +139,7 @@ function xlMarketSheet(sh,ctx,idx) {
   blocks.slice(1).forEach(function(b,i){var range=b[0]+(last+6)+':'+b[1]+(last+6);merges.push(range);avgCells.push(formula(range.split(':')[0],S.summaryPct,expressions[i],avg[i]));});
   row(last+6,avgCells,28);
   row(last+7,[merged('A'+(last+7)+':V'+(last+7),S.meta,'กำไร% = (ราคาขาย − ต้นทุน) ÷ ต้นทุน เฉลี่ยรายสินค้า ไม่ถ่วงน้ำหนักด้วยจำนวนคงเหลือ ใช้ราคาแนะนำเฉพาะรายการปรับ/พิจารณาที่มีราคามากกว่า 0')],24);
-  row(last+8,[merged('A'+(last+8)+':V'+(last+8),S.meta,'คงที่: เหลือง   ปรับขึ้น: แดงอ่อน   ปรับลง: ม่วงอ่อน   ฝากพิจารณา: เขียวอ่อน   สินค้าไม่เคลื่อนไหว: เทา')],20);
+  row(last+8,[merged('A'+(last+8)+':V'+(last+8),S.meta,'คงที่: เหลือง   ปรับขึ้น: แดงอ่อน   ปรับลง: ม่วงอ่อน   ฝากพิจารณา: เขียวอ่อน   สินค้าไม่เคลื่อนไหว: ม่วงเทา')],20);
   row(last+9,[],18);
   var sigs=[['A','G',sh.surveyor,'ผู้สำรวจราคาตลาด'],['H','O',sh.checker,'ผู้ตรวจสอบความถูกต้อง'],['P','V',sh.approver,'ผู้ปรับแก้ไขราคาสินค้า']];
   row(last+10,sigs.map(function(b){return merged(b[0]+(last+10)+':'+b[1]+(last+10),S.signature,b[2]||'ลงชื่อ ................................................');}),30);
@@ -141,7 +147,7 @@ function xlMarketSheet(sh,ctx,idx) {
   row(last+12,sigs.map(function(b){return merged(b[0]+(last+12)+':'+b[1]+(last+12),S.role,'วันที่ ........ / ........ / ........');}),22);
   var cf=['คงที่','ปรับขึ้น','ปรับลง','ฝากพิจารณา','สินค้าไม่เคลื่อนไหว'].map(function(a,i){return '<cfRule type="expression" dxfId="'+i+'" priority="'+(i+1)+'"><formula>$Q7="'+a+'"</formula></cfRule>';}).join('');
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="'+XL_NS+'" xmlns:r="'+XL_RNS+'">'+
-    '<sheetPr><tabColor rgb="FF183B56"/><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:Y'+(last+12)+'"/>'+
+    '<sheetPr><tabColor rgb="FF7045C6"/><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:Y'+(last+12)+'"/>'+
     '<sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="85"'+(idx===0?' tabSelected="1"':'')+'><pane xSplit="3" ySplit="6" topLeftCell="D7" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="D7" sqref="D7"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="20"/>'+
     '<cols>'+XL_WIDTHS.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>';}).join('')+'<col min="23" max="25" width="14" hidden="1" customWidth="1"/></cols>'+
     '<sheetData>'+rows.join('')+'</sheetData><autoFilter ref="A6:V'+last+'"/><mergeCells count="'+merges.length+'">'+merges.map(function(m){return '<mergeCell ref="'+m+'"/>';}).join('')+'</mergeCells>'+
