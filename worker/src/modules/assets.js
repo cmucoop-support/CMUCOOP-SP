@@ -8,6 +8,7 @@ import { stockDate } from './stock.js';
 
 const ASSETS_TITLE = 'รายการสินทรัพย์ ร้านสหกรณ์มหาวิทยาลัย เชียงใหม่ จำกัด';
 const ASSETS_STATUSES = ['normal', 'irreparable', 'repair', 'reduced'];
+const ASSETS_NORMAL_MARKS = ['check', 'cross', 'none'];
 const ASSETS_MONEY = ['total', 'opening', 'increase', 'decrease', 'closing', 'net'];
 const ASSETS_LABELS = { total: 'รวม', rate: 'อัตรา ร้อยละ', opening: 'ยกมา', increase: 'เพิ่ม ระหว่างปี', decrease: 'ลด ระหว่างปี', closing: 'ยกไป', net: 'ราคาสินทรัพย์ สุทธิ' };
 const ASSET_FILE_CHUNK = 80000;
@@ -51,7 +52,7 @@ async function assetsSaveImageOps(C, imageData, knownFids) {
   return { fid, url: assetFileUrl(C, fid), ops };
 }
 
-function assetsClean(p, C) {
+function assetsClean(p, C, coerceRound = false) {
   if (!p || typeof p !== 'object' || Array.isArray(p)) throw new Error('รูปแบบรายการสินทรัพย์ไม่ถูกต้อง');
   const text = (value, max, label) => {
     const out = str(value);
@@ -65,9 +66,12 @@ function assetsClean(p, C) {
     const fid = assetFileFid(rawUrl);
     if (fid && rawUrl.startsWith('/file/')) rawUrl = assetFileUrl(C, fid);
   }
+  const statusVal = str(p.status) || 'normal';
+  const rawMark = str(p.normalMark).toLowerCase();
+  const normalMark = ASSETS_NORMAL_MARKS.includes(rawMark) ? rawMark : (statusVal === 'normal' ? 'check' : 'none');
   const data = { seq: p.seq === '' || p.seq == null ? null : Number(p.seq),
     name: text(p.name, 250, 'รายการ'), code: text(p.code, 80, 'รหัสสินทรัพย์'), received: str(p.received),
-    location: text(p.location, 200, 'สถานที่ตั้ง'), status: str(p.status) || 'normal',
+    location: text(p.location, 200, 'สถานที่ตั้ง'), status: statusVal, normalMark,
     imageUrl: rawUrl, note: text(p.note, 2000, 'หมายเหตุ') };
   if (!data.name) throw new Error('กรุณากรอกชื่อรายการสินทรัพย์');
   if (p.seq != null && p.seq !== '' && !['number', 'string'].includes(typeof p.seq)) throw new Error('ลำดับต้องเป็นตัวเลข');
@@ -83,8 +87,11 @@ function assetsClean(p, C) {
     data[key] = value === '' || value == null ? null : Number(value);
     if (data[key] === null) continue;
     const max = key === 'rate' ? 100 : 1000000000000;
+    if (coerceRound && Number.isFinite(data[key])) {
+      data[key] = Math.min(max, Math.max(0, Math.round(data[key] * 100) / 100));
+    }
     const rounded = Math.round(data[key] * 100) / 100;
-    const tooPrecise = (data[key] !== 0 && rounded === 0) || Math.abs(data[key] - rounded) > Number.EPSILON * Math.max(1, Math.abs(data[key])) * 2;
+    const tooPrecise = !coerceRound && ((data[key] !== 0 && rounded === 0) || Math.abs(data[key] - rounded) > 1e-6);
     if (!['number', 'string'].includes(typeof value) || !Number.isFinite(data[key]) || data[key] < 0 || data[key] > max || tooPrecise) throw new Error(ASSETS_LABELS[key] + 'ต้องเป็นเลขตั้งแต่ 0 ถึง ' + max.toLocaleString('en-US') + ' ทศนิยมไม่เกิน 2 ตำแหน่ง หรือเว้นว่าง');
     data[key] = rounded;
   }
@@ -93,8 +100,12 @@ function assetsClean(p, C) {
 
 function assetsRow(row) {
   if (!row) return null;
+  const parsed = JSON.parse(row.amounts);
+  if (!ASSETS_NORMAL_MARKS.includes(parsed.normalMark)) {
+    parsed.normalMark = row.status === 'normal' ? 'check' : 'none';
+  }
   return { id: row.id, seq: row.seq, name: row.name, code: row.code, received: row.received, location: row.location, status: row.status,
-    imageUrl: row.image_url, note: row.note, ...JSON.parse(row.amounts), version: row.version, createdTs: row.created_ts, updatedTs: row.updated_ts, updatedBy: row.updated_by };
+    imageUrl: row.image_url, note: row.note, ...parsed, version: row.version, createdTs: row.created_ts, updatedTs: row.updated_ts, updatedBy: row.updated_by };
 }
 
 function assetsWhere(options) {
@@ -153,9 +164,14 @@ API.assetsPublicByCode = guardedApi(async (C, code) => {
     kvGet(C, 'ASSETS_TITLE', ASSETS_TITLE)
   ]);
   if (!row) throw new Error('ไม่พบรายการสินทรัพย์รหัส ' + raw);
+  let normalMark = row.status === 'normal' ? 'check' : 'none';
+  try {
+    const parsed = JSON.parse(row.amounts);
+    if (ASSETS_NORMAL_MARKS.includes(parsed.normalMark)) normalMark = parsed.normalMark;
+  } catch (_) {}
   return {
     title,
-    row: { id: row.id, seq: row.seq, name: row.name, code: row.code, received: row.received, location: row.location, status: row.status, imageUrl: row.image_url, note: row.note, updatedTs: row.updated_ts }
+    row: { id: row.id, seq: row.seq, name: row.name, code: row.code, received: row.received, location: row.location, status: row.status, normalMark, imageUrl: row.image_url, note: row.note, updatedTs: row.updated_ts }
   };
 }, 'assets', true);
 
@@ -240,7 +256,11 @@ API.assetsExport = guardedApi(async (C, token, options = {}) => {
   return { title, rows: rows.map(assetsRow), images, fids };
 }, 'assets', true, true);
 
-function assetsValues(data) { return JSON.stringify(Object.fromEntries([...ASSETS_MONEY, 'rate'].map(k => [k, data[k]]))); }
+function assetsValues(data) {
+  const obj = Object.fromEntries([...ASSETS_MONEY, 'rate'].map(k => [k, data[k]]));
+  obj.normalMark = ASSETS_NORMAL_MARKS.includes(data.normalMark) ? data.normalMark : (data.status === 'normal' ? 'check' : 'none');
+  return JSON.stringify(obj);
+}
 async function assetsUnique(C, data, id = '') {
   if (await one(C, 'SELECT id FROM asset_items WHERE seq=? AND id<>?', data.seq, id)) throw new Error('ลำดับนี้ถูกใช้แล้ว กรุณาเลือกลำดับอื่น');
   if (data.code && await one(C, 'SELECT id FROM asset_items WHERE code_key=? AND id<>?', assetsCodeKey(data.code), id)) throw new Error('รหัสสินทรัพย์นี้มีอยู่แล้ว กรุณาตรวจสอบรหัส');
@@ -354,7 +374,7 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
       }
     }
     let data;
-    try { data = assetsClean(raw, C); }
+    try { data = assetsClean(raw, C, true); }
     catch (e) { throw new Error('รายการที่ ' + (i + 1) + (raw.name ? ' (' + str(raw.name).slice(0, 40) + ')' : '') + ': ' + e.message); }
     cleaned.push(data);
   }
@@ -489,4 +509,4 @@ API.assetsSetTitle = guardedApi(async (C, token, title, expectedRevision) => {
   return { title: value };
 }, 'assets', false, true);
 
-export { ASSETS_TITLE, ASSETS_STATUSES, ASSETS_MONEY, ASSETS_LABELS, ASSET_FILE_CHUNK, ASSET_BATCH_BYTES, assetFileFid, assetFileUrl, fastCleanB64, assetsSaveImageOps, assetsAuth, assetsClean, assetsRow, assetsWhere, assetsCodeKey, assetsValues, assetsUnique, assetsEvent };
+export { ASSETS_TITLE, ASSETS_STATUSES, ASSETS_NORMAL_MARKS, ASSETS_MONEY, ASSETS_LABELS, ASSET_FILE_CHUNK, ASSET_BATCH_BYTES, assetFileFid, assetFileUrl, fastCleanB64, assetsSaveImageOps, assetsAuth, assetsClean, assetsRow, assetsWhere, assetsCodeKey, assetsValues, assetsUnique, assetsEvent };
