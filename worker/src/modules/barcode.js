@@ -28,11 +28,11 @@ const BC_SCHEMA = {
 
 const BC_FIELDS = ['partner', 'cat', 'name', 'perPack', 'packBar', 'unitBar'];
 
-const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/\s+/g, '') : v.replace(/\s+/g, ' '); };
+const bcClean = (k, v) => { v = str(v); return (k === 'packBar' || k === 'unitBar') ? v.replace(/[\s'"]+/g, '').replace(/[pP]/g, '') : v.replace(/\s+/g, ' '); };
 
 function bcVals(o) { const v = {}; BC_FIELDS.forEach(k => { v[k] = bcClean(k, o[k]).slice(0, 200); }); return v; }
 
-const bcRow = (r, no) => ({ r: r.id, revision: r.ts, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), str(r.packBar), '', str(r.unitBar), '', '', ''] });
+const bcRow = (r, no) => ({ r: r.id, revision: r.ts, v: [no, str(r.partner), str(r.cat), str(r.name), str(r.perPack), bcClean('packBar', r.packBar), '', bcClean('unitBar', r.unitBar), '', '', ''] });
 
 const thDateS = ts => { const d = new Date(ts + 7 * 3600e3); return String(d.getUTCDate()).padStart(2, '0') + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + (d.getUTCFullYear() + 543); };
 
@@ -43,7 +43,8 @@ async function bcDup(C, v, exceptId) {
   if (same) return 'มีรายการชื่อ "' + v.name + '" ในหมวด ' + v.cat + ' อยู่แล้ว';
   for (const [k, label] of [['packBar', 'เลขบาร์แพ็ค'], ['unitBar', 'เลขบาร์เดี่ยว']]) {
     if (!v[k]) continue;
-    const m = await one(C, 'SELECT name,cat FROM barcode_items WHERE id<>? AND (packBar=? OR unitBar=?)', exceptId, v[k], v[k]);
+    const pCode = 'P' + v[k];
+    const m = await one(C, 'SELECT name,cat FROM barcode_items WHERE id<>? AND (packBar=? OR unitBar=? OR UPPER(packBar)=? OR UPPER(unitBar)=?)', exceptId, v[k], v[k], pCode, pCode);
     if (m) return label + ' ' + v[k] + ' ซ้ำกับรายการ: ' + m.name + ' (หมวด ' + m.cat + ')';
   }
   return '';
@@ -95,8 +96,9 @@ API.getCategoryData = async (C, token, sheet, cat) => {
 API.findBarcode = async (C, token, code, exSheet, exRow) => {
   await authPerm(C, token, 'barcode'); code = bcClean('packBar', code);
   if (code.length < 5) return [];
-  const rows = await all(C, 'SELECT id,name,cat,packBar,unitBar FROM barcode_items WHERE (packBar=? OR unitBar=?) AND id<>? LIMIT 5', code, code, Number(exRow) || 0);
-  return rows.map(r => ({ field: str(r.packBar) === code ? 'เลขบาร์แพ็ค' : 'เลขบาร์เดี่ยว', name: str(r.name), sheet: BC_SHEET, cat: str(r.cat), row: r.id }));
+  const pCode = 'P' + code;
+  const rows = await all(C, 'SELECT id,name,cat,packBar,unitBar FROM barcode_items WHERE (packBar=? OR unitBar=? OR UPPER(packBar)=? OR UPPER(unitBar)=?) AND id<>? LIMIT 5', code, code, pCode, pCode, Number(exRow) || 0);
+  return rows.map(r => ({ field: bcClean('packBar', r.packBar) === code ? 'เลขบาร์แพ็ค' : 'เลขบาร์เดี่ยว', name: str(r.name), sheet: BC_SHEET, cat: str(r.cat), row: r.id }));
 };
 
 API.createCategory = async (C, token, name) => {
@@ -224,7 +226,7 @@ async function bcApplyItems(C, who, items, cats, replace, startPos) {
     const upserts = [], inserts = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i], pos = i + 1, old = existing[i];
-      const partner = str(it.partner), cat = str(it.cat), name = str(it.name), packBar = str(it.packBar), unitBar = str(it.unitBar), perPack = str(it.perPack);
+      const partner = str(it.partner), cat = str(it.cat), name = str(it.name), packBar = bcClean('packBar', it.packBar), unitBar = bcClean('unitBar', it.unitBar), perPack = str(it.perPack);
       if (old) {
         if (old.pos === pos && str(old.partner) === partner && str(old.cat) === cat && str(old.name) === name && str(old.packBar) === packBar && str(old.unitBar) === unitBar && str(old.perPack) === perPack) continue;
         upserts.push([old.id, pos, partner, cat, name, packBar, unitBar, perPack]);
@@ -250,7 +252,7 @@ async function bcApplyItems(C, who, items, cats, replace, startPos) {
     ops.push(stmt(C, 'DELETE FROM barcode_cats'));
     if (Array.isArray(cats) && cats.length) ops.push(stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) SELECT value FROM json_each(?)', JSON.stringify(cats)));
   } else {
-    const inserts = items.map((it, i) => [startPos + i + 1, str(it.partner), str(it.cat), str(it.name), str(it.packBar), str(it.unitBar), str(it.perPack)]);
+    const inserts = items.map((it, i) => [startPos + i + 1, str(it.partner), str(it.cat), str(it.name), bcClean('packBar', it.packBar), bcClean('unitBar', it.unitBar), str(it.perPack)]);
     for (const payload of jsonBatches(inserts)) {
       ops.push(stmt(C, `INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who) /* barcode_stage */
         SELECT json_extract(value,'$[0]'),?,json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]'),json_extract(value,'$[5]'),json_extract(value,'$[6]'),?,? FROM json_each(?)`,
@@ -313,7 +315,7 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
   await bcSnapshot(C, replace ? 'ก่อนนำเข้า (แทนที่)' : 'ก่อนนำเข้า (เพิ่ม)');
   let add = items, dup = 0, start = 0;
   if (!replace) {
-    const have = new Set((await all(C, 'SELECT cat,name,packBar,unitBar FROM barcode_items')).map(r => [r.cat, r.name, r.packBar, r.unitBar].join('\u0001')));
+    const have = new Set((await all(C, 'SELECT cat,name,packBar,unitBar FROM barcode_items')).map(r => [r.cat, r.name, bcClean('packBar', r.packBar), bcClean('unitBar', r.unitBar)].join('\u0001')));
     add = items.filter(x => { const k = [x.cat, x.name, x.packBar, x.unitBar].join('\u0001'); if (have.has(k)) { dup++; return false; } have.add(k); return true; });
     start = (await one(C, 'SELECT MAX(pos) AS m FROM barcode_items')).m || 0;
   }
@@ -403,7 +405,7 @@ API.confirmBarcodePairs = async (C, token, payload) => {
   let maxPos = 0;
   existing.forEach(r => {
     if (r.pos > maxPos) maxPos = r.pos;
-    const u = str(r.unitBar), p = str(r.packBar), cn = str(r.cat) + '\u0001' + str(r.name).toLowerCase();
+    const u = bcClean('unitBar', r.unitBar), p = bcClean('packBar', r.packBar), cn = str(r.cat) + '\u0001' + str(r.name).toLowerCase();
     if (u && !byUnit.has(u)) byUnit.set(u, r);
     if (p && !byPack.has(p)) byPack.set(p, r);
     if (!byCatName.has(cn)) byCatName.set(cn, r);
@@ -434,9 +436,9 @@ API.confirmBarcodePairs = async (C, token, payload) => {
         partner: v.partner || str(target.partner),
         cat: v.cat || str(target.cat) || BC_DEFCAT,
         name: v.name || str(target.name),
-        packBar: v.packBar || str(target.packBar),
-        unitBar: v.unitBar || str(target.unitBar),
-        perPack: v.perPack || str(target.perPack)
+        packBar: v.packBar || bcClean('packBar', target.packBar),
+        unitBar: v.unitBar || bcClean('unitBar', target.unitBar),
+        perPack: v.perPack !== '' ? v.perPack : str(target.perPack)
       };
       Object.assign(target, merged);
       toUpdate.set(target.id, [merged.id, merged.pos, merged.partner, merged.cat, merged.name, merged.packBar, merged.unitBar, merged.perPack]);
