@@ -454,7 +454,7 @@ function printSection(d) {
     return '<tr>' + x.v.map(function (v, j) { return '<td class="' + (sc.cols[j].k === 'name' ? 'nm' : '') + (sc.cols[j].text ? ' bc' : '') + '">' + esc(v) + '</td>'; }).join('') + '</tr>';
   }).join('') || '<tr><td colspan="' + n + '" style="text-align:center">ไม่มีรายการ</td></tr>';
   var stx = String(h.statusText || '');
-  if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts) {   /* ข้อความในชีตยังไม่มีเวลา -> เติมเวลาจากบันทึกล่าสุด ถ้าเป็นวันเดียวกัน */
+  if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts) {
     if (stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   }
   var top = '<div class="ptop">' +
@@ -467,7 +467,6 @@ function printSection(d) {
     headRows(sc) + '</thead><tbody>' + body + '</tbody></table>' +
     '<div class="foot">พิมพ์เมื่อ ' + fmt(nowMs()) + '</div></section>';
 }
-/* สร้าง PDF ที่เซิร์ฟเวอร์ (ไม่ขึ้นกับเบราว์เซอร์/ฟอนต์ของเครื่อง) แล้วเปิดเพื่อปริ้น */
 var pdfUrl = '';
 function pdfBlob(b64) {
   var bin = atob(b64), u = new Uint8Array(bin.length);
@@ -476,24 +475,22 @@ function pdfBlob(b64) {
 }
 function closePdf() { $('#pdfModal').classList.add('hidden'); if (pdfUrl) { URL.revokeObjectURL(pdfUrl); pdfUrl = ''; } }
 $('#pdfClose').addEventListener('click', closePdf);
-/* ============================ สร้าง PDF ในเบราว์เซอร์ (ไม่ต้องพึ่งเซิร์ฟเวอร์/ฟอนต์เครื่อง/ไลบรารีภายนอก) ============================
- * วาดแต่ละหน้า A4 ลง canvas (เบราว์เซอร์จัดวรรณยุกต์ไทยให้เอง) แล้วห่อเป็นไฟล์ PDF · หน้าตาเหมือนกันทุกเครื่อง */
-var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };   /* สัดส่วนความกว้างคอลัมน์ (%) */
+
+var PW = { no: 5, partner: 7.5, cat: 6, name: 19, perPack: 7, packBar: 14, qtyPack: 7.5, unitBar: 14, qtyUnit: 7.5, spread: 6.5, old: 6 };
 function pw(k) { return PW[k.k] || k.w; }
 var PDF_FONT_TAIL = "'Bai Jamjuree','TH Sarabun New','THSarabunNew','TH SarabunPSK','Sarabun','Leelawadee UI','Tahoma','Noto Sans Thai',sans-serif";
 var PRINT_FONT = 'Bai Jamjuree', PDF_FONT = "'Bai Jamjuree'," + PDF_FONT_TAIL;
-var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;   /* px ต่อ mm / px ต่อ pt */
-var PDF_W = 210, PDF_H = 297, PDF_M = 2;   /* A4 แนวตั้ง */
-var PDF_BODY = 10;                          /* ขนาดตัวอักษรในตาราง (pt) คงที่ ไม่ย่ออัตโนมัติ */
+var PDF_DPI = 200, PX = PDF_DPI / 25.4, PT = PDF_DPI / 72;
+var PDF_W = 210, PDF_H = 297, PDF_M = 2;
+var PDF_BODY = 10;
 var PDF_TOP = 14;
-var PDF_TIME = 10;                           /* ขนาดตัวอักษรนอกตาราง: ชื่อร้าน หัวเรื่อง ท้ายหน้า (pt) */
+var PDF_TIME = 10;
 var _seg = null;
 function thWords(s) {
   try { if (!_seg && window.Intl && Intl.Segmenter) _seg = new Intl.Segmenter('th', { granularity: 'word' }); } catch (e) {}
   if (_seg) return Array.from(_seg.segment(s), function (x) { return x.segment; });
   return String(s).split(/(\s+)/);
 }
-/* ตัดบรรทัดตามความกว้าง (px) — ตัดคำไทยได้ ถ้าคำเดียวยาวเกินช่องจะตัดกลางคำ */
 function wrapText(ctx, text, maxW) {
   text = String(text == null ? '' : text);
   var lines = [], cur = '';
@@ -517,14 +514,13 @@ function fitPt(ctx, lines, maxW, pt, bold) {
   while (pt > 6 && lines.some(function (t) { return ctx.measureText(t).width > maxW; })) { pt -= 0.5; pdfFont(ctx, pt, bold); }
   return pt;
 }
-function headSplit(t) {                      /* หัวคอลัมน์ไม่เกิน 3 บรรทัด: "จำนวน / ในระบบ / แพ็ค" (คอลัมน์แคบ เหลือที่ให้ชื่อรายการ) */
+function headSplit(t) {
   t = String(t);
   var m = /^จำนวน(ต่อ|ใน)?\s*(.+)$/.exec(t);
   if (m) { var r = m[2].split(/\s+/); if (m[1]) r[0] = m[1] + r[0]; return ['จำนวน'].concat(r); }
   return t === 'รหัสคู่ค้า' ? ['รหัส', 'คู่ค้า'] : [t];
 }
 
-/* ความกว้างคอลัมน์ (mm) ที่ 10pt: เลขบาร์/หัวตารางต้องไม่ถูกตัดหรือย่อ ที่เหลือให้คอลัมน์ชื่อรายการ */
 function fixedWidths(ctx, sc, rows, tw) {
   var PADMM = 1.5, n = sc.cols.length, need = [], hmin = [], nameJ = -1;
   sc.cols.forEach(function (k, j) {
@@ -533,17 +529,17 @@ function fixedWidths(ctx, sc, rows, tw) {
     var hd = Math.max.apply(null, headSplit(k.label).map(function (t) { return ctx.measureText(t).width; })) / PX + PADMM;
     pdfFont(ctx, PDF_BODY, false);
     var bd = 0; rows.forEach(function (x) { bd = Math.max(bd, ctx.measureText(String(x.v[j] == null ? '' : x.v[j])).width / PX + PADMM); });
-    hmin[j] = k.text ? hd : Math.max(hd, Math.min(bd, 18));   /* ห้ามย่อต่ำกว่าข้อมูลจริง (รหัสคู่ค้า/หมวดไม่ถูกตัดขึ้นบรรทัดใหม่) */
+    hmin[j] = k.text ? hd : Math.max(hd, Math.min(bd, 18));
     need[j] = k.text ? Math.max(hd, bd) : Math.max(hd, Math.min(bd, 18));
   });
-  [['spread', 'old'], ['qtyPack', 'qtyUnit']].forEach(function (g) {   /* คอลัมน์ชุดเดียวกันกว้างเท่ากัน */
+  [['spread', 'old'], ['qtyPack', 'qtyUnit']].forEach(function (g) {
     var js = [], mx = 0; sc.cols.forEach(function (k, j) { if (g.indexOf(k.k) >= 0) { js.push(j); mx = Math.max(mx, need[j]); hmin[j] = Math.max.apply(null, js.map(function (q) { return hmin[q]; })); } });
     js.forEach(function (j) { need[j] = mx; });
   });
   var NAME_MIN = 38, fixed = 0, sum;
   need.forEach(function (w, j) { if (j !== nameJ) fixed += w; });
   var nameW = nameJ >= 0 ? tw - fixed : 0;
-  if (nameJ >= 0 && nameW < NAME_MIN) {                              // ไม่พอ: ลดคอลัมน์ที่ไม่ใช่เลขบาร์ลงไม่เกินความกว้างหัวตาราง
+  if (nameJ >= 0 && nameW < NAME_MIN) {
     var slack = 0; need.forEach(function (w, j) { if (j !== nameJ && !sc.cols[j].text) slack += w - hmin[j]; });
     var cut = Math.min(slack, NAME_MIN - nameW);
     if (slack > 0) need.forEach(function (w, j) { if (j !== nameJ && !sc.cols[j].text) need[j] = w - (w - hmin[j]) / slack * cut; });
@@ -552,41 +548,37 @@ function fixedWidths(ctx, sc, rows, tw) {
   }
   if (nameJ >= 0) need[nameJ] = Math.max(nameW, 14);
   sum = need.reduce(function (a, b) { return a + b; }, 0);
-  if (sum > tw) {                                                    // ยังเกิน: ย่อเฉพาะคอลัมน์ที่ไม่ใช่เลขบาร์ (เลขบาร์ห้ามถูกตัด)
+  if (sum > tw) {
     var over = sum - tw, shr = 0;
     need.forEach(function (w, j) { if (!sc.cols[j].text) shr += w; });
     need.forEach(function (w, j) { if (!sc.cols[j].text) need[j] = w - over * w / shr; });
-  } else if (nameJ < 0 || sum < tw) {                                // เหลือ: เฉลี่ยให้ทุกคอลัมน์
+  } else if (nameJ < 0 || sum < tw) {
     need = need.map(function (w) { return w * tw / sum; });
   }
   return sc.cols.map(function (k, j) { return { k: k, w: need[j] }; });
 }
-/* จัดหน้า: คืนรายการหน้า {sec, rows:[{cells:[lines..], h}], first} */
+
 function layoutSection(ctx, d) {
   var c = S.cats.filter(function (x) { return x.sheet === d.sheet && x.cat === d.cat; })[0];
   var sc = schemaOfCat(c), h = d.header;
   var chosen = selectedPartners(), ip = sc.cols.map(function (k) { return k.k; }).indexOf('partner');
   var rows = d.rows.filter(function (x) { return !(chosen.length && chosen.indexOf(String(x.v[ip]).trim()) < 0); });
   var tw = PDF_W - PDF_M * 2;
-    var cols = fixedWidths(ctx, sc, rows, tw);
+  var cols = fixedWidths(ctx, sc, rows, tw);
   var padX = 0.7 * PX, LH = 0, MINH = 0;
-  /* หัวข้อด้านบน */
   var stx = String(h.statusText || '');
   if (stx && !/\d{1,2}:\d{2}/.test(stx) && d.last && d.last.ts && stx.indexOf(thDate(d.last.ts)) >= 0) stx += ' เวลา ' + thTime(d.last.ts) + ' น.';
   var topLines = {
     company: coName(h.company), hand: sc.handLines.map(handLbl).join('        '), status: stx,
     title: String(h.title || '') + (d.cat ? ' | หมวด ' + d.cat : '')
   };
-  var TOP_H = (h.company ? 9 : 0) + 8 + 8 + 10;                 /* mm */
-  var HEAD_H = 22;                                              /* mm หัวตาราง 2 แถว */
+  var TOP_H = (h.company ? 9 : 0) + 8 + 8 + 10;
+  var HEAD_H = 22;
   var FOOT_H = 10;
   var bodyTop1 = PDF_M + TOP_H + HEAD_H, bodyTopN = PDF_M + HEAD_H, bodyBot = PDF_H - PDF_M - FOOT_H;
-  /* ฟอนต์เลขบาร์: ใช้ขนาดเดียวกันทั้งตาราง (ย่อให้พอดีกับเลขที่ยาวที่สุด ไม่ให้ชนคอลัมน์ข้างเคียง) */
-  var bpt = PDF_BODY;   /* ขนาดคงที่ 10pt (ความกว้างคอลัมน์ปรับตามเลขบาร์แทน) */
-  /* ฟอนต์หัวตาราง: ขนาดเดียวกันทุกคอลัมน์ */
+  var bpt = PDF_BODY;
   var hpt = PDF_BODY;
   LH = bpt * 0.3528 * 1.25 * PX; MINH = Math.max(7 * PX, LH + 2.4 * PX);
-  /* วัดแต่ละแถว */
   var items = rows.map(function (x, ri) {
     var cells = x.v.map(function (v, j) {
       var k = cols[j].k, maxW = cols[j].w * PX - padX * 2;
@@ -620,7 +612,6 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
     ctx.fillText(L.top.status, x0, y + 4 * PX); y += 8 * PX;
     pdfFont(ctx, PDF_TOP, true); ctx.fillText(L.top.title, x0, y + 5 * PX); y += 10 * PX;
   }
-  /* หัวตาราง */
   var hy = y, h1 = 8 * PX, h2 = 14 * PX, hh = h1 + h2;
   var grp = {}; sc.groups.forEach(function (g) { for (var i = g.from; i <= g.to; i++) grp[i] = g; });
   var xs = [x0]; cols.forEach(function (c) { xs.push(xs[xs.length - 1] + c.w * PX); });
@@ -644,7 +635,6 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
       l2.forEach(function (t, i) { ctx.fillText(t, cx, hy + h1 + h2 / 2 + (i - (l2.length - 1) / 2) * L.hpt * 0.3528 * 1.25 * PX); });
     }
   });
-  /* เนื้อหา */
   if (L.empty) {
     var ey = hy + hh, eh = 10 * PX; ctx.strokeRect(x0, ey, xs[xs.length - 1] - x0, eh);
     ctx.fillStyle = '#000'; pdfFont(ctx, PDF_BODY, false); ctx.fillText('ไม่มีรายการ', (x0 + xs[xs.length - 1]) / 2, ey + eh / 2);
@@ -662,7 +652,6 @@ function drawPage(ctx, W, H, L, pg, pageNo, pageTotal, printedAt) {
       cell.lines.forEach(function (t, i) { ctx.fillText(t, tx, ty + it.h / 2 + (i - (n - 1) / 2) * LH); });
     });
   });
-  /* ท้ายหน้า */
   ctx.fillStyle = '#444'; pdfFont(ctx, PDF_TIME, false);
   ctx.textAlign = 'left'; ctx.fillText('พิมพ์เมื่อ ' + printedAt, x0, H - PDF_M * PX - 3 * PX);
 }
@@ -697,15 +686,14 @@ function pdfFromJpegs(jp) {
   push(x + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
   return new Blob(parts, { type: 'application/pdf' });
 }
-/* ฟอนต์ Bai Jamjuree: ใช้จากเครื่องถ้ามี ไม่งั้นโหลดจาก Google Fonts (ถ้าออฟไลน์จะใช้ฟอนต์ไทยสำรองของเครื่อง) */
 function fontInstalled(name) {
   var c = document.createElement('canvas').getContext('2d'), t = 'ทดสอบกขค็้ิ๊123';
   c.font = '40px monospace'; var a = c.measureText(t).width;
   c.font = '40px "' + name + '", monospace';
   return c.measureText(t).width !== a;
 }
-var PF_LOCAL = { 'TH Sarabun New': 1, 'Tahoma': 1 };   /* ฟอนต์ในเครื่อง ไม่โหลดจาก Google Fonts */
-function applyPrintFont(name) {                          /* ตั้งฟอนต์ปริ้นทั้งแบบ PDF (canvas) และแบบปริ้นจากเบราว์เซอร์ */
+var PF_LOCAL = { 'TH Sarabun New': 1, 'Tahoma': 1 };
+function applyPrintFont(name) {
   name = String(name || 'Bai Jamjuree').replace(/['"\\;{}<>]/g, '');
   PRINT_FONT = name;
   PDF_FONT = "'" + name + "'," + PDF_FONT_TAIL;
@@ -727,7 +715,7 @@ async function ensureThaiFont() {
     ]);
   } catch (e) {}
 }
-async function pfRender(font, list) {                    /* แถวเลือกฟอนต์ในแท็บปริ้น: Admin เปลี่ยนได้ ผู้ใช้อื่นเห็นเฉพาะที่ตั้งไว้ */
+async function pfRender(font, list) {
   var sel = $('#pFont'); if (!sel) return;
   if (list && !sel.options.length) sel.innerHTML = list.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join('');
   applyPrintFont(font); sel.value = PRINT_FONT;
@@ -889,11 +877,722 @@ $('#bcExpBtn').addEventListener('click', function () {
   });
 });
 
+/* ============================ จับคู่บาร์เดี่ยว / บาร์แพ็คจากชื่อที่คล้ายกัน ============================ */
+var PAIR_STATE = { pairs: [], unmatchedUnits: [], unmatchedPacks: [], nextId: 1 };
+
+function cleanBarcodeStr(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number' && Number.isFinite(v)) return String(Math.trunc(v));
+  var s = String(v).trim().replace(/^'+/, '').replace(/\s+/g, '');
+  if (/^\d+\.\d+e\+\d+$/i.test(s)) {
+    var n = Number(s);
+    if (Number.isFinite(n)) s = String(Math.round(n));
+  }
+  return s.slice(0, 60);
+}
+
+function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
+  var name = String(rawName == null ? '' : rawName).replace(/\s+/g, ' ').trim();
+  var unit = String(rawUnit == null ? '' : rawUnit).replace(/\s+/g, ' ').trim();
+  var perPack = String(rawPerPack == null ? '' : rawPerPack).replace(/\s+/g, '').trim();
+  var isPack = roleHint === 'pack' ? true : roleHint === 'unit' ? false : false;
+  var base = name;
+
+  // 1. Check explicit pack patterns with counts in name
+  var packRegexes = [
+    /(?:ยก)?(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด|ชุด|กล่องใหญ่|กล่อง|pack|box|case|ctn)\s*(?:ละ\s*)?(\d{1,4})\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ|เล่ม|แท่ง|ก้อน|หลอด|เม็ด|ด้าม|ใบ|ม้วน|กป\.?|ขวด)?/gi,
+    /(?:บรรจุ|ขนาดบรรจุ)\s*(\d{1,4})\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ|กป\.?)/gi,
+    /\(?\s*(?:1\s*[xX×*]\s*)?(\d{1,4})\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ)\s*\/\s*(?:แพ็ค|แพค|แพ็ก|กล่อง|ลัง|หิ้ว|มัด|ถาด|pack|box)\s*\)?/gi,
+    /\(\s*(?:แพ็ค|แพค|แพ็ก|ลัง|กล่อง|pack|box)\s*(\d{1,4})\s*\)/gi,
+    /(?:1\s*)?[xX×*]\s*(\d{1,3})(?:\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ|แพ็ค|แพค))?(?=$|[\s)])/g
+  ];
+
+  for (var i = 0; i < packRegexes.length; i++) {
+    base = base.replace(packRegexes[i], function (m, cnt) {
+      var n = Number(cnt);
+      if (n >= 2 && n <= 500) {
+        if (roleHint !== 'unit') isPack = true;
+        if (!perPack) perPack = String(n);
+        return ' ';
+      }
+      return m;
+    });
+  }
+
+  // 2. Check dozen (โหล)
+  base = base.replace(/(\d{1,2})\s*โหล/g, function (_, d) {
+    if (roleHint !== 'unit') isPack = true;
+    if (!perPack) perPack = String(Number(d) * 12);
+    return ' ';
+  });
+  if (/(?:ยกโหล|\(\s*โหล\s*\)|\sโหล$)/i.test(base)) {
+    if (roleHint !== 'unit') isPack = true;
+    if (!perPack) perPack = '12';
+    base = base.replace(/(?:ยกโหล|\(\s*โหล\s*\)|\sโหล$)/gi, ' ');
+  }
+
+  // 3. Check standalone pack keywords without number
+  if (/(?:ยกลัง|ยกแพ็ค|ยกแพค|ยกแพ็ก|ยกกล่อง|ยกถาด|ยกหิ้ว|ยกมัด|\(\s*(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด)\s*\)|(?:\s|^)(?:แพ็ค|แพค|แพ็ก|ยกลัง)(?:\s|$))/i.test(base)) {
+    if (roleHint !== 'unit') isPack = true;
+    base = base.replace(/(?:ยกลัง|ยกแพ็ค|ยกแพค|ยกแพ็ก|ยกกล่อง|ยกถาด|ยกหิ้ว|ยกมัด|\(\s*(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด)\s*\)|(?:\s|^)(?:แพ็ค|แพค|แพ็ก)(?:\s|$))/gi, ' ');
+  }
+
+  // 4. Check unit column if present
+  if (unit && roleHint !== 'unit') {
+    if (/^(?:แพ็ค|แพค|แพ็ก|ลัง|โหล|หิ้ว|มัด|ถาด|กล่องใหญ่|pack|box|case|ctn|dozen)$/i.test(unit)) {
+      isPack = true;
+      if (/โหล|dozen/i.test(unit) && !perPack) perPack = '12';
+    } else if (/^(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|ถุง|ห่อ|เล่ม|แท่ง|ก้อน|หลอด|ด้าม|ใบ|ม้วน|กป\.?|pcs?|unit|ea|bottle|can)$/i.test(unit) && roleHint !== 'pack') {
+      isPack = false;
+    }
+  }
+
+  var cleanName = base.replace(/\(\s*\)/g, ' ').replace(/\s+/g, ' ').replace(/[-–—/.,]+$/, '').trim() || name;
+
+  // Normalize measurement units for accurate comparison (e.g. 325 มล. == 325มล == 325ml)
+  var normMeasure = cleanName.toLowerCase()
+    .replace(/(\d+(?:\.\d+)?)\s*(?:มล\.?|มิลลิลิตร|ซีซี|ml\b|cc\b)\.?/gi, " $1ml ")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:ลิตร|ล\.|liter\b|ltr\b|l\b)\.?/gi, " $1l ")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:กรัม|ก\.|gram\b|gm\b|g\b)\.?/gi, " $1g ")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:กิโลกรัม|กก\.?|kg\b)\.?/gi, " $1kg ")
+    .replace(/(\d+(?:\.\d+)?)\s*(?:ออนซ์|oz\b)\.?/gi, " $1oz ");
+
+  var measureTokens = normMeasure.match(/\d+(?:\.\d+)?(?:ml|l|g|kg|oz)/g) || [];
+
+  // Strip generic container words at the end when building normalized base string for fuzzy matching
+  var normBase = normMeasure
+    .replace(/[()[\]{}.,/_*'"\-–—+]+/g, ' ')
+    .replace(/(?:ขวด|กระป๋อง|กป|ซอง|ถุง|ห่อ|กล่อง|ชิ้น|อัน|รส)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  var tokens = normBase ? normBase.split(' ').filter(Boolean) : [];
+  var compactBase = normBase.replace(/\s+/g, '');
+
+  return {
+    name: name,
+    cleanName: cleanName,
+    normBase: normBase || name.toLowerCase(),
+    compactBase: compactBase || name.toLowerCase().replace(/\s+/g, ''),
+    tokens: tokens,
+    measureTokens: measureTokens,
+    isPack: isPack,
+    perPack: perPack
+  };
+}
+
+function charBigramDice(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+  var map = Object.create(null);
+  var aCount = a.length - 1, bCount = b.length - 1;
+  for (var i = 0; i < aCount; i++) {
+    var bg = a.slice(i, i + 2);
+    map[bg] = (map[bg] || 0) + 1;
+  }
+  var inter = 0;
+  for (var j = 0; j < bCount; j++) {
+    var bg2 = b.slice(j, j + 2);
+    if (map[bg2] > 0) { inter++; map[bg2]--; }
+  }
+  return (2 * inter) / (aCount + bCount);
+}
+
+function tokenSetSimilarity(tA, tB) {
+  if (!tA.length || !tB.length) return 0;
+  var matchedA = 0, matchedB = 0;
+  for (var i = 0; i < tA.length; i++) {
+    var a = tA[i];
+    if (tB.some(function (b) { return b === a || (a.length >= 3 && b.length >= 3 && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0)); })) matchedA++;
+  }
+  for (var j = 0; j < tB.length; j++) {
+    var b = tB[j];
+    if (tA.some(function (a) { return a === b || (a.length >= 3 && b.length >= 3 && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0)); })) matchedB++;
+  }
+  return (matchedA + matchedB) / (tA.length + tB.length);
+}
+
+function computeBarcodeNameSimilarity(uItem, pItem) {
+  if (!uItem || !pItem) return 0;
+  if (uItem.barcode && pItem.barcode && uItem.barcode === pItem.barcode) return 0;
+
+  var a = uItem.info || analyzeBarcodeItemName(uItem.name, uItem.unit, uItem.perPack, 'unit');
+  var b = pItem.info || analyzeBarcodeItemName(pItem.name, pItem.unit, pItem.perPack, 'pack');
+
+  var score = 0;
+  if (a.compactBase && a.compactBase === b.compactBase) {
+    score = 0.98;
+  } else {
+    var dice = charBigramDice(a.compactBase, b.compactBase);
+    var tokSim = tokenSetSimilarity(a.tokens, b.tokens);
+    var prefixSim = 0;
+    var minLen = Math.min(a.compactBase.length, b.compactBase.length);
+    var maxLen = Math.max(a.compactBase.length, b.compactBase.length);
+    if (minLen >= 4 && (a.compactBase.indexOf(b.compactBase) === 0 || b.compactBase.indexOf(a.compactBase) === 0)) {
+      prefixSim = 0.78 + 0.20 * (minLen / maxLen);
+    } else if (minLen >= 5 && (a.compactBase.indexOf(b.compactBase) >= 0 || b.compactBase.indexOf(a.compactBase) >= 0)) {
+      prefixSim = 0.72 + 0.20 * (minLen / maxLen);
+    }
+    score = Math.max(dice * 0.58 + tokSim * 0.42, prefixSim);
+  }
+
+  // Check volume/weight consistency (e.g. 325ml vs 325ml -> bonus; 325ml vs 1.5l -> penalty)
+  if (a.measureTokens.length && b.measureTokens.length) {
+    var sameMeasure = a.measureTokens.some(function (m) { return b.measureTokens.indexOf(m) >= 0; });
+    if (sameMeasure) score += 0.05;
+    else score -= 0.28;
+  }
+
+  // Partner / Category bonus
+  if (uItem.partner && pItem.partner && uItem.partner === pItem.partner) score += 0.03;
+
+  var pct = Math.round(Math.max(0, Math.min(0.99, score)) * 100);
+  if (a.compactBase && a.compactBase === b.compactBase && pct < 96) pct = 98;
+  return pct;
+}
+
+function extractRawItemsFromSheet(grid, sheetName, roleHint, defaultCat) {
+  grid = Array.isArray(grid) ? grid : [];
+  var prePaired = [], singleRows = [];
+  if (!grid.length) return { prePaired: prePaired, singleRows: singleRows };
+
+  var hRow = -1, cols = {};
+  for (var r = 0; r < Math.min(grid.length, 25); r++) {
+    var row = grid[r] || [];
+    var cMap = {};
+    row.forEach(function (cell, c) {
+      var t = String(cell == null ? '' : cell).replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      if (cMap.perPack === undefined && /ต่อแพ็ค|ต่อแพค|บรรจุ|ขนาดบรรจุ|ตัวคูณ|per\s*pack|pack\s*size|qty/i.test(t)) cMap.perPack = c;
+      else if (cMap.packBar === undefined && /แพ็ค|แพค|pack|ลัง|กล่อง/i.test(t) && /บาร์|bar|รหัส|เลข|code/i.test(t)) cMap.packBar = c;
+      else if (cMap.unitBar === undefined && /เดี่ยว|เดียว|unit|single|ชิ้น|ย่อย/i.test(t) && /บาร์|bar|รหัส|เลข|code/i.test(t)) cMap.unitBar = c;
+      else if (cMap.barcode === undefined && /^(?:บาร์โค้ด|รหัสบาร์โค้ด|เลขบาร์โค้ด|เลขบาร์|บาร์|รหัสสินค้า|รหัสบาร์|รหัส|barcode|bar\s*code|item\s*code|product\s*code|plu|ean|sku|code)$/i.test(t)) cMap.barcode = c;
+      else if (cMap.name === undefined && /(?:ชื่อสินค้า|ชื่อรายการ|รายการสินค้า|^รายการ$|^ชื่อ$|สินค้า|รายละเอียด|product\s*name|item\s*name|^name$|description)/i.test(t)) cMap.name = c;
+      else if (cMap.unit === undefined && /^(?:หน่วย|หน่วยนับ|หน่วยขาย|unit|uom)$/i.test(t)) cMap.unit = c;
+      else if (cMap.partner === undefined && /(?:คู่ค้า|ซัพพลายเออร์|ผู้จำหน่าย|เจ้าหนี้|partner|vendor|supplier)/i.test(t)) cMap.partner = c;
+      else if (cMap.cat === undefined && /(?:หมวด|หมวดหมู่|กลุ่มสินค้า|ประเภท|category|group)/i.test(t)) cMap.cat = c;
+    });
+    if (cMap.name !== undefined && (cMap.barcode !== undefined || cMap.packBar !== undefined || cMap.unitBar !== undefined)) {
+      hRow = r;
+      cols = cMap;
+      break;
+    }
+  }
+
+  // Fallback headerless detection if columns weren't labeled with standard headers
+  if (hRow < 0) {
+    var sampleRows = grid.slice(0, Math.min(grid.length, 15)).filter(function (r) { return Array.isArray(r) && r.some(Boolean); });
+    if (sampleRows.length) {
+      var maxC = Math.max.apply(null, sampleRows.map(function (r) { return r.length; }));
+      var bcCol = -1, nameCol = -1, bestBcHits = 0, bestNameLen = 0;
+      for (var c = 0; c < maxC; c++) {
+        var bcHits = 0, totalLen = 0, textHits = 0;
+        sampleRows.forEach(function (r) {
+          var v = cleanBarcodeStr(r[c]);
+          var raw = String(r[c] == null ? '' : r[c]).trim();
+          if (/^\d{5,20}$/.test(v)) bcHits++;
+          else if (raw && /[ก-๙a-zA-Z]/.test(raw)) { textHits++; totalLen += raw.length; }
+        });
+        if (bcHits > bestBcHits) { bestBcHits = bcHits; bcCol = c; }
+        if (textHits > 0 && totalLen > bestNameLen && c !== bcCol) { bestNameLen = totalLen; nameCol = c; }
+      }
+      if (bcCol >= 0 && nameCol >= 0) {
+        hRow = -1;
+        cols = { barcode: bcCol, name: nameCol };
+      }
+    }
+  }
+
+  if (cols.name === undefined) return { prePaired: prePaired, singleRows: singleRows };
+
+  var sheetRole = roleHint || (/แพ็ค|แพค|ลัง|pack|box/i.test(sheetName) ? 'pack' : (/เดี่ยว|เดียว|ชิ้น|unit|single/i.test(sheetName) ? 'unit' : ''));
+  var fallbackCat = defaultCat || (sheetName && !/^sheet\d*$/i.test(sheetName) ? sheetName : '') || 'ไม่ระบุหมวด';
+  var lastCat = '';
+
+  for (var ri = hRow + 1; ri < grid.length; ri++) {
+    var g = grid[ri] || [];
+    var name = String(g[cols.name] == null ? '' : g[cols.name]).replace(/\s+/g, ' ').trim();
+    if (!name || /^(?:รวม|รวมทั้งสิ้น|ชื่อสินค้า|ชื่อรายการ)$/i.test(name)) continue;
+
+    var partner = cols.partner !== undefined ? String(g[cols.partner] == null ? '' : g[cols.partner]).trim() : '';
+    var cat = cols.cat !== undefined ? String(g[cols.cat] == null ? '' : g[cols.cat]).trim() : '';
+    if (cat) lastCat = cat;
+    else cat = lastCat || fallbackCat;
+    var unit = cols.unit !== undefined ? String(g[cols.unit] == null ? '' : g[cols.unit]).trim() : '';
+    var perPackRaw = cols.perPack !== undefined ? String(g[cols.perPack] == null ? '' : g[cols.perPack]).trim() : '';
+
+    var pBar = cols.packBar !== undefined ? cleanBarcodeStr(g[cols.packBar]) : '';
+    var uBar = cols.unitBar !== undefined ? cleanBarcodeStr(g[cols.unitBar]) : '';
+    var singleBar = cols.barcode !== undefined ? cleanBarcodeStr(g[cols.barcode]) : '';
+
+    if (pBar && uBar && pBar !== uBar) {
+      var info = analyzeBarcodeItemName(name, unit, perPackRaw, '');
+      prePaired.push({
+        similarity: 100,
+        unitSourceName: name,
+        packSourceName: name,
+        partner: partner,
+        cat: cat,
+        name: info.cleanName || name,
+        perPack: perPackRaw || info.perPack || '',
+        packBar: pBar,
+        unitBar: uBar
+      });
+    } else if (pBar && !uBar) {
+      var pInfo = analyzeBarcodeItemName(name, unit, perPackRaw, 'pack');
+      singleRows.push({ barcode: pBar, name: name, unit: unit, perPack: pInfo.perPack, partner: partner, cat: cat, isPack: true, info: pInfo });
+    } else if (uBar && !pBar) {
+      var uInfo = analyzeBarcodeItemName(name, unit, perPackRaw, 'unit');
+      singleRows.push({ barcode: uBar, name: name, unit: unit, perPack: uInfo.perPack, partner: partner, cat: cat, isPack: false, info: uInfo });
+    } else if (singleBar) {
+      var sInfo = analyzeBarcodeItemName(name, unit, perPackRaw, sheetRole);
+      singleRows.push({ barcode: singleBar, name: name, unit: unit, perPack: sInfo.perPack, partner: partner, cat: cat, isPack: sInfo.isPack, info: sInfo });
+    }
+  }
+
+  return { prePaired: prePaired, singleRows: singleRows };
+}
+
+function matchBarcodePairsFromSheets(sheets, options) {
+  options = options || {};
+  var minSim = Number(options.minSim) || 50;
+  var defaultCat = String(options.defaultCat || '').trim();
+  var existingRows = Array.isArray(options.existingRows) ? options.existingRows : [];
+
+  var prePaired = [];
+  var allSingle = [];
+  var seenBar = new Set();
+
+  (sheets || []).forEach(function (sh) {
+    var extracted = extractRawItemsFromSheet(sh.grid, sh.name || '', sh.roleHint || '', defaultCat);
+    extracted.prePaired.forEach(function (p) { prePaired.push(p); });
+    extracted.singleRows.forEach(function (r) {
+      var key = r.barcode + '|' + r.name;
+      if (seenBar.has(key)) return;
+      seenBar.add(key);
+      allSingle.push(r);
+    });
+  });
+
+  // Optionally include existing DB items that only have 1 barcode (either unitBar or packBar)
+  existingRows.forEach(function (x) {
+    var v = x.v || [];
+    var partner = String(v[1] || '').trim();
+    var cat = String(v[2] || '').trim();
+    var name = String(v[3] || '').trim();
+    var perPack = String(v[4] || '').trim();
+    var packBar = cleanBarcodeStr(v[5]);
+    var unitBar = cleanBarcodeStr(v[7]);
+    if (!name) return;
+    if (unitBar && !packBar) {
+      var uInfo = analyzeBarcodeItemName(name, '', perPack, 'unit');
+      allSingle.push({ barcode: unitBar, name: name, unit: '', perPack: perPack, partner: partner, cat: cat, isPack: false, fromDb: true, info: uInfo });
+    } else if (packBar && !unitBar) {
+      var pInfo = analyzeBarcodeItemName(name, '', perPack, 'pack');
+      allSingle.push({ barcode: packBar, name: name, unit: '', perPack: perPack || pInfo.perPack, partner: partner, cat: cat, isPack: true, fromDb: true, info: pInfo });
+    }
+  });
+
+  var unitPool = allSingle.filter(function (x) { return !x.isPack; });
+  var packPool = allSingle.filter(function (x) { return x.isPack; });
+
+  var candidates = [];
+  for (var i = 0; i < unitPool.length; i++) {
+    for (var j = 0; j < packPool.length; j++) {
+      var u = unitPool[i], p = packPool[j];
+      if (u.fromDb && p.fromDb) continue;
+      if (u.barcode === p.barcode) continue;
+      var sim = computeBarcodeNameSimilarity(u, p);
+      if (sim >= minSim) {
+        candidates.push({ uIdx: i, pIdx: j, sim: sim });
+      }
+    }
+  }
+
+  candidates.sort(function (a, b) { return b.sim - a.sim; });
+
+  var usedUnit = new Set(), usedPack = new Set();
+  var pairs = [];
+  var seq = 1;
+
+  prePaired.forEach(function (pp) {
+    pairs.push({
+      id: 'pair_' + (seq++),
+      selected: true,
+      saved: false,
+      similarity: pp.similarity,
+      unitSourceName: pp.unitSourceName,
+      packSourceName: pp.packSourceName,
+      partner: pp.partner,
+      cat: defaultCat || pp.cat || 'ไม่ระบุหมวด',
+      name: pp.name,
+      perPack: pp.perPack,
+      packBar: pp.packBar,
+      unitBar: pp.unitBar
+    });
+  });
+
+  candidates.forEach(function (c) {
+    if (usedUnit.has(c.uIdx) || usedPack.has(c.pIdx)) return;
+    usedUnit.add(c.uIdx);
+    usedPack.add(c.pIdx);
+    var u = unitPool[c.uIdx], p = packPool[c.pIdx];
+    pairs.push({
+      id: 'pair_' + (seq++),
+      selected: c.sim >= 60,
+      saved: false,
+      similarity: c.sim,
+      unitSourceName: u.name + (u.fromDb ? ' (ในระบบ)' : ''),
+      packSourceName: p.name + (p.fromDb ? ' (ในระบบ)' : ''),
+      partner: u.partner || p.partner || '',
+      cat: defaultCat || (u.cat && u.cat !== 'ไม่ระบุหมวด' ? u.cat : '') || (p.cat && p.cat !== 'ไม่ระบุหมวด' ? p.cat : '') || 'ไม่ระบุหมวด',
+      name: u.info.cleanName || u.name,
+      perPack: p.perPack || p.info.perPack || u.perPack || '',
+      packBar: p.barcode,
+      unitBar: u.barcode
+    });
+  });
+
+  // Fallback pass: among remaining unmatched unitPool items from the uploaded file, pair items with high name similarity (>= Math.max(minSim, 68))
+  var remUnits = [];
+  unitPool.forEach(function (u, idx) { if (!usedUnit.has(idx)) remUnits.push({ item: u, origIdx: idx }); });
+
+  var remCandidates = [];
+  for (var a = 0; a < remUnits.length; a++) {
+    for (var b = a + 1; b < remUnits.length; b++) {
+      var ia = remUnits[a].item, ib = remUnits[b].item;
+      if (ia.fromDb && ib.fromDb) continue;
+      if (ia.barcode === ib.barcode) continue;
+      var sim2 = computeBarcodeNameSimilarity(ia, ib);
+      if (sim2 >= Math.max(minSim, 68)) {
+        remCandidates.push({ a: a, b: b, sim: sim2 });
+      }
+    }
+  }
+  remCandidates.sort(function (x, y) { return y.sim - x.sim; });
+  var usedRem = new Set();
+  remCandidates.forEach(function (rc) {
+    if (usedRem.has(rc.a) || usedRem.has(rc.b)) return;
+    usedRem.add(rc.a);
+    usedRem.add(rc.b);
+    usedUnit.add(remUnits[rc.a].origIdx);
+    usedUnit.add(remUnits[rc.b].origIdx);
+    var first = remUnits[rc.a].item, second = remUnits[rc.b].item;
+    // Heuristic: item with perPack or longer name is treated as pack
+    var u = first, p = second;
+    if ((first.perPack && !second.perPack) || (first.name.length > second.name.length + 2)) {
+      u = second; p = first;
+    }
+    pairs.push({
+      id: 'pair_' + (seq++),
+      selected: rc.sim >= 75,
+      saved: false,
+      similarity: rc.sim,
+      unitSourceName: u.name + (u.fromDb ? ' (ในระบบ)' : ''),
+      packSourceName: p.name + (p.fromDb ? ' (ในระบบ)' : ''),
+      partner: u.partner || p.partner || '',
+      cat: defaultCat || (u.cat && u.cat !== 'ไม่ระบุหมวด' ? u.cat : '') || (p.cat && p.cat !== 'ไม่ระบุหมวด' ? p.cat : '') || 'ไม่ระบุหมวด',
+      name: u.info.cleanName || u.name,
+      perPack: p.perPack || p.info.perPack || u.perPack || '',
+      packBar: p.barcode,
+      unitBar: u.barcode
+    });
+  });
+
+  var unmatchedUnits = unitPool.filter(function (_, idx) { return !usedUnit.has(idx); });
+  var unmatchedPacks = packPool.filter(function (_, idx) { return !usedPack.has(idx); });
+
+  return { pairs: pairs, unmatchedUnits: unmatchedUnits, unmatchedPacks: unmatchedPacks };
+}
+
+function readWorkbookSheetsFromFile(file, roleHint) {
+  return new Promise(function (resolve, reject) {
+    var fr = new FileReader();
+    fr.onerror = function () { reject(new Error('อ่านไฟล์ ' + file.name + ' ไม่ได้')); };
+    fr.onload = function () {
+      try {
+        var wb = XLSX.read(fr.result, { type: 'array', dense: true, cellStyles: false, cellFormula: false, cellHTML: false });
+        var sheets = wb.SheetNames.map(function (n) {
+          var g = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' });
+          delete wb.Sheets[n];
+          return { name: n, grid: g, roleHint: roleHint || '' };
+        });
+        resolve(sheets);
+      } catch (e) {
+        reject(new Error('อ่านไฟล์ Excel ไม่สำเร็จ: ' + e.message));
+      }
+    };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+function renderPairTable() {
+  var card = $('#bcPairResultCard'), manualCard = $('#bcPairManualCard');
+  if (!card) return;
+  var pairs = PAIR_STATE.pairs || [];
+  if (!pairs.length && !PAIR_STATE.unmatchedUnits.length && !PAIR_STATE.unmatchedPacks.length) {
+    card.classList.add('hidden');
+    if (manualCard) manualCard.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  var q = ($('#bcPairSearch') ? $('#bcPairSearch').value : '').trim().toLowerCase();
+  var visible = pairs.filter(function (p) {
+    if (!q) return true;
+    return [p.name, p.unitSourceName, p.packSourceName, p.packBar, p.unitBar, p.cat, p.partner].join(' ').toLowerCase().indexOf(q) >= 0;
+  });
+
+  var activePairs = pairs.filter(function (p) { return !p.saved; });
+  var selectedPairs = activePairs.filter(function (p) { return p.selected; });
+  var savedCount = pairs.length - activePairs.length;
+
+  $('#bcPairSummaryText').textContent =
+    'พบคู่ชื่อคล้ายกันทั้งหมด ' + pairs.length + ' คู่ · เลือกเตรียมยืนยัน ' + selectedPairs.length + ' คู่' +
+    (savedCount ? ' · บันทึกเข้าระบบแล้ว ' + savedCount + ' คู่' : '');
+
+  var confirmBtn = $('#bcPairConfirmSelectedBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = selectedPairs.length === 0;
+    confirmBtn.textContent = 'ยืนยันคู่ที่เลือกเข้าสู่ระบบ (' + selectedPairs.length + ' คู่)';
+  }
+
+  $('#bcPairTbody').innerHTML = visible.length ? visible.map(function (p) {
+    var simCls = p.similarity >= 80 ? 'high' : p.similarity >= 65 ? 'med' : 'low';
+    var simLabel = p.similarity >= 80 ? 'ตรงกันมาก' : p.similarity >= 65 ? 'คล้ายกัน' : 'ตรวจสอบ';
+    return '<tr data-pair-id="' + esc(p.id) + '" class="' + (p.saved ? 'pair-saved' : '') + '">' +
+      '<td style="text-align:center"><input type="checkbox" class="pair-sel-chk" data-pair-act="check"' + (p.selected ? ' checked' : '') + (p.saved ? ' disabled' : '') + ' aria-label="เลือกคู่ ' + esc(p.name) + '"></td>' +
+      '<td style="text-align:center"><span class="pair-sim-badge ' + simCls + '">' + p.similarity + '%<small>' + simLabel + '</small></span></td>' +
+      '<td><div class="pair-compare">' +
+        '<div class="pair-compare-line"><span class="pair-compare-tag unit">เดี่ยว</span><span>' + esc(p.unitSourceName) + '</span> <span class="pair-compare-code">(' + esc(p.unitBar || '–') + ')</span></div>' +
+        '<div class="pair-compare-line"><span class="pair-compare-tag pack">แพ็ค</span><span>' + esc(p.packSourceName) + '</span> <span class="pair-compare-code">(' + esc(p.packBar || '–') + ')</span></div>' +
+      '</div></td>' +
+      '<td style="text-align:center"><button type="button" class="btn ghost small" data-pair-act="swap"' + (p.saved ? ' disabled' : '') + ' title="สลับฝั่งบาร์เดี่ยวกับบาร์แพ็ค">⇄</button></td>' +
+      '<td><input type="text" data-pair-field="partner" value="' + esc(p.partner) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="คู่ค้า"></td>' +
+      '<td><input type="text" data-pair-field="cat" list="dlCats" value="' + esc(p.cat) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="หมวด"></td>' +
+      '<td><input type="text" data-pair-field="name" value="' + esc(p.name) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="ชื่อรายการ"></td>' +
+      '<td><input type="text" data-pair-field="perPack" value="' + esc(p.perPack) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="เช่น 6, 12"></td>' +
+      '<td><input type="text" class="code-inp" data-pair-field="packBar" value="' + esc(p.packBar) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="เลขบาร์แพ็ค"></td>' +
+      '<td><input type="text" class="code-inp" data-pair-field="unitBar" value="' + esc(p.unitBar) + '"' + (p.saved ? ' disabled' : '') + ' placeholder="เลขบาร์เดี่ยว"></td>' +
+      '<td class="act"><div class="actw">' +
+        (p.saved
+          ? '<span style="color:var(--ok);font-weight:700">บันทึกแล้ว ✓</span>'
+          : '<button type="button" class="btn small" data-pair-act="confirm-one">ยืนยันคู่นี้</button><button type="button" class="btn danger small" data-pair-act="remove">ตัดออก</button>') +
+      '</div></td>' +
+    '</tr>';
+  }).join('') : '<tr><td colspan="11" class="empty">ไม่พบคู่รายการตามคำค้นหา</td></tr>';
+
+  // Render manual pairing section if there are unmatched items
+  if (manualCard) {
+    var uList = PAIR_STATE.unmatchedUnits || [];
+    var pList = PAIR_STATE.unmatchedPacks || [];
+    if (uList.length || pList.length) {
+      manualCard.classList.remove('hidden');
+      $('#bcPairUnmatchedCount').textContent = 'รายการที่ยังไม่ถูกจับคู่: ฝั่งบาร์เดี่ยว ' + uList.length + ' รายการ · ฝั่งบาร์แพ็ค ' + pList.length + ' รายการ';
+      var allPool = uList.concat(pList);
+      var uOpts = (uList.length ? uList : allPool).map(function (it, idx) {
+        return '<option value="' + idx + '">' + esc(it.name) + ' (' + esc(it.barcode) + ')</option>';
+      }).join('');
+      var pOpts = (pList.length ? pList : allPool).map(function (it, idx) {
+        return '<option value="' + idx + '">' + esc(it.name) + ' (' + esc(it.barcode) + ')</option>';
+      }).join('');
+      $('#bcPairManualUnit').innerHTML = uOpts || '<option value="">-- ไม่มีรายการ --</option>';
+      $('#bcPairManualPack').innerHTML = pOpts || '<option value="">-- ไม่มีรายการ --</option>';
+    } else {
+      manualCard.classList.add('hidden');
+    }
+  }
+}
+
+async function confirmAndSavePairItems(pairObjs) {
+  if (!pairObjs || !pairObjs.length) {
+    toast('กรุณาเลือกคู่ที่ต้องการยืนยันอย่างน้อย 1 คู่', true);
+    return;
+  }
+  for (var i = 0; i < pairObjs.length; i++) {
+    var p = pairObjs[i];
+    if (!String(p.name || '').trim()) {
+      toast('กรุณากรอกชื่อรายการที่จะบันทึกให้ครบถ้วน', true);
+      return;
+    }
+    if (!String(p.packBar || '').trim() && !String(p.unitBar || '').trim()) {
+      toast('รายการ "' + p.name + '" ต้องมีเลขบาร์แพ็คหรือเลขบาร์เดี่ยว', true);
+      return;
+    }
+  }
+  var payload = pairObjs.map(function (p) {
+    return {
+      partner: String(p.partner || '').trim(),
+      cat: String(p.cat || '').trim() || ($('#bcPairDefCat') && $('#bcPairDefCat').value.trim()) || 'ไม่ระบุหมวด',
+      name: String(p.name || '').trim(),
+      perPack: String(p.perPack || '').trim(),
+      packBar: String(p.packBar || '').trim(),
+      unitBar: String(p.unitBar || '').trim()
+    };
+  });
+  var res = await withSaving(call('confirmBarcodePairs', { pairs: payload }));
+  BC_BK = res.backups || BC_BK;
+  bcBkRender();
+  pairObjs.forEach(function (p) { p.saved = true; p.selected = false; });
+  renderPairTable();
+  toast('ยืนยันบันทึกคู่บาร์เดี่ยว/แพ็คสำเร็จ ' + res.count + ' คู่ (เพิ่มใหม่ ' + res.created + ' · อัปเดต ' + res.updated + ')');
+  await refreshCats();
+  if (S.cur) await selectCat(S.cur);
+}
+
+if ($('#btnOpenPairTab')) {
+  $('#btnOpenPairTab').addEventListener('click', function () { switchTab('pair'); });
+}
+if ($('#bcPairFile')) {
+  $('#bcPairFile').addEventListener('change', function () {
+    $('#bcPairAnalyzeBtn').disabled = !this.files.length;
+  });
+}
+if ($('#bcPairAnalyzeBtn')) {
+  $('#bcPairAnalyzeBtn').addEventListener('click', function () {
+    var f1 = $('#bcPairFile').files && $('#bcPairFile').files[0];
+    var f2 = $('#bcPairPackFile') && $('#bcPairPackFile').files && $('#bcPairPackFile').files[0];
+    if (!f1) { toast('กรุณาเลือกไฟล์รายการสินค้าก่อน', true); return; }
+    if (typeof XLSX === 'undefined') { toast('โหลดตัวอ่าน Excel ไม่สำเร็จ กรุณารีเฟรชหน้านี้', true); return; }
+    busy(this, async function () {
+      var sheets1 = await readWorkbookSheetsFromFile(f1, f2 ? 'unit' : '');
+      var sheets2 = f2 ? await readWorkbookSheetsFromFile(f2, 'pack') : [];
+      var allSheets = sheets1.concat(sheets2);
+
+      var existingRows = [];
+      if ($('#bcPairWithDb') && $('#bcPairWithDb').checked) {
+        try {
+          var dbAll = (S.data && curCat() && curCat().all) ? S.data : await call('getCategoryData', allCat().sheet, '*');
+          existingRows = (dbAll && dbAll.rows) || [];
+        } catch (_) {}
+      }
+
+      var minSim = Number($('#bcPairMinSim') ? $('#bcPairMinSim').value : 50) || 50;
+      var defCat = ($('#bcPairDefCat') ? $('#bcPairDefCat').value : '').trim() || (curCat() && !curCat().all ? curCat().cat : '');
+      var result = matchBarcodePairsFromSheets(allSheets, { minSim: minSim, defaultCat: defCat, existingRows: existingRows });
+      PAIR_STATE.pairs = result.pairs;
+      PAIR_STATE.unmatchedUnits = result.unmatchedUnits;
+      PAIR_STATE.unmatchedPacks = result.unmatchedPacks;
+      PAIR_STATE.nextId = result.pairs.length + 1;
+      renderPairTable();
+      if (!result.pairs.length) {
+        toast('ไม่พบคู่ที่มีความคล้ายตั้งแต่ ' + minSim + '% ขึ้นไป (ลองลดเปอร์เซ็นต์ความคล้ายขั้นต่ำ หรือจับคู่ด้วยตนเองด้านล่าง)', true);
+      } else {
+        toast('พบคู่บาร์เดี่ยว/บาร์แพ็คที่ชื่อคล้ายกัน ' + result.pairs.length + ' คู่ กรุณาตรวจสอบและกดยืนยัน');
+      }
+    });
+  });
+}
+if ($('#bcPairSearch')) {
+  $('#bcPairSearch').addEventListener('input', renderPairTable);
+}
+if ($('#bcPairSelectAllBtn')) {
+  $('#bcPairSelectAllBtn').addEventListener('click', function () {
+    (PAIR_STATE.pairs || []).forEach(function (p) { if (!p.saved) p.selected = true; });
+    renderPairTable();
+  });
+}
+if ($('#bcPairSelectHighBtn')) {
+  $('#bcPairSelectHighBtn').addEventListener('click', function () {
+    (PAIR_STATE.pairs || []).forEach(function (p) { if (!p.saved) p.selected = p.similarity >= 70; });
+    renderPairTable();
+  });
+}
+if ($('#bcPairClearSelBtn')) {
+  $('#bcPairClearSelBtn').addEventListener('click', function () {
+    (PAIR_STATE.pairs || []).forEach(function (p) { p.selected = false; });
+    renderPairTable();
+  });
+}
+if ($('#bcPairConfirmSelectedBtn')) {
+  $('#bcPairConfirmSelectedBtn').addEventListener('click', function () {
+    var chosen = (PAIR_STATE.pairs || []).filter(function (p) { return !p.saved && p.selected; });
+    if (!chosen.length) { toast('กรุณาติ๊กเลือกคู่ที่ต้องการยืนยันอย่างน้อย 1 คู่', true); return; }
+    busy(this, function () { return confirmAndSavePairItems(chosen); });
+  });
+}
+if ($('#bcPairTbody')) {
+  $('#bcPairTbody').addEventListener('input', function (e) {
+    var inp = e.target.closest('input[data-pair-field]');
+    if (!inp) return;
+    var tr = inp.closest('tr[data-pair-id]');
+    if (!tr) return;
+    var item = (PAIR_STATE.pairs || []).filter(function (p) { return p.id === tr.dataset.pairId; })[0];
+    if (item && !item.saved) item[inp.dataset.pairField] = inp.value;
+  });
+  $('#bcPairTbody').addEventListener('change', function (e) {
+    var chk = e.target.closest('input[data-pair-act="check"]');
+    if (!chk) return;
+    var tr = chk.closest('tr[data-pair-id]');
+    if (!tr) return;
+    var item = (PAIR_STATE.pairs || []).filter(function (p) { return p.id === tr.dataset.pairId; })[0];
+    if (item && !item.saved) {
+      item.selected = chk.checked;
+      renderPairTable();
+    }
+  });
+  $('#bcPairTbody').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-pair-act]');
+    if (!btn) return;
+    var tr = btn.closest('tr[data-pair-id]');
+    if (!tr) return;
+    var item = (PAIR_STATE.pairs || []).filter(function (p) { return p.id === tr.dataset.pairId; })[0];
+    if (!item || item.saved) return;
+    var act = btn.dataset.pairAct;
+    if (act === 'swap') {
+      var tmpBar = item.unitBar; item.unitBar = item.packBar; item.packBar = tmpBar;
+      var tmpNm = item.unitSourceName; item.unitSourceName = item.packSourceName; item.packSourceName = tmpNm;
+      renderPairTable();
+    } else if (act === 'remove') {
+      PAIR_STATE.pairs = PAIR_STATE.pairs.filter(function (p) { return p.id !== item.id; });
+      renderPairTable();
+    } else if (act === 'confirm-one') {
+      busy(btn, function () { return confirmAndSavePairItems([item]); });
+    }
+  });
+}
+if ($('#bcPairManualAddBtn')) {
+  $('#bcPairManualAddBtn').addEventListener('click', function () {
+    var uList = PAIR_STATE.unmatchedUnits.length ? PAIR_STATE.unmatchedUnits : PAIR_STATE.unmatchedUnits.concat(PAIR_STATE.unmatchedPacks);
+    var pList = PAIR_STATE.unmatchedPacks.length ? PAIR_STATE.unmatchedPacks : PAIR_STATE.unmatchedUnits.concat(PAIR_STATE.unmatchedPacks);
+    var uIdx = Number($('#bcPairManualUnit').value);
+    var pIdx = Number($('#bcPairManualPack').value);
+    var u = uList[uIdx], p = pList[pIdx];
+    if (!u || !p) { toast('กรุณาเลือกรายการทั้งฝั่งบาร์เดี่ยวและฝั่งบาร์แพ็ค', true); return; }
+    if (u.barcode === p.barcode) { toast('เลขบาร์เดี่ยวและเลขบาร์แพ็คต้องไม่ซ้ำกัน', true); return; }
+    var sim = computeBarcodeNameSimilarity(u, p);
+    var defCat = ($('#bcPairDefCat') ? $('#bcPairDefCat').value : '').trim() || (curCat() && !curCat().all ? curCat().cat : '');
+    PAIR_STATE.pairs.unshift({
+      id: 'pair_manual_' + (PAIR_STATE.nextId++),
+      selected: true,
+      saved: false,
+      similarity: sim || 100,
+      unitSourceName: u.name,
+      packSourceName: p.name,
+      partner: u.partner || p.partner || '',
+      cat: defCat || u.cat || p.cat || 'ไม่ระบุหมวด',
+      name: (u.info && u.info.cleanName) || u.name,
+      perPack: p.perPack || (p.info && p.info.perPack) || u.perPack || '',
+      packBar: p.barcode,
+      unitBar: u.barcode
+    });
+    PAIR_STATE.unmatchedUnits = PAIR_STATE.unmatchedUnits.filter(function (x) { return x !== u && x !== p; });
+    PAIR_STATE.unmatchedPacks = PAIR_STATE.unmatchedPacks.filter(function (x) { return x !== u && x !== p; });
+    renderPairTable();
+    toast('เพิ่มคู่รายการลงในตารางตรวจสอบด้านบนแล้ว');
+  });
+}
+
+if (typeof window !== 'undefined') {
+  Object.assign(window, { analyzeBarcodeItemName: analyzeBarcodeItemName, computeBarcodeNameSimilarity: computeBarcodeNameSimilarity, matchBarcodePairsFromSheets: matchBarcodePairsFromSheets });
+}
+
 /* ============================ ประวัติ / แท็บ ============================ */
 function switchTab(t) {
   if (S.me && S.me.role !== 'admin' && t !== 'print') t = 'print';
   document.querySelectorAll('.tab').forEach(function (x) { var on=x.dataset.t===t;x.classList.toggle('on',on);x.setAttribute('aria-selected',String(on));x.tabIndex=on?0:-1; });
-  ['data', 'manage', 'print'].forEach(function (k) { $('#v-' + k).classList.toggle('hidden', k !== t); });
+  ['data', 'manage', 'pair', 'print'].forEach(function (k) { if ($('#v-' + k)) $('#v-' + k).classList.toggle('hidden', k !== t); });
   if (t === 'print') renderPrintList();
 }
 document.querySelector('.tabs').addEventListener('click', function (e) {
@@ -922,7 +1621,7 @@ async function openBarcode() {
   $('#me').textContent = me.name + ' (' + (me.role === 'admin' ? 'Admin' : 'ผู้ใช้งาน') + ')';
   var admin = me.role === 'admin';
   document.querySelectorAll('.tab').forEach(function (t) {
-    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data' || t.dataset.t === 'manage'));
+    t.classList.toggle('hidden', !admin && (t.dataset.t === 'data' || t.dataset.t === 'manage' || t.dataset.t === 'pair'));
   });
   $('.layout').classList.toggle('single', !admin);
   $('aside').classList.toggle('hidden', !admin);

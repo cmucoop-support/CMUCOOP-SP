@@ -6,7 +6,7 @@ for (const name of Object.keys(API).filter(k => k.startsWith('stock'))) {
   API[name] = (C, ...args) => C.guard && C.guard.scope === 'stock' ? fn(C, ...args) : wrapped(C, ...args);
 }
 
-for (const name of ['addItem','editItem','deleteItem','createCategory','importBarcodeData','barcodeRestore']) API[name] = guardedApi(API[name], 'barcode');
+for (const name of ['addItem','editItem','deleteItem','createCategory','importBarcodeData','barcodeRestore','confirmBarcodePairs']) API[name] = guardedApi(API[name], 'barcode');
 
 for (const name of ['getInit','getCategoryData']) API[name] = guardedApi(API[name], 'barcode', true);
 

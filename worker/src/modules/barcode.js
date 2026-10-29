@@ -119,7 +119,6 @@ API.addItem = async (C, token, sheet, catArg, item, force) => {
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items WHERE cat=?', v.cat);
   if (!a || a.p == null) a = await one(C, 'SELECT MAX(pos) AS p FROM barcode_items');
   const at = ((a && a.p) || 0) + 1;
-  // เลื่อนลำดับเฉพาะภายในหมวดเดียวกันเมื่อแทรกต่อจากคู่ค้า ไม่เลื่อนข้ามหมวดอื่นทั้งตาราง
   const ops = [];
   if (shiftInCat) ops.push(stmt(C, 'UPDATE barcode_items SET pos=pos+1 WHERE cat=? AND pos>=?', v.cat, at));
   ops.push(
@@ -153,7 +152,7 @@ API.deleteItem = async (C, token, sheet, row, name, expectedRevision) => {
   const cur = await one(C, 'SELECT * FROM barcode_items WHERE id=?', Number(row) || 0);
   if (!cur || str(cur.name) !== str(name) || (expectedRevision !== undefined && cur.ts !== expectedRevision)) throw new Error('ข้อมูลเปลี่ยนไปแล้ว กรุณาโหลดใหม่ก่อนลบ');
   await batch(C, [stmt(C, 'DELETE FROM barcode_items WHERE id=?', cur.id),
-    stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM barcode_items WHERE cat=?)', cur.cat, cur.cat)]);   // หมวดว่างยังอยู่
+    stmt(C, 'INSERT OR IGNORE INTO barcode_cats(cat) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM barcode_items WHERE cat=?)', cur.cat, cur.cat)]);
   await bcLog(C, me, str(cur.cat), 'ลบรายการ', str(cur.name) + (cur.packBar ? ' · แพ็ค ' + cur.packBar : '') + (cur.unitBar ? ' · เดี่ยว ' + cur.unitBar : ''));
   return { ok: true };
 };
@@ -176,7 +175,6 @@ async function bcSnapshot(C, why) {
   const hash = await sha256hex(rowsJson + '\n' + JSON.stringify(catsList));
   const latest = await one(C, 'SELECT hash FROM backups WHERE kind=? ORDER BY id DESC LIMIT 1', 'barcode');
   if (latest && latest.hash === hash) return bcBackups(C);
-  // บันทึกสำเนาเป็นก้อน JSON (chunks) แทนการคัดลอกทีละแถว เพื่อประหยัดโควตา Row Write ของ D1 กว่า 1,000 เท่า
   const chunks = [];
   for (let i = 0; i < rowsJson.length; i += 240000) chunks.push([chunks.length, rowsJson.slice(i, i + 240000)]);
   const ops = [
@@ -322,6 +320,106 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
   await bcApplyItems(C, me.name, add, [], replace, start);
   await bcLog(C, me, '', 'นำเข้าจาก Excel', (replace ? 'แทนที่ทั้งหมด' : 'เพิ่มต่อท้าย') + ' · ' + add.length + ' รายการ' + (dup ? ' · ข้ามซ้ำ ' + dup : ''));
   return { ok: true, count: add.length, duplicates: dup, notes, backups: await bcBackups(C) };
+};
+
+API.confirmBarcodePairs = async (C, token, payload) => {
+  const me = await auth(C, token, true);
+  const rawPairs = Array.isArray(payload) ? payload : (payload && Array.isArray(payload.pairs) ? payload.pairs : []);
+  if (!rawPairs.length) throw new Error('กรุณาเลือกรายการคู่บาร์เดี่ยว/บาร์แพ็คที่ต้องการยืนยันอย่างน้อย 1 คู่');
+  if (rawPairs.length > 10000) throw new Error('ยืนยันได้ครั้งละไม่เกิน 10,000 คู่');
+
+  const validPairs = [];
+  for (let i = 0; i < rawPairs.length; i++) {
+    const v = bcVals(rawPairs[i] || {});
+    v.cat = v.cat || BC_DEFCAT;
+    if (!v.name) throw new Error('คู่ที่ ' + (i + 1) + ': กรุณากรอกชื่อรายการ');
+    if (!v.packBar && !v.unitBar) throw new Error('คู่ที่ ' + (i + 1) + ' (' + v.name + '): ต้องมีเลขบาร์แพ็คหรือเลขบาร์เดี่ยว');
+    validPairs.push(v);
+  }
+
+  await bcSnapshot(C, 'ก่อนยืนยันจับคู่บาร์เดี่ยว/แพ็ค');
+
+  const existing = await all(C, 'SELECT id,pos,partner,cat,name,packBar,unitBar,perPack FROM barcode_items ORDER BY pos,id');
+  const byUnit = new Map(), byPack = new Map(), byCatName = new Map();
+  let maxPos = 0;
+  existing.forEach(r => {
+    if (r.pos > maxPos) maxPos = r.pos;
+    const u = str(r.unitBar), p = str(r.packBar), cn = str(r.cat) + '\u0001' + str(r.name).toLowerCase();
+    if (u && !byUnit.has(u)) byUnit.set(u, r);
+    if (p && !byPack.has(p)) byPack.set(p, r);
+    if (!byCatName.has(cn)) byCatName.set(cn, r);
+  });
+
+  const toUpdate = new Map();
+  const toInsert = [];
+  const toDeleteIds = new Set();
+  const touchedCats = new Set();
+
+  for (const v of validPairs) {
+    let uRow = v.unitBar ? (byUnit.get(v.unitBar) || byPack.get(v.unitBar) || null) : null;
+    let pRow = v.packBar ? (byPack.get(v.packBar) || byUnit.get(v.packBar) || null) : null;
+    let nRow = byCatName.get(v.cat + '\u0001' + v.name.toLowerCase()) || null;
+    if (uRow && toDeleteIds.has(uRow.id)) uRow = null;
+    if (pRow && toDeleteIds.has(pRow.id)) pRow = null;
+    if (nRow && toDeleteIds.has(nRow.id)) nRow = null;
+
+    const target = uRow || pRow || nRow;
+    if (target) {
+      if (pRow && uRow && pRow.id !== uRow.id) {
+        toDeleteIds.add(pRow.id);
+        toUpdate.delete(pRow.id);
+      }
+      const merged = {
+        id: target.id,
+        pos: target.pos,
+        partner: v.partner || str(target.partner),
+        cat: v.cat || str(target.cat) || BC_DEFCAT,
+        name: v.name || str(target.name),
+        packBar: v.packBar || str(target.packBar),
+        unitBar: v.unitBar || str(target.unitBar),
+        perPack: v.perPack || str(target.perPack)
+      };
+      Object.assign(target, merged);
+      toUpdate.set(target.id, [merged.id, merged.pos, merged.partner, merged.cat, merged.name, merged.packBar, merged.unitBar, merged.perPack]);
+      if (merged.unitBar) byUnit.set(merged.unitBar, target);
+      if (merged.packBar) byPack.set(merged.packBar, target);
+      byCatName.set(merged.cat + '\u0001' + merged.name.toLowerCase(), target);
+      touchedCats.add(merged.cat);
+    } else {
+      maxPos++;
+      const newObj = { id: -maxPos, pos: maxPos, partner: v.partner, cat: v.cat, name: v.name, packBar: v.packBar, unitBar: v.unitBar, perPack: v.perPack };
+      toInsert.push([maxPos, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack]);
+      touchedCats.add(v.cat);
+    }
+  }
+
+  const ts = now(), ops = [];
+  if (toDeleteIds.size) {
+    for (const batchIds of jsonBatches(Array.from(toDeleteIds))) {
+      ops.push(stmt(C, 'DELETE FROM barcode_items WHERE id IN (SELECT value FROM json_each(?))', batchIds));
+    }
+  }
+  const updateList = Array.from(toUpdate.values());
+  for (const batchUpd of jsonBatches(updateList)) {
+    ops.push(stmt(C, `INSERT INTO barcode_items(id,pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who)
+      SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),?,json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]'),json_extract(value,'$[5]'),json_extract(value,'$[6]'),json_extract(value,'$[7]'),?,? FROM json_each(?) WHERE 1
+      ON CONFLICT(id) DO UPDATE SET pos=excluded.pos,sheet=excluded.sheet,partner=excluded.partner,cat=excluded.cat,name=excluded.name,packBar=excluded.packBar,unitBar=excluded.unitBar,perPack=excluded.perPack,ts=excluded.ts,who=excluded.who`,
+      BC_SHEET, ts, me.name, batchUpd));
+  }
+  for (const batchIns of jsonBatches(toInsert)) {
+    ops.push(stmt(C, `INSERT INTO barcode_items(pos,sheet,partner,cat,name,packBar,unitBar,perPack,ts,who)
+      SELECT json_extract(value,'$[0]'),?,json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]'),json_extract(value,'$[5]'),json_extract(value,'$[6]'),?,? FROM json_each(?)`,
+      BC_SHEET, ts, me.name, batchIns));
+  }
+  if (touchedCats.size) {
+    for (const batchCats of jsonBatches(Array.from(touchedCats))) {
+      ops.push(stmt(C, 'DELETE FROM barcode_cats WHERE cat IN (SELECT value FROM json_each(?))', batchCats));
+    }
+  }
+  if (ops.length) await batch(C, ops);
+
+  await bcLog(C, me, '', 'จับคู่บาร์เดี่ยว/แพ็ค', 'ยืนยัน ' + validPairs.length + ' คู่ (เพิ่มใหม่ ' + toInsert.length + ' · อัปเดต ' + updateList.length + ')');
+  return { ok: true, count: validPairs.length, created: toInsert.length, updated: updateList.length, merged: toDeleteIds.size, backups: await bcBackups(C) };
 };
 
 export { BC_SHEET, BACKUP_KEEP, BC_DEFCAT, BC_COMPANY, BC_TITLE, BC_SCHEMA, BC_FIELDS, bcClean, bcVals, bcRow, thDateS, bcLog, bcDup, BC_FONTS, BC_FONT_DEF, bcBackups, bcSnapshot, bcBackupRead, bcStage, bcPublishStage, BC_PATS, parseBarGrid };

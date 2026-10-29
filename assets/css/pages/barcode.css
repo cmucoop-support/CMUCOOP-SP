@@ -385,3 +385,27 @@ td.act{white-space:nowrap;min-width:170px}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
 .skip-link{position:fixed;left:12px;top:-80px;z-index:2000;background:#2a1f47;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;text-decoration:none;border:2px solid #fff;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 .skip-link:focus,.skip-link:focus-visible{top:12px;outline:3px solid #5b2fc7;outline-offset:2px}
+
+
+/* ---------- จับคู่บาร์เดี่ยว / บาร์แพ็คอัตโนมัติ ---------- */
+.pair-upload-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:8px}
+.pair-chk-inline{display:inline-flex;flex-direction:row;align-items:center;gap:8px;font-size:14px;color:var(--ink);cursor:pointer}
+.pair-tablewrap{max-height:66vh}
+.pair-dt{min-width:1240px}
+.pair-dt td{vertical-align:middle;padding:7px 8px}
+.pair-dt tr.pair-saved td{background:#f1fbf5;opacity:.82}
+.pair-dt input[type=text]{padding:6px 8px;font-size:13.5px;border-radius:8px}
+.pair-dt input.code-inp{font-family:monospace;font-size:13px;letter-spacing:.2px}
+.pair-sim-badge{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 10px;border-radius:10px;font-weight:700;font-size:13px;line-height:1.2;min-width:68px}
+.pair-sim-badge small{font-size:10.5px;font-weight:500;opacity:.9}
+.pair-sim-badge.high{background:#e3f6ec;color:#146c3e}
+.pair-sim-badge.med{background:#ede6ff;color:#5b2fc7}
+.pair-sim-badge.low{background:#fef3d6;color:#8c5808}
+.pair-compare{display:grid;gap:4px;font-size:13px;line-height:1.35}
+.pair-compare-line{display:flex;align-items:baseline;gap:6px}
+.pair-compare-tag{display:inline-block;padding:1px 7px;border-radius:6px;font-size:11px;font-weight:700;flex:none}
+.pair-compare-tag.unit{background:#e9f2ff;color:#175cd3}
+.pair-compare-tag.pack{background:#f3e8ff;color:#6927da}
+.pair-compare-code{font-family:monospace;font-size:11.5px;color:var(--steel)}
+.pair-manual-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:8px}
+@media (max-width:860px){.pair-manual-grid{grid-template-columns:1fr}}
