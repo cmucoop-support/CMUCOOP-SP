@@ -6,8 +6,10 @@
   <title>รายการสินทรัพย์ · CMUCOOP</title>
   <link rel="icon" href="assets/images/logo.png" type="image/png">
   <link rel="stylesheet" href="assets/css/shared/fonts.css">
-  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-1">
-  <script src="assets/js/shared/gas-shim.js?v=assets-1"></script>
+  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-2">
+  <script src="assets/js/shared/gas-shim.js?v=assets-2"></script>
+  <script src="assets/vendor/xlsx.full.min.js"></script>
+  <script src="assets/vendor/zxing-library-0.23.0.min.js"></script>
 </head>
 <body>
   <a class="skip" href="#workspace">ข้ามไปยังรายการสินทรัพย์</a>
@@ -16,6 +18,38 @@
     <nav aria-label="เมนูบัญชี"><span id="me"></span><a class="button ghost" href="index.html">เมนูหลัก</a><button class="button ghost" type="button" id="logout" hidden>ออกจากระบบ</button></nav>
   </header>
   <main>
+    <section class="panel qr-spotlight" id="qrAssetCard" aria-labelledby="qrAssetHeading" hidden>
+      <div class="qr-spotlight-head">
+        <div class="qr-spotlight-brand">
+          <img src="assets/images/logo.png" alt="" width="42" height="42">
+          <div>
+            <p class="eyebrow">ข้อมูลสินทรัพย์จากคิวอาร์โค้ด</p>
+            <h2 id="qrAssetHeading">รายการสินทรัพย์ที่อ้างอิง</h2>
+          </div>
+        </div>
+        <div class="qr-spotlight-actions">
+          <button type="button" class="button secondary" id="qrAssetStickerBtn" hidden>พิมพ์สติกเกอร์</button>
+          <button type="button" class="button primary" id="qrAssetOpenBtn" hidden>เปิดรายละเอียด / แก้ไข</button>
+          <button type="button" class="button secondary" id="qrAssetClearBtn">แสดงรายการทั้งหมด</button>
+        </div>
+      </div>
+      <p class="error" id="qrAssetError" role="alert" hidden></p>
+      <div class="qr-spotlight-body" id="qrAssetBody" hidden>
+        <div class="qr-spotlight-photo" id="qrAssetPhoto"></div>
+        <div class="qr-spotlight-info">
+          <div class="qr-meta-grid">
+            <div><span class="muted">รหัสสินทรัพย์</span><strong class="qr-code-badge" id="qrAssetCode">–</strong></div>
+            <div><span class="muted">วันเดือนปีที่รับสินทรัพย์</span><strong id="qrAssetDate">–</strong></div>
+            <div><span class="muted">ลำดับทะเบียน</span><strong id="qrAssetSeq">–</strong></div>
+            <div><span class="muted">สถานะ</span><span class="status-pill" id="qrAssetStatus">–</span></div>
+            <div class="span-2"><span class="muted">ชื่อรายการสินทรัพย์</span><strong id="qrAssetName">–</strong></div>
+            <div class="span-2"><span class="muted">สถานที่ตั้งสินทรัพย์</span><strong id="qrAssetLocation">–</strong></div>
+            <div class="span-2" id="qrAssetNoteWrap"><span class="muted">หมายเหตุ</span><p id="qrAssetNote">–</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel login" id="loginPanel">
       <p class="eyebrow">รายการสินทรัพย์</p><h1>เข้าสู่ระบบ</h1><p class="muted">ใช้บัญชีเดียวกับระบบ CMUCOOP</p>
       <form id="loginForm">
@@ -26,8 +60,13 @@
     </section>
     <div id="workspace" hidden>
       <section class="intro">
-        <div><p class="eyebrow">ทะเบียนสินทรัพย์</p><h1 id="registerTitle">รายการสินทรัพย์ ร้านสหกรณ์มหาวิทยาลัย เชียงใหม่ จำกัด</h1><p class="muted">ดูข้อมูล รูปภาพ สถานที่ตั้ง สถานะ และค่าเสื่อมราคาของสินทรัพย์ในที่เดียว</p><button type="button" class="text-button" id="editTitle" hidden>แก้ไขชื่อตาราง</button></div>
-        <button class="button primary" id="addAsset" type="button" hidden>+ เพิ่มสินทรัพย์</button>
+        <div><p class="eyebrow">ทะเบียนสินทรัพย์</p><h1 id="registerTitle">รายการสินทรัพย์ ร้านสหกรณ์มหาวิทยาลัย เชียงใหม่ จำกัด</h1><p class="muted">ดูข้อมูล รูปภาพ สถานที่ตั้ง สถานะ ค่าเสื่อมราคา นำเข้า/ส่งออก Excel พร้อมรูปภาพ และพิมพ์สติกเกอร์คิวอาร์โค้ด</p><button type="button" class="text-button" id="editTitle" hidden>แก้ไขชื่อตาราง</button></div>
+        <div class="intro-actions">
+          <button class="button secondary" id="printStickersBtn" type="button">พิมพ์สติกเกอร์</button>
+          <button class="button secondary" id="exportExcelBtn" type="button">ส่งออก Excel (พร้อมรูป)</button>
+          <button class="button secondary" id="importExcelBtn" type="button" hidden>นำเข้า Excel</button>
+          <button class="button primary" id="addAsset" type="button" hidden>+ เพิ่มสินทรัพย์</button>
+        </div>
       </section>
       <div class="stats" id="stats" aria-label="จำนวนสินทรัพย์แยกตามสถานะ"></div>
       <section class="panel register-panel">
@@ -55,6 +94,7 @@
       <p class="footnote" id="updated"></p>
     </div>
   </main>
+
   <dialog id="assetDialog" aria-labelledby="formTitle">
     <div class="dialog-heading"><div><p class="eyebrow">รายละเอียดสินทรัพย์</p><h2 id="formTitle">เพิ่มสินทรัพย์</h2></div><button class="close-button" type="button" data-close="assetDialog" aria-label="ปิดแบบฟอร์ม">×</button></div>
     <form id="assetForm">
@@ -64,7 +104,14 @@
         <label>รหัสสินทรัพย์<input id="assetCode" name="code" maxlength="80" placeholder="เช่น IT-001"></label>
         <label>วันที่รับสินทรัพย์<input id="received" name="received" type="date" min="1900-01-01" max="2200-12-31"></label>
         <label>สถานที่ตั้งสินทรัพย์<input id="assetLocation" name="location" maxlength="200" list="locationChoices" placeholder="เช่น สำนักงาน ชั้น 2"></label>
-        <label class="span-2">ลิงก์ภาพ<input id="imageUrl" name="imageUrl" type="url" maxlength="2000" placeholder="https://example.com/asset.jpg"><span class="helper">ใช้ลิงก์รูปภาพที่เปิดดูได้ ระบบจะแสดงรูปให้โดยอัตโนมัติ</span></label>
+        <div class="span-2 image-field-group">
+          <label>ลิงก์ภาพหรืออัปโหลดรูปสินทรัพย์<input id="imageUrl" name="imageUrl" type="url" maxlength="2000" placeholder="https://example.com/asset.jpg"></label>
+          <div class="image-upload-bar">
+            <input type="file" id="imageFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+            <button type="button" class="button secondary small-btn" id="uploadImageBtn">เลือกรูปภาพจากเครื่อง</button>
+            <span class="helper" id="uploadStatus">วางลิงก์รูปภาพ หรืออัปโหลดไฟล์รูปเพื่อให้ฝังไปกับไฟล์ Excel ได้อัตโนมัติ</span>
+          </div>
+        </div>
         <div class="form-preview" id="imagePreview"><span>ตัวอย่างรูปภาพ</span></div>
       </div>
       <fieldset class="status-options"><legend>สถานะ <span class="helper">เลือกได้ 1 สถานะ</span></legend>
@@ -82,12 +129,94 @@
       <label>หมายเหตุ<textarea id="note" name="note" rows="3" maxlength="2000" placeholder="รายละเอียดเพิ่มเติม"></textarea></label>
       </fieldset>
       <p id="formError" class="error" role="alert"></p><p class="helper" id="formMeta"></p>
-      <div class="dialog-actions"><button class="button danger" id="deleteAsset" type="button" hidden>ลบรายการ</button><span class="spacer"></span><button class="button secondary" type="button" data-close="assetDialog">ยกเลิก</button><button class="button primary" id="saveAsset">บันทึกข้อมูล</button></div>
+      <div class="dialog-actions"><button class="button danger" id="deleteAsset" type="button" hidden>ลบรายการ</button><button class="button secondary" id="formStickerBtn" type="button" hidden>พิมพ์สติกเกอร์</button><span class="spacer"></span><button class="button secondary" type="button" data-close="assetDialog">ยกเลิก</button><button class="button primary" id="saveAsset">บันทึกข้อมูล</button></div>
     </form>
   </dialog>
+
+  <dialog id="importDialog" aria-labelledby="importHeading">
+    <div class="dialog-heading"><div><p class="eyebrow">จัดการไฟล์ทะเบียนสินทรัพย์</p><h2 id="importHeading">นำเข้าข้อมูลสินทรัพย์จากไฟล์ Excel (.xlsx)</h2></div><button class="close-button" type="button" data-close="importDialog" aria-label="ปิดหน้าต่างนำเข้า">×</button></div>
+    <form id="importForm">
+      <div class="import-stack">
+        <label>เลือกไฟล์ Excel (.xlsx)<input type="file" id="importFile" accept=".xlsx,.xls" required></label>
+        <label>รูปแบบการนำเข้า
+          <select id="importMode">
+            <option value="merge">เพิ่มรายการใหม่และอัปเดตตามรหัสสินทรัพย์ (คงข้อมูลเดิมไว้)</option>
+            <option value="replace">แทนที่ข้อมูลสินทรัพย์ทั้งหมดตามไฟล์ Excel</option>
+          </select>
+        </label>
+        <div class="import-summary" id="importPreviewInfo">กรุณาเลือกไฟล์ Excel ที่ส่งอกจากระบบ หรือไฟล์ทะเบียนสินทรัพย์ที่มีคอลัมน์รายการและรูปภาพฝังในตาราง</div>
+        <p class="error" id="importError" role="alert"></p>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="button secondary" data-close="importDialog">ยกเลิก</button>
+        <button type="submit" class="button primary" id="confirmImportBtn" disabled>นำเข้าข้อมูล</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="stickerDialog" aria-labelledby="stickerHeading">
+    <div class="dialog-heading"><div><p class="eyebrow">สติกเกอร์ติดรายการสินทรัพย์</p><h2 id="stickerHeading">พิมพ์สติกเกอร์สินทรัพย์พร้อม QR Code</h2></div><button class="close-button" type="button" data-close="stickerDialog" aria-label="ปิดหน้าต่างพิมพ์สติกเกอร์">×</button></div>
+    <div class="sticker-config-grid">
+      <label>ขอบเขตรายการที่จะพิมพ์
+        <select id="stickerScope">
+          <option value="selected">เฉพาะรายการที่เลือกด้านล่าง</option>
+          <option value="page">รายการในหน้าปัจจุบันทั้งหมด</option>
+          <option value="all">รายการทั้งหมดตามตัวกรองปัจจุบัน</option>
+        </select>
+      </label>
+      <label>ขนาดกระดาษ / รูปแบบสติกเกอร์
+        <select id="stickerLayout">
+          <option value="a4-2x5">กระดาษ A4 มาตรฐาน (2 คอลัมน์ × 5 แถว · 10 ดวง/หน้า)</option>
+          <option value="a4-3x7">กระดาษ A4 ขนาดกะทัดรัด (3 คอลัมน์ × 7 แถว · 21 ดวง/หน้า)</option>
+          <option value="label-80x50">สติกเกอร์เดี่ยว 80 × 50 มม. (เครื่องพิมพ์สติกเกอร์)</option>
+          <option value="label-60x40">สติกเกอร์เดี่ยว 60 × 40 มม. (เครื่องพิมพ์สติกเกอร์)</option>
+        </select>
+      </label>
+      <label>จำนวนดวงต่อรายการ
+        <input type="number" id="stickerCopies" min="1" max="20" step="1" value="1">
+      </label>
+      <label>รูปแบบวันเดือนปีที่รับสินทรัพย์
+        <select id="stickerDateFormat">
+          <option value="slash">วัน/เดือน/ปี พ.ศ. (เช่น 29/10/2569)</option>
+          <option value="short">วัน เดือนย่อ พ.ศ. (เช่น 29 ต.ค. 2569)</option>
+        </select>
+      </label>
+    </div>
+    <div class="sticker-options-bar">
+      <label><input type="checkbox" id="stickerShowName" checked> แสดงชื่อรายการสินทรัพย์</label>
+      <label><input type="checkbox" id="stickerShowLocation" checked> แสดงสถานที่ตั้งสินทรัพย์</label>
+      <span class="helper">ทุกดวงมี โลโก้ · วันเดือนปีที่รับสินทรัพย์ · รหัสสินทรัพย์ · คิวอาร์โค้ดลิงก์อ้างอิงรหัสสินทรัพย์</span>
+    </div>
+    <div class="sticker-workspace">
+      <div class="sticker-selector" id="stickerSelectorPane">
+        <div class="sticker-selector-head">
+          <input type="search" id="stickerSearch" placeholder="ค้นหารายการที่จะพิมพ์สติกเกอร์">
+          <button type="button" class="button secondary small-btn" id="stickerSelectAll">เลือกทั้งหมด</button>
+          <button type="button" class="button secondary small-btn" id="stickerClearAll">ล้าง</button>
+        </div>
+        <div class="sticker-item-list" id="stickerList" role="group" aria-label="เลือกรายการสินทรัพย์ที่จะพิมพ์สติกเกอร์"></div>
+        <p class="helper" id="stickerCountInfo"></p>
+      </div>
+      <div class="sticker-preview-pane">
+        <div class="sticker-preview-head">
+          <strong>ตัวอย่างสติกเกอร์ก่อนพิมพ์</strong>
+          <span class="helper" id="stickerSummaryText"></span>
+        </div>
+        <div class="sticker-preview-box" id="stickerPreview"></div>
+      </div>
+    </div>
+    <p class="error" id="stickerError" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" class="button secondary" data-close="stickerDialog">ปิด</button>
+      <button type="button" class="button primary" id="printStickersConfirm">สั่งพิมพ์สติกเกอร์</button>
+    </div>
+  </dialog>
+
   <dialog id="titleDialog" aria-labelledby="titleHeading"><div class="dialog-heading"><h2 id="titleHeading">แก้ไขชื่อตารางหลัก</h2><button class="close-button" type="button" data-close="titleDialog" aria-label="ปิด">×</button></div><form id="titleForm"><label>ชื่อตาราง<input id="titleInput" required maxlength="200"></label><p class="error" id="titleError" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="titleDialog">ยกเลิก</button><button class="button primary" id="saveTitle">บันทึกชื่อ</button></div></form></dialog>
   <dialog id="imageDialog" aria-labelledby="imageHeading"><div class="dialog-heading"><h2 id="imageHeading">รูปภาพสินทรัพย์</h2><button class="close-button" type="button" data-close="imageDialog" aria-label="ปิดรูปภาพ">×</button></div><div id="largeImage"></div></dialog>
-  <datalist id="locationChoices"></datalist><div id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="assets/js/pages/assets.js?v=assets-1"></script>
+  <datalist id="locationChoices"></datalist>
+  <div id="stickerPrintArea" aria-hidden="true"></div>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="assets/js/pages/assets.js?v=assets-2"></script>
 </body>
 </html>
