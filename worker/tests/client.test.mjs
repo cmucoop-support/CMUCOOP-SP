@@ -9,6 +9,26 @@ function client(fetch) {
   return (fn, ...args) => new Promise((resolve, reject) => context.window.google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args));
 }
 const ok = data => ({ ok: true, status: 200, json: async () => ({ ok: true, data }) });
+
+test('shared navigation receives only verified sessions and retains a token when storage is unavailable', async () => {
+  const events = [];
+  const window = { dispatchEvent(event) { events.push(event); } };
+  class CustomEvent { constructor(type, options) { this.type = type; this.detail = options.detail; } }
+  let fail = false;
+  const me = { user: 'test', name: 'ผู้ใช้ทดสอบ', role: 'viewer', perms: { expiry: true } };
+  const context = vm.createContext({window,CustomEvent,fetch:async()=>fail?{ok:true,json:async()=>({ok:false,error:'SESSION_EXPIRED'})}:ok(me),console,AbortController,Set,Map,TypeError,URLSearchParams,Promise,Math,setTimeout,clearTimeout});
+  vm.runInContext(source,context);
+  const call = (fn,...args) => new Promise((resolve,reject)=>window.google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args));
+  await call('whoami','memory-token');
+  assert.equal(window.CMUCOOP_SESSION,me);
+  assert.equal(window.CMUCOOP_SESSION_TOKEN,'memory-token');
+  assert.equal(events.length,1); assert.equal(events[0].type,'cmucoop:session');
+  fail=true; await assert.rejects(call('whoami','bad-token'));
+  assert.equal(events.length,1); assert.equal(window.CMUCOOP_SESSION_TOKEN,'memory-token');
+  fail=false; await call('logout','memory-token');
+  assert.equal(window.CMUCOOP_SESSION,null); assert.equal(window.CMUCOOP_SESSION_TOKEN,'');
+  assert.equal(events.at(-1).detail.me,null);
+});
 test('browser shares identical in-flight reads and bounds concurrent requests at four', async () => {
   let active = 0, max = 0, requests = 0;
   const call = client(async (_, req) => {

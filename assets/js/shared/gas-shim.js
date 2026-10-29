@@ -63,6 +63,13 @@ window.API_URL = window.API_URL || 'https://cmucoop-api.cmucoopcashier.workers.d
         httpError.transient = [429, 502, 503, 504].includes(r.status); throw httpError;
       }
       if (!payload || payload.ok !== true) throw new Error((payload && payload.error) || 'ไม่สามารถดึงข้อมูลได้');
+      // A verified session lets shared navigation follow the page authentication.
+      if (['whoami', 'login', 'loginByLink', 'logout'].includes(fn)) {
+        window.CMUCOOP_SESSION = fn === 'logout' ? null : payload.data;
+        window.CMUCOOP_SESSION_TOKEN = fn === 'logout' ? '' : (fn === 'whoami' ? args[0] : payload.data.token) || '';
+        if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') window.dispatchEvent(new CustomEvent('cmucoop:session', {detail:{me:window.CMUCOOP_SESSION}}));
+      }
+      if (fn === 'getHiddenCards' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') window.dispatchEvent(new CustomEvent('cmucoop:cards', {detail:payload.data}));
       return payload.data;
     }).catch(function (e) {
       if (e && (e.name === 'AbortError' || e instanceof TypeError)) {

@@ -1,5 +1,5 @@
 var TV_PREVIEW_MODE = new URLSearchParams(location.search).get('preview') === '1';
-var TV_LAST_BG = '#a07ab8';
+var TV_LAST_BG = '#eee5f8';
 var TV_LAST_CFG = {};
 if (TV_PREVIEW_MODE) {
   document.body.classList.add('tv-preview-mode');
@@ -121,7 +121,7 @@ function applyCfg(c) {
   $('helloMain').parentNode.style.display = (T('helloMain') || T('helloSub')) ? '' : 'none';
   setCaption(T('caption'));
   var r = document.documentElement.style;
-  var bgVal = /^#[0-9a-f]{6}$/i.test(String(c.bg || '')) ? c.bg : '#a07ab8';
+  var bgVal = /^#[0-9a-f]{6}$/i.test(String(c.bg || '')) ? c.bg : '#eee5f8';
   TV_LAST_BG = bgVal;
   r.setProperty('--bg', bgVal);
   syncContrast(bgVal, c.textColor);
