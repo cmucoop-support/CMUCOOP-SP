@@ -880,13 +880,23 @@ $('#bcExpBtn').addEventListener('click', function () {
 /* ============================ จับคู่บาร์เดี่ยว / บาร์แพ็คจากชื่อที่คล้ายกัน ============================ */
 var PAIR_STORAGE_KEY = "cmucoop_bc_pair_draft_v1";
 var PAIR_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-var PAIR_STATE = { pairs: [], unmatchedUnits: [], unmatchedPacks: [], nextId: 1, savedAt: 0, expiresAt: 0, stockMap: {} };
+var PAIR_STATE = {
+  pairs: [],
+  unmatchedUnits: [],
+  unmatchedPacks: [],
+  nextId: 1,
+  savedAt: 0,
+  expiresAt: 0,
+  stockMap: {},
+  dbBarMap: {}
+};
 var pairCloudSaveTimer = null;
 
+// ตัดช่องว่าง เครื่องหมายอัญประกาศ และตัวอักษร P ออกเสมอเมื่ออ่าน/เปรียบเทียบ/บันทึกเลขบาร์โค้ด
 function cleanBarcodeStr(v) {
   if (v === null || v === undefined || v === "") return "";
   if (typeof v === "number" && Number.isFinite(v)) return String(Math.trunc(v));
-  var s = String(v).trim().replace(/^'+/, "").replace(/\s+/g, "");
+  var s = String(v).trim().replace(/^['"]+|['"]+$/g, "").replace(/\s+/g, "").replace(/[pP]/g, "");
   if (/^\d+\.\d+e\+\d+$/i.test(s)) {
     var n = Number(s);
     if (Number.isFinite(n)) s = String(Math.round(n));
@@ -908,14 +918,20 @@ function fmtOptNum(v) {
   return Number(v).toLocaleString("th-TH", { maximumFractionDigits: 2 });
 }
 
+function lookupStockEntry(code, stockMap) {
+  var map = stockMap || PAIR_STATE.stockMap || {};
+  var k = cleanBarcodeStr(code);
+  if (!k) return null;
+  return map[k] || map["P" + k] || map["p" + k] || null;
+}
+
 function resolvePairQty(code, rawQty, stockMap) {
   if (rawQty !== null && rawQty !== undefined && rawQty !== "" && Number.isFinite(Number(rawQty))) {
     return Math.round(Number(rawQty) * 100) / 100;
   }
-  var map = stockMap || PAIR_STATE.stockMap || {};
-  var k = cleanBarcodeStr(code);
-  if (k && map[k] && map[k].qty !== undefined && map[k].qty !== null && Number.isFinite(Number(map[k].qty))) {
-    return Math.round(Number(map[k].qty) * 100) / 100;
+  var entry = lookupStockEntry(code, stockMap);
+  if (entry && entry.qty !== undefined && entry.qty !== null && Number.isFinite(Number(entry.qty))) {
+    return Math.round(Number(entry.qty) * 100) / 100;
   }
   return null;
 }
@@ -924,12 +940,69 @@ function resolvePairPrice(code, rawPrice, stockMap) {
   if (rawPrice !== null && rawPrice !== undefined && rawPrice !== "" && Number.isFinite(Number(rawPrice)) && Number(rawPrice) > 0) {
     return Math.round(Number(rawPrice) * 100) / 100;
   }
-  var map = stockMap || PAIR_STATE.stockMap || {};
-  var k = cleanBarcodeStr(code);
-  if (k && map[k] && map[k].price !== undefined && Number(map[k].price) > 0) {
-    return Math.round(Number(map[k].price) * 100) / 100;
+  var entry = lookupStockEntry(code, stockMap);
+  if (entry && entry.price !== undefined && Number(entry.price) > 0) {
+    return Math.round(Number(entry.price) * 100) / 100;
   }
   return null;
+}
+
+function buildDbBarcodeMap(existingRows) {
+  var map = Object.create(null);
+  (existingRows || []).forEach(function (x) {
+    var v = (x && x.v) || [];
+    var rec = {
+      id: x.r || v[0] || 0,
+      partner: String(v[1] || "").trim(),
+      cat: String(v[2] || "").trim() || "ไม่ระบุหมวด",
+      name: String(v[3] || "").trim(),
+      perPack: String(v[4] || "").trim(),
+      packBar: cleanBarcodeStr(v[5]),
+      unitBar: cleanBarcodeStr(v[7])
+    };
+    if (rec.unitBar && !map[rec.unitBar]) map[rec.unitBar] = rec;
+    if (rec.packBar && !map[rec.packBar]) map[rec.packBar] = rec;
+  });
+  return map;
+}
+
+function evaluatePairDuplicate(pair, dbMap) {
+  var map = dbMap || PAIR_STATE.dbBarMap || {};
+  var uBar = cleanBarcodeStr(pair && pair.unitBar);
+  var pBar = cleanBarcodeStr(pair && pair.packBar);
+  var uHit = uBar && map[uBar] ? map[uBar] : null;
+  var pHit = pBar && map[pBar] ? map[pBar] : null;
+  if (!uHit && !pHit) return null;
+
+  var primary = uHit || pHit;
+  var matchedParts = [];
+  if (uHit) matchedParts.push("บาร์เดี่ยว " + uBar + " ตรงกับ \"" + uHit.name + "\" (หมวด " + uHit.cat + ")");
+  if (pHit && (!uHit || pHit.id !== uHit.id)) matchedParts.push("บาร์แพ็ค " + pBar + " ตรงกับ \"" + pHit.name + "\" (หมวด " + pHit.cat + ")");
+  else if (pHit && uHit && pHit.id === uHit.id) matchedParts.push("บาร์แพ็ค " + pBar + " อยู่ในรายการเดียวกันแล้ว");
+
+  return {
+    isDup: true,
+    uMatch: uHit,
+    pMatch: pHit,
+    primary: primary,
+    existingName: primary.name,
+    existingCat: primary.cat,
+    existingUnitBar: primary.unitBar || "–",
+    existingPackBar: primary.packBar || "–",
+    detailText: matchedParts.join(" · ")
+  };
+}
+
+function refreshAllPairDuplicates(existingRows) {
+  if (Array.isArray(existingRows)) {
+    PAIR_STATE.dbBarMap = buildDbBarcodeMap(existingRows);
+  }
+  var map = PAIR_STATE.dbBarMap || {};
+  (PAIR_STATE.pairs || []).forEach(function (p) {
+    p.unitBar = cleanBarcodeStr(p.unitBar);
+    p.packBar = cleanBarcodeStr(p.packBar);
+    p.dupInfo = evaluatePairDuplicate(p, map);
+  });
 }
 
 function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
@@ -938,7 +1011,6 @@ function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
   var isPack = roleHint === "pack" ? true : roleHint === "unit" ? false : false;
   var base = name;
 
-  // 1. Check explicit pack patterns with counts in name (used only to strip pack suffix for cleanName & detect pack role; perPack is NOT auto-filled)
   var packRegexes = [
     /(?:ยก)?(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด|ชุด|กล่องใหญ่|กล่อง|pack|box|case|ctn)\s*(?:ละ\s*)?(\d{1,4})\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ|เล่ม|แท่ง|ก้อน|หลอด|เม็ด|ด้าม|ใบ|ม้วน|กป\.?|ขวด)?/gi,
     /(?:บรรจุ|ขนาดบรรจุ)\s*(\d{1,4})\s*(?:ชิ้น|อัน|ขวด|กระป๋อง|ซอง|กล่อง|ถุง|ห่อ|กป\.?)/gi,
@@ -958,7 +1030,6 @@ function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
     });
   }
 
-  // 2. Check dozen (โหล)
   base = base.replace(/(\d{1,2})\s*โหล/g, function () {
     if (roleHint !== "unit") isPack = true;
     return " ";
@@ -968,13 +1039,11 @@ function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
     base = base.replace(/(?:ยกโหล|\(\s*โหล\s*\)|\sโหล$)/gi, " ");
   }
 
-  // 3. Check standalone pack keywords without number
   if (/(?:ยกลัง|ยกแพ็ค|ยกแพค|ยกแพ็ก|ยกกล่อง|ยกถาด|ยกหิ้ว|ยกมัด|\(\s*(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด)\s*\)|(?:\s|^)(?:แพ็ค|แพค|แพ็ก|ยกลัง)(?:\s|$))/i.test(base)) {
     if (roleHint !== "unit") isPack = true;
     base = base.replace(/(?:ยกลัง|ยกแพ็ค|ยกแพค|ยกแพ็ก|ยกกล่อง|ยกถาด|ยกหิ้ว|ยกมัด|\(\s*(?:แพ็ค|แพค|แพ็ก|ลัง|หิ้ว|มัด|ถาด)\s*\)|(?:\s|^)(?:แพ็ค|แพค|แพ็ก)(?:\s|$))/gi, " ");
   }
 
-  // 4. Check unit column if present
   if (unit && roleHint !== "unit") {
     if (/^(?:แพ็ค|แพค|แพ็ก|ลัง|โหล|หิ้ว|มัด|ถาด|กล่องใหญ่|pack|box|case|ctn|dozen)$/i.test(unit)) {
       isPack = true;
@@ -985,7 +1054,6 @@ function analyzeBarcodeItemName(rawName, rawUnit, rawPerPack, roleHint) {
 
   var cleanName = base.replace(/\(\s*\)/g, " ").replace(/\s+/g, " ").replace(/[-–—/.,]+$/, "").trim() || name;
 
-  // Normalize measurement units for accurate comparison (e.g. 325 มล. == 325มล == 325ml)
   var normMeasure = cleanName.toLowerCase()
     .replace(/(\d+(?:\.\d+)?)\s*(?:มล\.?|มิลลิลิตร|ซีซี|ml\b|cc\b)\.?/gi, " $1ml ")
     .replace(/(\d+(?:\.\d+)?)\s*(?:ลิตร|ล\.|liter\b|ltr\b|l\b)\.?/gi, " $1l ")
@@ -1137,7 +1205,6 @@ function extractRawItemsFromSheet(grid, sheetName, roleHint, defaultCat) {
     }
   }
 
-  // Fallback headerless detection if columns were not labeled with standard headers
   if (hRow < 0) {
     var sampleRows = grid.slice(0, Math.min(grid.length, 15)).filter(function (r) { return Array.isArray(r) && r.some(Boolean); });
     if (sampleRows.length) {
@@ -1230,7 +1297,10 @@ function matchBarcodePairsFromSheets(sheets, options) {
   var minSim = Number(options.minSim) || 50;
   var defaultCat = String(options.defaultCat || "").trim();
   var existingRows = Array.isArray(options.existingRows) ? options.existingRows : [];
+  var includeDbSingleForPairing = options.pairWithDb !== false;
   var stockMap = options.stockMap || PAIR_STATE.stockMap || {};
+  var dbBarMap = buildDbBarcodeMap(existingRows);
+  PAIR_STATE.dbBarMap = dbBarMap;
 
   var prePaired = [];
   var allSingle = [];
@@ -1240,9 +1310,12 @@ function matchBarcodePairsFromSheets(sheets, options) {
     var extracted = extractRawItemsFromSheet(sh.grid, sh.name || "", sh.roleHint || "", defaultCat);
     extracted.prePaired.forEach(function (p) { prePaired.push(p); });
     extracted.singleRows.forEach(function (r) {
+      r.barcode = cleanBarcodeStr(r.barcode);
+      if (!r.barcode) return;
       if (r.qty === null || r.qty === undefined) r.qty = resolvePairQty(r.barcode, null, stockMap);
       if (r.price === null || r.price === undefined) r.price = resolvePairPrice(r.barcode, null, stockMap);
-      if (!r.partner && stockMap[r.barcode] && stockMap[r.barcode].partner) r.partner = stockMap[r.barcode].partner;
+      var stEntry = lookupStockEntry(r.barcode, stockMap);
+      if (!r.partner && stEntry && stEntry.partner) r.partner = stEntry.partner;
       var key = r.barcode + "|" + r.name;
       if (seenBar.has(key)) return;
       seenBar.add(key);
@@ -1250,47 +1323,50 @@ function matchBarcodePairsFromSheets(sheets, options) {
     });
   });
 
-  // Optionally include existing DB items that only have 1 barcode (either unitBar or packBar)
-  existingRows.forEach(function (x) {
-    var v = x.v || [];
-    var partner = String(v[1] || "").trim();
-    var cat = String(v[2] || "").trim();
-    var name = String(v[3] || "").trim();
-    var packBar = cleanBarcodeStr(v[5]);
-    var unitBar = cleanBarcodeStr(v[7]);
-    if (!name) return;
-    if (unitBar && !packBar) {
-      var uInfo = analyzeBarcodeItemName(name, "", "", "unit");
-      allSingle.push({
-        barcode: unitBar,
-        name: name,
-        unit: "",
-        perPack: "",
-        partner: partner || (stockMap[unitBar] && stockMap[unitBar].partner) || "",
-        cat: cat,
-        price: resolvePairPrice(unitBar, null, stockMap),
-        qty: resolvePairQty(unitBar, null, stockMap),
-        isPack: false,
-        fromDb: true,
-        info: uInfo
-      });
-    } else if (packBar && !unitBar) {
-      var pInfo = analyzeBarcodeItemName(name, "", "", "pack");
-      allSingle.push({
-        barcode: packBar,
-        name: name,
-        unit: "",
-        perPack: "",
-        partner: partner || (stockMap[packBar] && stockMap[packBar].partner) || "",
-        cat: cat,
-        price: resolvePairPrice(packBar, null, stockMap),
-        qty: resolvePairQty(packBar, null, stockMap),
-        isPack: true,
-        fromDb: true,
-        info: pInfo
-      });
-    }
-  });
+  if (includeDbSingleForPairing) {
+    existingRows.forEach(function (x) {
+      var v = x.v || [];
+      var partner = String(v[1] || "").trim();
+      var cat = String(v[2] || "").trim();
+      var name = String(v[3] || "").trim();
+      var packBar = cleanBarcodeStr(v[5]);
+      var unitBar = cleanBarcodeStr(v[7]);
+      if (!name) return;
+      if (unitBar && !packBar) {
+        var uInfo = analyzeBarcodeItemName(name, "", "", "unit");
+        var uSt = lookupStockEntry(unitBar, stockMap);
+        allSingle.push({
+          barcode: unitBar,
+          name: name,
+          unit: "",
+          perPack: "",
+          partner: partner || (uSt && uSt.partner) || "",
+          cat: cat,
+          price: resolvePairPrice(unitBar, null, stockMap),
+          qty: resolvePairQty(unitBar, null, stockMap),
+          isPack: false,
+          fromDb: true,
+          info: uInfo
+        });
+      } else if (packBar && !unitBar) {
+        var pInfo = analyzeBarcodeItemName(name, "", "", "pack");
+        var pSt = lookupStockEntry(packBar, stockMap);
+        allSingle.push({
+          barcode: packBar,
+          name: name,
+          unit: "",
+          perPack: "",
+          partner: partner || (pSt && pSt.partner) || "",
+          cat: cat,
+          price: resolvePairPrice(packBar, null, stockMap),
+          qty: resolvePairQty(packBar, null, stockMap),
+          isPack: true,
+          fromDb: true,
+          info: pInfo
+        });
+      }
+    });
+  }
 
   var primaryCandidates = [];
   var secondaryCandidates = [];
@@ -1324,24 +1400,30 @@ function matchBarcodePairsFromSheets(sheets, options) {
   var seq = 1;
 
   prePaired.forEach(function (pp) {
-    pairs.push({
+    var uCode = cleanBarcodeStr(pp.unitBar);
+    var pCode = cleanBarcodeStr(pp.packBar);
+    var uSt = lookupStockEntry(uCode, stockMap);
+    var pSt = lookupStockEntry(pCode, stockMap);
+    var pairObj = {
       id: "pair_" + (seq++),
       selected: true,
       saved: false,
       similarity: pp.similarity,
       unitSourceName: pp.unitSourceName,
       packSourceName: pp.packSourceName,
-      partner: pp.partner || (stockMap[pp.unitBar] && stockMap[pp.unitBar].partner) || (stockMap[pp.packBar] && stockMap[pp.packBar].partner) || "",
+      partner: pp.partner || (uSt && uSt.partner) || (pSt && pSt.partner) || "",
       cat: defaultCat || pp.cat || "ไม่ระบุหมวด",
       name: pp.name,
       perPack: "",
-      packBar: pp.packBar,
-      unitBar: pp.unitBar,
-      unitPrice: resolvePairPrice(pp.unitBar, pp.unitPrice, stockMap),
-      packPrice: resolvePairPrice(pp.packBar, pp.packPrice, stockMap),
-      unitQty: resolvePairQty(pp.unitBar, pp.unitQty, stockMap),
-      packQty: resolvePairQty(pp.packBar, pp.packQty, stockMap)
-    });
+      packBar: pCode,
+      unitBar: uCode,
+      unitPrice: resolvePairPrice(uCode, pp.unitPrice, stockMap),
+      packPrice: resolvePairPrice(pCode, pp.packPrice, stockMap),
+      unitQty: resolvePairQty(uCode, pp.unitQty, stockMap),
+      packQty: resolvePairQty(pCode, pp.packQty, stockMap)
+    };
+    pairObj.dupInfo = evaluatePairDuplicate(pairObj, dbBarMap);
+    pairs.push(pairObj);
   });
 
   function addCandidatePair(c, minSelectSim) {
@@ -1350,7 +1432,9 @@ function matchBarcodePairsFromSheets(sheets, options) {
     usedIdx.add(c.j);
     var oriented = orientUnitAndPack(allSingle[c.i], allSingle[c.j]);
     var u = oriented.unit, p = oriented.pack;
-    pairs.push({
+    var uCode = cleanBarcodeStr(u.barcode);
+    var pCode = cleanBarcodeStr(p.barcode);
+    var pairObj = {
       id: "pair_" + (seq++),
       selected: c.sim >= minSelectSim,
       saved: false,
@@ -1361,13 +1445,15 @@ function matchBarcodePairsFromSheets(sheets, options) {
       cat: defaultCat || (u.cat && u.cat !== "ไม่ระบุหมวด" ? u.cat : "") || (p.cat && p.cat !== "ไม่ระบุหมวด" ? p.cat : "") || "ไม่ระบุหมวด",
       name: (u.info && u.info.cleanName) || u.name,
       perPack: "",
-      packBar: p.barcode,
-      unitBar: u.barcode,
-      unitPrice: resolvePairPrice(u.barcode, u.price, stockMap),
-      packPrice: resolvePairPrice(p.barcode, p.price, stockMap),
-      unitQty: resolvePairQty(u.barcode, u.qty, stockMap),
-      packQty: resolvePairQty(p.barcode, p.qty, stockMap)
-    });
+      packBar: pCode,
+      unitBar: uCode,
+      unitPrice: resolvePairPrice(uCode, u.price, stockMap),
+      packPrice: resolvePairPrice(pCode, p.price, stockMap),
+      unitQty: resolvePairQty(uCode, u.qty, stockMap),
+      packQty: resolvePairQty(pCode, p.qty, stockMap)
+    };
+    pairObj.dupInfo = evaluatePairDuplicate(pairObj, dbBarMap);
+    pairs.push(pairObj);
   }
 
   primaryCandidates.forEach(function (c) { addCandidatePair(c, 60); });
@@ -1417,8 +1503,8 @@ function serializePairDraft() {
         cat: p.cat || "",
         name: p.name || "",
         perPack: p.perPack || "",
-        packBar: p.packBar || "",
-        unitBar: p.unitBar || "",
+        packBar: cleanBarcodeStr(p.packBar),
+        unitBar: cleanBarcodeStr(p.unitBar),
         unitPrice: p.unitPrice !== undefined ? p.unitPrice : null,
         packPrice: p.packPrice !== undefined ? p.packPrice : null,
         unitQty: p.unitQty !== undefined ? p.unitQty : null,
@@ -1426,10 +1512,10 @@ function serializePairDraft() {
       };
     }),
     unmatchedUnits: (PAIR_STATE.unmatchedUnits || []).map(function (u) {
-      return { barcode: u.barcode, name: u.name, unit: u.unit || "", partner: u.partner || "", cat: u.cat || "", price: u.price, qty: u.qty, isPack: false };
+      return { barcode: cleanBarcodeStr(u.barcode), name: u.name, unit: u.unit || "", partner: u.partner || "", cat: u.cat || "", price: u.price, qty: u.qty, isPack: false };
     }),
     unmatchedPacks: (PAIR_STATE.unmatchedPacks || []).map(function (p) {
-      return { barcode: p.barcode, name: p.name, unit: p.unit || "", partner: p.partner || "", cat: p.cat || "", price: p.price, qty: p.qty, isPack: true };
+      return { barcode: cleanBarcodeStr(p.barcode), name: p.name, unit: p.unit || "", partner: p.partner || "", cat: p.cat || "", price: p.price, qty: p.qty, isPack: true };
     })
   };
 }
@@ -1483,7 +1569,7 @@ function applyLoadedDraftToState(draft) {
   PAIR_STATE.savedAt = Number(draft.savedAt) || Date.now();
   PAIR_STATE.expiresAt = Number(draft.expiresAt);
   PAIR_STATE.pairs = Array.isArray(draft.pairs) ? draft.pairs.map(function (p, i) {
-    return {
+    var obj = {
       id: p.id || ("pair_" + (i + 1)),
       selected: p.selected !== undefined ? !!p.selected : !p.saved,
       saved: !!p.saved,
@@ -1501,12 +1587,14 @@ function applyLoadedDraftToState(draft) {
       unitQty: p.unitQty !== undefined ? p.unitQty : null,
       packQty: p.packQty !== undefined ? p.packQty : null
     };
+    obj.dupInfo = evaluatePairDuplicate(obj, PAIR_STATE.dbBarMap);
+    return obj;
   }) : [];
   PAIR_STATE.unmatchedUnits = Array.isArray(draft.unmatchedUnits) ? draft.unmatchedUnits.map(function (u) {
-    return Object.assign({}, u, { info: analyzeBarcodeItemName(u.name, u.unit, "", "unit") });
+    return Object.assign({}, u, { barcode: cleanBarcodeStr(u.barcode), info: analyzeBarcodeItemName(u.name, u.unit, "", "unit") });
   }) : [];
   PAIR_STATE.unmatchedPacks = Array.isArray(draft.unmatchedPacks) ? draft.unmatchedPacks.map(function (p) {
-    return Object.assign({}, p, { info: analyzeBarcodeItemName(p.name, p.unit, "", "pack") });
+    return Object.assign({}, p, { barcode: cleanBarcodeStr(p.barcode), info: analyzeBarcodeItemName(p.name, p.unit, "", "pack") });
   }) : [];
   PAIR_STATE.nextId = (PAIR_STATE.pairs.length || 0) + 1;
   return true;
@@ -1515,22 +1603,38 @@ function applyLoadedDraftToState(draft) {
 function enrichPairStateFromStockMap() {
   var map = PAIR_STATE.stockMap || {};
   (PAIR_STATE.pairs || []).forEach(function (p) {
+    p.unitBar = cleanBarcodeStr(p.unitBar);
+    p.packBar = cleanBarcodeStr(p.packBar);
     p.unitQty = resolvePairQty(p.unitBar, p.unitQty, map);
     p.packQty = resolvePairQty(p.packBar, p.packQty, map);
     p.unitPrice = resolvePairPrice(p.unitBar, p.unitPrice, map);
     p.packPrice = resolvePairPrice(p.packBar, p.packPrice, map);
     if (!p.partner) {
-      p.partner = (map[p.unitBar] && map[p.unitBar].partner) || (map[p.packBar] && map[p.packBar].partner) || "";
+      var uSt = lookupStockEntry(p.unitBar, map), pSt = lookupStockEntry(p.packBar, map);
+      p.partner = (uSt && uSt.partner) || (pSt && pSt.partner) || "";
     }
+    p.dupInfo = evaluatePairDuplicate(p, PAIR_STATE.dbBarMap);
   });
   (PAIR_STATE.unmatchedUnits || []).forEach(function (u) {
+    u.barcode = cleanBarcodeStr(u.barcode);
     u.qty = resolvePairQty(u.barcode, u.qty, map);
     u.price = resolvePairPrice(u.barcode, u.price, map);
   });
   (PAIR_STATE.unmatchedPacks || []).forEach(function (p) {
+    p.barcode = cleanBarcodeStr(p.barcode);
     p.qty = resolvePairQty(p.barcode, p.qty, map);
     p.price = resolvePairPrice(p.barcode, p.price, map);
   });
+}
+
+async function ensureDbBarMapLoaded() {
+  if (!S.token) return;
+  try {
+    var dbAll = (S.data && curCat() && curCat().all) ? S.data : await call("getCategoryData", allCat().sheet, "*");
+    if (dbAll && Array.isArray(dbAll.rows)) {
+      refreshAllPairDuplicates(dbAll.rows);
+    }
+  } catch (_) {}
 }
 
 async function initPairContextAndRestoreDraft() {
@@ -1565,6 +1669,7 @@ async function initPairContextAndRestoreDraft() {
         }
       }
     }
+    await ensureDbBarMapLoaded();
     enrichPairStateFromStockMap();
     renderDraftBar();
     renderPairTable();
@@ -1575,45 +1680,58 @@ function buildPairExportData() {
   var pairs = PAIR_STATE.pairs || [];
   var head = [
     "ลำดับ",
+    "สถานะในระบบ",
+    "ความคล้าย (%)",
     "รหัสคู่ค้า (Vender)",
     "หมวด",
     "ชื่อรายการ",
     "จำนวนต่อแพ็ค",
-    "เลขบาร์แพ็ค",
-    "คงเหลือบาร์แพ็ค",
-    "ราคาบาร์แพ็ค",
     "เลขบาร์เดี่ยว",
-    "คงเหลือบาร์เดี่ยว",
     "ราคาบาร์เดี่ยว",
-    "ความคล้าย (%)",
+    "คงเหลือบาร์เดี่ยว",
+    "เลขบาร์แพ็ค",
+    "ราคาบาร์แพ็ค",
+    "คงเหลือบาร์แพ็ค",
     "ชื่อบาร์เดี่ยวในไฟล์",
     "ชื่อบาร์แพ็คในไฟล์",
-    "สถานะ"
+    "ข้อมูลเดิมในระบบ (กรณีซ้ำ)",
+    "ผลการตรวจหน้าร้าน / หมายเหตุ"
   ];
   var rows = pairs.map(function (p, i) {
-    var uQty = resolvePairQty(p.unitBar, p.unitQty);
-    var pQty = resolvePairQty(p.packBar, p.packQty);
-    var uPrice = resolvePairPrice(p.unitBar, p.unitPrice);
-    var pPrice = resolvePairPrice(p.packBar, p.packPrice);
+    var uCode = cleanBarcodeStr(p.unitBar);
+    var pCode = cleanBarcodeStr(p.packBar);
+    var uQty = resolvePairQty(uCode, p.unitQty);
+    var pQty = resolvePairQty(pCode, p.packQty);
+    var uPrice = resolvePairPrice(uCode, p.unitPrice);
+    var pPrice = resolvePairPrice(pCode, p.packPrice);
+    var dup = p.dupInfo || evaluatePairDuplicate(p, PAIR_STATE.dbBarMap);
+    var sysStatus = p.saved
+      ? "บันทึกเข้าระบบแล้ว"
+      : (dup ? "มีในระบบแล้ว (รอยืนยันบันทึกทับ)" : "รายการใหม่ (ยังไม่มีในระบบ)");
+    var dupDetail = dup
+      ? (dup.existingName + " [หมวด " + dup.existingCat + " · เดี่ยวเดิม: " + dup.existingUnitBar + " / แพ็คเดิม: " + dup.existingPackBar + "]")
+      : "";
     return [
       i + 1,
+      sysStatus,
+      p.similarity != null ? p.similarity : "",
       p.partner || "",
       p.cat || "",
       p.name || "",
       p.perPack || "",
-      p.packBar || "",
-      pQty !== null ? pQty : "",
-      pPrice !== null ? pPrice : "",
-      p.unitBar || "",
-      uQty !== null ? uQty : "",
+      uCode,
       uPrice !== null ? uPrice : "",
-      p.similarity != null ? p.similarity : "",
+      uQty !== null ? uQty : "",
+      pCode,
+      pPrice !== null ? pPrice : "",
+      pQty !== null ? pQty : "",
       p.unitSourceName || "",
       p.packSourceName || "",
-      p.saved ? "ยืนยันเข้าระบบแล้ว" : (p.selected ? "เลือกเตรียมยืนยัน" : "รอยืนยัน")
+      dupDetail,
+      ""
     ];
   });
-  return { head: head, rows: rows, filename: "จับคู่บาร์เดี่ยว-บาร์แพ็ค_" + thaiDayIso() + ".xlsx" };
+  return { head: head, rows: rows, filename: "ตารางตรวจสอบจับคู่บาร์เดี่ยว-แพ็ค_" + thaiDayIso() + ".xlsx" };
 }
 
 function exportPairedBarcodesToExcel() {
@@ -1629,11 +1747,12 @@ function exportPairedBarcodesToExcel() {
   var wb = XLSX.utils.book_new();
   var ws = XLSX.utils.aoa_to_sheet([exp.head].concat(exp.rows));
   ws["!cols"] = [
-    { wch: 6 }, { wch: 16 }, { wch: 14 }, { wch: 28 }, { wch: 12 },
-    { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 14 },
-    { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 26 }, { wch: 16 }
+    { wch: 6 }, { wch: 24 }, { wch: 12 }, { wch: 15 }, { wch: 14 },
+    { wch: 28 }, { wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
+    { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 26 }, { wch: 26 },
+    { wch: 34 }, { wch: 22 }
   ];
-  XLSX.utils.book_append_sheet(wb, ws, "จับคู่บาร์เดี่ยว-แพ็ค");
+  XLSX.utils.book_append_sheet(wb, ws, "ตรวจสอบจับคู่บาร์");
   if (typeof XLSX.writeFile === "function") {
     try { XLSX.writeFile(wb, exp.filename); } catch (_) {}
   }
@@ -1675,65 +1794,116 @@ function renderPairTable() {
   card.classList.remove("hidden");
 
   var q = ($("#bcPairSearch") ? $("#bcPairSearch").value : "").trim().toLowerCase();
-  var visible = pairs.filter(function (p) {
-    if (!q) return true;
-    return [p.name, p.unitSourceName, p.packSourceName, p.packBar, p.unitBar, p.cat, p.partner].join(" ").toLowerCase().indexOf(q) >= 0;
-  });
+  var filterMode = ($("#bcPairFilterMode") ? $("#bcPairFilterMode").value : "all") || "all";
 
   var activePairs = pairs.filter(function (p) { return !p.saved; });
+  var dupPairs = activePairs.filter(function (p) { return !!(p.dupInfo && p.dupInfo.isDup); });
+  var newPairs = activePairs.filter(function (p) { return !(p.dupInfo && p.dupInfo.isDup); });
   var selectedPairs = activePairs.filter(function (p) { return p.selected; });
+  var selectedDupCount = selectedPairs.filter(function (p) { return !!(p.dupInfo && p.dupInfo.isDup); }).length;
   var savedCount = pairs.length - activePairs.length;
 
-  $("#bcPairSummaryText").textContent =
-    "พบคู่ชื่อคล้ายกันทั้งหมด " + pairs.length + " คู่ · เลือกเตรียมยืนยัน " + selectedPairs.length + " คู่" +
-    (savedCount ? " · บันทึกเข้าระบบแล้ว " + savedCount + " คู่" : "");
+  var visible = pairs.filter(function (p) {
+    var isDup = !!(p.dupInfo && p.dupInfo.isDup);
+    if (filterMode === "new" && (isDup || p.saved)) return false;
+    if (filterMode === "dup" && (!isDup || p.saved)) return false;
+    if (filterMode === "selected" && !p.selected) return false;
+    if (!q) return true;
+    return [
+      p.name, p.unitSourceName, p.packSourceName, p.packBar, p.unitBar, p.cat, p.partner,
+      isDup ? p.dupInfo.existingName : ""
+    ].join(" ").toLowerCase().indexOf(q) >= 0;
+  });
+
+  $("#bcPairSummaryText").innerHTML =
+    "<span class=\"pair-stat-chip\">ทั้งหมด <b>" + pairs.length + "</b> คู่</span>" +
+    "<span class=\"pair-stat-chip new\">รายการใหม่ <b>" + newPairs.length + "</b> คู่</span>" +
+    "<span class=\"pair-stat-chip dup\">มีในระบบแล้ว (ซ้ำ) <b>" + dupPairs.length + "</b> คู่</span>" +
+    "<span class=\"pair-stat-chip sel\">เลือกเตรียมยืนยัน <b>" + selectedPairs.length + "</b> คู่" + (selectedDupCount ? " (บันทึกทับ " + selectedDupCount + ")" : "") + "</span>" +
+    (savedCount ? "<span class=\"pair-stat-chip saved\">บันทึกแล้ว <b>" + savedCount + "</b> คู่</span>" : "");
 
   var confirmBtn = $("#bcPairConfirmSelectedBtn");
   if (confirmBtn) {
     confirmBtn.disabled = selectedPairs.length === 0;
-    confirmBtn.textContent = "ยืนยันคู่ที่เลือกเข้าสู่ระบบ (" + selectedPairs.length + " คู่)";
+    confirmBtn.textContent = "ยืนยันคู่ที่เลือกเข้าสู่ระบบ (" + selectedPairs.length + " คู่" + (selectedDupCount ? " · ทับ " + selectedDupCount : "") + ")";
   }
 
-  $("#bcPairTbody").innerHTML = visible.length ? visible.map(function (p) {
+  $("#bcPairTbody").innerHTML = visible.length ? visible.map(function (p, idx) {
     var simCls = p.similarity >= 80 ? "high" : p.similarity >= 65 ? "med" : "low";
     var simLabel = p.similarity >= 80 ? "ตรงกันมาก" : p.similarity >= 65 ? "คล้ายกัน" : "ตรวจสอบ";
-    var uQty = resolvePairQty(p.unitBar, p.unitQty);
-    var pQty = resolvePairQty(p.packBar, p.packQty);
-    var uPrice = resolvePairPrice(p.unitBar, p.unitPrice);
-    var pPrice = resolvePairPrice(p.packBar, p.packPrice);
+    var uCode = cleanBarcodeStr(p.unitBar);
+    var pCode = cleanBarcodeStr(p.packBar);
+    var uQty = resolvePairQty(uCode, p.unitQty);
+    var pQty = resolvePairQty(pCode, p.packQty);
+    var uPrice = resolvePairPrice(uCode, p.unitPrice);
+    var pPrice = resolvePairPrice(pCode, p.packPrice);
+    var dup = p.dupInfo;
 
-    var uPills = "<span class=\"pair-meta-pills\">" +
-      (uPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(uPrice)) + "</span>" : "") +
-      "<span class=\"pair-pill qty" + (uQty === null || uQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(uQty)) + "</span>" +
-      "</span>";
-    var pPills = "<span class=\"pair-meta-pills\">" +
-      (pPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(pPrice)) + "</span>" : "") +
-      "<span class=\"pair-pill qty" + (pQty === null || pQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(pQty)) + "</span>" +
-      "</span>";
+    var sysBadge = p.saved
+      ? "<span class=\"pair-sys-badge saved\">✓ บันทึกแล้ว</span>"
+      : (dup
+        ? "<span class=\"pair-sys-badge dup\">⚠️ มีในระบบแล้ว</span>"
+        : "<span class=\"pair-sys-badge new\">รายการใหม่</span>");
 
-    return "<tr data-pair-id=\"" + esc(p.id) + "\" class=\"" + (p.saved ? "pair-saved" : "") + "\">" +
-      "<td style=\"text-align:center\"><input type=\"checkbox\" class=\"pair-sel-chk\" data-pair-act=\"check\"" + (p.selected ? " checked" : "") + (p.saved ? " disabled" : "") + " aria-label=\"เลือกคู่ " + esc(p.name) + "\"></td>" +
-      "<td style=\"text-align:center\"><span class=\"pair-sim-badge " + simCls + "\">" + p.similarity + "%<small>" + simLabel + "</small></span></td>" +
-      "<td><div class=\"pair-compare\">" +
-        "<div class=\"pair-compare-line\"><span class=\"pair-compare-tag unit\">เดี่ยว</span><span>" + esc(p.unitSourceName) + "</span> <span class=\"pair-compare-code\">(" + esc(p.unitBar || "–") + ")</span> " + uPills + "</div>" +
-        "<div class=\"pair-compare-line\"><span class=\"pair-compare-tag pack\">แพ็ค</span><span>" + esc(p.packSourceName) + "</span> <span class=\"pair-compare-code\">(" + esc(p.packBar || "–") + ")</span> " + pPills + "</div>" +
+    var dupBanner = dup
+      ? "<div class=\"pair-dup-alert\">⚠️ <b>มีในระบบแล้ว:</b> \"" + esc(dup.existingName) + "\" (หมวด <b>" + esc(dup.existingCat) + "</b> · เดี่ยวเดิม: <code>" + esc(dup.existingUnitBar) + "</code> / แพ็คเดิม: <code>" + esc(dup.existingPackBar) + "</code>) — <i>หากกดยืนยันจะบันทึกทับรายการนี้</i></div>"
+      : "";
+
+    return "<tr data-pair-id=\"" + esc(p.id) + "\" class=\"" + (p.saved ? "pair-saved" : (dup ? "pair-dup" : "")) + "\">" +
+      "<td style=\"text-align:center\">" +
+        "<input type=\"checkbox\" class=\"pair-sel-chk\" data-pair-act=\"check\"" + (p.selected ? " checked" : "") + (p.saved ? " disabled" : "") + " aria-label=\"เลือกคู่ " + esc(p.name) + "\">" +
+        "<span class=\"pair-row-no\">#" + (idx + 1) + "</span>" +
+      "</td>" +
+      "<td style=\"text-align:center\"><div class=\"pair-status-stack\">" +
+        "<span class=\"pair-sim-badge " + simCls + "\">" + p.similarity + "%<small>" + simLabel + "</small></span>" +
+        sysBadge +
       "</div></td>" +
-      "<td style=\"text-align:center\"><button type=\"button\" class=\"btn ghost small\" data-pair-act=\"swap\"" + (p.saved ? " disabled" : "") + " title=\"สลับฝั่งบาร์เดี่ยวกับบาร์แพ็ค\">⇄</button></td>" +
-      "<td><input type=\"text\" data-pair-field=\"partner\" value=\"" + esc(p.partner) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"รหัสคู่ค้า (Vender)\"></td>" +
-      "<td><input type=\"text\" data-pair-field=\"cat\" list=\"dlCats\" value=\"" + esc(p.cat) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"หมวด\"></td>" +
-      "<td><input type=\"text\" data-pair-field=\"name\" value=\"" + esc(p.name) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"ชื่อรายการ\"></td>" +
-      "<td><input type=\"text\" data-pair-field=\"perPack\" value=\"" + esc(p.perPack) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เว้นว่างไว้\"></td>" +
-      "<td><div class=\"pair-bar-cell\"><input type=\"text\" class=\"code-inp\" data-pair-field=\"packBar\" value=\"" + esc(p.packBar) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์แพ็ค\"><div class=\"pair-bar-sub\"><span>คงเหลือ: <b>" + esc(fmtOptNum(pQty)) + "</b></span>" + (pPrice !== null ? "<span>฿" + esc(fmtOptNum(pPrice)) + "</span>" : "") + "</div></div></td>" +
-      "<td><div class=\"pair-bar-cell\"><input type=\"text\" class=\"code-inp\" data-pair-field=\"unitBar\" value=\"" + esc(p.unitBar) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์เดี่ยว\"><div class=\"pair-bar-sub\"><span>คงเหลือ: <b>" + esc(fmtOptNum(uQty)) + "</b></span>" + (uPrice !== null ? "<span>฿" + esc(fmtOptNum(uPrice)) + "</span>" : "") + "</div></div></td>" +
-      "<td class=\"act\"><div class=\"actw\">" +
+      "<td><div class=\"pair-compare\">" +
+        "<div class=\"pair-compare-card\">" +
+          "<div class=\"pair-compare-head\"><span class=\"pair-compare-tag unit\">บาร์เดี่ยว</span><span class=\"pair-src-name\">" + esc(p.unitSourceName) + "</span></div>" +
+          "<div class=\"pair-src-meta\"><span>เลขบาร์: <code>" + esc(uCode || "–") + "</code></span>" +
+            (uPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(uPrice)) + "</span>" : "") +
+            "<span class=\"pair-pill qty" + (uQty === null || uQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(uQty)) + "</span>" +
+          "</div>" +
+        "</div>" +
+        "<div class=\"pair-compare-card\">" +
+          "<div class=\"pair-compare-head\"><span class=\"pair-compare-tag pack\">บาร์แพ็ค</span><span class=\"pair-src-name\">" + esc(p.packSourceName) + "</span></div>" +
+          "<div class=\"pair-src-meta\"><span>เลขบาร์: <code>" + esc(pCode || "–") + "</code></span>" +
+            (pPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(pPrice)) + "</span>" : "") +
+            "<span class=\"pair-pill qty" + (pQty === null || pQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(pQty)) + "</span>" +
+          "</div>" +
+        "</div>" +
+        dupBanner +
+      "</div></td>" +
+      "<td style=\"text-align:center;vertical-align:middle\"><button type=\"button\" class=\"btn ghost small\" data-pair-act=\"swap\"" + (p.saved ? " disabled" : "") + " title=\"สลับฝั่งบาร์เดี่ยวกับบาร์แพ็ค\">⇄</button></td>" +
+      "<td><div class=\"pair-edit-stack\">" +
+        "<label class=\"pair-mini-lbl\">ชื่อรายการที่จะบันทึก<input type=\"text\" data-pair-field=\"name\" value=\"" + esc(p.name) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"ชื่อรายการ\"></label>" +
+        "<div class=\"pair-sub-grid\">" +
+          "<label class=\"pair-mini-lbl\">รหัสคู่ค้า (Vender)<input type=\"text\" data-pair-field=\"partner\" value=\"" + esc(p.partner) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"รหัสคู่ค้า\"></label>" +
+          "<label class=\"pair-mini-lbl\">หมวดสินค้า<input type=\"text\" data-pair-field=\"cat\" list=\"dlCats\" value=\"" + esc(p.cat) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"หมวด\"></label>" +
+          "<label class=\"pair-mini-lbl\">ต่อแพ็ค<input type=\"text\" data-pair-field=\"perPack\" value=\"" + esc(p.perPack) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เว้นว่าง\"></label>" +
+        "</div>" +
+      "</div></td>" +
+      "<td><div class=\"pair-bars-stack\">" +
+        "<div class=\"pair-bar-row\">" +
+          "<div class=\"pair-bar-InputLine\"><span class=\"pair-bar-lbl unit\">เดี่ยว</span><input type=\"text\" class=\"code-inp\" data-pair-field=\"unitBar\" value=\"" + esc(uCode) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์เดี่ยว\"></div>" +
+          "<div class=\"pair-bar-meta\"><span>ราคา: <b>" + (uPrice !== null ? "฿" + esc(fmtOptNum(uPrice)) : "–") + "</b></span><span>คงเหลือ: <b>" + esc(fmtOptNum(uQty)) + "</b></span></div>" +
+        "</div>" +
+        "<div class=\"pair-bar-row\">" +
+          "<div class=\"pair-bar-InputLine\"><span class=\"pair-bar-lbl pack\">แพ็ค</span><input type=\"text\" class=\"code-inp\" data-pair-field=\"packBar\" value=\"" + esc(pCode) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์แพ็ค\"></div>" +
+          "<div class=\"pair-bar-meta\"><span>ราคา: <b>" + (pPrice !== null ? "฿" + esc(fmtOptNum(pPrice)) : "–") + "</b></span><span>คงเหลือ: <b>" + esc(fmtOptNum(pQty)) + "</b></span></div>" +
+        "</div>" +
+      "</div></td>" +
+      "<td class=\"act\"><div class=\"pair-act-stack\">" +
         (p.saved
-          ? "<span style=\"color:var(--ok);font-weight:700\">บันทึกแล้ว ✓</span>"
-          : "<button type=\"button\" class=\"btn small\" data-pair-act=\"confirm-one\">ยืนยันคู่นี้</button><button type=\"button\" class=\"btn danger small\" data-pair-act=\"remove\">ตัดออก</button>") +
+          ? "<span class=\"pair-sys-badge saved\">บันทึกแล้ว ✓</span>"
+          : (dup
+            ? "<button type=\"button\" class=\"btn warn-btn small\" data-pair-act=\"confirm-one\">บันทึกทับคู่นี้</button><button type=\"button\" class=\"btn danger small\" data-pair-act=\"remove\">ตัดออก</button>"
+            : "<button type=\"button\" class=\"btn small\" data-pair-act=\"confirm-one\">ยืนยันคู่นี้</button><button type=\"button\" class=\"btn danger small\" data-pair-act=\"remove\">ตัดออก</button>")) +
       "</div></td>" +
     "</tr>";
-  }).join("") : "<tr><td colspan=\"11\" class=\"empty\">ไม่พบคู่รายการตามคำค้นหา</td></tr>";
+  }).join("") : "<tr><td colspan=\"7\" class=\"empty\">ไม่พบคู่รายการตามตัวกรองหรือคำค้นหา</td></tr>";
 
-  // Render manual pairing section if there are unmatched items
   if (manualCard) {
     var uList = PAIR_STATE.unmatchedUnits || [];
     var pList = PAIR_STATE.unmatchedPacks || [];
@@ -1742,9 +1912,10 @@ function renderPairTable() {
       $("#bcPairUnmatchedCount").textContent = "รายการที่ยังไม่ถูกจับคู่: ฝั่งบาร์เดี่ยว " + uList.length + " รายการ · ฝั่งบาร์แพ็ค " + pList.length + " รายการ";
       var allPool = uList.concat(pList);
       var fmtOpt = function (it, idx) {
-        var qv = resolvePairQty(it.barcode, it.qty);
-        var pv = resolvePairPrice(it.barcode, it.price);
-        return "<option value=\"" + idx + "\">" + esc(it.name) + " (" + esc(it.barcode) +
+        var bCode = cleanBarcodeStr(it.barcode);
+        var qv = resolvePairQty(bCode, it.qty);
+        var pv = resolvePairPrice(bCode, it.price);
+        return "<option value=\"" + idx + "\">" + esc(it.name) + " (" + esc(bCode) +
           (pv !== null ? " · ฿" + esc(fmtOptNum(pv)) : "") +
           " · คงเหลือ " + esc(fmtOptNum(qv)) + ")</option>";
       };
@@ -1765,23 +1936,41 @@ async function confirmAndSavePairItems(pairObjs) {
   }
   for (var i = 0; i < pairObjs.length; i++) {
     var p = pairObjs[i];
+    p.unitBar = cleanBarcodeStr(p.unitBar);
+    p.packBar = cleanBarcodeStr(p.packBar);
     if (!String(p.name || "").trim()) {
       toast("กรุณากรอกชื่อรายการที่จะบันทึกให้ครบถ้วน", true);
       return;
     }
-    if (!String(p.packBar || "").trim() && !String(p.unitBar || "").trim()) {
+    if (!p.packBar && !p.unitBar) {
       toast("รายการ \"" + p.name + "\" ต้องมีเลขบาร์แพ็คหรือเลขบาร์เดี่ยว", true);
       return;
     }
+    p.dupInfo = evaluatePairDuplicate(p, PAIR_STATE.dbBarMap);
   }
+
+  var dupItems = pairObjs.filter(function (p) { return !!(p.dupInfo && p.dupInfo.isDup); });
+  if (dupItems.length > 0) {
+    var previewLines = dupItems.slice(0, 6).map(function (p) {
+      return "• " + p.name + " (เดี่ยว: " + (p.unitBar || "-") + " / แพ็ค: " + (p.packBar || "-") + ") → มีในระบบแล้ว: \"" + p.dupInfo.existingName + "\" [หมวด " + p.dupInfo.existingCat + "]";
+    }).join("\n");
+    if (dupItems.length > 6) previewLines += "\n...และอีก " + (dupItems.length - 6) + " คู่";
+    var okOverwrite = confirm(
+      "พบรายการที่มีเลขรหัสบาร์ซ้ำกับในระบบ จำนวน " + dupItems.length + " คู่:\n\n" +
+      previewLines +
+      "\n\nต้องการบันทึกทับข้อมูลเดิมในระบบหรือไม่? (ระบบจะตัดตัวอักษร P ออกจากเลขบาร์ให้อัตโนมัติ)"
+    );
+    if (!okOverwrite) return;
+  }
+
   var payload = pairObjs.map(function (p) {
     return {
       partner: String(p.partner || "").trim(),
       cat: String(p.cat || "").trim() || ($("#bcPairDefCat") && $("#bcPairDefCat").value.trim()) || "ไม่ระบุหมวด",
       name: String(p.name || "").trim(),
       perPack: String(p.perPack || "").trim(),
-      packBar: String(p.packBar || "").trim(),
-      unitBar: String(p.unitBar || "").trim()
+      packBar: cleanBarcodeStr(p.packBar),
+      unitBar: cleanBarcodeStr(p.unitBar)
     };
   });
   var res = await withSaving(call("confirmBarcodePairs", { pairs: payload }));
@@ -1789,10 +1978,11 @@ async function confirmAndSavePairItems(pairObjs) {
   bcBkRender();
   pairObjs.forEach(function (p) { p.saved = true; p.selected = false; });
   savePairDraftTemp(true);
-  renderPairTable();
-  toast("ยืนยันบันทึกคู่บาร์เดี่ยว/แพ็คสำเร็จ " + res.count + " คู่ (เพิ่มใหม่ " + res.created + " · อัปเดต " + res.updated + ")");
   await refreshCats();
   if (S.cur) await selectCat(S.cur);
+  await ensureDbBarMapLoaded();
+  renderPairTable();
+  toast("ยืนยันบันทึกคู่บาร์เดี่ยว/แพ็คสำเร็จ " + res.count + " คู่ (เพิ่มใหม่ " + res.created + " · บันทึกทับ/อัปเดต " + res.updated + ")");
 }
 
 if ($("#btnOpenPairTab")) {
@@ -1814,13 +2004,12 @@ if ($("#bcPairAnalyzeBtn")) {
       var sheets2 = f2 ? await readWorkbookSheetsFromFile(f2, "pack") : [];
       var allSheets = sheets1.concat(sheets2);
 
+      // ดึงข้อมูลในระบบเสมอเพื่อใช้เทียบเช็คเลขบาร์ซ้ำ (ไม่รวมตัว P)
       var existingRows = [];
-      if ($("#bcPairWithDb") && $("#bcPairWithDb").checked) {
-        try {
-          var dbAll = (S.data && curCat() && curCat().all) ? S.data : await call("getCategoryData", allCat().sheet, "*");
-          existingRows = (dbAll && dbAll.rows) || [];
-        } catch (_) {}
-      }
+      try {
+        var dbAll = (S.data && curCat() && curCat().all) ? S.data : await call("getCategoryData", allCat().sheet, "*");
+        existingRows = (dbAll && dbAll.rows) || [];
+      } catch (_) {}
 
       try {
         var ctx = await call("barcodePairContext");
@@ -1829,10 +2018,12 @@ if ($("#bcPairAnalyzeBtn")) {
 
       var minSim = Number($("#bcPairMinSim") ? $("#bcPairMinSim").value : 50) || 50;
       var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim() || (curCat() && !curCat().all ? curCat().cat : "");
+      var pairWithDb = !($("#bcPairWithDb") && !$("#bcPairWithDb").checked);
       var result = matchBarcodePairsFromSheets(allSheets, {
         minSim: minSim,
         defaultCat: defCat,
         existingRows: existingRows,
+        pairWithDb: pairWithDb,
         stockMap: PAIR_STATE.stockMap
       });
       PAIR_STATE.pairs = result.pairs;
@@ -1844,7 +2035,8 @@ if ($("#bcPairAnalyzeBtn")) {
       if (!result.pairs.length) {
         toast("ไม่พบคู่ที่มีความคล้ายตั้งแต่ " + minSim + "% ขึ้นไป (ลองลดเปอร์เซ็นต์ความคล้ายขั้นต่ำ หรือจับคู่ด้วยตนเองด้านล่าง)", true);
       } else {
-        toast("พบคู่บาร์เดี่ยว/บาร์แพ็คที่ชื่อคล้ายกัน " + result.pairs.length + " คู่ (บันทึกชั่วคราวไว้ให้ 7 วันแล้ว)");
+        var dupCnt = result.pairs.filter(function (p) { return !!(p.dupInfo && p.dupInfo.isDup); }).length;
+        toast("พบคู่บาร์เดี่ยว/แพ็ค " + result.pairs.length + " คู่ (รายการใหม่ " + (result.pairs.length - dupCnt) + " · มีในระบบแล้ว " + dupCnt + " คู่)");
       }
     });
   });
@@ -1874,9 +2066,21 @@ if ($("#bcPairExportBtn")) {
 if ($("#bcPairSearch")) {
   $("#bcPairSearch").addEventListener("input", renderPairTable);
 }
+if ($("#bcPairFilterMode")) {
+  $("#bcPairFilterMode").addEventListener("change", renderPairTable);
+}
 if ($("#bcPairSelectAllBtn")) {
   $("#bcPairSelectAllBtn").addEventListener("click", function () {
     (PAIR_STATE.pairs || []).forEach(function (p) { if (!p.saved) p.selected = true; });
+    savePairDraftTemp(false);
+    renderPairTable();
+  });
+}
+if ($("#bcPairSelectNewBtn")) {
+  $("#bcPairSelectNewBtn").addEventListener("click", function () {
+    (PAIR_STATE.pairs || []).forEach(function (p) {
+      if (!p.saved) p.selected = !(p.dupInfo && p.dupInfo.isDup);
+    });
     savePairDraftTemp(false);
     renderPairTable();
   });
@@ -1910,11 +2114,24 @@ if ($("#bcPairTbody")) {
     if (!tr) return;
     var item = (PAIR_STATE.pairs || []).filter(function (p) { return p.id === tr.dataset.pairId; })[0];
     if (item && !item.saved) {
-      item[inp.dataset.pairField] = inp.value;
+      var fld = inp.dataset.pairField;
+      if (fld === "packBar" || fld === "unitBar") {
+        var cleaned = cleanBarcodeStr(inp.value);
+        if (inp.value !== cleaned) inp.value = cleaned;
+        item[fld] = cleaned;
+        item.dupInfo = evaluatePairDuplicate(item, PAIR_STATE.dbBarMap);
+      } else {
+        item[fld] = inp.value;
+      }
       savePairDraftTemp(false);
     }
   });
   $("#bcPairTbody").addEventListener("change", function (e) {
+    var inpField = e.target.closest("input[data-pair-field]");
+    if (inpField && (inpField.dataset.pairField === "packBar" || inpField.dataset.pairField === "unitBar")) {
+      renderPairTable();
+      return;
+    }
     var chk = e.target.closest("input[data-pair-act=\"check\"]");
     if (!chk) return;
     var tr = chk.closest("tr[data-pair-id]");
@@ -1939,6 +2156,7 @@ if ($("#bcPairTbody")) {
       var tmpNm = item.unitSourceName; item.unitSourceName = item.packSourceName; item.packSourceName = tmpNm;
       var tmpPr = item.unitPrice; item.unitPrice = item.packPrice; item.packPrice = tmpPr;
       var tmpQt = item.unitQty; item.unitQty = item.packQty; item.packQty = tmpQt;
+      item.dupInfo = evaluatePairDuplicate(item, PAIR_STATE.dbBarMap);
       savePairDraftTemp(false);
       renderPairTable();
     } else if (act === "remove") {
@@ -1958,12 +2176,13 @@ if ($("#bcPairManualAddBtn")) {
     var pIdx = Number($("#bcPairManualPack").value);
     var selA = uList[uIdx], selB = pList[pIdx];
     if (!selA || !selB) { toast("กรุณาเลือกรายการทั้ง 2 ช่องเพื่อนำมาจับคู่", true); return; }
-    if (selA.barcode === selB.barcode) { toast("เลขบาร์เดี่ยวและเลขบาร์แพ็คต้องไม่ซ้ำกัน", true); return; }
+    if (cleanBarcodeStr(selA.barcode) === cleanBarcodeStr(selB.barcode)) { toast("เลขบาร์เดี่ยวและเลขบาร์แพ็คต้องไม่ซ้ำกัน", true); return; }
     var oriented = orientUnitAndPack(selA, selB);
     var u = oriented.unit, p = oriented.pack;
+    var uCode = cleanBarcodeStr(u.barcode), pCode = cleanBarcodeStr(p.barcode);
     var sim = computeBarcodeNameSimilarity(u, p);
     var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim() || (curCat() && !curCat().all ? curCat().cat : "");
-    PAIR_STATE.pairs.unshift({
+    var newPair = {
       id: "pair_manual_" + (PAIR_STATE.nextId++),
       selected: true,
       saved: false,
@@ -1974,13 +2193,15 @@ if ($("#bcPairManualAddBtn")) {
       cat: defCat || u.cat || p.cat || "ไม่ระบุหมวด",
       name: (u.info && u.info.cleanName) || u.name,
       perPack: "",
-      packBar: p.barcode,
-      unitBar: u.barcode,
-      unitPrice: resolvePairPrice(u.barcode, u.price),
-      packPrice: resolvePairPrice(p.barcode, p.price),
-      unitQty: resolvePairQty(u.barcode, u.qty),
-      packQty: resolvePairQty(p.barcode, p.qty)
-    });
+      packBar: pCode,
+      unitBar: uCode,
+      unitPrice: resolvePairPrice(uCode, u.price),
+      packPrice: resolvePairPrice(pCode, p.price),
+      unitQty: resolvePairQty(uCode, u.qty),
+      packQty: resolvePairQty(pCode, p.qty)
+    };
+    newPair.dupInfo = evaluatePairDuplicate(newPair, PAIR_STATE.dbBarMap);
+    PAIR_STATE.pairs.unshift(newPair);
     PAIR_STATE.unmatchedUnits = PAIR_STATE.unmatchedUnits.filter(function (x) { return x !== u && x !== p; });
     PAIR_STATE.unmatchedPacks = PAIR_STATE.unmatchedPacks.filter(function (x) { return x !== u && x !== p; });
     savePairDraftTemp(true);
@@ -1992,9 +2213,11 @@ if ($("#bcPairManualAddBtn")) {
 if (typeof window !== "undefined") {
   Object.assign(window, {
     PAIR_STATE: PAIR_STATE,
+    cleanBarcodeStr: cleanBarcodeStr,
     analyzeBarcodeItemName: analyzeBarcodeItemName,
     computeBarcodeNameSimilarity: computeBarcodeNameSimilarity,
     orientUnitAndPack: orientUnitAndPack,
+    evaluatePairDuplicate: evaluatePairDuplicate,
     matchBarcodePairsFromSheets: matchBarcodePairsFromSheets,
     savePairDraftTemp: savePairDraftTemp,
     clearPairDraftTemp: clearPairDraftTemp,
@@ -2009,8 +2232,11 @@ function switchTab(t) {
   if (S.me && S.me.role !== "admin" && t !== "print") t = "print";
   document.querySelectorAll(".tab").forEach(function (x) { var on=x.dataset.t===t;x.classList.toggle("on",on);x.setAttribute("aria-selected",String(on));x.tabIndex=on?0:-1; });
   ["data", "manage", "pair", "print"].forEach(function (k) { if ($("#v-" + k)) $("#v-" + k).classList.toggle("hidden", k !== t); });
+  if ($(".layout")) $(".layout").classList.toggle("pair-mode", t === "pair");
   if (t === "print") renderPrintList();
-  if (t === "pair") renderPairTable();
+  if (t === "pair") {
+    ensureDbBarMapLoaded().then(function () { renderPairTable(); });
+  }
 }
 document.querySelector(".tabs").addEventListener("click", function (e) {
   var b = e.target.closest(".tab"); if (!b) return;

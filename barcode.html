@@ -10,10 +10,10 @@
 <script src="assets/js/shared/page-url.js?v=d1-opt-1"></script>
 <base target="_top"/>
 <link href="assets/css/shared/fonts.css" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/css/pages/barcode.css?v=pair-1">
 <script src="assets/vendor/xlsx.full.min.js"></script>
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
 <link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/css/pages/barcode.css?v=pair-3">
 </head>
 <body data-workspace="barcode" class="locked liquid-ui"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
@@ -77,7 +77,7 @@
 <section class="workspace-pane hidden" id="v-pair" style="display:grid;gap:14px">
   <div class="workspace-section-title">
     <h3>จับคู่บาร์เดี่ยว / บาร์แพ็คอัตโนมัติจากชื่อที่คล้ายกัน</h3>
-    <p>อัปโหลดไฟล์รายการสินค้า (Excel หรือ CSV) เพื่อให้ระบบค้นหาชื่อสินค้าที่คล้ายกัน แยกบาร์เดี่ยวกับบาร์แพ็คมาแสดงให้ตรวจสอบ และกดยืนยันก่อนบันทึกเข้าระบบ</p>
+    <p>อัปโหลดไฟล์รายการสินค้า ระบบจะตัดตัวอักษร P ออกจากรหัสบาร์ให้อัตโนมัติ ใช้ราคาที่ถูกกว่าเป็นบาร์เดี่ยว เทียบเช็ครายการซ้ำกับในระบบ ส่งออกตารางไปตรวจหน้าร้านเป็น Excel ได้ และบันทึกค้างไว้ชั่วคราวได้ 7 วัน</p>
   </div>
   <div class="card">
     <div class="cardrow">
@@ -105,43 +105,65 @@
       </label>
     </div>
     <div class="addbar" style="justify-content:space-between">
-      <label class="pair-chk-inline"><input type="checkbox" id="bcPairWithDb" checked/> เทียบจับคู่กับรายการที่มีอยู่ในระบบปัจจุบันด้วย (กรณีอีกบาร์อยู่ในระบบแล้ว)</label>
+      <label class="pair-chk-inline"><input type="checkbox" id="bcPairWithDb" checked/> นำรายการเดี่ยวในระบบที่ยังไม่มีคู่แพ็คมาช่วยจับคู่ด้วย</label>
       <div class="row">
         <button type="button" class="btn" id="bcPairAnalyzeBtn" disabled>วิเคราะห์และแสดงคู่ที่ชื่อคล้ายกัน</button>
       </div>
     </div>
-    <div class="muted" id="bcPairHint" style="margin-top:6px">ระบบจะยังไม่บันทึกข้อมูลลงฐานข้อมูลจนกว่าคุณจะตรวจสอบและกดปุ่ม "ยืนยัน" ของคู่นั้น ๆ</div>
+    <div class="pair-draft-bar hidden" id="bcPairDraftBar">
+      <div class="pair-draft-info">
+        <span class="dot ok"></span>
+        <span id="bcPairDraftStatus">บันทึกไว้ชั่วคราว (เก็บไว้ได้ 7 วัน)</span>
+      </div>
+      <div class="row">
+        <button type="button" class="btn ghost small" id="bcPairSaveDraftBtn">บันทึกชั่วคราว 7 วัน</button>
+        <button type="button" class="btn ghost small" id="bcPairClearDraftBtn">ล้างข้อมูลชั่วคราว</button>
+      </div>
+    </div>
+    <div class="muted" id="bcPairHint" style="margin-top:6px">ระบบตัดตัว P ออกจากเลขบาร์ให้อัตโนมัติ · ราคาที่ถูกกว่าจะเป็น "บาร์เดี่ยว" · คอลัมน์ Vender เป็น "รหัสคู่ค้า" · หากเลขบาร์มีในระบบแล้วจะแจ้งเตือนให้เลือกก่อนบันทึกทับ</div>
   </div>
 
   <div class="card hidden" id="bcPairResultCard">
-    <div class="cardrow">
+    <div class="pair-head-top">
       <div>
-        <h3>2. ตรวจสอบและกดยืนยันคู่บาร์เดี่ยว / บาร์แพ็ค</h3>
-        <div class="muted" id="bcPairSummaryText"></div>
+        <h3 style="margin:0 0 4px">2. ตรวจสอบและกดยืนยันคู่บาร์เดี่ยว / บาร์แพ็ค</h3>
+        <div class="pair-summary-badges" id="bcPairSummaryText"></div>
       </div>
-      <div class="row">
-        <input type="search" id="bcPairSearch" placeholder="ค้นหาชื่อสินค้า หรือเลขบาร์..." style="width:230px"/>
-        <button type="button" class="btn ghost small" id="bcPairSelectAllBtn">เลือกทั้งหมด</button>
-        <button type="button" class="btn ghost small" id="bcPairSelectHighBtn">เลือกความคล้าย ≥ 70%</button>
-        <button type="button" class="btn ghost small" id="bcPairClearSelBtn">ล้างที่เลือก</button>
+      <div class="pair-head-actions">
+        <button type="button" class="btn pair-export-btn" id="bcPairExportBtn">ส่งออกตารางตรวจสอบ (Excel)</button>
         <button type="button" class="btn" id="bcPairConfirmSelectedBtn">ยืนยันคู่ที่เลือกเข้าสู่ระบบ</button>
       </div>
     </div>
+
+    <div class="pair-toolbar">
+      <div class="pair-toolbar-left">
+        <input type="search" id="bcPairSearch" placeholder="ค้นหาชื่อสินค้า, รหัสคู่ค้า, หรือเลขบาร์..."/>
+        <select id="bcPairFilterMode" aria-label="กรองรายการจับคู่">
+          <option value="all">แสดงทั้งหมด</option>
+          <option value="new">เฉพาะรายการใหม่ (ยังไม่มีในระบบ)</option>
+          <option value="dup">เฉพาะที่มีในระบบแล้ว (ซ้ำ)</option>
+          <option value="selected">เฉพาะที่ติ๊กเลือกไว้</option>
+        </select>
+      </div>
+      <div class="pair-toolbar-right">
+        <button type="button" class="btn ghost small" id="bcPairSelectAllBtn">เลือกทั้งหมด</button>
+        <button type="button" class="btn ghost small" id="bcPairSelectNewBtn">เลือกเฉพาะรายการใหม่</button>
+        <button type="button" class="btn ghost small" id="bcPairSelectHighBtn">เลือกความคล้าย ≥ 70%</button>
+        <button type="button" class="btn ghost small" id="bcPairClearSelBtn">ล้างที่เลือก</button>
+      </div>
+    </div>
+
     <div class="tablewrap pair-tablewrap">
       <table class="dt pair-dt">
         <thead>
           <tr>
-            <th style="width:44px">เลือก</th>
-            <th style="width:86px">ความคล้าย</th>
-            <th style="min-width:250px">เปรียบเทียบชื่อที่พบในไฟล์ (เดี่ยว ⇄ แพ็ค)</th>
-            <th style="width:58px">สลับ</th>
-            <th style="width:95px">รหัสคู่ค้า</th>
-            <th style="width:120px">หมวด</th>
-            <th style="min-width:210px">ชื่อรายการที่จะบันทึกเข้าระบบ</th>
-            <th style="width:82px">ต่อแพ็ค</th>
-            <th style="width:140px">เลขบาร์แพ็ค</th>
-            <th style="width:140px">เลขบาร์เดี่ยว</th>
-            <th style="width:155px">ยืนยัน / จัดการ</th>
+            <th style="width:52px">เลือก</th>
+            <th style="width:124px">ความคล้าย / สถานะ</th>
+            <th style="min-width:320px">เปรียบเทียบข้อมูลจากไฟล์ (เดี่ยว ⇄ แพ็ค)</th>
+            <th style="width:52px">สลับ</th>
+            <th style="min-width:310px">ข้อมูลที่จะบันทึกเข้าระบบ</th>
+            <th style="width:240px">เลขบาร์ที่จะบันทึก (ตัด P แล้ว)</th>
+            <th style="width:132px">ยืนยัน / จัดการ</th>
           </tr>
         </thead>
         <tbody id="bcPairTbody"></tbody>
@@ -155,10 +177,10 @@
       <span class="muted" id="bcPairUnmatchedCount"></span>
     </div>
     <div class="pair-manual-grid">
-      <label>เลือกรายการฝั่งบาร์เดี่ยว
+      <label>เลือกรายการที่ 1 (ถ้าราคาถูกกว่าจะเป็นบาร์เดี่ยวอัตโนมัติ)
         <select id="bcPairManualUnit"></select>
       </label>
-      <label>เลือกรายการฝั่งบาร์แพ็ค
+      <label>เลือกรายการที่ 2 (ถ้าราคาสูงกว่าจะเป็นบาร์แพ็คอัตโนมัติ)
         <select id="bcPairManualPack"></select>
       </label>
       <button type="button" class="btn ghost" id="bcPairManualAddBtn">+ นำมาจับคู่เพิ่มในตารางด้านบน</button>
@@ -236,7 +258,7 @@
 </div>
 <div id="printArea"></div>
 <div id="toast" role="status"></div>
-<script src="assets/js/pages/barcode.js?v=pair-1"></script>
+<script src="assets/js/pages/barcode.js?v=pair-3"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>
