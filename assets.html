@@ -6,8 +6,8 @@
   <title>รายการสินทรัพย์ · CMUCOOP</title>
   <link rel="icon" href="assets/images/logo.png" type="image/png">
   <link rel="stylesheet" href="assets/css/shared/fonts.css">
-  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-3">
-  <script src="assets/js/shared/gas-shim.js?v=assets-3"></script>
+  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-5">
+  <script src="assets/js/shared/gas-shim.js?v=assets-5"></script>
   <script src="assets/vendor/xlsx.full.min.js"></script>
   <script src="assets/vendor/zxing-library-0.23.0.min.js"></script>
 </head>
@@ -78,14 +78,14 @@
           <button class="button secondary" id="clearFilters" type="button">ล้างตัวกรอง</button>
         </div>
         <p class="error load-error" id="loadError" role="alert" hidden></p>
-        <div class="table-guide"><span>เลื่อนตารางไปทางขวาเพื่อดูข้อมูลครบทุกช่อง →</span><span id="netSummary"></span></div>
+        <div class="table-guide"><span>ช่อง "ปกติ" กด 1 ครั้ง = ✓ ติ๊กถูก · กด 2 ครั้ง = ✕ กากบาท · เลื่อนตารางไปทางขวาเพื่อดูข้อมูลครบทุกช่อง →</span><span id="netSummary"></span></div>
         <div class="table-wrap" role="region" aria-label="ตารางรายการสินทรัพย์ เลื่อนแนวนอนได้" tabindex="0">
           <table id="assetTable" aria-labelledby="registerTitle">
             <colgroup><col class="seq-col"><col class="photo-col"><col class="link-col"><col class="name-col"><col class="code-col"><col class="date-col"><col class="place-col"><col span="4" class="status-col"><col span="7" class="money-col"><col class="note-col"><col class="action-col"></colgroup>
             <thead><tr>
               <th rowspan="2" scope="col" class="seq-head">ลำดับ</th><th rowspan="2" scope="col">รูปภาพ</th><th rowspan="2" scope="col">ลิงก์ภาพ</th><th rowspan="2" scope="col">รายการ</th><th rowspan="2" scope="col">รหัสสินทรัพย์</th><th rowspan="2" scope="col">วันที่รับสินทรัพย์</th><th rowspan="2" scope="col">สถานที่ตั้งสินทรัพย์</th>
-              <th colspan="4" scope="colgroup">สถานะ</th><th rowspan="2" scope="col">รวม</th><th rowspan="2" scope="col">อัตรา ร้อยละ</th><th rowspan="2" scope="col">ยกมา</th><th colspan="2" scope="colgroup">ค่าเสื่อมราคาสะสม</th><th rowspan="2" scope="col">ยกไป</th><th rowspan="2" scope="col">ราคาสินทรัพย์ สุทธิ</th><th rowspan="2" scope="col">หมายเหตุ</th><th rowspan="2" scope="col" class="action-head">จัดการ</th>
-            </tr><tr><th scope="col">ปกติ</th><th scope="col">ไม่สามารถซ่อมได้</th><th scope="col">ต้องทำการซ่อม</th><th scope="col">ลด ระหว่างปี</th><th scope="col">เพิ่ม ระหว่างปี</th><th scope="col">ลด ระหว่างปี</th></tr></thead>
+              <th colspan="4" scope="colgroup">สถานะ</th><th rowspan="2" scope="col">รวม</th><th rowspan="2" scope="col">อัตรา ร้อยละ</th><th colspan="4" scope="colgroup">ค่าเสื่อมราคาสะสม</th><th rowspan="2" scope="col">ราคาสินทรัพย์ สุทธิ</th><th rowspan="2" scope="col">หมายเหตุ</th><th rowspan="2" scope="col" class="action-head">จัดการ</th>
+            </tr><tr><th scope="col">ปกติ</th><th scope="col">ไม่สามารถซ่อมได้</th><th scope="col">ต้องทำการซ่อม</th><th scope="col">ลด ระหว่างปี</th><th scope="col">ยกมา</th><th scope="col">เพิ่ม ระหว่างปี</th><th scope="col">ลด ระหว่างปี</th><th scope="col">ยกไป</th></tr></thead>
             <tbody id="rows"></tbody><tfoot id="totals"></tfoot>
           </table>
         </div>
@@ -114,16 +114,21 @@
         </div>
         <div class="form-preview" id="imagePreview"><span>ตัวอย่างรูปภาพ</span></div>
       </div>
-      <fieldset class="status-options"><legend>สถานะ <span class="helper">เลือกได้ 1 สถานะ</span></legend>
-        <label><input type="radio" name="status" value="normal" checked required>ปกติ</label><label><input type="radio" name="status" value="irreparable">ไม่สามารถซ่อมได้</label><label><input type="radio" name="status" value="repair">ต้องทำการซ่อม</label><label><input type="radio" name="status" value="reduced">ลด ระหว่างปี</label>
+      <fieldset class="status-options"><legend>สถานะ <span class="helper">ช่องปกติ: กด 1 ครั้ง = ✓ ติ๊กถูก · กด 2 ครั้ง = ✕ กากบาท</span></legend>
+        <button type="button" class="normal-state-btn state-check" id="formNormalBtn" data-mark="check" title="กด 1 ครั้ง = ✓ ติ๊กถูก · กด 2 ครั้ง = ✕ กากบาท"><span class="status-box state-check" id="formNormalBox">✓</span><span id="formNormalText">ปกติ (✓ ติ๊กถูก)</span></button>
+        <input type="hidden" id="normalMarkInput" name="normalMark" value="check">
+        <label hidden><input type="radio" name="status" value="normal" checked required>ปกติ</label>
+        <label><input type="radio" name="status" value="irreparable">ไม่สามารถซ่อมได้</label>
+        <label><input type="radio" name="status" value="repair">ต้องทำการซ่อม</label>
+        <label><input type="radio" name="status" value="reduced">ลด ระหว่างปี</label>
       </fieldset>
       <div class="form-section"><h3>มูลค่าและค่าเสื่อมราคา</h3><p class="helper">กรอกตัวเลขตามทะเบียน หน่วยเป็นบาท ยกเว้นอัตราร้อยละ · เว้นว่างได้ทุกช่อง</p><div class="form-grid amounts-grid">
         <label>รวม<input name="total" id="total" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
         <label>อัตรา ร้อยละ<input name="rate" id="rate" type="number" min="0" max="100" step="0.01" inputmode="decimal"></label>
-        <label>ยกมา<input name="opening" id="opening" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ค่าเสื่อมราคาสะสม — ยกมา<input name="opening" id="opening" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
         <label>ค่าเสื่อมราคาสะสม — เพิ่ม ระหว่างปี<input name="increase" id="increase" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
         <label>ค่าเสื่อมราคาสะสม — ลด ระหว่างปี<input name="decrease" id="decrease" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
-        <label>ยกไป<input name="closing" id="closing" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ค่าเสื่อมราคาสะสม — ยกไป<input name="closing" id="closing" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
         <label>ราคาสินทรัพย์ สุทธิ<input name="net" id="net" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
       </div></div>
       <label>หมายเหตุ<textarea id="note" name="note" rows="3" maxlength="2000" placeholder="รายละเอียดเพิ่มเติม"></textarea></label>
@@ -221,6 +226,6 @@
   <datalist id="locationChoices"></datalist>
   <div id="stickerPrintArea" aria-hidden="true"></div>
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="assets/js/pages/assets.js?v=assets-3"></script>
+  <script src="assets/js/pages/assets.js?v=assets-5"></script>
 </body>
 </html>

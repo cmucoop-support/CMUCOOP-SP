@@ -10,9 +10,59 @@
   const fmtTime = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
   let token = '', user = null, data = null, page = 1, loadSeq = 0, searchTimer, imageTimer, toastTimer, formState = null, saving = false, titleRevision;
   let pendingImageData = null, parsedImportItems = null, stickerPool = [], selectedStickerIds = new Set(), qrRefCode = '', qrTargetRow = null, qrAutoOpened = false;
+  const rowSaveTimers = new Map();
+  let lastNormalClick = { key: '', ts: 0, from: '' };
 
   const amount = value => value == null ? '<span class="muted">–</span>' : fmtMoney.format(value);
   const date = value => value ? fmtDate.format(new Date(value + 'T00:00:00Z')) : '–';
+
+  function getNormalMark(r) {
+    if (!r) return 'check';
+    if (r.normalMark === 'check' || r.normalMark === 'cross' || r.normalMark === 'none') return r.normalMark;
+    return r.status === 'normal' ? 'check' : 'none';
+  }
+
+  function nextNormalMark(clickKey, curMark) {
+    const now = Date.now();
+    const cur = (curMark === 'check' || curMark === 'cross' || curMark === 'none') ? curMark : 'none';
+    const sameTarget = lastNormalClick.key === clickKey;
+    const elapsed = sameTarget ? (now - lastNormalClick.ts) : Infinity;
+
+    let next;
+    if (cur === 'none') {
+      next = 'check';
+    } else if (cur === 'check') {
+      next = 'cross';
+    } else {
+      // If user double-clicked on a cell that was already 'check', 1st click set 'cross' < 350ms ago; keep 'cross' on 2nd click
+      if (elapsed < 350 && lastNormalClick.from === 'check') {
+        next = 'cross';
+        lastNormalClick = { key: clickKey, ts: now, from: 'cross' };
+        return next;
+      }
+      next = 'none';
+    }
+    lastNormalClick = { key: clickKey, ts: now, from: cur };
+    return next;
+  }
+
+  function updateFormNormalUI(mark) {
+    const m = (mark === 'check' || mark === 'cross' || mark === 'none') ? mark : 'check';
+    const inp = $('#normalMarkInput');
+    if (inp) inp.value = m;
+    const btn = $('#formNormalBtn'), box = $('#formNormalBox'), txt = $('#formNormalText');
+    if (btn) {
+      btn.dataset.mark = m;
+      btn.className = 'normal-state-btn state-' + m;
+    }
+    if (box) {
+      box.className = 'status-box state-' + m;
+      box.textContent = m === 'check' ? '✓' : m === 'cross' ? '✕' : '';
+    }
+    if (txt) {
+      txt.textContent = m === 'check' ? 'ปกติ (✓ ติ๊กถูก)' : m === 'cross' ? 'ปกติ (✕ กากบาท)' : 'ปกติ (ว่าง)';
+    }
+  }
 
   function formatStickerDate(iso, style = 'slash') {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
@@ -106,8 +156,14 @@
     $('#qrAssetDate').textContent = row.received ? formatStickerDate(row.received, 'slash') + ' (' + date(row.received) + ')' : '–';
     $('#qrAssetSeq').textContent = row.seq ? fmtInt.format(row.seq) : '–';
     const stEl = $('#qrAssetStatus');
-    stEl.textContent = statuses[row.status] || row.status || '–';
-    stEl.className = 'status-pill ' + (row.status || 'normal');
+    const nMark = getNormalMark(row);
+    if (row.status === 'normal' && nMark === 'cross') {
+      stEl.textContent = 'ปกติ: ✕ กากบาท';
+      stEl.className = 'status-pill cross';
+    } else {
+      stEl.textContent = statuses[row.status] || row.status || '–';
+      stEl.className = 'status-pill ' + (row.status || 'normal');
+    }
     $('#qrAssetName').textContent = row.name || '–';
     $('#qrAssetLocation').textContent = row.location || '–';
     $('#qrAssetNote').textContent = row.note || '–';
@@ -196,16 +252,79 @@
     const url = safeUrl(r.imageUrl);
     const isHighlight = qrRefCode && (String(r.code || '').toLowerCase() === qrRefCode.toLowerCase() || r.id === qrRefCode);
     const photo = url ? '<button type="button" class="photo-button" data-image="' + esc(r.id) + '" aria-label="ดูภาพ ' + esc(r.name) + '"><img class="thumb" src="' + esc(url) + '" alt="' + esc(r.name) + '" loading="lazy" referrerpolicy="no-referrer"></button>' : '<span class="photo-empty">ไม่มีรูปภาพ</span>';
-    return '<tr' + (isHighlight ? ' class="qr-highlight"' : '') + '><td class="seq-cell">' + fmtInt.format(r.seq) + '</td><td>' + photo + '</td><td>' + (url ? '<a class="image-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(r.imageUrl) + '</a>' : '<span class="muted">–</span>') + '</td>' +
+    const nMark = getNormalMark(r);
+    const nSym = nMark === 'check' ? '✓' : nMark === 'cross' ? '✕' : '';
+    const canEdit = !!(data && data.me && data.me.edit);
+    const normalCell = '<td class="status-cell"><button type="button" class="status-box normal-toggle state-' + nMark + '" data-normal-toggle="' + esc(r.id) + '"' + (canEdit ? '' : ' disabled') + ' aria-label="ปกติ: ' + esc(r.name) + '" title="ช่องปกติ: กด 1 ครั้ง = ✓ ติ๊กถูก · กด 2 ครั้ง = ✕ กากบาท">' + nSym + '</button></td>';
+    const otherStatusCells = ['irreparable', 'repair', 'reduced'].map(key => {
+      const label = statuses[key];
+      const checked = r.status === key;
+      return '<td class="status-cell"><button type="button" class="status-box substatus-toggle ' + (checked ? 'state-check' : 'state-none') + '" data-status-toggle="' + esc(r.id) + '" data-status-key="' + key + '"' + (canEdit ? '' : ' disabled') + ' aria-label="' + esc(label + ': ' + r.name) + '" title="คลิกเพื่อตั้งค่า ' + esc(label) + '">' + (checked ? '✓' : '') + '</button></td>';
+    }).join('');
+    return '<tr data-row-id="' + esc(r.id) + '"' + (isHighlight ? ' class="qr-highlight"' : '') + '><td class="seq-cell">' + fmtInt.format(r.seq) + '</td><td>' + photo + '</td><td>' + (url ? '<a class="image-link" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(r.imageUrl) + '</a>' : '<span class="muted">–</span>') + '</td>' +
       '<td><span class="asset-name">' + esc(r.name) + '</span></td><td class="asset-code">' + esc(r.code || '–') + '</td><td>' + date(r.received) + '</td><td>' + esc(r.location || '–') + '</td>' +
-      Object.entries(statuses).map(([key, label]) => '<td class="status-cell"><input type="checkbox" disabled' + (r.status === key ? ' checked' : '') + ' aria-label="' + esc(label + ': ' + r.name) + '"></td>').join('') +
+      normalCell + otherStatusCells +
       '<td class="num">' + amount(r.total) + '</td><td class="num">' + (r.rate == null ? '–' : fmtMoney.format(r.rate) + '%') + '</td>' + ['opening', 'increase', 'decrease', 'closing', 'net'].map(k => '<td class="num">' + amount(r[k]) + '</td>').join('') +
-      '<td class="note">' + esc(r.note) + '</td><td class="action-cell"><div class="row-actions"><button type="button" class="action-button" data-edit="' + esc(r.id) + '">' + (data.me.edit ? 'แก้ไข' : 'ดูข้อมูล') + '</button><button type="button" class="action-button sticker-btn" data-sticker="' + esc(r.id) + '">สติกเกอร์</button></div></td></tr>';
+      '<td class="note">' + esc(r.note) + '</td><td class="action-cell"><div class="row-actions"><button type="button" class="action-button" data-edit="' + esc(r.id) + '">' + (canEdit ? 'แก้ไข' : 'ดูข้อมูล') + '</button><button type="button" class="action-button sticker-btn" data-sticker="' + esc(r.id) + '">สติกเกอร์</button></div></td></tr>';
+  }
+
+  function syncRowStatusDom(r) {
+    const nMark = getNormalMark(r);
+    const nSym = nMark === 'check' ? '✓' : nMark === 'cross' ? '✕' : '';
+    document.querySelectorAll('[data-normal-toggle="' + r.id + '"]').forEach(btn => {
+      btn.className = 'status-box normal-toggle state-' + nMark;
+      btn.textContent = nSym;
+    });
+    document.querySelectorAll('[data-status-toggle="' + r.id + '"]').forEach(btn => {
+      const k = btn.dataset.statusKey;
+      const checked = r.status === k;
+      btn.className = 'status-box substatus-toggle ' + (checked ? 'state-check' : 'state-none');
+      btn.textContent = checked ? '✓' : '';
+    });
+  }
+
+  function rowToUpdatePayload(r) {
+    const p = {
+      seq: r.seq,
+      name: r.name,
+      code: r.code || '',
+      received: r.received || '',
+      location: r.location || '',
+      imageUrl: r.imageUrl || '',
+      status: r.status || 'normal',
+      normalMark: getNormalMark(r),
+      note: r.note || ''
+    };
+    for (const key of [...moneyKeys, 'rate']) p[key] = r[key] == null ? null : Number(r[key]);
+    return p;
+  }
+
+  function queueRowStatusSave(r) {
+    if (!r || !r.id) return;
+    if (rowSaveTimers.has(r.id)) clearTimeout(rowSaveTimers.get(r.id));
+    const timer = setTimeout(async () => {
+      rowSaveTimers.delete(r.id);
+      try {
+        const res = await call('assetsUpdate', r.id, r.version, rowToUpdatePayload(r));
+        if (res && res.row) {
+          r.version = res.row.version;
+          r.updatedTs = res.row.updatedTs;
+          r.updatedBy = res.row.updatedBy;
+        }
+      } catch (e) {
+        toast('อัปเดตสถานะไม่สำเร็จ: ' + e.message, true);
+        await load();
+      }
+    }, 350);
+    rowSaveTimers.set(r.id, timer);
   }
 
   function formValues() {
+    const checkedRadio = $('#assetForm input[name="status"]:checked');
+    const st = checkedRadio ? checkedRadio.value : 'normal';
+    const nMark = ($('#normalMarkInput') && $('#normalMarkInput').value) || (st === 'normal' ? 'check' : 'none');
     const p = { seq: Number($('#seq').value), name: $('#assetName').value.trim(), code: $('#assetCode').value.trim(), received: $('#received').value,
-      location: $('#assetLocation').value.trim(), imageUrl: $('#imageUrl').value.trim(), status: $('#assetForm input[name="status"]:checked').value, note: $('#note').value.trim() };
+      location: $('#assetLocation').value.trim(), imageUrl: $('#imageUrl').value.trim(), status: st, normalMark: nMark, note: $('#note').value.trim() };
     for (const key of [...moneyKeys, 'rate']) p[key] = $('#' + key).value === '' ? null : Number($('#' + key).value);
     if (pendingImageData) p.imageData = pendingImageData;
     return p;
@@ -228,11 +347,14 @@
     if ($('#uploadStatus')) $('#uploadStatus').textContent = 'วางลิงก์รูปภาพ หรืออัปโหลดไฟล์รูปเพื่อให้ฝังไปกับไฟล์ Excel ได้อัตโนมัติ';
     formState = r ? { id: r.id, version: r.version, requestId: null, row: r } : { id: null, requestId: crypto.randomUUID(), version: null, row: null };
     $('#assetForm').reset(); $('#formError').textContent = '';
-    const values = r || { seq: data.nextSeq, status: 'normal' };
+    const values = r || { seq: data.nextSeq, status: 'normal', normalMark: 'check' };
     const map = { seq: 'seq', name: 'assetName', code: 'assetCode', received: 'received', location: 'assetLocation', imageUrl: 'imageUrl', note: 'note' };
     Object.entries(map).forEach(([key, id]) => { $('#' + id).value = values[key] == null ? '' : values[key]; });
     for (const key of [...moneyKeys, 'rate']) $('#' + key).value = values[key] == null ? '' : values[key];
-    $('#assetForm input[name="status"][value="' + (values.status || 'normal') + '"]').checked = true;
+    const radio = $('#assetForm input[name="status"][value="' + (values.status || 'normal') + '"]');
+    if (radio) radio.checked = true;
+    updateFormNormalUI(getNormalMark(values));
+    if ($('#formNormalBtn')) $('#formNormalBtn').disabled = !data.me.edit;
     $('#assetFields').disabled = !data.me.edit; $('#saveAsset').hidden = !data.me.edit; $('#deleteAsset').hidden = !r || !data.me.edit;
     $('#formStickerBtn').hidden = !r;
     $('#formTitle').textContent = r ? (data.me.edit ? 'แก้ไขสินทรัพย์' : 'รายละเอียดสินทรัพย์') : 'เพิ่มสินทรัพย์';
@@ -241,6 +363,28 @@
     if (data.me.edit) $('#assetName').focus({ preventScroll: true });
     $('#assetDialog').scrollTop = 0;
   }
+
+  if ($('#formNormalBtn')) {
+    $('#formNormalBtn').addEventListener('click', () => {
+      if (!data || !data.me.edit) return;
+      const cur = ($('#normalMarkInput') && $('#normalMarkInput').value) || 'check';
+      const next = nextNormalMark('__form__', cur);
+      updateFormNormalUI(next);
+      if (next === 'check') {
+        const normalRadio = $('#assetForm input[name="status"][value="normal"]');
+        if (normalRadio) normalRadio.checked = true;
+      }
+    });
+  }
+
+  document.querySelectorAll('#assetForm input[name="status"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (radio.value !== 'normal' && radio.checked) {
+        const cur = ($('#normalMarkInput') && $('#normalMarkInput').value) || 'check';
+        if (cur === 'check') updateFormNormalUI('none');
+      }
+    });
+  });
 
   /* ==================== Image File Input & Fast Parallel Compression ==================== */
   function readFileAsDataUrl(file) {
@@ -265,7 +409,6 @@
       return isWebMime ? { mime: rawMime, data: cleanB64 } : null;
     }
 
-    // Fast path using createImageBitmap off-main-thread when available
     if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined') {
       try {
         const bytes = imgObj.u8 || b64ToBytes(cleanB64);
@@ -571,9 +714,7 @@
       merged('H3:K3', 3, 'สถานะ'),
       merged('L3:L4', 3, 'รวม'),
       merged('M3:M4', 3, 'อัตรา ร้อยละ'),
-      merged('N3:N4', 3, 'ยกมา'),
-      merged('O3:P3', 3, 'ค่าเสื่อมราคาสะสม'),
-      merged('Q3:Q4', 3, 'ยกไป'),
+      merged('N3:Q3', 3, 'ค่าเสื่อมราคาสะสม'),
       merged('R3:R4', 3, 'ราคาสินทรัพย์ สุทธิ'),
       merged('S3:S4', 3, 'หมายเหตุ')
     ];
@@ -583,8 +724,10 @@
       strCell('I4', 3, 'ไม่สามารถซ่อมได้'),
       strCell('J4', 3, 'ต้องทำการซ่อม'),
       strCell('K4', 3, 'ลด ระหว่างปี'),
+      strCell('N4', 3, 'ยกมา'),
       strCell('O4', 3, 'เพิ่ม ระหว่างปี'),
-      strCell('P4', 3, 'ลด ระหว่างปี')
+      strCell('P4', 3, 'ลด ระหว่างปี'),
+      strCell('Q4', 3, 'ยกไป')
     ];
     addRow(4, h2, 26);
 
@@ -636,6 +779,7 @@
       }
 
       const serial = xlSerial(x.received);
+      const nMark = getNormalMark(x);
       const cells = [
         numCell('A' + r, 6, x.seq != null ? x.seq : i + 1),
         strCell('B' + r, 5, ''),
@@ -644,7 +788,7 @@
         strCell('E' + r, 5, x.code || ''),
         serial !== null ? numCell('F' + r, 8, serial) : strCell('F' + r, 5, x.received || ''),
         strCell('G' + r, 4, x.location || ''),
-        strCell('H' + r, 5, x.status === 'normal' ? '✓' : ''),
+        strCell('H' + r, 5, nMark === 'check' ? '✓' : nMark === 'cross' ? '✗' : ''),
         strCell('I' + r, 5, x.status === 'irreparable' ? '✓' : ''),
         strCell('J' + r, 5, x.status === 'repair' ? '✓' : ''),
         strCell('K' + r, 5, x.status === 'reduced' ? '✓' : ''),
@@ -790,10 +934,11 @@
 
   function extractWorkbookImages(wb) {
     const bySheet = Object.create(null);
+    const sheetXmlBySheet = Object.create(null);
     const dispImgMap = Object.create(null);
     const mediaCache = Object.create(null);
     const wbFiles = wb && wb.files;
-    if (!wbFiles) return { bySheet, dispImgMap };
+    if (!wbFiles) return { bySheet, dispImgMap, sheetXmlBySheet };
 
     function getMediaObj(targetPath) {
       if (!targetPath) return null;
@@ -814,7 +959,6 @@
       return obj;
     }
 
-    // 1. Check WPS cellimages.xml if present
     const cellImgXml = zipText(wbFiles, 'xl/cellimages.xml');
     if (cellImgXml) {
       const cellImgRels = parseRelsXml(zipText(wbFiles, 'xl/_rels/cellimages.xml.rels'), 'xl/cellimages.xml');
@@ -829,7 +973,6 @@
       }
     }
 
-    // 2. Map sheet name -> worksheet XML path
     const wbXml = zipText(wbFiles, 'xl/workbook.xml');
     const wbRels = parseRelsXml(zipText(wbFiles, 'xl/_rels/workbook.xml.rels'), 'xl/workbook.xml');
     const sheetPaths = [];
@@ -846,6 +989,7 @@
     sheetPaths.forEach(({ name, path }) => {
       const rowMap = Object.create(null);
       bySheet[name] = rowMap;
+      sheetXmlBySheet[name] = zipText(wbFiles, path);
       const relPath = path.replace(/\/([^/]+)$/, '/_rels/$1.rels');
       const wsRels = parseRelsXml(zipText(wbFiles, relPath), path);
       Object.values(wsRels).forEach(rel => {
@@ -870,7 +1014,7 @@
       });
     });
 
-    return { bySheet, dispImgMap };
+    return { bySheet, dispImgMap, sheetXmlBySheet };
   }
 
   const THAI_MONTHS = {
@@ -890,6 +1034,11 @@
 
   function parseAssetDateCell(v) {
     if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date && Number.isFinite(v.getTime())) {
+      let yr = v.getUTCFullYear();
+      if (yr >= 2400) yr -= 543;
+      return validIsoDate(String(yr).padStart(4, '0') + '-' + String(v.getUTCMonth() + 1).padStart(2, '0') + '-' + String(v.getUTCDate()).padStart(2, '0'));
+    }
     if (typeof v === 'number' && Number.isFinite(v) && v > 1000 && v < 200000) {
       const ms = Math.round((v - 25569) * 86400000);
       const d = new Date(ms);
@@ -929,17 +1078,8 @@
     return '';
   }
 
-  function parseAssetNumCell(v, isRate = false) {
-    if (v === null || v === undefined || v === '') return null;
-    let n;
-    if (typeof v === 'number') {
-      n = v;
-    } else {
-      const s = String(v).replace(/[,%\s฿บาท]/g, '').trim();
-      if (!s || s === '–' || s === '-') return null;
-      n = Number(s);
-    }
-    if (!Number.isFinite(n)) return null;
+  function normalizeAssetNum(n, isRate = false) {
+    if (typeof n !== 'number' || !Number.isFinite(n)) return null;
     n = Math.round(n * 100) / 100;
     if (n < 0) n = Math.abs(n) < 0.01 ? 0 : Math.abs(n);
     if (isRate && n > 100) n = 100;
@@ -947,9 +1087,265 @@
     return n;
   }
 
+  function parseAssetNumCell(v, isRate = false) {
+    if (v === null || v === undefined || v === '') return null;
+    let n;
+    if (typeof v === 'number') {
+      n = v;
+    } else {
+      let raw = String(v).replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+      if (!raw || /^[-–—]+$/.test(raw) || raw.startsWith('#')) return null;
+      const parenMatch = /^\(\s*([0-9,]+(?:\.[0-9]+)?)\s*\)$/.exec(raw);
+      if (parenMatch) {
+        n = Number(parenMatch[1].replace(/,/g, ''));
+      } else {
+        const s = raw.replace(/[,%\s฿บาท]/g, '').trim();
+        if (!s || /^[-–—]+$/.test(s)) return null;
+        n = Number(s);
+      }
+    }
+    return normalizeAssetNum(n, isRate);
+  }
+
+  function getWsCell(ws, r, c) {
+    if (!ws || r < 0 || c < 0) return null;
+    if (Array.isArray(ws['!data'])) return ws['!data'][r] ? ws['!data'][r][c] : null;
+    return ws[XLSX.utils.encode_cell({ r, c })] || null;
+  }
+
+  function offsetFormulaRefs(expr, dr, dc) {
+    return String(expr || '').replace(/(\$?)([A-Z]{1,3})(\$?)(\d+)(?!\s*\()/gi, (m, cAbs, colStr, rAbs, rowStr) => {
+      const decoded = XLSX.utils.decode_cell(colStr.toUpperCase() + rowStr);
+      const nc = cAbs ? decoded.c : Math.max(0, decoded.c + dc);
+      const nr = rAbs ? decoded.r : Math.max(0, decoded.r + dr);
+      return cAbs + XLSX.utils.encode_col(nc) + rAbs + (nr + 1);
+    });
+  }
+
+  function expandSharedFormulas(ws, sheetXml) {
+    if (!ws || !sheetXml || !/t=["']shared["']/i.test(sheetXml)) return;
+    const masters = Object.create(null);
+    const unesc = s => String(s || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+    for (const m of sheetXml.matchAll(/<c\b[^>]*\br=["']([A-Z]+\d+)["'][^>]*>[\s\S]*?<f\b([^>]*)>([\s\S]*?)<\/f>[\s\S]*?<\/c>/gi)) {
+      const addr = m[1], fAttrs = m[2], fBody = unesc(m[3]).trim();
+      if (!/\bt=["']shared["']/i.test(fAttrs) || !fBody) continue;
+      const si = (/\bsi=["'](\d+)["']/i.exec(fAttrs) || [])[1];
+      if (si !== undefined) {
+        masters[si] = { pos: XLSX.utils.decode_cell(addr), expr: fBody };
+        if (!ws[addr]) ws[addr] = { t: 'n', f: fBody };
+        else if (!ws[addr].f) ws[addr].f = fBody;
+      }
+    }
+    for (const m of sheetXml.matchAll(/<c\b[^>]*\br=["']([A-Z]+\d+)["'][^>]*>[\s\S]*?<f\b([^>]*)\/>[\s\S]*?<\/c>/gi)) {
+      const addr = m[1], fAttrs = m[2];
+      if (!/\bt=["']shared["']/i.test(fAttrs)) continue;
+      const si = (/\bsi=["'](\d+)["']/i.exec(fAttrs) || [])[1];
+      const master = si !== undefined ? masters[si] : null;
+      if (!master) continue;
+      const pos = XLSX.utils.decode_cell(addr);
+      const translated = offsetFormulaRefs(master.expr, pos.r - master.pos.r, pos.c - master.pos.c);
+      if (!ws[addr]) ws[addr] = { t: 'n', f: translated };
+      else if (!ws[addr].f) ws[addr].f = translated;
+    }
+  }
+
+  function splitFormulaArgs(argStr) {
+    const out = [];
+    let cur = '', depth = 0;
+    for (let i = 0; i < argStr.length; i++) {
+      const ch = argStr[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth = Math.max(0, depth - 1);
+      if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out;
+  }
+
+  function evalSimpleArith(str) {
+    const clean = String(str || '').replace(/\s+/g, '');
+    if (!clean || !/^[0-9.+\-*/()eE]+$/.test(clean)) return null;
+    try {
+      const tokens = [];
+      let i = 0;
+      while (i < clean.length) {
+        const ch = clean[i];
+        if (ch === '(' || ch === ')' || ch === '*' || ch === '/') { tokens.push(ch); i++; continue; }
+        if ((ch === '+' || ch === '-') && (tokens.length === 0 || tokens[tokens.length - 1] === '(' || typeof tokens[tokens.length - 1] === 'string' && /^[+\-*/]$/.test(tokens[tokens.length - 1]))) {
+          let numStr = ch; i++;
+          while (i < clean.length && /[0-9.eE]/.test(clean[i])) { numStr += clean[i++]; }
+          const v = Number(numStr);
+          if (!Number.isFinite(v)) return null;
+          tokens.push(v);
+          continue;
+        }
+        if (ch === '+' || ch === '-') { tokens.push(ch); i++; continue; }
+        if (/[0-9.]/.test(ch)) {
+          let numStr = '';
+          while (i < clean.length && /[0-9.eE]/.test(clean[i])) { numStr += clean[i++]; }
+          const v = Number(numStr);
+          if (!Number.isFinite(v)) return null;
+          tokens.push(v);
+          continue;
+        }
+        return null;
+      }
+      let pos = 0;
+      function parseExpr() {
+        let left = parseTerm();
+        while (pos < tokens.length && (tokens[pos] === '+' || tokens[pos] === '-')) {
+          const op = tokens[pos++];
+          const right = parseTerm();
+          left = op === '+' ? left + right : left - right;
+        }
+        return left;
+      }
+      function parseTerm() {
+        let left = parseFactor();
+        while (pos < tokens.length && (tokens[pos] === '*' || tokens[pos] === '/')) {
+          const op = tokens[pos++];
+          const right = parseFactor();
+          left = op === '*' ? left * right : (right === 0 ? 0 : left / right);
+        }
+        return left;
+      }
+      function parseFactor() {
+        if (tokens[pos] === '(') {
+          pos++;
+          const val = parseExpr();
+          if (tokens[pos] === ')') pos++;
+          return val;
+        }
+        const v = tokens[pos++];
+        return typeof v === 'number' ? v : NaN;
+      }
+      const res = parseExpr();
+      return pos === tokens.length && Number.isFinite(res) ? res : null;
+    } catch (_) { return null; }
+  }
+
+  function evalExcelFormula(expr, ws, grid, r, depth = 0) {
+    if (!expr || depth > 6) return null;
+    let s = String(expr).trim().replace(/^=/, '').trim();
+    if (!s || /!/.test(s)) return null;
+
+    const topFn = /^([A-Z]+)\s*\(([\s\S]*)\)$/i.exec(s);
+    if (topFn) {
+      const fnName = topFn[1].toUpperCase();
+      const inner = topFn[2];
+      let pDepth = 0, balanced = true;
+      for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === '(') pDepth++;
+        else if (inner[i] === ')') { pDepth--; if (pDepth < 0) { balanced = false; break; } }
+      }
+      if (balanced && pDepth === 0) {
+        const args = splitFormulaArgs(inner);
+        if (fnName === 'IFERROR' && args.length >= 2) {
+          const v1 = evalExcelFormula(args[0], ws, grid, r, depth + 1);
+          return v1 !== null ? v1 : evalExcelFormula(args[1], ws, grid, r, depth + 1);
+        }
+        if (fnName === 'IF' && args.length >= 2) {
+          const condMatch = /^(.+?)(<=|>=|<>|<|>|=)(.+)$/.exec(args[0]);
+          if (condMatch) {
+            const lhs = evalExcelFormula(condMatch[1], ws, grid, r, depth + 1) ?? 0;
+            const rhs = evalExcelFormula(condMatch[3], ws, grid, r, depth + 1) ?? 0;
+            const op = condMatch[2];
+            const ok = op === '<=' ? lhs <= rhs : op === '>=' ? lhs >= rhs : op === '<>' ? lhs !== rhs : op === '<' ? lhs < rhs : op === '>' ? lhs > rhs : lhs === rhs;
+            return evalExcelFormula(ok ? args[1] : (args[2] || '0'), ws, grid, r, depth + 1);
+          }
+        }
+      }
+    }
+
+    let guard = 0;
+    while (/\b(?:SUM|AVERAGE|MIN|MAX|ROUND|ROUNDUP|ROUNDDOWN|ABS)\s*\([^()]*\)/i.test(s) && guard++ < 20) {
+      s = s.replace(/\b(SUM|AVERAGE|MIN|MAX|ROUND|ROUNDUP|ROUNDDOWN|ABS)\s*\(([^()]*)\)/gi, (_, fnRaw, argStr) => {
+        const fn = fnRaw.toUpperCase();
+        const parts = splitFormulaArgs(argStr);
+        const vals = [];
+        parts.forEach(part => {
+          const rngMatch = /^\$?([A-Z]{1,3})\$?(\d+)\s*:\s*\$?([A-Z]{1,3})\$?(\d+)$/i.exec(part);
+          if (rngMatch) {
+            const c1 = XLSX.utils.decode_cell(rngMatch[1].toUpperCase() + rngMatch[2]);
+            const c2 = XLSX.utils.decode_cell(rngMatch[3].toUpperCase() + rngMatch[4]);
+            for (let rr = Math.min(c1.r, c2.r); rr <= Math.max(c1.r, c2.r); rr++) {
+              for (let cc = Math.min(c1.c, c2.c); cc <= Math.max(c1.c, c2.c); cc++) {
+                const v = readSheetNumCell(ws, grid, rr, cc, false, depth + 1);
+                vals.push(v !== null ? v : 0);
+              }
+            }
+          } else {
+            const v = evalExcelFormula(part, ws, grid, r, depth + 1);
+            vals.push(v !== null ? v : 0);
+          }
+        });
+        if (!vals.length) return '0';
+        if (fn === 'SUM') return String(vals.reduce((a, b) => a + b, 0));
+        if (fn === 'AVERAGE') return String(vals.reduce((a, b) => a + b, 0) / vals.length);
+        if (fn === 'MIN') return String(Math.min(...vals));
+        if (fn === 'MAX') return String(Math.max(...vals));
+        if (fn === 'ABS') return String(Math.abs(vals[0]));
+        const factor = Math.pow(10, Math.round(vals[1] || 0));
+        if (fn === 'ROUNDUP') return String((vals[0] >= 0 ? Math.ceil(vals[0] * factor) : Math.floor(vals[0] * factor)) / factor);
+        if (fn === 'ROUNDDOWN') return String((vals[0] >= 0 ? Math.floor(vals[0] * factor) : Math.ceil(vals[0] * factor)) / factor);
+        return String(Math.round(vals[0] * factor) / factor);
+      });
+    }
+
+    s = s.replace(/\$?([A-Z]{1,3})\$?(\d+)(\s*%?)/gi, (_, colStr, rowStr, pct) => {
+      const pos = XLSX.utils.decode_cell(colStr.toUpperCase() + rowStr);
+      const v = readSheetNumCell(ws, grid, pos.r, pos.c, false, depth + 1);
+      const num = v !== null ? v : 0;
+      return pct && pct.includes('%') ? '(' + (num * 0.01) + ')' : '(' + num + ')';
+    });
+    s = s.replace(/(\d+(?:\.\d+)?)\s*%/g, '($1*0.01)');
+
+    return evalSimpleArith(s);
+  }
+
+  function readSheetNumCell(ws, grid, r, c, isRate = false, depth = 0) {
+    if (c === undefined || c === null || c < 0 || depth > 6) return null;
+    const cell = getWsCell(ws, r, c);
+    const gVal = grid && grid[r] ? grid[r][c] : '';
+
+    if (cell) {
+      if (cell.t === 'n' && typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+        let v = cell.v;
+        if (cell.f && v === 0) {
+          const fv = evalExcelFormula(cell.f, ws, grid, r, depth + 1);
+          if (fv !== null && fv !== 0) v = fv;
+        }
+        if (isRate && v > 0 && v <= 1 && ((cell.w && String(cell.w).includes('%')) || (cell.z && String(cell.z).includes('%')))) {
+          v = v * 100;
+        }
+        return normalizeAssetNum(v, isRate);
+      }
+      if (cell.f) {
+        const fv = evalExcelFormula(cell.f, ws, grid, r, depth + 1);
+        if (fv !== null) return normalizeAssetNum(fv, isRate);
+      }
+      if (cell.t !== 'e' && cell.v !== undefined && cell.v !== '') {
+        const parsed = parseAssetNumCell(cell.v, isRate);
+        if (parsed !== null) return parsed;
+      }
+      if (cell.t !== 'e' && cell.w !== undefined && cell.w !== '') {
+        const parsed = parseAssetNumCell(cell.w, isRate);
+        if (parsed !== null) return parsed;
+      }
+    }
+
+    return parseAssetNumCell(gVal, isRate);
+  }
+
+  function isCrossCell(v) {
+    const s = String(v == null ? '' : v).trim().toLowerCase();
+    return s === '✗' || s === '✘' || s === '✕' || s === '×' || s === 'x' || s === 'กากบาท' || s === 'ไม่ปกติ';
+  }
+
   function isCheckedCell(v) {
     const s = String(v == null ? '' : v).trim().toLowerCase();
-    return s === '✓' || s === '✔' || s === 'true' || s === '1' || s === 'x' || s === 'yes' || s === 'ใช่' || s === 'ปกติ' || s === 'p' || s === 'a';
+    return s === '✓' || s === '✔' || s === 'true' || s === '1' || s === 'yes' || s === 'ใช่' || s === 'ปกติ' || s === 'p' || s === 'a';
   }
 
   function parseStatusText(v) {
@@ -962,91 +1358,225 @@
     return '';
   }
 
+  function normHdrText(v) {
+    return String(v == null ? '' : v).replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isSubHeaderRow(row) {
+    if (!Array.isArray(row)) return false;
+    return row.some(cell => {
+      const t = normHdrText(cell);
+      return t && /^(?:ปกติ|ไม่สามารถ\s*ซ่อมได้|ไม่สามารถ|ซ่อมได้|ซ่อมไม่ได้|ต้อง\s*ทำการ\s*ซ่อม|ต้องทำการ|ต้องซ่อม|ลด\s*ระหว่างปี|เพิ่ม\s*ระหว่างปี|ระหว่างปี|ยกมา|ยกไป|เพิ่ม|ลด|สุทธิ|ร้อยละ|\(บาท\))$/i.test(t);
+    });
+  }
+
+  function detectAssetColumns(ws, grid) {
+    const merges = (ws && Array.isArray(ws['!merges'])) ? ws['!merges'] : [];
+    for (let r = 0; r < Math.min(grid.length, 15); r++) {
+      const row = grid[r] || [];
+      const headerRows = [r];
+      if (r + 1 < grid.length && isSubHeaderRow(grid[r + 1])) {
+        headerRows.push(r + 1);
+        if (r + 2 < grid.length && isSubHeaderRow(grid[r + 2])) {
+          headerRows.push(r + 2);
+        }
+      }
+      const headerEnd = headerRows[headerRows.length - 1];
+      let maxCol = 0;
+      headerRows.forEach(hr => { if (grid[hr] && grid[hr].length > maxCol) maxCol = grid[hr].length; });
+      if (maxCol < 3) continue;
+
+      const groupByCol = Object.create(null);
+      const isHorizMergeStart = Object.create(null);
+
+      merges.forEach(m => {
+        if (!m || !m.s || !m.e) return;
+        if (m.s.r >= r && m.s.r <= headerEnd && m.e.c > m.s.c) {
+          const gTxt = normHdrText(grid[m.s.r] && grid[m.s.r][m.s.c]);
+          if (gTxt) {
+            isHorizMergeStart[m.s.r + ':' + m.s.c] = true;
+            for (let cc = m.s.c; cc <= m.e.c; cc++) {
+              groupByCol[cc] = groupByCol[cc] ? (groupByCol[cc] + ' ' + gTxt) : gTxt;
+            }
+          }
+        }
+      });
+
+      for (let cc = 0; cc < maxCol; cc++) {
+        const topTxt = normHdrText(row[cc]);
+        if (!topTxt || groupByCol[cc]) continue;
+        if (/^(?:สถานะ|สภาพ|status)$/i.test(topTxt) || /ค่าเสื่อม/i.test(topTxt)) {
+          isHorizMergeStart[r + ':' + cc] = true;
+          groupByCol[cc] = topTxt;
+          for (let k = 1; k <= 3 && cc + k < maxCol; k++) {
+            if (!normHdrText(row[cc + k])) groupByCol[cc + k] = topTxt;
+            else break;
+          }
+        }
+      }
+
+      const cMap = {};
+      for (let c = 0; c < maxCol; c++) {
+        const grp = groupByCol[c] || '';
+        const ownParts = [];
+        headerRows.forEach(hr => {
+          const txt = normHdrText(grid[hr] && grid[hr][c]);
+          if (!txt) return;
+          if (isHorizMergeStart[hr + ':' + c] && headerRows.length > 1) return;
+          if (ownParts[ownParts.length - 1] !== txt) ownParts.push(txt);
+        });
+        const own = ownParts.join(' ').trim();
+        const full = (grp ? grp + ' ' + own : own).trim();
+
+        const inStatusGrp = /สถานะ|สภาพ|status/i.test(grp);
+        const inDeprGrp = /ค่าเสื่อม/i.test(grp);
+
+        if (inStatusGrp && cMap.statusGroup === undefined) cMap.statusGroup = c;
+        if ((inDeprGrp || /ค่าเสื่อม/i.test(own)) && cMap.deprGroup === undefined) cMap.deprGroup = c;
+
+        if (!own && !grp) continue;
+
+        if (cMap.stNormal === undefined && /^(?:ปกติ|normal)$/i.test(own)) { cMap.stNormal = c; continue; }
+        if (cMap.stIrreparable === undefined && /ไม่สามารถ\s*ซ่อมได้|ซ่อมไม่ได้|ชำรุด|irreparable/i.test(own)) { cMap.stIrreparable = c; continue; }
+        if (cMap.stRepair === undefined && /ต้อง\s*ทำการ\s*ซ่อม|ต้องซ่อม|ส่งซ่อม|รอซ่อม|repair/i.test(own)) { cMap.stRepair = c; continue; }
+        if (cMap.stReduced === undefined && /ลด\s*ระหว่างปี|^ลด$|ตัดจำหน่าย|จำหน่าย|reduced/i.test(own) && (inStatusGrp || (!inDeprGrp && cMap.total === undefined && cMap.deprGroup === undefined))) {
+          cMap.stReduced = c;
+          continue;
+        }
+
+        if (cMap.opening === undefined && /(?:^ยกมา$|ค่าเสื่อม.*ยกมา|สะสมยกมา|ต้นงวด|^opening$|brought\s*forward)/i.test(own)) {
+          cMap.opening = c;
+          continue;
+        }
+        if (cMap.increase === undefined && /(?:เพิ่ม\s*ระหว่างปี|เพิ่มระหว่างปี|^เพิ่ม$|ระหว่างปี\s*เพิ่ม|ค่าเสื่อม.*ปีนี้|ค่าเสื่อม.*ประจำปี|^increase$)/i.test(own)) {
+          cMap.increase = c;
+          continue;
+        }
+        if (cMap.decrease === undefined && /(?:ลด\s*ระหว่างปี|ลดระหว่างปี|^ลด$|ระหว่างปี\s*ลด|^decrease$)/i.test(own) && (inDeprGrp || (cMap.opening !== undefined && c > cMap.opening) || (cMap.increase !== undefined && c > cMap.increase) || (cMap.total !== undefined && c > cMap.total))) {
+          cMap.decrease = c;
+          continue;
+        }
+        if (cMap.closing === undefined && /(?:^ยกไป$|ค่าเสื่อม.*ยกไป|สะสมยกไป|ปลายงวด|รวมค่าเสื่อม|^closing$|carried\s*forward)/i.test(own)) {
+          cMap.closing = c;
+          continue;
+        }
+
+        if (cMap.seq === undefined && /^(?:ลำดับ|ลำดับที่|ที่|no\.?|item)$/i.test(own)) cMap.seq = c;
+        else if (cMap.photo === undefined && /^(?:รูปภาพ|รูป|ภาพ|รูปสินทรัพย์|photo|image|picture)$/i.test(own)) cMap.photo = c;
+        else if (cMap.imageUrl === undefined && /ลิงก์ภาพ|ลิงก์รูป|image\s*url|url\s*ภาพ/i.test(own)) cMap.imageUrl = c;
+        else if (cMap.name === undefined && /^(?:รายการ|ชื่อรายการ|ชื่อสินทรัพย์|รายการสินทรัพย์|รายการทรัพย์สิน|ชื่อทรัพย์สิน|สินทรัพย์|ทรัพย์สิน|asset\s*name|description)$/i.test(own)) cMap.name = c;
+        else if (cMap.code === undefined && /(?:รหัสสินทรัพย์|รหัสทรัพย์สิน|รหัสครุภัณฑ์|เลขครุภัณฑ์|เลขทะเบียน|^รหัส$|asset\s*code|^code$)/i.test(own)) cMap.code = c;
+        else if (cMap.received === undefined && /(?:วันที่รับ|วันเดือนปีที่รับ|วันที่ได้มา|วันเดือนปี|received|date)/i.test(own)) cMap.received = c;
+        else if (cMap.location === undefined && /(?:สถานที่ตั้ง|สถานที่|ที่ตั้ง|ประจำอยู่ที่|หน่วยงาน|location)/i.test(own)) cMap.location = c;
+        else if (cMap.statusGroup === undefined && /^(?:สถานะ|สภาพ|status)$/i.test(full)) cMap.statusGroup = c;
+        else if (cMap.total === undefined && !inDeprGrp && !inStatusGrp && /^(?:รวม|รวมเงิน|รวมทั้งสิ้น|ราคาทุน|ต้นทุนรวม|มูลค่ารวม|ราคาซื้อ|มูลค่าได้มา|total|cost)(?:\s*\(บาท\))?$/i.test(own)) cMap.total = c;
+        else if (cMap.rate === undefined && !inDeprGrp && !inStatusGrp && /(?:อัตรา|ร้อยละ|rate|%)/i.test(own)) cMap.rate = c;
+        else if (cMap.net === undefined && !inDeprGrp && !inStatusGrp && (/(?:ราคาสินทรัพย์\s*สุทธิ|ราคาทรัพย์สิน\s*สุทธิ|ราคาทรัพสิน\s*สุทธิ|สินทรัพย์\s*สุทธิ|ทรัพย์สิน\s*สุทธิ|มูลค่าสินทรัพย์\s*สุทธิ|มูลค่า\s*สุทธิ|ราคา\s*สุทธิ|ราคาตามบัญชี|มูลค่าตามบัญชี|คงเหลือ\s*สุทธิ|^สุทธิ$|net\s*book|net\s*value|^net$)/i.test(own) || (cMap.total !== undefined && c > cMap.total && /^(?:ราคาสินทรัพย์|ราคาทรัพย์สิน|ราคาทรัพสิน|มูลค่าสินทรัพย์|สุทธิ)$/i.test(own)))) cMap.net = c;
+        else if (cMap.note === undefined && /(?:^หมายเหตุ$|^บันทึก$|คำอธิบาย|^note$|^remark)/i.test(own)) cMap.note = c;
+      }
+
+      if (cMap.name !== undefined && (cMap.code !== undefined || cMap.seq !== undefined || cMap.total !== undefined || cMap.deprGroup !== undefined)) {
+        if (cMap.statusGroup !== undefined) {
+          const s0 = cMap.statusGroup;
+          if (cMap.stNormal === undefined) cMap.stNormal = s0;
+          if (cMap.stIrreparable === undefined) cMap.stIrreparable = s0 + 1;
+          if (cMap.stRepair === undefined) cMap.stRepair = s0 + 2;
+          if (cMap.stReduced === undefined) cMap.stReduced = s0 + 3;
+        }
+        if (cMap.deprGroup !== undefined) {
+          const d0 = cMap.deprGroup;
+          if (cMap.opening !== undefined && cMap.opening === d0 - 1) {
+            if (cMap.increase === undefined) cMap.increase = d0;
+            if (cMap.decrease === undefined) cMap.decrease = d0 + 1;
+            if (cMap.closing === undefined) cMap.closing = d0 + 2;
+            if (cMap.net === undefined) cMap.net = d0 + 3;
+          } else {
+            if (cMap.opening === undefined) cMap.opening = d0;
+            if (cMap.increase === undefined) cMap.increase = d0 + 1;
+            if (cMap.decrease === undefined) cMap.decrease = d0 + 2;
+            if (cMap.closing === undefined) cMap.closing = d0 + 3;
+            if (cMap.net === undefined) cMap.net = d0 + 4;
+          }
+        } else if (cMap.rate !== undefined || cMap.total !== undefined) {
+          const dStart = cMap.opening !== undefined ? cMap.opening : (cMap.rate !== undefined ? cMap.rate + 1 : cMap.total + 2);
+          if (cMap.opening === undefined) cMap.opening = dStart;
+          if (cMap.increase === undefined) cMap.increase = dStart + 1;
+          if (cMap.decrease === undefined) cMap.decrease = dStart + 2;
+          if (cMap.closing === undefined) cMap.closing = dStart + 3;
+          if (cMap.net === undefined) cMap.net = dStart + 4;
+        }
+        if (cMap.net === undefined && cMap.closing !== undefined) {
+          cMap.net = cMap.closing + 1;
+        }
+        if (cMap.note === undefined && cMap.net !== undefined && maxCol > cMap.net + 1) {
+          cMap.note = cMap.net + 1;
+        }
+
+        let sheetTitle = '';
+        if (r > 0) {
+          const topText = normHdrText(grid[0] && grid[0][0]);
+          if (topText && topText.length <= 200) sheetTitle = topText;
+        }
+        return { cols: cMap, dataStart: headerEnd + 1, sheetTitle };
+      }
+    }
+    return null;
+  }
+
   function parseAssetsWorkbook(bytes) {
     const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-    const wb = XLSX.read(u8, { type: 'array', bookFiles: true });
-    const { bySheet, dispImgMap } = extractWorkbookImages(wb);
+    const wb = XLSX.read(u8, { type: 'array', bookFiles: true, cellFormula: true, cellNF: true });
+    const { bySheet, dispImgMap, sheetXmlBySheet } = extractWorkbookImages(wb);
     const items = [];
     let sheetTitle = '';
     let imageCount = 0;
 
     for (const sheetName of wb.SheetNames) {
       const ws = wb.Sheets[sheetName];
+      if (!ws) continue;
+      expandSharedFormulas(ws, sheetXmlBySheet[sheetName] || '');
       const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
       const rowImages = bySheet[sheetName] || Object.create(null);
       if (!grid || !grid.length) continue;
 
-      let cols = null, dataStart = -1;
-      for (let r = 0; r < Math.min(grid.length, 15); r++) {
-        const row = grid[r] || [];
-        const nextRow = grid[r + 1] || [];
-        const cMap = {};
-        let hasSubRow = false;
-
-        row.forEach((cell, c) => {
-          const t = String(cell == null ? '' : cell).replace(/\s+/g, ' ').trim();
-          if (!t) return;
-          if (cMap.seq === undefined && /^(?:ลำดับ|no\.?)$/i.test(t)) cMap.seq = c;
-          else if (cMap.photo === undefined && /^(?:รูปภาพ|รูป|ภาพ|photo|image)$/i.test(t)) cMap.photo = c;
-          else if (cMap.imageUrl === undefined && /ลิงก์ภาพ|ลิงก์รูป|image\s*url|url\s*ภาพ/i.test(t)) cMap.imageUrl = c;
-          else if (cMap.name === undefined && /^(?:รายการ|ชื่อรายการ|ชื่อสินทรัพย์|สินทรัพย์|asset\s*name)$/i.test(t)) cMap.name = c;
-          else if (cMap.code === undefined && /(?:รหัสสินทรัพย์|^รหัส$|asset\s*code|^code$)/i.test(t)) cMap.code = c;
-          else if (cMap.received === undefined && /(?:วันที่รับ|วันเดือนปีที่รับ|วันที่ได้มา|received)/i.test(t)) cMap.received = c;
-          else if (cMap.location === undefined && /(?:สถานที่ตั้ง|สถานที่|ที่ตั้ง|location)/i.test(t)) cMap.location = c;
-          else if (cMap.statusGroup === undefined && /^(?:สถานะ|status)$/i.test(t)) cMap.statusGroup = c;
-          else if (cMap.total === undefined && /^(?:รวม|ต้นทุนรวม|ราคาทุน|มูลค่ารวม|total)$/i.test(t)) cMap.total = c;
-          else if (cMap.rate === undefined && /(?:อัตรา|ร้อยละ|rate)/i.test(t)) cMap.rate = c;
-          else if (cMap.opening === undefined && /^(?:ยกมา|opening)$/i.test(t)) cMap.opening = c;
-          else if (cMap.deprGroup === undefined && /ค่าเสื่อมราคาสะสม/i.test(t)) cMap.deprGroup = c;
-          else if (cMap.increase === undefined && /เพิ่ม\s*ระหว่างปี/i.test(t)) cMap.increase = c;
-          else if (cMap.closing === undefined && /^(?:ยกไป|closing)$/i.test(t)) cMap.closing = c;
-          else if (cMap.net === undefined && /(?:ราคาสินทรัพย์\s*สุทธิ|^สุทธิ$|net)/i.test(t)) cMap.net = c;
-          else if (cMap.note === undefined && /^(?:หมายเหตุ|บันทึก|note|remark)$/i.test(t)) cMap.note = c;
-        });
-
-        if (cMap.name !== undefined && (cMap.code !== undefined || cMap.seq !== undefined || cMap.total !== undefined)) {
-          nextRow.forEach((cell, c) => {
-            const t = String(cell == null ? '' : cell).replace(/\s+/g, ' ').trim();
-            if (!t) return;
-            if (/^ปกติ$/i.test(t)) { cMap.stNormal = c; hasSubRow = true; }
-            else if (/ไม่สามารถซ่อมได้/i.test(t)) { cMap.stIrreparable = c; hasSubRow = true; }
-            else if (/ต้องทำการซ่อม/i.test(t)) { cMap.stRepair = c; hasSubRow = true; }
-            else if (/เพิ่ม\s*ระหว่างปี/i.test(t)) { cMap.increase = c; hasSubRow = true; }
-            else if (/ลด\s*ระหว่างปี/i.test(t)) {
-              hasSubRow = true;
-              if (cMap.total !== undefined && c < cMap.total) cMap.stReduced = c;
-              else if (cMap.opening !== undefined && c > cMap.opening) cMap.decrease = c;
-              else if (cMap.stReduced === undefined) cMap.stReduced = c;
-              else cMap.decrease = c;
-            }
-          });
-          cols = cMap;
-          dataStart = hasSubRow ? r + 2 : r + 1;
-          if (r > 0 && !sheetTitle) {
-            const topText = String((grid[0] && grid[0][0]) || '').trim();
-            if (topText && topText.length <= 200) sheetTitle = topText;
-          }
-          break;
-        }
-      }
-
-      if (!cols) continue;
+      const detected = detectAssetColumns(ws, grid);
+      if (!detected) continue;
+      const { cols, dataStart } = detected;
+      if (detected.sheetTitle && !sheetTitle) sheetTitle = detected.sheetTitle;
 
       for (let r = dataStart; r < grid.length; r++) {
         const row = grid[r] || [];
         const name = String(row[cols.name] == null ? '' : row[cols.name]).trim().slice(0, 250);
         const firstCell = String(row[0] == null ? '' : row[0]).trim();
-        if (!name || /^รวม(?:ทั้งหมด|ตามตัวกรอง)/i.test(firstCell) || /^รวม(?:ทั้งหมด|ตามตัวกรอง)/i.test(name)) continue;
+        if (!name || /^รวม(?:ทั้งหมด|ตามตัวกรอง|ทั้งสิ้น)/i.test(firstCell) || /^รวม(?:ทั้งหมด|ตามตัวกรอง|ทั้งสิ้น)/i.test(name)) continue;
 
         let status = 'normal';
+        let normalMark = 'check';
         if (cols.stNormal !== undefined || cols.stIrreparable !== undefined || cols.stRepair !== undefined || cols.stReduced !== undefined) {
-          if (cols.stIrreparable !== undefined && isCheckedCell(row[cols.stIrreparable])) status = 'irreparable';
-          else if (cols.stRepair !== undefined && isCheckedCell(row[cols.stRepair])) status = 'repair';
-          else if (cols.stReduced !== undefined && isCheckedCell(row[cols.stReduced])) status = 'reduced';
-          else if (cols.stNormal !== undefined && isCheckedCell(row[cols.stNormal])) status = 'normal';
-          else if (cols.statusGroup !== undefined) status = parseStatusText(row[cols.statusGroup]) || 'normal';
+          const rawNormal = cols.stNormal !== undefined ? row[cols.stNormal] : '';
+          const subIrrep = cols.stIrreparable !== undefined && (isCheckedCell(row[cols.stIrreparable]) || isCrossCell(row[cols.stIrreparable]));
+          const subRepair = cols.stRepair !== undefined && (isCheckedCell(row[cols.stRepair]) || isCrossCell(row[cols.stRepair]));
+          const subReduced = cols.stReduced !== undefined && (isCheckedCell(row[cols.stReduced]) || isCrossCell(row[cols.stReduced]));
+
+          if (subIrrep) status = 'irreparable';
+          else if (subRepair) status = 'repair';
+          else if (subReduced) status = 'reduced';
+          else if (cols.statusGroup !== undefined && cols.stNormal === undefined) {
+            status = parseStatusText(row[cols.statusGroup]) || 'normal';
+          }
+
+          if (isCrossCell(rawNormal)) {
+            normalMark = 'cross';
+          } else if (isCheckedCell(rawNormal)) {
+            normalMark = 'check';
+          } else if (status !== 'normal') {
+            normalMark = 'none';
+          } else {
+            normalMark = 'check';
+          }
         } else if (cols.statusGroup !== undefined) {
           status = parseStatusText(row[cols.statusGroup]) || 'normal';
+          normalMark = status === 'normal' ? 'check' : 'none';
         }
 
         let imgData = rowImages[r] || null;
@@ -1057,22 +1587,53 @@
         }
         if (imgData) imageCount++;
 
-        const seqNum = cols.seq !== undefined ? parseAssetNumCell(row[cols.seq]) : null;
+        const seqNum = cols.seq !== undefined ? readSheetNumCell(ws, grid, r, cols.seq, false) : null;
+        const total = cols.total !== undefined ? readSheetNumCell(ws, grid, r, cols.total, false) : null;
+        const rate = cols.rate !== undefined ? readSheetNumCell(ws, grid, r, cols.rate, true) : null;
+        const opening = cols.opening !== undefined ? readSheetNumCell(ws, grid, r, cols.opening, false) : null;
+        const increase = cols.increase !== undefined ? readSheetNumCell(ws, grid, r, cols.increase, false) : null;
+        const decrease = cols.decrease !== undefined ? readSheetNumCell(ws, grid, r, cols.decrease, false) : null;
+        let closing = cols.closing !== undefined ? readSheetNumCell(ws, grid, r, cols.closing, false) : null;
+        let net = cols.net !== undefined ? readSheetNumCell(ws, grid, r, cols.net, false) : null;
+
+        const hasDepr = opening !== null || increase !== null || decrease !== null;
+        const calcClosing = hasDepr
+          ? Math.max(0, Math.round(((opening || 0) + (increase || 0) - (decrease || 0)) * 100) / 100)
+          : null;
+        if (closing === null && calcClosing !== null) {
+          closing = calcClosing;
+        } else if (closing === 0 && calcClosing !== null && calcClosing > 0) {
+          const cCell = cols.closing !== undefined ? getWsCell(ws, r, cols.closing) : null;
+          if (!cCell || cCell.f !== undefined || cCell.t === 'e') closing = calcClosing;
+        }
+
+        const calcNet = (total !== null && closing !== null)
+          ? Math.max(0, Math.round((total - closing) * 100) / 100)
+          : null;
+        if (net === null && calcNet !== null) {
+          net = calcNet;
+        } else if (net === 0 && calcNet !== null && calcNet > 0 && total > closing) {
+          const nCell = cols.net !== undefined ? getWsCell(ws, r, cols.net) : null;
+          if (!nCell || nCell.f !== undefined || nCell.t === 'e') net = calcNet;
+        }
+
+        const rawDateVal = cols.received !== undefined ? (getWsCell(ws, r, cols.received)?.v ?? row[cols.received]) : '';
         const item = {
           seq: seqNum !== null && Number.isInteger(seqNum) && seqNum >= 1 && seqNum <= 1000000000 ? seqNum : null,
           name,
           code: cols.code !== undefined ? String(row[cols.code] == null ? '' : row[cols.code]).trim().slice(0, 80) : '',
-          received: cols.received !== undefined ? parseAssetDateCell(row[cols.received]) : '',
+          received: cols.received !== undefined ? parseAssetDateCell(rawDateVal) : '',
           location: cols.location !== undefined ? String(row[cols.location] == null ? '' : row[cols.location]).trim().slice(0, 200) : '',
           status,
+          normalMark,
           imageUrl: cols.imageUrl !== undefined ? safeUrl(String(row[cols.imageUrl] == null ? '' : row[cols.imageUrl]).trim().slice(0, 2000)) : '',
-          total: cols.total !== undefined ? parseAssetNumCell(row[cols.total]) : null,
-          rate: cols.rate !== undefined ? parseAssetNumCell(row[cols.rate], true) : null,
-          opening: cols.opening !== undefined ? parseAssetNumCell(row[cols.opening]) : null,
-          increase: cols.increase !== undefined ? parseAssetNumCell(row[cols.increase]) : null,
-          decrease: cols.decrease !== undefined ? parseAssetNumCell(row[cols.decrease]) : null,
-          closing: cols.closing !== undefined ? parseAssetNumCell(row[cols.closing]) : null,
-          net: cols.net !== undefined ? parseAssetNumCell(row[cols.net]) : null,
+          total,
+          rate,
+          opening,
+          increase,
+          decrease,
+          closing,
+          net,
           note: cols.note !== undefined ? String(row[cols.note] == null ? '' : row[cols.note]).trim().slice(0, 2000) : ''
         };
         if (imgData) item.imageData = imgData;
@@ -1081,7 +1642,11 @@
     }
 
     if (!items.length) throw new Error('ไม่พบรายการสินทรัพย์ในไฟล์ Excel (ตรวจสอบว่ามีหัวตาราง "รายการ" และข้อมูลสินทรัพย์)');
-    return { title: sheetTitle, items, imageCount };
+    const summary = {};
+    for (const k of moneyKeys) {
+      summary[k] = Math.round(items.reduce((acc, it) => acc + (Number(it[k]) || 0), 0) * 100) / 100;
+    }
+    return { title: sheetTitle, items, imageCount, summary };
   }
 
   /* ==================== Export & Import UI Handlers (with Batched Progress) ==================== */
@@ -1161,7 +1726,16 @@
         const buf = new Uint8Array(await file.arrayBuffer());
         const parsed = parseAssetsWorkbook(buf);
         parsedImportItems = parsed;
-        $('#importPreviewInfo').textContent = 'อ่านไฟล์ "' + file.name + '" สำเร็จ · พบสินทรัพย์ ' + fmtInt.format(parsed.items.length) + ' รายการ และรูปภาพฝังในไฟล์ ' + fmtInt.format(parsed.imageCount) + ' รูป';
+        const s = parsed.summary || {};
+        $('#importPreviewInfo').textContent =
+          'อ่านไฟล์ "' + file.name + '" สำเร็จ · พบสินทรัพย์ ' + fmtInt.format(parsed.items.length) +
+          ' รายการ · รูปภาพ ' + fmtInt.format(parsed.imageCount) + ' รูป · ' +
+          'รวม ' + fmtMoney.format(s.total || 0) + ' บาท · ' +
+          'ค่าเสื่อมราคาสะสม (ยกมา ' + fmtMoney.format(s.opening || 0) +
+          ' / เพิ่ม ' + fmtMoney.format(s.increase || 0) +
+          ' / ลด ' + fmtMoney.format(s.decrease || 0) +
+          ' / ยกไป ' + fmtMoney.format(s.closing || 0) + ') · ' +
+          'ราคาสินทรัพย์สุทธิ ' + fmtMoney.format(s.net || 0) + ' บาท';
         $('#confirmImportBtn').disabled = false;
       } catch (e) {
         $('#importError').textContent = e.message;
@@ -1183,7 +1757,6 @@
         const mode = $('#importMode').value;
         const rawItems = parsedImportItems.items;
 
-        // Phase 1: Compress & hash unique embedded images in parallel (8 at a time)
         const uniqueImages = new Map();
         const preparedMap = new Map();
         rawItems.forEach((it, idx) => {
@@ -1229,7 +1802,6 @@
           return copy;
         });
 
-        // Phase 2: Save all 569+ asset metadata rows in 1 fast request (~100 KB)
         btn.textContent = 'กำลังนำเข้า 35%';
         setImportProgress(35, 'ขั้นตอนที่ 2/3: กำลังบันทึกรายการสินทรัพย์ ' + fmtInt.format(metadataItems.length) + ' รายการ…');
         let res;
@@ -1242,7 +1814,6 @@
           throw err;
         }
 
-        // Phase 3: Upload missing images in small batches (~350 KB / max 15 images per batch, 3 concurrent)
         const missingFids = Array.isArray(res.missingFids)
           ? res.missingFids.filter(fid => imagesByFid.has(fid))
           : Array.from(imagesByFid.keys());
@@ -1271,7 +1842,6 @@
               try {
                 await call('assetsUploadImagesBatch', batchList);
               } catch (_) {
-                // Retry once on transient network hiccup
                 await new Promise(r => setTimeout(r, 400));
                 await call('assetsUploadImagesBatch', batchList);
               }
@@ -1511,6 +2081,34 @@
   document.addEventListener('click', async e => {
     const close = e.target.closest('[data-close]'); if (close) { if (!saving) $('#' + close.dataset.close).close(); return; }
     const add = e.target.closest('[data-new]'); if (add) { openForm(); return; }
+    const normalToggle = e.target.closest('[data-normal-toggle]');
+    if (normalToggle && data && data.me && data.me.edit) {
+      const row = data.rows.find(r => r.id === normalToggle.dataset.normalToggle);
+      if (row) {
+        const nextMark = nextNormalMark(row.id, getNormalMark(row));
+        row.normalMark = nextMark;
+        if (nextMark === 'check') row.status = 'normal';
+        syncRowStatusDom(row);
+        queueRowStatusSave(row);
+      }
+      return;
+    }
+    const statusToggle = e.target.closest('[data-status-toggle]');
+    if (statusToggle && data && data.me && data.me.edit) {
+      const row = data.rows.find(r => r.id === statusToggle.dataset.statusToggle);
+      const key = statusToggle.dataset.statusKey;
+      if (row && key) {
+        if (row.status === key) {
+          row.status = 'normal';
+        } else {
+          row.status = key;
+          if (getNormalMark(row) === 'check') row.normalMark = 'none';
+        }
+        syncRowStatusDom(row);
+        queueRowStatusSave(row);
+      }
+      return;
+    }
     const stickerBtn = e.target.closest('[data-sticker]');
     if (stickerBtn && data) {
       const row = data.rows.find(r => r.id === stickerBtn.dataset.sticker);
@@ -1554,7 +2152,7 @@
 
   // Expose helpers for testing & inspection
   if (typeof window !== 'undefined') {
-    Object.assign(window, { xlsxBuildAssets, parseAssetsWorkbook, buildStickerQrSvg, stickerCardHtml, formatStickerDate, assetQrLink, computeImageFid });
+    Object.assign(window, { xlsxBuildAssets, parseAssetsWorkbook, buildStickerQrSvg, stickerCardHtml, formatStickerDate, assetQrLink, computeImageFid, getNormalMark, nextNormalMark });
   }
 
   try {
