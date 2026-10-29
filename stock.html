@@ -11,9 +11,12 @@
 <script src="assets/vendor/chart.umd.min.js"></script>
 <link rel="stylesheet" href="assets/css/pages/stock.css?v=tag-age-1">
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
-<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
+<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script>
+<link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.1">
+<script src="assets/js/shared/dashboard-v16.js?v=16.1" defer></script>
+<meta name="theme-color" content="#ede5fa">
 </head>
-<body data-workspace="stock" class="liquid-ui"><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
+<body data-dashboard="stock" data-workspace="stock" class=""><a class="wcag-skip" href="#app">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>สินค้าค้างสต็อก</h1>
 
@@ -68,7 +71,7 @@
 <div class="cardhead"><h3>สินค้าคงเหลือ 0 และ ติดลบ <small id="zeroNote"></small></h3></div>
 <div class="tscroll" style="max-height:420px"><table class="pvt" id="zeroTb"></table></div>
 <div class="muted" id="zeroMore" style="margin-top:6px"></div>
-</section></div><div class="workspace-pane" role="tabpanel" id="ws-stock-overview" aria-labelledby="ws-stock-tab-overview" data-work-pane="overview" hidden><div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn small" id="bOvPdf" type="button">ดาวน์โหลดภาพรวม PDF</button></div><section class="charts">
+</section></div><div class="workspace-pane" role="tabpanel" id="ws-stock-overview" aria-labelledby="ws-stock-tab-overview" data-work-pane="overview" hidden><div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn small" hidden id="bOvPdf" type="button">ดาวน์โหลดภาพรวม PDF</button></div><section class="charts">
 <div class="card"><h3>มูลค่าทุนทั้งหมด <small>คลิกแท่งเพื่อเลือกหมวด</small></h3><div class="cbox tall" id="boxGroup"><canvas id="chGroup"></canvas></div></div>
 <div class="card"><h3>สัดส่วนมูลค่าทุนตามช่วงอายุสินค้า <small>ตามตัวกรองที่เลือก</small></h3><div class="cbox" id="boxStatus"><canvas id="chStatus"></canvas></div></div>
 <div class="card"><h3>ช่วงอายุสินค้าที่ค้าง <small>มูลค่าทุน</small></h3><div class="cbox" id="boxAge"><canvas id="chAge"></canvas></div></div>
