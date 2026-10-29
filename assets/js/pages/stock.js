@@ -362,7 +362,7 @@ function applyData(r) {
   D.items = (r.rows || []).filter(function (a) { return a[4] > 0 && !DELETED_GROUPS[a[0]]; }).map(toItem);
   D.zero = (r.zero || []).filter(function (a) { return !DELETED_GROUPS[a[0]]; }).map(function (a) { var x = toItem(a); x.isZero = true; return x; });
   D.lost = r.lost || []; D.exp = r.expired || []; D.pend = r.pending || []; D.waste = r.waste || [];
-  D.hard = r.hard || {};
+  D.hard = r.hard || {}; D.tagSettings = r.tagSettings || {};
   if (Array.isArray(r.notes)) { D.notes = r.notes; saveNotesLocal(D.notes); } else { D.notes = loadNotesLocal(); }
   D.ctags = r.ctags || {}; D.ctmapSet = {};
   Object.keys(r.ctmap || {}).forEach(function (id) { var m = D.ctmapSet[id] = {}; (r.ctmap[id] || []).forEach(function (k) { m[k] = 1; }); });
@@ -661,17 +661,20 @@ function renderCtList(cnt) {
   var box = $('#ctList'); if (!box) return;
   var edit = !!(D.me && D.me.edit);
   var dis = edit ? '' : ' disabled title="ต้องมีสิทธิ์แก้ไขสต็อก"';
+  function ageOption(k) {
+    return '<label class="ct-age"><input type="checkbox" data-tag-age="' + k + '"' + (D.tagSettings && D.tagSettings[k] ? ' checked' : '') + dis + '><span>ถอดแท็กเมื่อช่วงอายุสินค้าเปลี่ยน</span></label>';
+  }
   var dataCnt = { lost: (D.lost || []).length, exp: (D.exp || []).length, pend: (D.pend || []).length, waste: (D.waste || []).length, hard: Object.keys(D.hard || {}).length };
   var base = BASE_TAGS.map(function (k) {
     if (CT.removed[k]) return '';
     var real = dataCnt[k] !== undefined, n = real ? dataCnt[k] : (cnt && cnt[k] || 0);
     return '<div class="ct-row"><span class="ct-n">' + esc(TAGS[k].t) + ' <span class="muted">(แท็กของระบบ)</span></span>' +
-      '<span class="muted">' + (real ? 'มีข้อมูลจริง ' : 'ตามยอดสต็อก ') + nf0.format(n) + ' รายการ</span><button type="button" class="btn ghost small" data-btdel="' + k + '"' + (real ? dis : '') + ' aria-label="ลบแท็ก ' + esc(TAGS[k].t) + '">× ลบแท็ก' + (real ? 'และข้อมูลจริง' : '') + '</button></div>';
+      '<span class="muted">' + (real ? 'มีข้อมูลจริง ' : 'ตามยอดสต็อก ') + nf0.format(n) + ' รายการ</span>' + (real ? ageOption(k) : '<span class="muted">เปลี่ยนตามยอดคงเหลืออัตโนมัติ</span>') + '<button type="button" class="btn ghost small" data-btdel="' + k + '"' + (real ? dis : '') + ' aria-label="ลบแท็ก ' + esc(TAGS[k].t) + '">× ลบแท็ก' + (real ? 'และข้อมูลจริง' : '') + '</button></div>';
   }).join('');
   var custom = ctKeys().map(function (k) {
     var id = k.slice(2), d = D.ctags[id], deduct = d.mode === 'deduct';
     var n = deduct ? (D[k] || []).length : Object.keys((D.ctmapSet && D.ctmapSet[id]) || {}).length;
-    return '<div class="ct-row"><span class="ct-n">' + esc(d.t) + '</span><span class="tag t-custom" style="margin-left:0">' + (deduct ? 'หักออก' : 'แท็กเฉยๆ') + '</span><span class="muted">ติดอยู่ ' + nf0.format(n) + ' รายการ</span>' +
+    return '<div class="ct-row"><span class="ct-n">' + esc(d.t) + '</span><span class="tag t-custom" style="margin-left:0">' + (deduct ? 'หักออก' : 'แท็กเฉยๆ') + '</span><span class="muted">ติดอยู่ ' + nf0.format(n) + ' รายการ</span>' + ageOption(k) +
       (deduct ? '<span class="muted">ติด/ยกเลิกรายสินค้าได้ที่ปุ่ม ⋯ ท้ายแถว (ระบุจำนวนที่หัก)</span>'
               : '<button type="button" class="btn ghost small" data-ctapply="' + id + '"' + dis + '>ติดแท็กให้รายการที่แสดง</button><button type="button" class="btn ghost small" data-ctclear="' + id + '"' + dis + '>ถอดแท็กจากรายการที่แสดง</button>') +
       '<button type="button" class="btn ghost small" data-ctdel="' + id + '"' + dis + ' aria-label="ลบแท็ก ' + esc(d.t) + '">× ลบแท็ก</button></div>';
@@ -1327,12 +1330,24 @@ $('#ctAdd').addEventListener('click', function () {
   var inp = $('#ctName'), name = inp.value.trim(), mode = $('#ctMode').value;
   if (!name) { toast('กรุณาพิมพ์ชื่อแท็ก', true); return; }
   busy(this, async function () {
-    await call('stockCtagCreate', name, mode);
-    inp.value = ''; toast('เพิ่มแท็ก "' + name + '" แล้ว (' + (mode === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
+    await call('stockCtagCreate', name, mode, $('#ctAgeNew').checked);
+    inp.value = ''; $('#ctAgeNew').checked = false; toast('เพิ่มแท็ก "' + name + '" แล้ว (' + (mode === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
     await load(VIEW);
   });
 });
 $('#ctName').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('#ctAdd').click(); } });
+$('#ctList').addEventListener('change', async function (e) {
+  var cb = e.target.closest('input[data-tag-age]'); if (!cb) return;
+  var key = cb.dataset.tagAge, on = cb.checked;
+  cb.disabled = true;
+  try {
+    var r = await call('stockTagSettingsSet', key, on);
+    D.tagSettings = r.tagSettings || {};
+    toast(on ? 'เปิดการถอดแท็กเมื่อช่วงอายุสินค้าเปลี่ยนแล้ว' : 'ปิดการถอดแท็กอัตโนมัติแล้ว');
+    await load(VIEW);
+  } catch (er) { cb.checked = !on; toast(er.message, true); }
+  finally { cb.disabled = !(D.me && D.me.edit); }
+});
 $('#ctList').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b || b.disabled) return;
   if (b.dataset.btdel) {
@@ -2637,7 +2652,7 @@ $('#upSave').addEventListener('click', function () {
     // ส่งทีละชุดและตรวจ revision ทุกครั้ง; ถ้าผลไม่แน่นอนให้โหลดข้อมูลก่อนส่งซ้ำ
     var queue = sel.map(function (g) { var n = UP.groups[g]; return { g: g, rep: n.rep, title: n.title, rows: n.rows }; });
     var maxG = 25, maxRows = 8000, total = queue.length, lastG = '';
-    var r = { changed: [], same: [], tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
+    var r = { changed: [], same: [], removedTags: 0, tot: { add: 0, chg: 0, del: 0, same: 0 } }, done = 0;
     var prog = $('#upProg');
     if (!prog) { prog = document.createElement('div'); prog.id = 'upProg'; prog.setAttribute('role', 'status'); prog.setAttribute('aria-live', 'polite'); prog.style.cssText = 'margin:8px 0;padding:8px 12px;border-radius:10px;background:#f3ecff;border:1px solid #d9c8ff;font-size:13.5px'; $('#upErr').parentNode.insertBefore(prog, $('#upErr')); }
     var showProg = function (extra) {
@@ -2665,6 +2680,7 @@ $('#upSave').addEventListener('click', function () {
           throw writeError;
         }
         r.changed = r.changed.concat(rc.changed || []); r.same = r.same.concat(rc.same || []);
+        r.removedTags += rc.removedTags || 0;
         ['add', 'chg', 'del', 'same'].forEach(function (k) { r.tot[k] += (rc.tot && rc.tot[k]) || 0; });
         done += chunk.length; lastG = chunk[chunk.length - 1].g;
         chunk.forEach(function (x) { if (UP && UP.pick) UP.pick[x.g] = false; });           // เสร็จแล้ว ไม่ต้องส่งซ้ำถ้าต้องกดบันทึกต่อ
@@ -2685,6 +2701,7 @@ $('#upSave').addEventListener('click', function () {
     var canErr = '';
     for (var kd in cancels) { try { await call(AKI[kd].rm, cancels[kd]); } catch (er) { canErr = er.message; } }
     var canMsg = nCan ? (canErr ? ' · ยกเลิกรายการหักบางรายการไม่สำเร็จ: ' + canErr : ' · ยกเลิกรายการหักตามที่เลือก ' + nf0.format(nCan) + ' รายการ') : '';
+    if (r.removedTags) canMsg += ' · ถอดแท็กตามช่วงอายุที่เปลี่ยน ' + nf0.format(r.removedTags) + ' รายการ';
     var t = r.tot || { add: 0, chg: 0, del: 0, same: 0 };
     toast((r.changed.length ? 'บันทึกแล้ว · สาขา ' + br + ' · อัปเดต ' + r.changed.length + ' หมวด (เพิ่ม ' + nf0.format(t.add) + ' · เปลี่ยน ' + nf0.format(t.chg) + ' · ลบ ' + nf0.format(t.del) + ' · เหมือนเดิมไม่แตะ ' + nf0.format(t.same) + ' รายการ)' + (r.same.length ? ' · ' + r.same.length + ' หมวดไม่มีอะไรเปลี่ยน' : '') : 'ข้อมูลที่เลือกเหมือนฉบับปัจจุบันทุกหมวด — ไม่มีอะไรเปลี่ยน') + canMsg);
     VIEW = 'cur'; await load('cur');

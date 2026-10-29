@@ -26,6 +26,96 @@ async function stockCtagDefs(C) {
 
 function stockCtagMeta(id, def) { return { label: def.t, kv: 'STOCK_CT_' + id }; }
 
+// Age policies are opt-in. Snapshots belong to assignments, not tag definitions.
+async function stockTagSettings(C) {
+  const raw = await stateJson(C, 'STOCK_TAG_SETTINGS', {}), out = {};
+  Object.keys(raw).forEach(k => { if ((k === 'hard' || Object.hasOwn(STOCK_ADJ_KV, k) || /^c_[a-z0-9]{4,16}$/.test(k)) && raw[k] === true) out[k] = true; });
+  return out;
+}
+
+function stockAgeIndex(rows, ts = now()) {
+  const today = Math.floor((ts + 7 * 3600000) / 86400000) * 86400000, by = new Map();
+  rows.forEach(r => {
+    const code = stockCodeKey(r[1]); if (!code) return;
+    const last = stockDate(r[8]), days = last ? Math.max(0, Math.round((today - Date.parse(last + 'T00:00:00Z')) / 86400000)) : r[9];
+    const age = days === null || days === undefined || !Number.isFinite(Number(days)) ? (r[10] || 'NA') : days <= 15 ? 'T1' : days <= 30 ? 'T2' : days <= 60 ? 'T3' : 'DS';
+    if (!by.has(code)) by.set(code, []);
+    by.get(code).push({ key: JSON.stringify([r[0], stockBrKey(r[3])]), br: stockBrKey(r[3]), age });
+  });
+  return by;
+}
+
+function stockAgeSnapshot(index, code, br) {
+  const out = {}, bk = stockBrKey(br);
+  (index.get(stockCodeKey(code)) || []).forEach(r => { if (!bk || r.br === bk) out[r.key] = r.age; });
+  return out;
+}
+
+async function stockTagAgeCapture(C, tag, entries, rows) {
+  if (!(await stockTagSettings(C))[tag]) return [];
+  const ages = await stateJson(C, 'STOCK_TAG_AGES', {}), index = stockAgeIndex(rows || await stockLoadRows(C, 0));
+  const tracked = ages[tag] || (ages[tag] = {});
+  entries.forEach(e => { if (e.on) tracked[e.key] = stockAgeSnapshot(index, e.code, e.br); else delete tracked[e.key]; });
+  return [kvSetStmt(C, 'STOCK_TAG_AGES', JSON.stringify(ages))];
+}
+
+async function stockTagAgeSync(C, rows, adj, options = {}) {
+  const settings = options.settings || await stockTagSettings(C), ops = [];
+  if (!Object.keys(settings).length && !options.reset) return { settings, ops, removed: 0, adjChanged: false };
+  const ages = await stateJson(C, 'STOCK_TAG_AGES', {}), before = JSON.stringify(ages);
+  const defs = await stockCtagDefs(C), hard = options.hard || await stockHardLoad(C), map = await stateJson(C, 'STOCK_CTMAP', {});
+  if (!rows) {
+    const by = await stockRowsByGroup(C, 0);
+    if (options.replacements) options.replacements.forEach((list, g) => by.set(g, list));
+    rows = Array.from(by.values()).flat();
+  }
+  const index = stockAgeIndex(rows);
+  let removed = 0, adjChanged = false, hardChanged = false, mapChanged = false;
+  Object.keys(ages).forEach(k => { if (!settings[k]) delete ages[k]; });
+  Object.keys(settings).forEach(tag => {
+    const id = tag.slice(2), custom = tag.startsWith('c_'), def = custom && defs[id];
+    if (custom && !def) { delete ages[tag]; return; }
+    const plain = custom && def.mode === 'tag';
+    const entries = tag === 'hard' ? hard : plain ? (map[id] || {}) : (adj[tag] || {});
+    const tracked = ages[tag] || (ages[tag] = {}), countBefore = removed;
+    Object.keys(tracked).forEach(k => { if (!Object.hasOwn(entries, k)) delete tracked[k]; });
+    Object.keys(entries).forEach(k => {
+      const entry = entries[k], split = plain ? k.lastIndexOf('|') : -1;
+      const current = stockAgeSnapshot(index, plain ? k.slice(0, split) : entry.code, plain ? k.slice(split + 1) : entry.br);
+      const previous = options.reset === tag ? null : tracked[k];
+      if (previous && Object.keys(current).some(key => Object.hasOwn(previous, key) && current[key] !== previous[key])) {
+        delete entries[k]; delete tracked[k]; removed++;
+        if (tag === 'hard') hardChanged = true; else if (plain) mapChanged = true; else adjChanged = true;
+      } else tracked[k] = Object.assign({}, previous || {}, current);
+    });
+    if (!plain && tag !== 'hard' && removed > countBefore) {
+      const kv = custom ? 'STOCK_CT_' + id : STOCK_ADJ_KV[tag];
+      ops.push(kvSetStmt(C, kv, JSON.stringify(entries)));
+    }
+  });
+  if (hardChanged) ops.push(kvSetStmt(C, 'STOCK_HARD', JSON.stringify(hard)));
+  if (mapChanged) ops.push(kvSetStmt(C, 'STOCK_CTMAP', JSON.stringify(map)));
+  if (JSON.stringify(ages) !== before) ops.push(kvSetStmt(C, 'STOCK_TAG_AGES', JSON.stringify(ages)));
+  return { settings, ops, removed, adjChanged, map };
+}
+
+API.stockTagSettingsSet = async (C, token, tag, on) => {
+  const me = await stockEditAuth(C, token), defs = await stockCtagDefs(C);
+  tag = str(tag);
+  if (tag !== 'hard' && !Object.hasOwn(STOCK_ADJ_KV, tag) && !(tag.startsWith('c_') && Object.hasOwn(defs, tag.slice(2)))) throw new Error('แท็กนี้ไม่รองรับการถอดตามช่วงอายุ');
+  if (typeof on !== 'boolean') throw new Error('ค่าตัวเลือกไม่ถูกต้อง');
+  const settings = await stockTagSettings(C);
+  if (!!settings[tag] === on) return { ok: true, tagSettings: settings };
+  if (on) settings[tag] = true; else delete settings[tag];
+  const adj = await stockAdjLoad(C), age = await stockTagAgeSync(C, null, adj, { settings, reset: tag });
+  const ops = [...age.ops, kvSetStmt(C, 'STOCK_TAG_SETTINGS', JSON.stringify(settings))];
+  if (age.adjChanged) ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(await stockResumState(C, adj))));
+  await batch(C, ops);
+  const label = tag === 'hard' ? 'ขายยาก' : STOCK_ADJ_LABEL[tag] || defs[tag.slice(2)].t;
+  await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ตั้งค่าถอดแท็กตามช่วงอายุ', label + ' · ' + (on ? 'เปิด' : 'ปิด'));
+  return { ok: true, tagSettings: settings };
+};
+
 async function stockAdjLoad(C) {
   const out = {}, defs = await stockCtagDefs(C), kinds = {}, labels = {};
   Object.keys(STOCK_ADJ_KV).forEach(k => { kinds[k] = STOCK_ADJ_KV[k]; labels[k] = STOCK_ADJ_LABEL[k]; });
@@ -318,18 +408,25 @@ API.stockGet = async (C, token, ver, options) => {
     stockBarcodeData(C, options),
     stockNotesLoad(C)
   ]);
-  const ap = stockApply(rows0, lost);
   const foundGroups = new Set(rows0.map(r => r[0]));
   Object.keys(state).forEach(g => {
     const meta = state[g] && state[g][v ? 'prev' : 'cur'];
     if (meta && meta.count > 0 && !foundGroups.has(g)) throw new Error('ข้อมูลสต็อกไม่ครบ (หมวด ' + g + ') กรุณาติดต่อผู้ดูแล');
   });
+  // Even when viewing the previous report, expiry follows current stock only.
+  const age = await stockTagAgeSync(C, v ? await stockLoadRows(C, 0) : rows0, lost, { hard });
+  if (age.adjChanged) {
+    await stockRebuildSummaries(C, state, lost);
+    age.ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)));
+  }
+  if (age.ops.length) await batch(C, age.ops);
+  const ap = stockApply(rows0, lost);
   stockSideSummaries(state, v ? 'prev' : 'cur', ap.rows);
   // ของหาย/สินค้าหมดอายุ: หักจำนวนออกจากแถวแล้ว (แถวที่ยังเหลือแสดงตามปกติด้วยจำนวนที่เหลือ) · เก็บรายละเอียดที่หักไว้แสดงในหน้า "ของหาย"/"สินค้าหมดอายุ"
   const adjList = kind => Object.keys(lost[kind]).map(k => { const e = lost[kind][k], h = ap.hit[kind][k] || []; return { k, code: str(e.code), br: str(e.br), qty: (e.qty === null || e.qty === undefined) ? null : (Number(e.qty) || 0), name: (h[0] && h[0].name) || str(e.name), note: str(e.note), ts: e.ts || 0, who: str(e.who), hit: h }; }).sort((a, b) => b.ts - a.ts);
-  const ctDefs = await stockCtagDefs(C), ctMapRaw = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, ctLists = {}, ctMap = {};
+  const ctDefs = await stockCtagDefs(C), ctMapRaw = age.map || (await stateJson(C, 'STOCK_CTMAP', {})) || {}, ctLists = {}, ctMap = {};
   Object.keys(ctDefs).forEach(id => { if (ctDefs[id].mode === 'deduct') ctLists[id] = adjList('c_' + id); else ctMap[id] = Object.keys(ctMapRaw[id] || {}); });
-  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, ...barcodeData, ctags: ctDefs, ctlists: ctLists, ctmap: ctMap, notes };
+  return { me: { name: me.name, role: me.role, edit: me.role === 'admin' || !!me.perms.stock_edit }, ver: v ? 'prev' : 'cur', groups: state, rows: ap.rows, zero: ap.zero, cut: ap.cut, history: Array.isArray(history) ? stockDailyHistory(history) : [], names, lost: adjList('lost'), expired: adjList('exp'), pending: adjList('pend'), waste: adjList('waste'), hard, ...barcodeData, ctags: ctDefs, ctlists: ctLists, ctmap: ctMap, notes, tagSettings: age.settings };
 };
 
 API.stockSave = async (C, token, payload) => {
@@ -391,14 +488,16 @@ API.stockSave = async (C, token, payload) => {
     changed.push(g);
   }
   if (!changed.length) return { ok: true, changed, same, diff, tot };
+  const age = await stockTagAgeSync(C, null, lost, { replacements: replacements.cur });
+  ops.push(...age.ops);
   // ไม่มีรายการหัก (ของหาย/หมดอายุ/แท็กหักออก) → ยอดสรุปรายหมวดที่คำนวณในลูปถูกต้องแล้ว ไม่ต้องโหลดทุกหมวดมาคำนวณใหม่
-  if (Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
+  if (age.adjChanged || Object.keys(lost).some(k => Object.keys(lost[k] || {}).length)) await stockRebuildSummaries(C, state, lost, replacements);
   const dates = Object.keys(state).map(g => state[g].cur && state[g].cur.rep).filter(Boolean).sort(), sum = stockTotal(state);
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file, branch, to: dates[dates.length - 1] || '', sum, gs: stockGroupSums(state) });
   ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)));
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'อัปโหลดไฟล์ Excel', (file || '(ไม่ระบุชื่อ)') + ' · สาขา ' + branch + ' · อัปเดต ' + changed.length + ' หมวด (' + changed.join(',') + ') · เพิ่ม ' + tot.add + ' เปลี่ยน ' + tot.chg + ' ลบ ' + tot.del + ' เหมือนเดิม ' + tot.same + ' แถว' + (same.length ? ' · ไม่เปลี่ยน ' + same.length + ' หมวด' : ''));
-  return { ok: true, changed, same, diff, tot };
+  return { ok: true, changed, same, diff, tot, removedTags: age.removed };
 };
 
 API.stockRestore = async (C, token, g) => {
@@ -409,11 +508,13 @@ API.stockRestore = async (C, token, g) => {
   const [curJson, prevJson, adj] = await Promise.all([stockGroupJson(C, g, 0), stockGroupJson(C, g, 1), stockAdjLoad(C)]);
   if (!prevJson) throw new Error('ข้อมูลฉบับก่อนหน้าไม่ครบ กรุณาติดต่อผู้ดูแล');
   state[g] = { cur: s.prev, prev: s.cur };
-  await stockRebuildSummaries(C, state, adj, { cur: new Map([[g, stockParseRows(prevJson, g)]]), prev: new Map([[g, stockParseRows(curJson || '[]', g)]]) });
+  const replacements = { cur: new Map([[g, stockParseRows(prevJson, g)]]), prev: new Map([[g, stockParseRows(curJson || '[]', g)]]) };
+  const age = await stockTagAgeSync(C, null, adj, { replacements: replacements.cur });
+  await stockRebuildSummaries(C, state, adj, replacements);
   const ts = now(), dates = Object.keys(state).map(k => state[k].cur && state[k].cur.rep).filter(Boolean).sort();
   const hist = stockPushHistory(await stateJson(C, 'STOCK_HISTORY', []), { ts, who: me.name, file: 'กู้คืนฉบับก่อนหน้า ' + g, to: dates[dates.length - 1] || '', sum: stockTotal(state), gs: stockGroupSums(state) });
   await batch(C, [stmt(C, 'UPDATE stock_grp SET ver=2 WHERE g=? AND ver=0', g), stmt(C, 'UPDATE stock_grp SET ver=0 WHERE g=? AND ver=1', g), stmt(C, 'UPDATE stock_grp SET ver=1 WHERE g=? AND ver=2', g),
-    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist))]);
+    kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), kvSetStmt(C, 'STOCK_HISTORY', JSON.stringify(hist)), ...age.ops]);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สลับไปใช้ฉบับก่อนหน้า', g + ' · ข้อมูลวันที่ ' + (state[g].cur.rep || '-'));
   return { ok: true, groups: state };
 };
@@ -635,13 +736,14 @@ API.stockHardSet = async (C, token, codes, on, note) => {
   const me = await stockEditAuth(C, token), list = (Array.isArray(codes) ? codes : [codes]).map(x => str(x).trim().slice(0, 40)).filter(Boolean).slice(0, 500);
   if (!list.length) throw new Error('ไม่พบรหัสสินค้า');
   const hard = await stockHardLoad(C), ts = now(), nt = str(note).replace(/\s+/g, ' ').slice(0, 100);
-  let n = 0;
+  let n = 0; const captures = [];
   list.forEach(code => {
     const k = stockCodeKey(code); if (!k) return;
-    if (on) { if (!hard[k] || hard[k].note !== nt) n++; hard[k] = { code, ts, who: me.name, note: nt }; }
-    else if (hard[k]) { delete hard[k]; n++; }
+    if (on) { if (!hard[k]) captures.push({ key: k, code, on: true }); if (!hard[k] || hard[k].note !== nt) n++; hard[k] = { code, ts, who: me.name, note: nt }; }
+    else if (hard[k]) { delete hard[k]; n++; captures.push({ key: k, code, on: false }); }
   });
-  await kvSet(C, 'STOCK_HARD', JSON.stringify(hard));
+  const ageOps = captures.length ? await stockTagAgeCapture(C, 'hard', captures) : [];
+  await batch(C, [kvSetStmt(C, 'STOCK_HARD', JSON.stringify(hard)), ...ageOps]);
   if (n) await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', on ? 'ติดแท็กสินค้าขายยาก' : 'ยกเลิกแท็กสินค้าขายยาก', n + ' รายการ (' + list.slice(0, 10).join(',') + (list.length > 10 ? ',…' : '') + ')' + (nt ? ' · ' + nt : ''));
   return hard;
 };
@@ -669,7 +771,8 @@ function stockAdjApi(kind, meta) {                                // meta (ไ�
       if (!list.length) throw new Error('กรุณากรอกบาร์โค้ดและจำนวน');
       if (list.length > 300) throw new Error('เพิ่มได้ครั้งละไม่เกิน 300 รายการ');
       const adj = await stockAdjLoad(C), cur = adj[kind], ts = now(), nt = str(note).replace(/\s+/g, ' ').slice(0, 100), bn = str(br).replace(/\s+/g, ' ').trim().slice(0, 20), by = new Map();
-      (await stockLoadRows(C, 0)).forEach(r => { const k = stockCodeKey(r[1]); if (k && !by.has(k)) by.set(k, r); });   // หาชื่อจากข้อมูลปัจจุบัน (ถ้าไม่พบก็เก็บไว้ก่อน — ถ้าภายหลังมีในไฟล์ก็หักให้)
+      const rows = await stockLoadRows(C, 0);
+      rows.forEach(r => { const k = stockCodeKey(r[1]); if (k && !by.has(k)) by.set(k, r); });   // หาชื่อจากข้อมูลปัจจุบัน (ถ้าไม่พบก็เก็บไว้ก่อน — ถ้าภายหลังมีในไฟล์ก็หักให้)
       let added = 0, merged = 0, dup = 0, pcs = 0; const notFound = [];
       for (const it of list) {
         const k = stockAdjKey(it.code, bn), r = by.get(stockCodeKey(it.code)), e = cur[k];
@@ -684,7 +787,8 @@ function stockAdjApi(kind, meta) {                                // meta (ไ�
       }
       if (!added && !merged) return { ok: true, added, merged, dup, pcs, notFound };
       const state = await stockResumState(C, adj);
-      await batch(C, [kvSetStmt(C, kv, JSON.stringify(cur)), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))]);
+      const ageOps = await stockTagAgeCapture(C, kind, list.map(it => ({ key: stockAdjKey(it.code, bn), code: it.code, br: bn, on: true })), rows);
+      await batch(C, [kvSetStmt(C, kv, JSON.stringify(cur)), kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state)), ...ageOps]);
       await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'เพิ่ม' + label, (added + merged) + ' รายการ ' + stockNum(pcs, 2) + ' ชิ้น' + (bn ? ' · สาขา ' + bn : '') + ' (' + list.slice(0, 10).map(x => x.code + 'x' + x.qty).join(',') + (list.length > 10 ? ',…' : '') + ')' + (nt ? ' · ' + nt : ''));
       return { ok: true, added, merged, dup, pcs, notFound };
     },
@@ -744,7 +848,7 @@ async function stockCtagNeed(C, id, mode) {
   return { id, def: d, defs };
 }
 
-API.stockCtagCreate = async (C, token, name, mode) => {
+API.stockCtagCreate = async (C, token, name, mode, removeOnAgeChange = false) => {
   const me = await stockEditAuth(C, token), nm = str(name).replace(/\s+/g, ' ').trim().slice(0, 30), md = str(mode) === 'deduct' ? 'deduct' : 'tag';
   if (!nm) throw new Error('กรุณาใส่ชื่อแท็ก');
   const defs = await stockCtagDefs(C), reserved = ['ขายยาก', 'ของหาย', 'หมดอายุ', 'รอปรับ', 'ของเสีย', 'คงเหลือ 0', 'ติดลบ'];
@@ -753,7 +857,9 @@ API.stockCtagCreate = async (C, token, name, mode) => {
   let id = '';
   do { id = ('t' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)).slice(0, 14); } while (defs[id]);
   defs[id] = { t: nm, mode: md, ts: now(), who: me.name };
-  await kvSet(C, 'STOCK_CTAGS', JSON.stringify(defs));
+  const ops = [kvSetStmt(C, 'STOCK_CTAGS', JSON.stringify(defs))];
+  if (removeOnAgeChange === true) { const settings = await stockTagSettings(C); settings['c_' + id] = true; ops.push(kvSetStmt(C, 'STOCK_TAG_SETTINGS', JSON.stringify(settings))); }
+  await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'สร้างแท็ก', nm + ' (' + (md === 'deduct' ? 'หักออก' : 'แท็กเฉยๆ') + ')');
   return { ok: true, id };
 };
@@ -764,7 +870,10 @@ API.stockCtagDelete = async (C, token, id) => {
   delete adj[kind];
   const defs = n.defs; delete defs[n.id];
   const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}; delete map[n.id];
+  const settings = await stockTagSettings(C), ages = await stateJson(C, 'STOCK_TAG_AGES', {});
+  delete settings[kind]; delete ages[kind];
   const ops = [kvSetStmt(C, 'STOCK_CTAGS', JSON.stringify(defs)), kvSetStmt(C, 'STOCK_CTMAP', JSON.stringify(map)), stmt(C, 'DELETE FROM kv WHERE k=?', 'STOCK_CT_' + n.id)];
+  ops.push(kvSetStmt(C, 'STOCK_TAG_SETTINGS', JSON.stringify(settings)), kvSetStmt(C, 'STOCK_TAG_AGES', JSON.stringify(ages)));
   if (n.def.mode === 'deduct' && freed) { const state = await stockResumState(C, adj); ops.push(kvSetStmt(C, 'STOCK_GROUPS', JSON.stringify(state))); }
   await batch(C, ops);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', 'ลบแท็ก', n.def.t + (freed ? ' · คืนยอดที่หักไว้ ' + freed + ' รายการ' : ''));
@@ -776,14 +885,15 @@ API.stockCtagAssign = async (C, token, id, items, on) => {
   if (!Array.isArray(items)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
   if (items.length > 5000) throw new Error('ทำได้ครั้งละไม่เกิน 5,000 รายการ');
   const map = (await stateJson(C, 'STOCK_CTMAP', {})) || {}, m = map[n.id] || (map[n.id] = {});
-  let c = 0;
+  let c = 0; const captures = [];
   items.forEach(it => {
     const ck = stockCodeKey(it && it.code); if (!ck) return;
     const k = ck + '|' + stockBrKey(it.br);
-    if (on) { if (!m[k]) { m[k] = 1; c++; } } else if (m[k]) { delete m[k]; c++; }
+    if (on) { if (!m[k]) { m[k] = 1; c++; captures.push({ key: k, code: it.code, br: it.br, on: true }); } } else if (m[k]) { delete m[k]; c++; captures.push({ key: k, code: it.code, br: it.br, on: false }); }
   });
   if (!c) return { ok: true, changed: 0 };
-  await kvSet(C, 'STOCK_CTMAP', JSON.stringify(map));
+  const ageOps = await stockTagAgeCapture(C, 'c_' + n.id, captures);
+  await batch(C, [kvSetStmt(C, 'STOCK_CTMAP', JSON.stringify(map)), ...ageOps]);
   await sysLogTo(C, me.name, 'สินค้าค้างสต็อก', (on ? 'ติดแท็ก ' : 'ถอดแท็ก ') + n.def.t, c + ' รายการ');
   return { ok: true, changed: c };
 };

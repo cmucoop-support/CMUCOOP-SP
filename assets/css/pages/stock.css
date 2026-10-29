@@ -120,6 +120,7 @@ tr.click{cursor:pointer}
 .tag.new{background:#e6f6ec;color:var(--ok)}.tag.old{background:#fdecea;color:var(--bad)}
  .ct-add{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.ct-add select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit}.ct-add input{flex:1;min-width:180px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font:inherit}
 .ct-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 0;border-top:1px dashed var(--line)}.ct-row .ct-n{font-weight:600;min-width:120px}
+.ct-age{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;line-height:1.5;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface,#fff)}.ct-age input{width:16px;height:16px;flex:none;accent-color:var(--accent-text)}.ct-age:has(input:checked){background:#eef7f2;border-color:#83b9a0}.ct-age:has(input:disabled){cursor:default;opacity:.65}.ct-age-new{margin:0 0 8px}.ct-age-help{margin:6px 0 10px;line-height:1.6}
 .tag[class*=" t-c_"],.tag.t-custom{background:#e8f5f3;color:#0b6b5f;border:1px solid #a7d8d0;margin-left:6px;font-size:12px;padding:1px 8px}
 .tag.hard{background:#fff1d6;color:#7d4900;border:1px solid #e0b054;margin-left:6px;font-size:12px;padding:1px 8px}
 button.tag.hard{min-height:24px;cursor:pointer}

@@ -9,7 +9,7 @@
 <script src="assets/js/shared/gas-shim.js?v=expiry-1"></script>
 <link href="assets/css/shared/fonts.css" rel="stylesheet"/>
 <script src="assets/vendor/chart.umd.min.js"></script>
-<link rel="stylesheet" href="assets/css/pages/stock.css?v=notes-1">
+<link rel="stylesheet" href="assets/css/pages/stock.css?v=tag-age-1">
 <link href="assets/css/shared/a11y.css" rel="stylesheet"/>
 <link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
 </head>
@@ -240,7 +240,10 @@
 </div>
 <div id="ctManager" style="margin-top:10px;padding:10px 12px;background:#faf7ff;border:1px solid var(--line);border-radius:12px">
 <div style="font-size:13px;font-weight:600;color:var(--accent-text);margin-bottom:6px">จัดการแท็ก (เพิ่ม/ลบแท็กได้ ทั้งแท็กเดิมและแท็กที่สร้างเอง)</div>
+<p class="muted ct-age-help" id="ctAgeHelp">ติ๊กแยกตามแท็กเพื่อถอดแท็กออกจากสินค้าเมื่อเปลี่ยนช่วง T1 / T2 / T3 / DS / ไม่ทราบอายุ ตรวจเมื่ออัปโหลด เปิด หรือรีเฟรชหน้า · ไม่ติ๊ก = คงแท็กไว้ · แท็กแบบหักออกจะคืนยอดที่หักไว้ โดยยังเก็บชื่อแท็กให้ใช้งานต่อ</p>
+<p class="muted ct-age-help">แท็กที่ใช้ทุกสาขา เช่น ขายยาก จะถูกถอดทั้งรายการหากสินค้านั้นในสาขาใดสาขาหนึ่งเปลี่ยนช่วงอายุ · การเปิดตัวเลือกจะเริ่มเทียบจากช่วงอายุปัจจุบัน</p>
 <div class="ct-add"><input type="text" id="ctName" maxlength="30" placeholder="ชื่อแท็กใหม่ เช่น สินค้าโปรโมชั่น" aria-label="ชื่อแท็กใหม่"><select id="ctMode" aria-label="โหมดแท็ก"><option value="tag">แท็กเฉยๆ (ไม่หักยอด)</option><option value="deduct">หักออก (หักจำนวนจากค้างสต็อก)</option></select><button type="button" class="btn small" id="ctAdd">+ เพิ่มแท็ก</button></div>
+<label class="ct-age ct-age-new"><input type="checkbox" id="ctAgeNew" aria-describedby="ctAgeHelp"><span>แท็กใหม่: ถอดแท็กเมื่อช่วงอายุสินค้าเปลี่ยน</span></label>
 <div id="ctList"></div>
 </div>
 <div class="err" id="nmErr"></div>
@@ -301,7 +304,7 @@
 </div>
 </div>
 <div aria-label="จัดการแท็กสินค้า" class="dot-pop hidden" id="dotPop" role="dialog"></div>
-<script src="assets/js/pages/stock.js?v=notes-1"></script>
+<script src="assets/js/pages/stock.js?v=tag-age-1"></script>
 <script src="assets/js/shared/a11y.js"></script>
 </body>
 </html>
