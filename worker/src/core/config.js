@@ -8,11 +8,11 @@ const MAX_BANNER_BYTES = 8 * 1024 * 1024, MAX_SOUND_BYTES = 8 * 1024 * 1024;
 
 const ROLES = { admin: 'Admin', viewer: 'ผู้ใช้งาน' };
 
-const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit', 'expiry', 'expiry_edit'];
+const PERM_KEYS = ['barcode', 'sound', 'music', 'stock', 'stock_edit', 'market', 'market_edit', 'expiry', 'expiry_edit', 'assets', 'assets_edit'];
 
-const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false };
+const PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false, assets: false, assets_edit: false };
 
-const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'expiry', 'settings'];
+const CARD_KEYS = ['barcode', 'sound', 'music', 'stock', 'market', 'expiry', 'assets', 'settings'];
 
 const CUSTOM_KEY = /^c_[0-9a-f]{8}$/, MAX_CUSTOM_CARDS = 30;
 

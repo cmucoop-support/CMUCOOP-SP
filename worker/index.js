@@ -14,5 +14,6 @@ export * from './src/modules/tv.js';
 export * from './src/modules/stock.js';
 export * from './src/modules/market.js';
 export * from './src/modules/expiry.js';
+export * from './src/modules/assets.js';
 import './src/guards.js';
 export { default } from './src/core/http.js';

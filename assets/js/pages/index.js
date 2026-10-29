@@ -91,7 +91,7 @@ function goPortal() {
   $('#mSettings').classList.toggle('hidden', !admin);
   document.querySelector('#portal .menu').setAttribute('aria-busy', 'true');
   loadCardSize();
-  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket', 'expiry:mExpiry'].forEach(function (x) {
+  ['barcode:mBarcode', 'sound:mSound', 'music:mMusic', 'stock:mStock', 'market:mMarket', 'expiry:mExpiry', 'assets:mAssets'].forEach(function (x) {
     var a = x.split(':'); $('#' + a[1]).classList.toggle('hidden', !hasPerm(a[0]));      // การ์ดที่ Admin ติ๊กให้ผู้ใช้คนนี้
   });
 }
@@ -113,6 +113,7 @@ var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'expiry', id: 'mExpiry', t: 'แจ้งเตือนสินค้าหมดอายุ' },
+  { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];

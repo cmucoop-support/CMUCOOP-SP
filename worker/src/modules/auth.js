@@ -16,6 +16,7 @@ function userPerms(u) {
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   if (!out.market) out.market_edit = false;
   if (!out.expiry) out.expiry_edit = false;
+  if (!out.assets) out.assets_edit = false;
   return out;
 }
 
@@ -26,6 +27,7 @@ function cleanPerms(p, role) {
   if (!out.stock) out.stock_edit = false;          // แก้ไขได้ต้องดูได้ก่อน
   if (!out.market) out.market_edit = false;
   if (!out.expiry) out.expiry_edit = false;
+  if (!out.assets) out.assets_edit = false;
   return out;
 }
 

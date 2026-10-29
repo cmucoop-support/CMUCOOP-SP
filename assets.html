@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>รายการสินทรัพย์ · CMUCOOP</title>
+  <link rel="icon" href="assets/images/logo.png" type="image/png">
+  <link rel="stylesheet" href="assets/css/shared/fonts.css">
+  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-1">
+  <script src="assets/js/shared/gas-shim.js?v=assets-1"></script>
+</head>
+<body>
+  <a class="skip" href="#workspace">ข้ามไปยังรายการสินทรัพย์</a>
+  <header class="topbar">
+    <a class="brand" href="index.html"><img src="assets/images/logo.png" alt="" width="38" height="38"><span><strong>CMUCOOP</strong><small>ระบบจัดการรายการสินทรัพย์</small></span></a>
+    <nav aria-label="เมนูบัญชี"><span id="me"></span><a class="button ghost" href="index.html">เมนูหลัก</a><button class="button ghost" type="button" id="logout" hidden>ออกจากระบบ</button></nav>
+  </header>
+  <main>
+    <section class="panel login" id="loginPanel">
+      <p class="eyebrow">รายการสินทรัพย์</p><h1>เข้าสู่ระบบ</h1><p class="muted">ใช้บัญชีเดียวกับระบบ CMUCOOP</p>
+      <form id="loginForm">
+        <label>ชื่อผู้ใช้<input id="username" autocomplete="username" required></label>
+        <label>รหัสผ่าน<input id="password" type="password" autocomplete="current-password" required></label>
+        <p class="error" id="loginError" role="alert"></p><button class="button primary" id="loginButton">เข้าสู่ระบบ</button>
+      </form>
+    </section>
+    <div id="workspace" hidden>
+      <section class="intro">
+        <div><p class="eyebrow">ทะเบียนสินทรัพย์</p><h1 id="registerTitle">รายการสินทรัพย์ ร้านสหกรณ์มหาวิทยาลัย เชียงใหม่ จำกัด</h1><p class="muted">ดูข้อมูล รูปภาพ สถานที่ตั้ง สถานะ และค่าเสื่อมราคาของสินทรัพย์ในที่เดียว</p><button type="button" class="text-button" id="editTitle" hidden>แก้ไขชื่อตาราง</button></div>
+        <button class="button primary" id="addAsset" type="button" hidden>+ เพิ่มสินทรัพย์</button>
+      </section>
+      <div class="stats" id="stats" aria-label="จำนวนสินทรัพย์แยกตามสถานะ"></div>
+      <section class="panel register-panel">
+        <div class="section-heading"><div><h2>รายการสินทรัพย์ทั้งหมด</h2><p id="resultInfo" class="muted" aria-live="polite">กำลังโหลดข้อมูล…</p></div><button class="button secondary" type="button" id="refresh">รีเฟรชข้อมูล</button></div>
+        <div class="filters">
+          <label class="search">ค้นหารายการ<input id="search" type="search" placeholder="ชื่อรายการ รหัสสินทรัพย์ สถานที่ หรือหมายเหตุ"></label>
+          <label>สถานที่ตั้งสินทรัพย์<select id="locationFilter"><option value="">ทุกสถานที่</option></select></label>
+          <label>สถานะ<select id="statusFilter"><option value="">ทุกสถานะ</option><option value="normal">ปกติ</option><option value="irreparable">ไม่สามารถซ่อมได้</option><option value="repair">ต้องทำการซ่อม</option><option value="reduced">ลด ระหว่างปี</option></select></label>
+          <button class="button secondary" id="clearFilters" type="button">ล้างตัวกรอง</button>
+        </div>
+        <p class="error load-error" id="loadError" role="alert" hidden></p>
+        <div class="table-guide"><span>เลื่อนตารางไปทางขวาเพื่อดูข้อมูลครบทุกช่อง →</span><span id="netSummary"></span></div>
+        <div class="table-wrap" role="region" aria-label="ตารางรายการสินทรัพย์ เลื่อนแนวนอนได้" tabindex="0">
+          <table id="assetTable" aria-labelledby="registerTitle">
+            <colgroup><col class="seq-col"><col class="photo-col"><col class="link-col"><col class="name-col"><col class="code-col"><col class="date-col"><col class="place-col"><col span="4" class="status-col"><col span="7" class="money-col"><col class="note-col"><col class="action-col"></colgroup>
+            <thead><tr>
+              <th rowspan="2" scope="col" class="seq-head">ลำดับ</th><th rowspan="2" scope="col">รูปภาพ</th><th rowspan="2" scope="col">ลิงก์ภาพ</th><th rowspan="2" scope="col">รายการ</th><th rowspan="2" scope="col">รหัสสินทรัพย์</th><th rowspan="2" scope="col">วันที่รับสินทรัพย์</th><th rowspan="2" scope="col">สถานที่ตั้งสินทรัพย์</th>
+              <th colspan="4" scope="colgroup">สถานะ</th><th rowspan="2" scope="col">รวม</th><th rowspan="2" scope="col">อัตรา ร้อยละ</th><th rowspan="2" scope="col">ยกมา</th><th colspan="2" scope="colgroup">ค่าเสื่อมราคาสะสม</th><th rowspan="2" scope="col">ยกไป</th><th rowspan="2" scope="col">ราคาสินทรัพย์ สุทธิ</th><th rowspan="2" scope="col">หมายเหตุ</th><th rowspan="2" scope="col" class="action-head">จัดการ</th>
+            </tr><tr><th scope="col">ปกติ</th><th scope="col">ไม่สามารถซ่อมได้</th><th scope="col">ต้องทำการซ่อม</th><th scope="col">ลด ระหว่างปี</th><th scope="col">เพิ่ม ระหว่างปี</th><th scope="col">ลด ระหว่างปี</th></tr></thead>
+            <tbody id="rows"></tbody><tfoot id="totals"></tfoot>
+          </table>
+        </div>
+        <div class="pagination"><label>แสดง<select id="pageSize"><option value="30">30 รายการ</option><option value="50">50 รายการ</option><option value="100">100 รายการ</option></select></label><span id="pageInfo"></span><button class="button secondary" type="button" id="prev">ก่อนหน้า</button><button class="button secondary" type="button" id="next">ถัดไป</button></div>
+      </section>
+      <p class="footnote" id="updated"></p>
+    </div>
+  </main>
+  <dialog id="assetDialog" aria-labelledby="formTitle">
+    <div class="dialog-heading"><div><p class="eyebrow">รายละเอียดสินทรัพย์</p><h2 id="formTitle">เพิ่มสินทรัพย์</h2></div><button class="close-button" type="button" data-close="assetDialog" aria-label="ปิดแบบฟอร์ม">×</button></div>
+    <form id="assetForm">
+      <fieldset id="assetFields"><div class="form-grid">
+        <label>ลำดับ<input id="seq" name="seq" type="number" min="1" max="1000000000" step="1" required></label>
+        <label class="span-2"><span>รายการ <span class="required">*</span></span><input id="assetName" name="name" maxlength="250" required placeholder="เช่น เครื่องคอมพิวเตอร์สำนักงาน"></label>
+        <label>รหัสสินทรัพย์<input id="assetCode" name="code" maxlength="80" placeholder="เช่น IT-001"></label>
+        <label>วันที่รับสินทรัพย์<input id="received" name="received" type="date" min="1900-01-01" max="2200-12-31"></label>
+        <label>สถานที่ตั้งสินทรัพย์<input id="assetLocation" name="location" maxlength="200" list="locationChoices" placeholder="เช่น สำนักงาน ชั้น 2"></label>
+        <label class="span-2">ลิงก์ภาพ<input id="imageUrl" name="imageUrl" type="url" maxlength="2000" placeholder="https://example.com/asset.jpg"><span class="helper">ใช้ลิงก์รูปภาพที่เปิดดูได้ ระบบจะแสดงรูปให้โดยอัตโนมัติ</span></label>
+        <div class="form-preview" id="imagePreview"><span>ตัวอย่างรูปภาพ</span></div>
+      </div>
+      <fieldset class="status-options"><legend>สถานะ <span class="helper">เลือกได้ 1 สถานะ</span></legend>
+        <label><input type="radio" name="status" value="normal" checked required>ปกติ</label><label><input type="radio" name="status" value="irreparable">ไม่สามารถซ่อมได้</label><label><input type="radio" name="status" value="repair">ต้องทำการซ่อม</label><label><input type="radio" name="status" value="reduced">ลด ระหว่างปี</label>
+      </fieldset>
+      <div class="form-section"><h3>มูลค่าและค่าเสื่อมราคา</h3><p class="helper">กรอกตัวเลขตามทะเบียน หน่วยเป็นบาท ยกเว้นอัตราร้อยละ · เว้นว่างได้ทุกช่อง</p><div class="form-grid amounts-grid">
+        <label>รวม<input name="total" id="total" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>อัตรา ร้อยละ<input name="rate" id="rate" type="number" min="0" max="100" step="0.01" inputmode="decimal"></label>
+        <label>ยกมา<input name="opening" id="opening" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ค่าเสื่อมราคาสะสม — เพิ่ม ระหว่างปี<input name="increase" id="increase" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ค่าเสื่อมราคาสะสม — ลด ระหว่างปี<input name="decrease" id="decrease" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ยกไป<input name="closing" id="closing" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+        <label>ราคาสินทรัพย์ สุทธิ<input name="net" id="net" type="number" min="0" max="1000000000000" step="0.01" inputmode="decimal"></label>
+      </div></div>
+      <label>หมายเหตุ<textarea id="note" name="note" rows="3" maxlength="2000" placeholder="รายละเอียดเพิ่มเติม"></textarea></label>
+      </fieldset>
+      <p id="formError" class="error" role="alert"></p><p class="helper" id="formMeta"></p>
+      <div class="dialog-actions"><button class="button danger" id="deleteAsset" type="button" hidden>ลบรายการ</button><span class="spacer"></span><button class="button secondary" type="button" data-close="assetDialog">ยกเลิก</button><button class="button primary" id="saveAsset">บันทึกข้อมูล</button></div>
+    </form>
+  </dialog>
+  <dialog id="titleDialog" aria-labelledby="titleHeading"><div class="dialog-heading"><h2 id="titleHeading">แก้ไขชื่อตารางหลัก</h2><button class="close-button" type="button" data-close="titleDialog" aria-label="ปิด">×</button></div><form id="titleForm"><label>ชื่อตาราง<input id="titleInput" required maxlength="200"></label><p class="error" id="titleError" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close="titleDialog">ยกเลิก</button><button class="button primary" id="saveTitle">บันทึกชื่อ</button></div></form></dialog>
+  <dialog id="imageDialog" aria-labelledby="imageHeading"><div class="dialog-heading"><h2 id="imageHeading">รูปภาพสินทรัพย์</h2><button class="close-button" type="button" data-close="imageDialog" aria-label="ปิดรูปภาพ">×</button></div><div id="largeImage"></div></dialog>
+  <datalist id="locationChoices"></datalist><div id="toast" role="status" aria-live="polite" hidden></div>
+  <script src="assets/js/pages/assets.js?v=assets-1"></script>
+</body>
+</html>

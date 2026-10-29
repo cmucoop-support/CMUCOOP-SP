@@ -33,6 +33,7 @@ function scopeWrite(info, scope) {
   if (scope === 'stock') return /\bstock_(grp|data)\b/i.test(info.sql) || (/\bkv\b/.test(info.sql) && info.p.some(v => typeof v === 'string' && v.startsWith('STOCK_')));
   if (scope === 'barcode') return /^(?:INSERT(?: OR [A-Z]+)? INTO|UPDATE|DELETE FROM) barcode_(items|cats)\b/i.test(info.sql);
   if (scope === 'media') return /^(?:INSERT(?: OR [A-Z]+)? INTO|UPDATE|DELETE FROM) (sounds|banners)\b/i.test(info.sql);
+  if (scope === 'assets') return /\basset_(items|events)\b/i.test(info.sql) || (/\bkv\b/.test(info.sql) && info.p.some(v => typeof v === 'string' && v.startsWith('ASSETS_')));
   return false;
 }
 

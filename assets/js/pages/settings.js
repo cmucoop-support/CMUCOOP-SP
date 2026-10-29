@@ -153,10 +153,12 @@ var PERM_LABELS = {
   market: 'เช็คราคาตลาด (ดู)',
   market_edit: 'เช็คราคาตลาด: แก้ไขได้ (ไม่ติ๊ก = ดูอย่างเดียว)',
   expiry: 'แจ้งเตือนสินค้าหมดอายุ (ดู)',
-  expiry_edit: 'แจ้งเตือนสินค้าหมดอายุ: เพิ่ม/แก้ไข/รับทราบ/ปิดล็อต'
+  expiry_edit: 'แจ้งเตือนสินค้าหมดอายุ: เพิ่ม/แก้ไข/รับทราบ/ปิดล็อต',
+  assets: 'รายการสินทรัพย์ (ดู)',
+  assets_edit: 'รายการสินทรัพย์: เพิ่ม/แก้ไข/ลบ และแก้ชื่อตาราง'
 };
 var PERM_KEYS = Object.keys(PERM_LABELS);
-var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false };
+var PERM_DEFAULT = { barcode: true, sound: true, music: true, stock: false, stock_edit: false, market: false, market_edit: false, expiry: false, expiry_edit: false, assets: false, assets_edit: false };
 function permKeys() { return PERM_KEYS.concat(CUSTOM.map(function (c) { return c.k; })); }
 function permLabel(k) { var c = customOf(k); return c ? c.t : PERM_LABELS[k]; }
 function permDef(k) { return PERM_DEFAULT[k] === undefined ? true : !!PERM_DEFAULT[k]; }
@@ -178,7 +180,7 @@ function syncPerms() {                                      // Admin ใช้�
 }
 function syncStockEdit() {                                  // แก้ไขสินค้าค้างสต็อก/เช็คราคาตลาดได้ ต้องมีสิทธิ์ดูก่อน
   if ($('#uRole').value === 'admin') return;
-  [['stock', 'stock_edit'], ['market', 'market_edit'], ['expiry', 'expiry_edit']].forEach(function (pair) {
+  [['stock', 'stock_edit'], ['market', 'market_edit'], ['expiry', 'expiry_edit'], ['assets', 'assets_edit']].forEach(function (pair) {
     var s = document.querySelector('#uPermBox input[data-pk="' + pair[0] + '"]'),
         e = document.querySelector('#uPermBox input[data-pk="' + pair[1] + '"]');
     if (!s || !e) return;
@@ -190,10 +192,11 @@ $('#uPermBox').addEventListener('change', syncStockEdit);
 function permText(u) {
   if (u.role === 'admin') return 'ทุกการ์ด';
   var on = function (k) { return u.perms && u.perms[k] !== undefined ? !!u.perms[k] : permDef(k); };
-  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && k !== 'market_edit' && k !== 'expiry_edit' && on(k); }).map(function (k) {
+  var t = permKeys().filter(function (k) { return k !== 'stock_edit' && k !== 'market_edit' && k !== 'expiry_edit' && k !== 'assets_edit' && on(k); }).map(function (k) {
     if (k === 'stock') return 'สินค้าค้างสต็อก (' + (on('stock_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
     if (k === 'market') return 'เช็คราคาตลาด (' + (on('market_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
     if (k === 'expiry') return 'แจ้งเตือนสินค้าหมดอายุ (' + (on('expiry_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
+    if (k === 'assets') return 'รายการสินทรัพย์ (' + (on('assets_edit') ? 'แก้ไขได้' : 'ดูอย่างเดียว') + ')';
     return permLabel(k);
   });
   return t.length ? t.join(' · ') : 'ไม่มี';
@@ -250,6 +253,7 @@ var CARD_DEF = [
   { k: 'barcode', id: 'mBarcode', t: 'รายการบาร์เดี่ยว/บาร์แพ็ค' }, { k: 'sound', id: 'mSound', t: 'ระบบเสียงประกาศ' },
   { k: 'music', id: 'mMusic', t: 'ขอเพลง / คิวเพลง' }, { k: 'stock', id: 'mStock', t: 'สินค้าค้างสต็อก' }, { k: 'market', id: 'mMarket', t: 'เช็คราคาตลาด' },
   { k: 'expiry', id: 'mExpiry', t: 'แจ้งเตือนสินค้าหมดอายุ' },
+  { k: 'assets', id: 'mAssets', t: 'รายการสินทรัพย์' },
   { k: 'settings', id: 'mSettings', t: 'ตั้งค่า' }
 ];
 var CARD_ORDER = CARD_DEF.map(function (c) { return c.k; }), CARD_WORK = [];

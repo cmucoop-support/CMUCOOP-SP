@@ -20,7 +20,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
 
-const SCHEMA_VERSION = 'expiry-stock-2';
+const SCHEMA_VERSION = 'assets-1';
 
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
@@ -61,6 +61,22 @@ const EXPIRY_SCHEMA = [
 ];
 
 SCHEMA.push(...EXPIRY_SCHEMA);
+
+const ASSETS_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS asset_items (
+    id TEXT PRIMARY KEY, seq INTEGER NOT NULL UNIQUE CHECK(seq>0),
+    name TEXT NOT NULL, code TEXT NOT NULL, code_key TEXT UNIQUE,
+    received TEXT NOT NULL, location TEXT NOT NULL, image_url TEXT NOT NULL, note TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('normal','irreparable','repair','reduced')),
+    amounts TEXT NOT NULL,
+    version INTEGER NOT NULL CHECK(version>0), request_id TEXT NOT NULL UNIQUE, create_hash TEXT NOT NULL,
+    created_user TEXT NOT NULL, created_ts INTEGER NOT NULL, updated_by TEXT NOT NULL, updated_ts INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS asset_location ON asset_items(location,seq)',
+  'CREATE INDEX IF NOT EXISTS asset_status ON asset_items(status,seq)',
+  'CREATE TABLE IF NOT EXISTS asset_events (asset_id TEXT NOT NULL,version INTEGER NOT NULL,ts INTEGER NOT NULL,who TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL,request_id TEXT UNIQUE,PRIMARY KEY(asset_id,version))'
+];
+SCHEMA.push(...ASSETS_SCHEMA);
 
 const EXPIRY_PRODUCT_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS expiry_products (code_key TEXT NOT NULL,branch TEXT NOT NULL,code TEXT NOT NULL,name TEXT NOT NULL,group_code TEXT NOT NULL,PRIMARY KEY(code_key,branch,group_code,name))',
@@ -113,4 +129,4 @@ async function ensureSchema(db) {
   return (await ready) && first;
 }
 
-export { SCHEMA, SCHEMA_VERSION, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };
+export { SCHEMA, SCHEMA_VERSION, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };
