@@ -6,8 +6,8 @@
   <title>รายการสินทรัพย์ · CMUCOOP</title>
   <link rel="icon" href="assets/images/logo.png" type="image/png">
   <link rel="stylesheet" href="assets/css/shared/fonts.css">
-  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-2">
-  <script src="assets/js/shared/gas-shim.js?v=assets-2"></script>
+  <link rel="stylesheet" href="assets/css/pages/assets.css?v=assets-3">
+  <script src="assets/js/shared/gas-shim.js?v=assets-3"></script>
   <script src="assets/vendor/xlsx.full.min.js"></script>
   <script src="assets/vendor/zxing-library-0.23.0.min.js"></script>
 </head>
@@ -145,6 +145,10 @@
           </select>
         </label>
         <div class="import-summary" id="importPreviewInfo">กรุณาเลือกไฟล์ Excel ที่ส่งอกจากระบบ หรือไฟล์ทะเบียนสินทรัพย์ที่มีคอลัมน์รายการและรูปภาพฝังในตาราง</div>
+        <div class="import-progress" id="importProgressWrap" hidden>
+          <div class="import-progress-bar"><div class="import-progress-fill" id="importProgressFill" style="width:0%"></div></div>
+          <p class="helper" id="importProgressText"></p>
+        </div>
         <p class="error" id="importError" role="alert"></p>
       </div>
       <div class="dialog-actions">
@@ -217,6 +221,6 @@
   <datalist id="locationChoices"></datalist>
   <div id="stickerPrintArea" aria-hidden="true"></div>
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <script src="assets/js/pages/assets.js?v=assets-2"></script>
+  <script src="assets/js/pages/assets.js?v=assets-3"></script>
 </body>
 </html>

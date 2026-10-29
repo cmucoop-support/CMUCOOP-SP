@@ -242,7 +242,7 @@
     $('#assetDialog').scrollTop = 0;
   }
 
-  /* ==================== Image File Input in Form ==================== */
+  /* ==================== Image File Input & Fast Parallel Compression ==================== */
   function readFileAsDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -250,6 +250,100 @@
       reader.onerror = () => reject(new Error('อ่านไฟล์รูปภาพไม่สำเร็จ'));
       reader.readAsDataURL(file);
     });
+  }
+
+  async function compressImageObj(imgObj, maxDim = 480, thresholdChars = 42000) {
+    if (!imgObj || (!imgObj.data && !imgObj.u8)) return null;
+    const rawMime = String(imgObj.mime || 'image/png').toLowerCase();
+    const isWebMime = /^image\/(jpeg|png|webp|gif)$/.test(rawMime);
+    const cleanB64 = imgObj.data ? String(imgObj.data).replace(/\s+/g, '') : bytesToB64(imgObj.u8);
+
+    if (isWebMime && cleanB64.length <= thresholdChars) {
+      return { mime: rawMime, data: cleanB64 };
+    }
+    if (typeof document === 'undefined') {
+      return isWebMime ? { mime: rawMime, data: cleanB64 } : null;
+    }
+
+    // Fast path using createImageBitmap off-main-thread when available
+    if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined') {
+      try {
+        const bytes = imgObj.u8 || b64ToBytes(cleanB64);
+        const bmp = await createImageBitmap(new Blob([bytes], { type: rawMime }));
+        let w = bmp.width || 400, h = bmp.height || 400;
+        if (w > maxDim || h > maxDim) {
+          if (w >= h) { h = Math.max(1, Math.round(h * maxDim / w)); w = maxDim; }
+          else { w = Math.max(1, Math.round(w * maxDim / h)); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(bmp, 0, 0, w, h);
+        if (typeof bmp.close === 'function') bmp.close();
+        const outUrl = canvas.toDataURL('image/jpeg', 0.78);
+        const m = /^data:(image\/jpeg);base64,(.+)$/i.exec(outUrl);
+        if (m && (!isWebMime || m[2].length < cleanB64.length)) {
+          return { mime: 'image/jpeg', data: m[2] };
+        }
+        return isWebMime ? { mime: rawMime, data: cleanB64 } : null;
+      } catch (_) {}
+    }
+
+    if (typeof Image === 'undefined') {
+      return isWebMime ? { mime: rawMime, data: cleanB64 } : null;
+    }
+
+    return new Promise(resolve => {
+      const img = new Image();
+      const timer = setTimeout(() => resolve(isWebMime ? { mime: rawMime, data: cleanB64 } : null), 2500);
+      img.onload = () => {
+        clearTimeout(timer);
+        try {
+          let w = img.naturalWidth || img.width || 400;
+          let h = img.naturalHeight || img.height || 400;
+          if (w > maxDim || h > maxDim) {
+            if (w >= h) { h = Math.max(1, Math.round(h * maxDim / w)); w = maxDim; }
+            else { w = Math.max(1, Math.round(w * maxDim / h)); h = maxDim; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          const outUrl = canvas.toDataURL('image/jpeg', 0.78);
+          const m = /^data:(image\/jpeg);base64,(.+)$/i.exec(outUrl);
+          if (m && (!isWebMime || m[2].length < cleanB64.length)) {
+            resolve({ mime: 'image/jpeg', data: m[2] });
+          } else {
+            resolve(isWebMime ? { mime: rawMime, data: cleanB64 } : null);
+          }
+        } catch (_) {
+          resolve(isWebMime ? { mime: rawMime, data: cleanB64 } : null);
+        }
+      };
+      img.onerror = () => { clearTimeout(timer); resolve(isWebMime ? { mime: rawMime, data: cleanB64 } : null); };
+      img.src = 'data:' + rawMime + ';base64,' + cleanB64;
+    });
+  }
+
+  async function computeImageFid(mime, b64) {
+    const input = String(mime || 'image/png').toLowerCase() + ':' + String(b64 || '').replace(/\s+/g, '');
+    if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+    }
+    let h1 = 0xdeadbeef ^ input.length, h2 = 0x41c6ce57 ^ input.length, h3 = 0x9e3779b9 ^ input.length, h4 = 0x85ebca6b ^ input.length;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+      h3 = Math.imul(h3 ^ ch, 2246822507);
+      h4 = Math.imul(h4 ^ ch, 3266489909);
+    }
+    return [h1, h2, h3, h4].map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
   }
 
   if ($('#uploadImageBtn') && $('#imageFile')) {
@@ -262,7 +356,9 @@
         const dataUrl = await readFileAsDataUrl(file);
         const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.+)$/i.exec(dataUrl);
         if (!m) throw new Error('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP, GIF');
-        pendingImageData = { mime: m[1].toLowerCase(), data: m[2], name: file.name, dataUrl };
+        const compressed = await compressImageObj({ mime: m[1].toLowerCase(), data: m[2] }, 720, 75000);
+        if (!compressed) throw new Error('ไม่สามารถประมวลผลรูปภาพนี้ได้');
+        pendingImageData = { mime: compressed.mime, data: compressed.data, name: file.name, dataUrl: 'data:' + compressed.mime + ';base64,' + compressed.data };
         $('#uploadStatus').textContent = 'เลือกรูป "' + file.name + '" แล้ว (จะบันทึกพร้อมรายการสินทรัพย์)';
         previewImage();
       } catch (e) {
@@ -279,12 +375,6 @@
 
   function xlEsc(v) {
     return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function xlCol(i) {
-    let name = '';
-    for (i++; i > 0; i = Math.floor((i - 1) / 26)) name = String.fromCharCode(65 + (i - 1) % 26) + name;
-    return name;
   }
 
   function xlSerial(iso) {
@@ -394,16 +484,16 @@
       '</borders>' +
       '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
       '<cellXfs count="10">' +
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' + // 0: default
-        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" horizontal="left"/></xf>' + // 1: title
-        '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" horizontal="left"/></xf>' + // 2: subtitle
-        '<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" horizontal="center" wrapText="1"/></xf>' + // 3: header
-        '<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="left" wrapText="1"/></xf>' + // 4: text
-        '<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center" wrapText="1"/></xf>' + // 5: center text
-        '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center"/></xf>' + // 6: seq int
-        '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="right"/></xf>' + // 7: money/rate
-        '<xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center"/></xf>' + // 8: date
-        '<xf numFmtId="165" fontId="4" fillId="3" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="right"/></xf>' + // 9: footer total
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" horizontal="left"/></xf>' +
+        '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center" horizontal="left"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" horizontal="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="left" wrapText="1"/></xf>' +
+        '<xf numFmtId="49" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center"/></xf>' +
+        '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="right"/></xf>' +
+        '<xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="center"/></xf>' +
+        '<xf numFmtId="165" fontId="4" fillId="3" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment vertical="center" horizontal="right"/></xf>' +
       '</cellXfs>' +
       '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
       '</styleSheet>';
@@ -422,7 +512,7 @@
     if (!clean || typeof fetch !== 'function') return null;
     try {
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctl ? setTimeout(() => ctl.abort(), 8000) : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 5000) : null;
       const res = await fetch(clean, { signal: ctl ? ctl.signal : undefined });
       if (timer) clearTimeout(timer);
       if (!res.ok) return null;
@@ -512,13 +602,12 @@
       let hasImg = false;
       if (imgObj && imgObj.data) {
         try {
-          const bytes = b64ToBytes(imgObj.data);
-          if (bytes.length > 0) {
-            hasImg = true;
-            const info = mimeToExt(imgObj.mime);
-            const mKey = info.ext + ':' + imgObj.data.length + ':' + imgObj.data.slice(0, 64) + ':' + imgObj.data.slice(-64);
-            let rId = mediaByKey.get(mKey);
-            if (!rId) {
+          const info = mimeToExt(imgObj.mime);
+          const mKey = info.ext + ':' + imgObj.data.length + ':' + imgObj.data.slice(0, 64) + ':' + imgObj.data.slice(-64);
+          let rId = mediaByKey.get(mKey);
+          if (!rId) {
+            const bytes = b64ToBytes(imgObj.data);
+            if (bytes.length > 0) {
               const idx = mediaFiles.length + 1;
               const fileName = 'image' + idx + '.' + info.ext;
               rId = 'rId' + idx;
@@ -526,6 +615,9 @@
               mediaFiles.push({ name: 'xl/media/' + fileName, data: bytes, ext: info.ext, mime: info.mime, store: true });
               drawingRels.push('<Relationship Id="' + rId + '" Type="' + XL_RNS + '/image" Target="../media/' + fileName + '"/>');
             }
+          }
+          if (rId) {
+            hasImg = true;
             const picId = drawingAnchors.length + 1;
             drawingAnchors.push(
               '<xdr:twoCellAnchor editAs="oneCell">' +
@@ -661,11 +753,13 @@
       if (u8[0] === 0xFF && u8[1] === 0xD8 && u8[2] === 0xFF) return 'image/jpeg';
       if (u8[0] === 0x47 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x38) return 'image/gif';
       if (u8.length >= 12 && u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46 && u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50) return 'image/webp';
+      if (u8[0] === 0x42 && u8[1] === 0x4D) return 'image/bmp';
     }
     const ext = (/\.([a-z0-9]+)$/i.exec(String(path || '')) || [])[1] || '';
-    if (/^jpe?g$/i.test(ext)) return 'image/jpeg';
+    if (/^(?:jpe?g|jfif)$/i.test(ext)) return 'image/jpeg';
     if (/^gif$/i.test(ext)) return 'image/gif';
     if (/^webp$/i.test(ext)) return 'image/webp';
+    if (/^bmp$/i.test(ext)) return 'image/bmp';
     return 'image/png';
   }
 
@@ -697,8 +791,28 @@
   function extractWorkbookImages(wb) {
     const bySheet = Object.create(null);
     const dispImgMap = Object.create(null);
+    const mediaCache = Object.create(null);
     const wbFiles = wb && wb.files;
     if (!wbFiles) return { bySheet, dispImgMap };
+
+    function getMediaObj(targetPath) {
+      if (!targetPath) return null;
+      if (mediaCache[targetPath] !== undefined) return mediaCache[targetPath];
+      const u8 = zipBytes(wbFiles, targetPath);
+      if (!u8 || !u8.length) { mediaCache[targetPath] = null; return null; }
+      const mime = detectImageMime(targetPath, u8);
+      const obj = {
+        mime,
+        u8,
+        path: targetPath,
+        get data() {
+          if (!this._b64) this._b64 = bytesToB64(this.u8);
+          return this._b64;
+        }
+      };
+      mediaCache[targetPath] = obj;
+      return obj;
+    }
 
     // 1. Check WPS cellimages.xml if present
     const cellImgXml = zipText(wbFiles, 'xl/cellimages.xml');
@@ -709,8 +823,8 @@
         const name = (/<(?:\w+:)?cNvPr\b[^>]*\bname=["']([^"']+)["']/i.exec(block) || [])[1];
         const embed = (/<(?:\w+:)?blip\b[^>]*\b(?:\w+:)?embed=["']([^"']+)["']/i.exec(block) || [])[1];
         if (name && embed && cellImgRels[embed]) {
-          const u8 = zipBytes(wbFiles, cellImgRels[embed].target);
-          if (u8 && u8.length) dispImgMap[name] = { mime: detectImageMime(cellImgRels[embed].target, u8), data: bytesToB64(u8) };
+          const obj = getMediaObj(cellImgRels[embed].target);
+          if (obj) dispImgMap[name] = obj;
         }
       }
     }
@@ -750,9 +864,8 @@
           const row0 = Number(rowMatch[1]);
           const mediaRel = drwRels[embedMatch[1]];
           if (!mediaRel) continue;
-          const u8 = zipBytes(wbFiles, mediaRel.target);
-          if (!u8 || !u8.length) continue;
-          rowMap[row0] = { mime: detectImageMime(mediaRel.target, u8), data: bytesToB64(u8) };
+          const obj = getMediaObj(mediaRel.target);
+          if (obj) rowMap[row0] = obj;
         }
       });
     });
@@ -767,6 +880,14 @@
     'ต.ค.': '10', 'ตุลาคม': '10', 'พ.ย.': '11', 'พฤศจิกายน': '11', 'ธ.ค.': '12', 'ธันวาคม': '12'
   };
 
+  function validIsoDate(iso) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+    const yr = Number(iso.slice(0, 4));
+    if (yr < 1900 || yr > 2200) return '';
+    const d = new Date(iso + 'T00:00:00Z');
+    return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === iso ? iso : '';
+  }
+
   function parseAssetDateCell(v) {
     if (v === null || v === undefined || v === '') return '';
     if (typeof v === 'number' && Number.isFinite(v) && v > 1000 && v < 200000) {
@@ -775,22 +896,23 @@
       if (Number.isFinite(d.getTime())) {
         let yr = d.getUTCFullYear();
         if (yr >= 2400) yr -= 543;
-        return String(yr).padStart(4, '0') + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+        return validIsoDate(String(yr).padStart(4, '0') + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0'));
       }
     }
     const s = String(v).trim();
     if (!s || s === '–' || s === '-') return '';
-    let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
+    let m = /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/.exec(s);
     if (m) {
       let yr = Number(m[1]);
       if (yr >= 2400) yr -= 543;
-      return String(yr).padStart(4, '0') + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[3])).padStart(2, '0');
+      return validIsoDate(String(yr).padStart(4, '0') + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[3])).padStart(2, '0'));
     }
-    m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(s);
+    m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/.exec(s);
     if (m) {
       let yr = Number(m[3]);
+      if (yr < 100) yr += yr >= 40 ? 2500 : 2000;
       if (yr >= 2400) yr -= 543;
-      return String(yr).padStart(4, '0') + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[1])).padStart(2, '0');
+      return validIsoDate(String(yr).padStart(4, '0') + '-' + String(Number(m[2])).padStart(2, '0') + '-' + String(Number(m[1])).padStart(2, '0'));
     }
     for (const [thName, mm] of Object.entries(THAI_MONTHS)) {
       if (s.includes(thName)) {
@@ -800,25 +922,34 @@
           let yr = Number(nums[nums.length - 1]);
           if (yr < 100) yr += 2500;
           if (yr >= 2400) yr -= 543;
-          return String(yr).padStart(4, '0') + '-' + mm + '-' + String(dd).padStart(2, '0');
+          return validIsoDate(String(yr).padStart(4, '0') + '-' + mm + '-' + String(dd).padStart(2, '0'));
         }
       }
     }
     return '';
   }
 
-  function parseAssetNumCell(v) {
+  function parseAssetNumCell(v, isRate = false) {
     if (v === null || v === undefined || v === '') return null;
-    if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
-    const s = String(v).replace(/[,%\s฿บาท]/g, '').trim();
-    if (!s || s === '–' || s === '-') return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+    let n;
+    if (typeof v === 'number') {
+      n = v;
+    } else {
+      const s = String(v).replace(/[,%\s฿บาท]/g, '').trim();
+      if (!s || s === '–' || s === '-') return null;
+      n = Number(s);
+    }
+    if (!Number.isFinite(n)) return null;
+    n = Math.round(n * 100) / 100;
+    if (n < 0) n = Math.abs(n) < 0.01 ? 0 : Math.abs(n);
+    if (isRate && n > 100) n = 100;
+    if (!isRate && n > 1000000000000) n = 1000000000000;
+    return n;
   }
 
   function isCheckedCell(v) {
     const s = String(v == null ? '' : v).trim().toLowerCase();
-    return s === '✓' || s === '✔' || s === 'true' || s === '1' || s === 'x' || s === 'yes' || s === 'ใช่' || s === 'ปกติ';
+    return s === '✓' || s === '✔' || s === 'true' || s === '1' || s === 'x' || s === 'yes' || s === 'ใช่' || s === 'ปกติ' || s === 'p' || s === 'a';
   }
 
   function parseStatusText(v) {
@@ -845,7 +976,7 @@
       const rowImages = bySheet[sheetName] || Object.create(null);
       if (!grid || !grid.length) continue;
 
-      let hRow = -1, cols = null, dataStart = -1;
+      let cols = null, dataStart = -1;
       for (let r = 0; r < Math.min(grid.length, 15); r++) {
         const row = grid[r] || [];
         const nextRow = grid[r + 1] || [];
@@ -889,7 +1020,6 @@
               else cMap.decrease = c;
             }
           });
-          hRow = r;
           cols = cMap;
           dataStart = hasSubRow ? r + 2 : r + 1;
           if (r > 0 && !sheetTitle) {
@@ -904,7 +1034,7 @@
 
       for (let r = dataStart; r < grid.length; r++) {
         const row = grid[r] || [];
-        const name = String(row[cols.name] == null ? '' : row[cols.name]).trim();
+        const name = String(row[cols.name] == null ? '' : row[cols.name]).trim().slice(0, 250);
         const firstCell = String(row[0] == null ? '' : row[0]).trim();
         if (!name || /^รวม(?:ทั้งหมด|ตามตัวกรอง)/i.test(firstCell) || /^รวม(?:ทั้งหมด|ตามตัวกรอง)/i.test(name)) continue;
 
@@ -929,21 +1059,21 @@
 
         const seqNum = cols.seq !== undefined ? parseAssetNumCell(row[cols.seq]) : null;
         const item = {
-          seq: seqNum !== null && Number.isInteger(seqNum) && seqNum > 0 ? seqNum : null,
+          seq: seqNum !== null && Number.isInteger(seqNum) && seqNum >= 1 && seqNum <= 1000000000 ? seqNum : null,
           name,
-          code: cols.code !== undefined ? String(row[cols.code] == null ? '' : row[cols.code]).trim() : '',
+          code: cols.code !== undefined ? String(row[cols.code] == null ? '' : row[cols.code]).trim().slice(0, 80) : '',
           received: cols.received !== undefined ? parseAssetDateCell(row[cols.received]) : '',
-          location: cols.location !== undefined ? String(row[cols.location] == null ? '' : row[cols.location]).trim() : '',
+          location: cols.location !== undefined ? String(row[cols.location] == null ? '' : row[cols.location]).trim().slice(0, 200) : '',
           status,
-          imageUrl: cols.imageUrl !== undefined ? safeUrl(String(row[cols.imageUrl] == null ? '' : row[cols.imageUrl]).trim()) : '',
+          imageUrl: cols.imageUrl !== undefined ? safeUrl(String(row[cols.imageUrl] == null ? '' : row[cols.imageUrl]).trim().slice(0, 2000)) : '',
           total: cols.total !== undefined ? parseAssetNumCell(row[cols.total]) : null,
-          rate: cols.rate !== undefined ? parseAssetNumCell(row[cols.rate]) : null,
+          rate: cols.rate !== undefined ? parseAssetNumCell(row[cols.rate], true) : null,
           opening: cols.opening !== undefined ? parseAssetNumCell(row[cols.opening]) : null,
           increase: cols.increase !== undefined ? parseAssetNumCell(row[cols.increase]) : null,
           decrease: cols.decrease !== undefined ? parseAssetNumCell(row[cols.decrease]) : null,
           closing: cols.closing !== undefined ? parseAssetNumCell(row[cols.closing]) : null,
           net: cols.net !== undefined ? parseAssetNumCell(row[cols.net]) : null,
-          note: cols.note !== undefined ? String(row[cols.note] == null ? '' : row[cols.note]).trim() : ''
+          note: cols.note !== undefined ? String(row[cols.note] == null ? '' : row[cols.note]).trim().slice(0, 2000) : ''
         };
         if (imgData) item.imageData = imgData;
         items.push(item);
@@ -954,17 +1084,35 @@
     return { title: sheetTitle, items, imageCount };
   }
 
-  /* ==================== Export & Import UI Handlers ==================== */
+  /* ==================== Export & Import UI Handlers (with Batched Progress) ==================== */
+  function setImportProgress(pct, text) {
+    const wrap = $('#importProgressWrap'), fill = $('#importProgressFill'), label = $('#importProgressText');
+    if (!wrap) return;
+    if (pct === null) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    if (fill) fill.style.width = Math.max(0, Math.min(100, Math.round(pct))) + '%';
+    if (label) label.textContent = text || '';
+  }
+
   if ($('#exportExcelBtn')) {
     $('#exportExcelBtn').addEventListener('click', async () => {
       if (!token || !user) return;
       const btn = $('#exportExcelBtn');
       btn.disabled = true;
       const origText = btn.textContent;
-      btn.textContent = 'กำลังเตรียมไฟล์ Excel…';
+      btn.textContent = 'กำลังดึงข้อมูลสินทรัพย์…';
       try {
-        const expData = await call('assetsExport', { q: $('#search').value.trim(), status: $('#statusFilter').value, location: $('#locationFilter').value });
-        const xlsxBytes = await xlsxBuildAssets(expData);
+        const expData = await call('assetsExport', { q: $('#search').value.trim(), status: $('#statusFilter').value, location: $('#locationFilter').value, metaOnly: true });
+        const images = Object.assign({}, expData.images || {});
+        const fids = Array.isArray(expData.fids) ? expData.fids.filter(f => !images[f]) : [];
+        const BATCH_SIZE = 30;
+        for (let i = 0; i < fids.length; i += BATCH_SIZE) {
+          btn.textContent = 'กำลังดึงรูปภาพ ' + Math.min(i + BATCH_SIZE, fids.length) + ' / ' + fids.length + '…';
+          const res = await call('assetsExportImages', fids.slice(i, i + BATCH_SIZE));
+          if (res && res.images) Object.assign(images, res.images);
+        }
+        btn.textContent = 'กำลังสร้างไฟล์ Excel…';
+        const xlsxBytes = await xlsxBuildAssets({ title: expData.title, rows: expData.rows, images });
         const blob = new Blob([xlsxBytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -991,8 +1139,10 @@
       parsedImportItems = null;
       $('#importForm').reset();
       $('#importError').textContent = '';
+      setImportProgress(null);
       $('#importPreviewInfo').textContent = 'กรุณาเลือกไฟล์ Excel ที่ส่งอกจากระบบ หรือไฟล์ทะเบียนสินทรัพย์ที่มีคอลัมน์รายการและรูปภาพฝังในตาราง';
       $('#confirmImportBtn').disabled = true;
+      $('#confirmImportBtn').textContent = 'นำเข้าข้อมูล';
       $('#importDialog').showModal();
     });
   }
@@ -1002,8 +1152,11 @@
       const file = $('#importFile').files && $('#importFile').files[0];
       parsedImportItems = null;
       $('#importError').textContent = '';
+      setImportProgress(null);
       $('#confirmImportBtn').disabled = true;
+      $('#confirmImportBtn').textContent = 'นำเข้าข้อมูล';
       if (!file) return;
+      $('#importPreviewInfo').textContent = 'กำลังอ่านไฟล์ "' + file.name + '"…';
       try {
         const buf = new Uint8Array(await file.arrayBuffer());
         const parsed = parseAssetsWorkbook(buf);
@@ -1012,6 +1165,7 @@
         $('#confirmImportBtn').disabled = false;
       } catch (e) {
         $('#importError').textContent = e.message;
+        $('#importPreviewInfo').textContent = 'ไม่สามารถอ่านข้อมูลจากไฟล์ที่เลือกได้';
       }
     });
   }
@@ -1021,21 +1175,128 @@
       e.preventDefault();
       if (saving || !parsedImportItems || !data || !data.me.edit) return;
       saving = true;
-      $('#confirmImportBtn').disabled = true;
+      const btn = $('#confirmImportBtn');
+      btn.disabled = true;
       $('#importError').textContent = '';
+
       try {
         const mode = $('#importMode').value;
-        const res = await call('assetsImport', { mode, items: parsedImportItems.items, title: parsedImportItems.title });
+        const rawItems = parsedImportItems.items;
+
+        // Phase 1: Compress & hash unique embedded images in parallel (8 at a time)
+        const uniqueImages = new Map();
+        const preparedMap = new Map();
+        rawItems.forEach((it, idx) => {
+          if (it.imageData) {
+            const key = it.imageData.path || ('row_' + idx);
+            if (!uniqueImages.has(key)) uniqueImages.set(key, it.imageData);
+          }
+        });
+
+        const uniqueKeys = Array.from(uniqueImages.keys());
+        let doneImages = 0;
+        const COMPRESS_CONCURRENCY = 8;
+        if (uniqueKeys.length > 0) {
+          setImportProgress(2, 'ขั้นตอนที่ 1/3: กำลังเตรียมและย่อขนาดรูปภาพ 0 / ' + fmtInt.format(uniqueKeys.length) + ' รูป…');
+          for (let i = 0; i < uniqueKeys.length; i += COMPRESS_CONCURRENCY) {
+            const slice = uniqueKeys.slice(i, i + COMPRESS_CONCURRENCY);
+            await Promise.all(slice.map(async key => {
+              const comp = await compressImageObj(uniqueImages.get(key), 480, 42000);
+              if (comp && comp.data) {
+                const fid = await computeImageFid(comp.mime, comp.data);
+                preparedMap.set(key, { fid, mime: comp.mime, data: comp.data });
+              }
+              doneImages++;
+            }));
+            const pct = Math.round((doneImages / uniqueKeys.length) * 30);
+            btn.textContent = 'กำลังนำเข้า ' + pct + '%';
+            setImportProgress(pct, 'ขั้นตอนที่ 1/3: ย่อขนาดรูปภาพแล้ว ' + fmtInt.format(doneImages) + ' / ' + fmtInt.format(uniqueKeys.length) + ' รูป');
+          }
+        }
+
+        const imagesByFid = new Map();
+        const metadataItems = rawItems.map((it, idx) => {
+          const copy = Object.assign({}, it);
+          if (copy.imageData) {
+            const key = copy.imageData.path || ('row_' + idx);
+            const prep = preparedMap.get(key);
+            delete copy.imageData;
+            if (prep) {
+              copy.imageFid = prep.fid;
+              imagesByFid.set(prep.fid, prep);
+            }
+          }
+          return copy;
+        });
+
+        // Phase 2: Save all 569+ asset metadata rows in 1 fast request (~100 KB)
+        btn.textContent = 'กำลังนำเข้า 35%';
+        setImportProgress(35, 'ขั้นตอนที่ 2/3: กำลังบันทึกรายการสินทรัพย์ ' + fmtInt.format(metadataItems.length) + ' รายการ…');
+        let res;
+        try {
+          res = await call('assetsImport', { mode, items: metadataItems, title: parsedImportItems.title });
+        } catch (err) {
+          if (/ไม่รู้จักคำสั่ง/.test(err.message)) {
+            throw new Error('กรุณาอัปเดตโค้ด Cloudflare Worker (worker-copy.txt) รุ่นล่าสุดในหน้า Cloudflare Dashboard แล้วกด Deploy ก่อนนำเข้าไฟล์ Excel');
+          }
+          throw err;
+        }
+
+        // Phase 3: Upload missing images in small batches (~350 KB / max 15 images per batch, 3 concurrent)
+        const missingFids = Array.isArray(res.missingFids)
+          ? res.missingFids.filter(fid => imagesByFid.has(fid))
+          : Array.from(imagesByFid.keys());
+
+        if (missingFids.length > 0) {
+          const batches = [];
+          let curBatch = [], curBytes = 0;
+          for (const fid of missingFids) {
+            const img = imagesByFid.get(fid);
+            const size = img.data.length;
+            if (curBatch.length > 0 && (curBatch.length >= 15 || curBytes + size > 450000)) {
+              batches.push(curBatch);
+              curBatch = [];
+              curBytes = 0;
+            }
+            curBatch.push(img);
+            curBytes += size;
+          }
+          if (curBatch.length) batches.push(curBatch);
+
+          let uploadedCount = 0;
+          const UPLOAD_CONCURRENCY = 3;
+          for (let b = 0; b < batches.length; b += UPLOAD_CONCURRENCY) {
+            const group = batches.slice(b, b + UPLOAD_CONCURRENCY);
+            await Promise.all(group.map(async batchList => {
+              try {
+                await call('assetsUploadImagesBatch', batchList);
+              } catch (_) {
+                // Retry once on transient network hiccup
+                await new Promise(r => setTimeout(r, 400));
+                await call('assetsUploadImagesBatch', batchList);
+              }
+              uploadedCount += batchList.length;
+              const pct = 35 + Math.round((uploadedCount / missingFids.length) * 65);
+              btn.textContent = 'กำลังนำเข้า ' + pct + '%';
+              setImportProgress(pct, 'ขั้นตอนที่ 3/3: อัปโหลดรูปภาพแล้ว ' + fmtInt.format(uploadedCount) + ' / ' + fmtInt.format(missingFids.length) + ' รูป');
+            }));
+          }
+        }
+
+        setImportProgress(100, 'นำเข้าข้อมูลและรูปภาพครบถ้วน');
         $('#importDialog').close();
+        setImportProgress(null);
         parsedImportItems = null;
         page = 1;
-        toast('นำเข้า Excel สำเร็จ ' + fmtInt.format(res.count) + ' รายการ (เพิ่ม ' + fmtInt.format(res.created) + ' · อัปเดต ' + fmtInt.format(res.updated) + ')');
+        toast('นำเข้า Excel สำเร็จ ' + fmtInt.format(res.count) + ' รายการ พร้อมรูปภาพ ' + fmtInt.format(preparedMap.size) + ' รูป');
         await load();
       } catch (err) {
         $('#importError').textContent = err.message;
-        $('#confirmImportBtn').disabled = false;
+        btn.disabled = false;
+        btn.textContent = 'นำเข้าข้อมูลอีกครั้ง';
       } finally {
         saving = false;
+        if (!parsedImportItems) btn.textContent = 'นำเข้าข้อมูล';
       }
     });
   }
@@ -1119,7 +1380,7 @@
     $('#stickerDialog').showModal();
     if (data.total > stickerPool.length) {
       try {
-        const full = await call('assetsExport', { q: $('#search').value.trim(), status: $('#statusFilter').value, location: $('#locationFilter').value });
+        const full = await call('assetsExport', { q: $('#search').value.trim(), status: $('#statusFilter').value, location: $('#locationFilter').value, metaOnly: true });
         if (full && Array.isArray(full.rows)) {
           stickerPool = full.rows;
           if (!preselectRows) selectedStickerIds = new Set(stickerPool.map(r => r.id));
@@ -1293,7 +1554,7 @@
 
   // Expose helpers for testing & inspection
   if (typeof window !== 'undefined') {
-    Object.assign(window, { xlsxBuildAssets, parseAssetsWorkbook, buildStickerQrSvg, stickerCardHtml, formatStickerDate, assetQrLink });
+    Object.assign(window, { xlsxBuildAssets, parseAssetsWorkbook, buildStickerQrSvg, stickerCardHtml, formatStickerDate, assetQrLink, computeImageFid });
   }
 
   try {

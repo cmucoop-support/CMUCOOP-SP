@@ -1,4 +1,4 @@
-import { BANNER_EXT, CHUNK, MAX_BANNER_BYTES } from '../core/config.js';
+import { BANNER_EXT, MAX_BANNER_BYTES } from '../core/config.js';
 import { all, batch, guardedApi, jsonBatches, kvGet, kvSetStmt, now, one, sha256hex, stmt, str, uuid } from '../core/database.js';
 import { appendLog } from '../core/logging.js';
 import { API } from '../core/registry.js';
@@ -10,6 +10,8 @@ const ASSETS_TITLE = 'รายการสินทรัพย์ ร้าน
 const ASSETS_STATUSES = ['normal', 'irreparable', 'repair', 'reduced'];
 const ASSETS_MONEY = ['total', 'opening', 'increase', 'decrease', 'closing', 'net'];
 const ASSETS_LABELS = { total: 'รวม', rate: 'อัตรา ร้อยละ', opening: 'ยกมา', increase: 'เพิ่ม ระหว่างปี', decrease: 'ลด ระหว่างปี', closing: 'ยกไป', net: 'ราคาสินทรัพย์ สุทธิ' };
+const ASSET_FILE_CHUNK = 80000;
+const ASSET_BATCH_BYTES = 80000;
 
 async function assetsAuth(C, token, edit = false) {
   const me = await authPerm(C, token, 'assets');
@@ -24,16 +26,25 @@ const assetFileFid = url => {
 
 const assetFileUrl = (C, fid) => (C && C.base ? C.base : 'https://cmucoop-api.cmucoopcashier.workers.dev') + '/file/' + fid;
 
+function fastCleanB64(raw, maxBytes, label) {
+  const data = String(raw || '').replace(/\s+/g, '');
+  if (!data) throw new Error('ไม่พบข้อมูล' + label);
+  if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw new Error('ข้อมูลไฟล์' + label + 'ไม่ถูกต้อง');
+  const approxBytes = Math.floor(data.length * 3 / 4);
+  if (approxBytes > maxBytes) throw new Error('ไฟล์' + label + 'ใหญ่เกิน ' + Math.round(maxBytes / 1048576) + ' MB');
+  return data;
+}
+
 async function assetsSaveImageOps(C, imageData, knownFids) {
   if (!imageData || typeof imageData !== 'object') return null;
   const mime = str(imageData.mime).toLowerCase();
   if (!BANNER_EXT[mime]) throw new Error('รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP, GIF');
-  const b64 = checkB64(imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
-  const fid = (await sha256hex(mime + ':' + b64)).slice(0, 32);
+  const b64 = fastCleanB64(imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
+  const fid = /^[0-9a-f]{32}$/i.test(str(imageData.fid)) ? str(imageData.fid).toLowerCase() : (await sha256hex(mime + ':' + b64)).slice(0, 32);
   const ops = [];
   if (!knownFids.has(fid)) {
-    for (let i = 0, n = 0; i < b64.length; i += CHUNK, n++) {
-      ops.push(stmt(C, 'INSERT OR REPLACE INTO files(fid,n,mime,data) VALUES(?,?,?,?)', fid, n, mime, b64.slice(i, i + CHUNK)));
+    for (let i = 0, n = 0; i < b64.length; i += ASSET_FILE_CHUNK, n++) {
+      ops.push(stmt(C, 'INSERT INTO files(fid,n,mime,data) VALUES(?,?,?,?) ON CONFLICT(fid,n) DO UPDATE SET mime=excluded.mime, data=excluded.data WHERE files.data<>excluded.data', fid, n, mime, b64.slice(i, i + ASSET_FILE_CHUNK)));
     }
     knownFids.add(fid);
   }
@@ -48,8 +59,12 @@ function assetsClean(p, C) {
     return out;
   };
   let rawUrl = text(p.imageUrl, 2000, 'ลิงก์ภาพ');
-  const fid = assetFileFid(rawUrl);
-  if (fid && rawUrl.startsWith('/file/')) rawUrl = assetFileUrl(C, fid);
+  if (/^[0-9a-f]{32}$/i.test(str(p.imageFid))) {
+    rawUrl = assetFileUrl(C, str(p.imageFid).toLowerCase());
+  } else {
+    const fid = assetFileFid(rawUrl);
+    if (fid && rawUrl.startsWith('/file/')) rawUrl = assetFileUrl(C, fid);
+  }
   const data = { seq: p.seq === '' || p.seq == null ? null : Number(p.seq),
     name: text(p.name, 250, 'รายการ'), code: text(p.code, 80, 'รหัสสินทรัพย์'), received: str(p.received),
     location: text(p.location, 200, 'สถานที่ตั้ง'), status: str(p.status) || 'normal',
@@ -115,13 +130,17 @@ API.assetsGet = guardedApi(async (C, token, id) => {
   return row;
 }, 'assets', true);
 
-const assetsCodeKey = code => str(code).replace(/\s/g, '').toLowerCase() || null;
+const assetsCodeKey = code => {
+  const k = str(code).replace(/\s/g, '').toLowerCase();
+  if (!k || k === '-' || k === '–' || k === '—' || k === 'ไม่มี' || k === 'n/a') return null;
+  return k;
+};
 
 API.assetsGetByCode = guardedApi(async (C, token, code) => {
   await assetsAuth(C, token);
   const raw = str(code), key = assetsCodeKey(raw);
   if (!raw) throw new Error('กรุณาระบุรหัสสินทรัพย์');
-  const row = await one(C, 'SELECT * FROM asset_items WHERE (code_key IS NOT NULL AND code_key=?) OR id=? ORDER BY seq LIMIT 1', key, raw);
+  const row = await one(C, "SELECT * FROM asset_items WHERE (code_key IS NOT NULL AND (code_key=? OR code_key LIKE ?)) OR id=? ORDER BY seq LIMIT 1", key, (key || '') + '__dup_%', raw);
   if (!row) throw new Error('ไม่พบรายการสินทรัพย์รหัส ' + raw);
   return assetsRow(row);
 }, 'assets', true);
@@ -130,7 +149,7 @@ API.assetsPublicByCode = guardedApi(async (C, code) => {
   const raw = str(code), key = assetsCodeKey(raw);
   if (!raw) throw new Error('กรุณาระบุรหัสสินทรัพย์');
   const [row, title] = await Promise.all([
-    one(C, 'SELECT * FROM asset_items WHERE (code_key IS NOT NULL AND code_key=?) OR id=? ORDER BY seq LIMIT 1', key, raw),
+    one(C, "SELECT * FROM asset_items WHERE (code_key IS NOT NULL AND (code_key=? OR code_key LIKE ?)) OR id=? ORDER BY seq LIMIT 1", key, (key || '') + '__dup_%', raw),
     kvGet(C, 'ASSETS_TITLE', ASSETS_TITLE)
   ]);
   if (!row) throw new Error('ไม่พบรายการสินทรัพย์รหัส ' + raw);
@@ -149,13 +168,51 @@ API.assetsUploadImage = guardedApi(async (C, token, payload = {}) => {
   const fid = (await sha256hex(mime + ':' + b64)).slice(0, 32);
   const exists = await one(C, 'SELECT fid FROM files WHERE fid=? AND n=0', fid);
   if (!exists) {
-    const saved = await assetsSaveImageOps(C, { mime, data: b64 }, new Set());
+    const saved = await assetsSaveImageOps(C, { mime, data: b64, fid }, new Set());
     if (saved && saved.ops.length) await batch(C, saved.ops);
   }
   const url = assetFileUrl(C, fid);
   await appendLog(C, me.name, 'รายการสินทรัพย์', '', 'อัปโหลดรูปสินทรัพย์', str(payload.name || fid).slice(0, 100));
   return { ok: true, fid, url };
 }, 'assets', false, true);
+
+API.assetsUploadImagesBatch = async (C, token, list) => {
+  await assetsAuth(C, token, true);
+  if (!Array.isArray(list) || !list.length) return { ok: true, saved: 0 };
+  if (list.length > 40) throw new Error('อัปโหลดรูปภาพได้ครั้งละไม่เกิน 40 รูปต่อชุด');
+  const ops = [];
+  const seen = new Set();
+  let savedCount = 0;
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    const saved = await assetsSaveImageOps(C, item, seen);
+    if (saved && saved.ops.length) {
+      ops.push(...saved.ops);
+      savedCount++;
+    }
+  }
+  if (ops.length) await batch(C, ops);
+  return { ok: true, saved: savedCount };
+};
+
+API.assetsExportImages = async (C, token, fids) => {
+  await assetsAuth(C, token);
+  const cleanFids = (Array.isArray(fids) ? fids : []).map(f => str(f).toLowerCase()).filter(f => /^[0-9a-f]{32}$/.test(f)).slice(0, 50);
+  if (!cleanFids.length) return { images: {} };
+  const parts = await all(C, 'SELECT fid,n,mime,data FROM files WHERE fid IN (SELECT value FROM json_each(?)) ORDER BY fid,n', JSON.stringify(cleanFids));
+  const grouped = new Map();
+  for (const p of parts) {
+    if (!grouped.has(p.fid)) grouped.set(p.fid, []);
+    grouped.get(p.fid).push(p);
+  }
+  const images = {};
+  grouped.forEach((list, fid) => {
+    if (!list.some((p, i) => p.n !== i)) {
+      images[fid] = { mime: list[0].mime, data: list.map(p => p.data).join('') };
+    }
+  });
+  return { images };
+};
 
 API.assetsExport = guardedApi(async (C, token, options = {}) => {
   options = options && typeof options === 'object' && !Array.isArray(options) ? options : {};
@@ -167,7 +224,7 @@ API.assetsExport = guardedApi(async (C, token, options = {}) => {
   ]);
   const fids = [...new Set(rows.map(r => assetFileFid(r.image_url)).filter(Boolean))];
   const images = {};
-  if (fids.length) {
+  if (!options.metaOnly && fids.length && fids.length <= 40) {
     const parts = await all(C, 'SELECT fid,n,mime,data FROM files WHERE fid IN (SELECT value FROM json_each(?)) ORDER BY fid,n', JSON.stringify(fids));
     const grouped = new Map();
     for (const p of parts) {
@@ -180,7 +237,7 @@ API.assetsExport = guardedApi(async (C, token, options = {}) => {
       }
     });
   }
-  return { title, rows: rows.map(assetsRow), images };
+  return { title, rows: rows.map(assetsRow), images, fids };
 }, 'assets', true, true);
 
 function assetsValues(data) { return JSON.stringify(Object.fromEntries([...ASSETS_MONEY, 'rate'].map(k => [k, data[k]]))); }
@@ -199,7 +256,7 @@ API.assetsCreate = guardedApi(async (C, token, payload) => {
     const b64 = checkB64(payload.imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
     const fid = (await sha256hex(mime + ':' + b64)).slice(0, 32);
     const known = new Set((await one(C, 'SELECT fid FROM files WHERE fid=? AND n=0', fid)) ? [fid] : []);
-    const saved = await assetsSaveImageOps(C, { mime, data: b64 }, known);
+    const saved = await assetsSaveImageOps(C, { mime, data: b64, fid }, known);
     if (saved) { payload = { ...payload, imageUrl: saved.url }; imageOps.push(...saved.ops); }
   }
   const data = assetsClean(payload, C);
@@ -232,7 +289,7 @@ API.assetsUpdate = guardedApi(async (C, token, id, version, payload) => {
     const b64 = checkB64(payload.imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
     const fid = (await sha256hex(mime + ':' + b64)).slice(0, 32);
     const known = new Set((await one(C, 'SELECT fid FROM files WHERE fid=? AND n=0', fid)) ? [fid] : []);
-    const saved = await assetsSaveImageOps(C, { mime, data: b64 }, known);
+    const saved = await assetsSaveImageOps(C, { mime, data: b64, fid }, known);
     if (saved) { payload = { ...payload, imageUrl: saved.url }; imageOps.push(...saved.ops); }
   }
   const data = assetsClean(payload, C), old = await one(C, 'SELECT * FROM asset_items WHERE id=?', str(id));
@@ -261,10 +318,12 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
   const preparedImages = [];
   for (let i = 0; i < rawItems.length; i++) {
     const it = rawItems[i];
-    if (it && it.imageData && typeof it.imageData === 'object' && it.imageData.data) {
+    if (it && /^[0-9a-f]{32}$/i.test(str(it.imageFid))) {
+      candidateFids.push(str(it.imageFid).toLowerCase());
+    } else if (it && it.imageData && typeof it.imageData === 'object' && it.imageData.data) {
       const mime = str(it.imageData.mime).toLowerCase();
       if (!BANNER_EXT[mime]) throw new Error('แถวที่ ' + (i + 1) + ': รองรับเฉพาะไฟล์รูปภาพ JPG, PNG, WEBP, GIF');
-      const b64 = checkB64(it.imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
+      const b64 = fastCleanB64(it.imageData.data, MAX_BANNER_BYTES, 'รูปภาพสินทรัพย์');
       const fid = (await sha256hex(mime + ':' + b64)).slice(0, 32);
       candidateFids.push(fid);
       preparedImages[i] = { mime, data: b64, fid };
@@ -272,15 +331,17 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
   }
 
   const knownFids = new Set();
-  if (candidateFids.length) {
-    const existingFiles = await all(C, 'SELECT DISTINCT fid FROM files WHERE n=0 AND fid IN (SELECT value FROM json_each(?))', JSON.stringify([...new Set(candidateFids)]));
-    existingFiles.forEach(r => knownFids.add(r.fid));
+  const uniqueCandidateFids = [...new Set(candidateFids)];
+  if (uniqueCandidateFids.length) {
+    for (const fidBatch of jsonBatches(uniqueCandidateFids, ASSET_BATCH_BYTES)) {
+      const existingFiles = await all(C, 'SELECT DISTINCT fid FROM files WHERE n=0 AND fid IN (SELECT value FROM json_each(?))', fidBatch);
+      existingFiles.forEach(r => knownFids.add(r.fid));
+    }
   }
 
   const ops = [];
   let imagesSaved = 0;
   const cleaned = [];
-  const fileCodes = new Set();
   for (let i = 0; i < rawItems.length; i++) {
     const raw = rawItems[i] && typeof rawItems[i] === 'object' ? { ...rawItems[i] } : {};
     if (preparedImages[i]) {
@@ -295,22 +356,19 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
     let data;
     try { data = assetsClean(raw, C); }
     catch (e) { throw new Error('รายการที่ ' + (i + 1) + (raw.name ? ' (' + str(raw.name).slice(0, 40) + ')' : '') + ': ' + e.message); }
-    const ck = assetsCodeKey(data.code);
-    if (ck) {
-      if (fileCodes.has(ck)) throw new Error('พบรหัสสินทรัพย์ซ้ำกันในไฟล์ Excel: ' + data.code);
-      fileCodes.add(ck);
-    }
     cleaned.push(data);
   }
 
+  const missingFids = uniqueCandidateFids.filter(fid => !knownFids.has(fid));
   const existing = await all(C, 'SELECT * FROM asset_items ORDER BY seq,id');
   const ts = now();
   let created = 0, updated = 0;
 
   if (mode === 'replace') {
-    const usedSeq = new Set();
+    const usedSeq = new Set(), usedCodeKeys = new Set();
     let nextSeq = 1;
-    for (const item of cleaned) {
+    for (let i = 0; i < cleaned.length; i++) {
+      const item = cleaned[i];
       if (item.seq !== null && !usedSeq.has(item.seq)) {
         usedSeq.add(item.seq);
       } else {
@@ -318,24 +376,30 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
         item.seq = nextSeq;
         usedSeq.add(nextSeq);
       }
+      let ck = assetsCodeKey(item.code);
+      if (ck) {
+        if (usedCodeKeys.has(ck)) ck = ck + '__dup_' + item.seq;
+        usedCodeKeys.add(ck);
+      }
+      item._codeKey = ck;
     }
     ops.push(stmt(C, 'DELETE FROM asset_items'));
     const rowsToInsert = [];
     for (const item of cleaned) {
       const id = uuid(), reqId = uuid();
-      const hash = await sha256hex(JSON.stringify(item));
-      rowsToInsert.push([id, item.seq, item.name, item.code, assetsCodeKey(item.code), item.received, item.location, item.status, item.imageUrl, item.note, assetsValues(item), 1, reqId, hash, me.user, ts, me.name, ts]);
+      const hash = (await sha256hex(item.seq + '|' + item.name + '|' + item.code)).slice(0, 32);
+      rowsToInsert.push([id, item.seq, item.name, item.code, item._codeKey, item.received, item.location, item.status, item.imageUrl, item.note, assetsValues(item), 1, reqId, hash, me.user, ts, me.name, ts]);
       created++;
     }
-    for (const payloadBatch of jsonBatches(rowsToInsert)) {
+    for (const payloadBatch of jsonBatches(rowsToInsert, ASSET_BATCH_BYTES)) {
       ops.push(stmt(C, `INSERT INTO asset_items(id,seq,name,code,code_key,received,location,status,image_url,note,amounts,version,request_id,create_hash,created_user,created_ts,updated_by,updated_ts)
         SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]'),json_extract(value,'$[5]'),json_extract(value,'$[6]'),json_extract(value,'$[7]'),json_extract(value,'$[8]'),json_extract(value,'$[9]'),json_extract(value,'$[10]'),json_extract(value,'$[11]'),json_extract(value,'$[12]'),json_extract(value,'$[13]'),json_extract(value,'$[14]'),json_extract(value,'$[15]'),json_extract(value,'$[16]'),json_extract(value,'$[17]') FROM json_each(?)`, payloadBatch));
     }
   } else {
-    const byCode = new Map(), bySeq = new Map(), usedSeq = new Set();
+    const byCode = new Map(), bySeq = new Map(), usedSeq = new Set(), usedCodeKeys = new Set();
     let maxSeq = 0;
     existing.forEach(r => {
-      if (r.code_key) byCode.set(r.code_key, r);
+      if (r.code_key) { byCode.set(r.code_key, r); usedCodeKeys.add(r.code_key); }
       bySeq.set(r.seq, r);
       usedSeq.add(r.seq);
       if (r.seq > maxSeq) maxSeq = r.seq;
@@ -345,25 +409,32 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
     for (const item of cleaned) {
       const ck = assetsCodeKey(item.code);
       let match = ck ? byCode.get(ck) : null;
-      if (!match && !ck && item.seq !== null) {
+      if (match && matchedIds.has(match.id)) match = null;
+      if (!match && item.seq !== null) {
         const seqMatch = bySeq.get(item.seq);
-        if (seqMatch && !matchedIds.has(seqMatch.id) && seqMatch.name === item.name) match = seqMatch;
+        if (seqMatch && !matchedIds.has(seqMatch.id) && (seqMatch.name === item.name || assetsCodeKey(seqMatch.code) === ck)) match = seqMatch;
       }
       if (match && !matchedIds.has(match.id)) {
         matchedIds.add(match.id);
         usedSeq.delete(match.seq);
+        if (match.code_key) usedCodeKeys.delete(match.code_key);
         toUpdate.push({ match, item });
       } else {
         toInsert.push(item);
       }
     }
+    const rowsToUpsert = [];
     for (const { match, item } of toUpdate) {
       const seq = item.seq !== null && !usedSeq.has(item.seq) ? item.seq : match.seq;
       usedSeq.add(seq);
       if (seq > maxSeq) maxSeq = seq;
+      let ck = assetsCodeKey(item.code);
+      if (ck) {
+        if (usedCodeKeys.has(ck)) ck = ck + '__dup_' + seq;
+        usedCodeKeys.add(ck);
+      }
       const imageUrl = item.imageUrl || match.image_url;
-      ops.push(stmt(C, 'UPDATE asset_items SET seq=?,name=?,code=?,code_key=?,received=?,location=?,status=?,image_url=?,note=?,amounts=?,version=version+1,updated_by=?,updated_ts=? WHERE id=?',
-        seq, item.name, item.code, assetsCodeKey(item.code), item.received, item.location, item.status, imageUrl, item.note, assetsValues(item), me.name, ts, match.id));
+      rowsToUpsert.push([match.id, seq, item.name, item.code, ck, item.received, item.location, item.status, imageUrl, item.note, assetsValues(item), match.version + 1, match.request_id, match.create_hash, match.created_user, match.created_ts, me.name, ts]);
       updated++;
     }
     for (const item of toInsert) {
@@ -375,11 +446,20 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
       }
       usedSeq.add(seq);
       if (seq > maxSeq) maxSeq = seq;
+      let ck = assetsCodeKey(item.code);
+      if (ck) {
+        if (usedCodeKeys.has(ck)) ck = ck + '__dup_' + seq;
+        usedCodeKeys.add(ck);
+      }
       const id = uuid(), reqId = uuid();
-      const hash = await sha256hex(JSON.stringify(item));
-      ops.push(stmt(C, 'INSERT INTO asset_items(id,seq,name,code,code_key,received,location,status,image_url,note,amounts,version,request_id,create_hash,created_user,created_ts,updated_by,updated_ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        id, seq, item.name, item.code, assetsCodeKey(item.code), item.received, item.location, item.status, item.imageUrl, item.note, assetsValues(item), 1, reqId, hash, me.user, ts, me.name, ts));
+      const hash = (await sha256hex(seq + '|' + item.name + '|' + item.code)).slice(0, 32);
+      rowsToUpsert.push([id, seq, item.name, item.code, ck, item.received, item.location, item.status, item.imageUrl, item.note, assetsValues(item), 1, reqId, hash, me.user, ts, me.name, ts]);
       created++;
+    }
+    for (const payloadBatch of jsonBatches(rowsToUpsert, ASSET_BATCH_BYTES)) {
+      ops.push(stmt(C, `INSERT INTO asset_items(id,seq,name,code,code_key,received,location,status,image_url,note,amounts,version,request_id,create_hash,created_user,created_ts,updated_by,updated_ts)
+        SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]'),json_extract(value,'$[2]'),json_extract(value,'$[3]'),json_extract(value,'$[4]'),json_extract(value,'$[5]'),json_extract(value,'$[6]'),json_extract(value,'$[7]'),json_extract(value,'$[8]'),json_extract(value,'$[9]'),json_extract(value,'$[10]'),json_extract(value,'$[11]'),json_extract(value,'$[12]'),json_extract(value,'$[13]'),json_extract(value,'$[14]'),json_extract(value,'$[15]'),json_extract(value,'$[16]'),json_extract(value,'$[17]') FROM json_each(?) WHERE 1
+        ON CONFLICT(id) DO UPDATE SET seq=excluded.seq,name=excluded.name,code=excluded.code,code_key=excluded.code_key,received=excluded.received,location=excluded.location,status=excluded.status,image_url=excluded.image_url,note=excluded.note,amounts=excluded.amounts,version=excluded.version,updated_by=excluded.updated_by,updated_ts=excluded.updated_ts`, payloadBatch));
     }
   }
 
@@ -390,7 +470,7 @@ API.assetsImport = guardedApi(async (C, token, payload = {}) => {
   ops.push(assetsEvent(C, '__import__', (C.guard ? C.guard.revision : 0) + 1 + Math.floor(Math.random() * 1000000), me, 'นำเข้าสินทรัพย์จาก Excel', { mode, count: cleaned.length, created, updated, imagesSaved }));
   await batch(C, ops);
   await appendLog(C, me.name, 'รายการสินทรัพย์', '', 'นำเข้าจาก Excel', (mode === 'replace' ? 'แทนที่ทั้งหมด' : 'เพิ่ม/อัปเดต') + ' · ' + cleaned.length + ' รายการ (เพิ่ม ' + created + ' · อัปเดต ' + updated + ' · รูปภาพ ' + imagesSaved + ')');
-  return { ok: true, mode, count: cleaned.length, created, updated, imagesSaved };
+  return { ok: true, mode, count: cleaned.length, created, updated, imagesSaved, missingFids };
 }, 'assets', false, true);
 
 API.assetsDelete = guardedApi(async (C, token, id, version) => {
@@ -409,4 +489,4 @@ API.assetsSetTitle = guardedApi(async (C, token, title, expectedRevision) => {
   return { title: value };
 }, 'assets', false, true);
 
-export { ASSETS_TITLE, ASSETS_STATUSES, ASSETS_MONEY, ASSETS_LABELS, assetFileFid, assetFileUrl, assetsSaveImageOps, assetsAuth, assetsClean, assetsRow, assetsWhere, assetsCodeKey, assetsValues, assetsUnique, assetsEvent };
+export { ASSETS_TITLE, ASSETS_STATUSES, ASSETS_MONEY, ASSETS_LABELS, ASSET_FILE_CHUNK, ASSET_BATCH_BYTES, assetFileFid, assetFileUrl, fastCleanB64, assetsSaveImageOps, assetsAuth, assetsClean, assetsRow, assetsWhere, assetsCodeKey, assetsValues, assetsUnique, assetsEvent };
