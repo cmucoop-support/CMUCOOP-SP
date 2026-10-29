@@ -39,7 +39,7 @@
   var backdrop = document.createElement('button'); backdrop.className='v16-nav-backdrop'; backdrop.tabIndex=-1; backdrop.setAttribute('aria-label','ปิดเมนู'); document.body.append(backdrop);
   var header = $('.top,.phead,.topbar');
   var toggle = document.createElement('button'); toggle.type='button'; toggle.className='v16-menu-toggle'; toggle.innerHTML=icon('menu'); toggle.setAttribute('aria-label','เปิดเมนูระบบ'); toggle.setAttribute('aria-controls',sidebar.id); toggle.setAttribute('aria-expanded','false');
-  if (header) header.prepend(toggle);
+  document.body.append(toggle);
   var mobile = document.createElement('nav'); mobile.className='v16-mobilebar'; mobile.setAttribute('aria-label','แถบนำทางมือถือ');
   mobile.innerHTML='<a href="index.html" target="_self"'+(page==='index'?' aria-current="page"':'')+'>'+icon('home')+'ภาพรวม</a><button type="button" id="v16Top"'+(page!=='index'?' aria-current="page"':'')+'>'+icon(page==='index'?'search':page)+(page==='index'?'ค้นหาระบบ':'หน้านี้')+'</button><button type="button" id="v16MobileMenu" aria-controls="v16Sidebar" aria-expanded="false">'+icon('menu')+'เมนูระบบ</button>';
   document.body.append(mobile);
@@ -59,7 +59,7 @@
   toggle.addEventListener('click',function(){setMenu(true);}); $('#v16MobileMenu').addEventListener('click',function(){setMenu(true);});
   sidebar.querySelector('button').addEventListener('click',function(){setMenu(false);}); backdrop.addEventListener('click',function(){setMenu(false);});
   $('#v16Top').addEventListener('click',function(){if(page==='index'&&$('#v16PortalSearch')){$('#v16PortalSearch').focus();return;}window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});});
-  sidebar.addEventListener('click',function(e){if(e.target.closest('a'))setMenu(false);});
+  sidebar.addEventListener('click',function(e){if(e.target.closest('a,.v16-side-header button'))setMenu(false);});
   matchMedia('(max-width:960px)').addEventListener('change',syncBreakpoint); syncBreakpoint();
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape') { if(document.body.classList.contains('v16-nav-open'))setMenu(false); document.querySelectorAll('.v16-more[open]').forEach(function(d){d.open=false;d.querySelector('summary').focus();}); }
@@ -84,6 +84,16 @@
   document.querySelectorAll('.topbar a[href="index.html"]:not(.brand)').forEach(function(el){el.classList.add('v16-home-control');});
   moreMenu(header && (header.querySelector('.acts')||header.querySelector('.account')||header.querySelector('nav')||header),
     [$('#bNames'),$('#bReload'),$('#btnReload'),$('#btnLogout'),$('#sGoCfg'),$('#logout'),$('.js-pw'),$('.js-logout'),$('#portalSize')]);
+  if(header){
+    // Reparent the original header so every existing controller keeps its nodes and handlers.
+    header.classList.add('v16-side-header');
+    header.setAttribute('role','group');header.setAttribute('aria-label','คำสั่งของหน้านี้');
+    sidebar.insertBefore(header,sidebar.querySelector('.v16-nav'));
+    header.querySelectorAll('.v16-more summary').forEach(function(summary){
+      var label=document.createElement('span');label.textContent=summary.getAttribute('aria-label')||'คำสั่งเพิ่มเติม';summary.append(label);
+    });
+    document.body.classList.add('v16-sidebar-layout');
+  }
   if(page==='assets')moreMenu($('.intro-actions'),[$('#printStickersBtn'),$('#exportExcelBtn'),$('#importExcelBtn')],'นำเข้า ส่งออก และพิมพ์');
   var primary={assets:'addAsset',expiry:'addLot',stock:'bUpload',market:'bUpload'}[page];
   if(primary && document.getElementById(primary))document.getElementById(primary).classList.add('v16-primary-action');
@@ -93,7 +103,7 @@
   function token(){if(window.CMUCOOP_SESSION_TOKEN)return window.CMUCOOP_SESSION_TOKEN;try{return sessionStorage.getItem('pm_tok')||'';}catch(_){return '';}}
   function anonymous(){var login=$('#loginPanel,#login');return document.body.classList.contains('locked')||!!(login&&!login.hidden&&!login.classList.contains('hidden'));}
   function renderNav(){
-    var nav=sidebar.querySelector('nav');nav.textContent='';var last='';
+    var nav=sidebar.querySelector('.v16-nav');nav.textContent='';var last='';
     modules.forEach(function(m){
       var allowed=m.key==='index'||m.key===page||(me&&(m.key==='settings'?me.role==='admin':(me.role==='admin'||!!(me.perms&&me.perms[m.key]))));
       if(!allowed || (m.key!=='index'&&m.key!==page&&(hiddenCards===null||hiddenCards.includes(m.key))))return;
