@@ -275,7 +275,7 @@ API.barcodeRestore = async (C, token, id) => {
 const BC_PATS = [
   ['perPack', /ต่อแพ็ค|ต่อแพค|ต่อ\s*pack|per\s*pack/i],
   ['packBar', /แพ็ค|แพค|pack/i, /บาร์|bar|รหัส|เลข|code/i], ['unitBar', /เดี่ยว|เดียว|unit|single|ชิ้น/i, /บาร์|bar|รหัส|เลข|code/i],
-  ['partner', /คู่ค้า|ซัพพลายเออร์|supplier|vendor|partner/i], ['cat', /หมวด|categor/i], ['name', /ชื่อ|name|^รายการ|description/i]];
+  ['partner', /คู่ค้า|ซัพพลายเออร์|ผู้ขาย|รหัสผู้ขาย|ผู้จำหน่าย|เจ้าหนี้|supplier|vendor|vender|partner/i], ['cat', /หมวด|categor/i], ['name', /ชื่อ|name|^รายการ|description/i]];
 
 function parseBarGrid(grid, defCat) {
   grid = Array.isArray(grid) ? grid : [];
@@ -320,6 +320,65 @@ API.importBarcodeData = async (C, token, sheets, mode) => {
   await bcApplyItems(C, me.name, add, [], replace, start);
   await bcLog(C, me, '', 'นำเข้าจาก Excel', (replace ? 'แทนที่ทั้งหมด' : 'เพิ่มต่อท้าย') + ' · ' + add.length + ' รายการ' + (dup ? ' · ข้ามซ้ำ ' + dup : ''));
   return { ok: true, count: add.length, duplicates: dup, notes, backups: await bcBackups(C) };
+};
+
+const BC_PAIR_KEY = 'BC_PAIR_DRAFT', BC_PAIR_TTL = 7 * 86400000;
+
+async function bcStockMap(C) {
+  const out = Object.create(null);
+  try {
+    const parts = await all(C, 'SELECT g,n,data FROM stock_grp WHERE ver=0 ORDER BY g,n'), by = new Map();
+    parts.forEach(p => { if (!by.has(p.g)) by.set(p.g, []); by.get(p.g).push(p.data); });
+    by.forEach(list => {
+      let rows = [];
+      try { rows = JSON.parse(list.join('')); } catch (_) {}
+      if (!Array.isArray(rows)) return;
+      rows.forEach(r => {
+        if (!Array.isArray(r)) return;
+        const code = bcClean('packBar', r[1]);
+        if (!code) return;
+        const q = Number(r[4]) || 0, pr = Number(r[12]) || 0, vd = str(r[13]);
+        if (!out[code]) out[code] = { qty: 0, price: 0, partner: '' };
+        out[code].qty = Math.round((out[code].qty + q) * 100) / 100;
+        if (pr > 0 && !out[code].price) out[code].price = pr;
+        if (vd && !out[code].partner) out[code].partner = vd;
+      });
+    });
+  } catch (_) {}
+  return out;
+}
+
+API.barcodePairContext = async (C, token) => {
+  await authPerm(C, token, 'barcode');
+  let draft = null;
+  try {
+    const raw = await kvGet(C, BC_PAIR_KEY, '');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.expiresAt && now() <= Number(parsed.expiresAt)) draft = parsed;
+      else await run(C, 'DELETE FROM kv WHERE k=?', BC_PAIR_KEY);
+    }
+  } catch (_) {}
+  return { ok: true, draft, stockMap: await bcStockMap(C), now: now(), ttlMs: BC_PAIR_TTL };
+};
+
+API.barcodePairDraftSave = async (C, token, payload) => {
+  const me = await auth(C, token, true);
+  if (!payload || payload.clear || (!Array.isArray(payload.pairs) || (!payload.pairs.length && !(payload.unmatchedUnits && payload.unmatchedUnits.length) && !(payload.unmatchedPacks && payload.unmatchedPacks.length)))) {
+    await run(C, 'DELETE FROM kv WHERE k=?', BC_PAIR_KEY);
+    return { ok: true, cleared: true, draft: null };
+  }
+  const ts = now(), expiresAt = ts + BC_PAIR_TTL;
+  const draft = {
+    savedAt: ts,
+    expiresAt,
+    who: me.name,
+    pairs: payload.pairs.slice(0, 5000),
+    unmatchedUnits: Array.isArray(payload.unmatchedUnits) ? payload.unmatchedUnits.slice(0, 3000) : [],
+    unmatchedPacks: Array.isArray(payload.unmatchedPacks) ? payload.unmatchedPacks.slice(0, 3000) : []
+  };
+  await kvSet(C, BC_PAIR_KEY, JSON.stringify(draft));
+  return { ok: true, savedAt: ts, expiresAt, who: me.name, draft };
 };
 
 API.confirmBarcodePairs = async (C, token, payload) => {
@@ -387,7 +446,6 @@ API.confirmBarcodePairs = async (C, token, payload) => {
       touchedCats.add(merged.cat);
     } else {
       maxPos++;
-      const newObj = { id: -maxPos, pos: maxPos, partner: v.partner, cat: v.cat, name: v.name, packBar: v.packBar, unitBar: v.unitBar, perPack: v.perPack };
       toInsert.push([maxPos, v.partner, v.cat, v.name, v.packBar, v.unitBar, v.perPack]);
       touchedCats.add(v.cat);
     }
@@ -422,4 +480,4 @@ API.confirmBarcodePairs = async (C, token, payload) => {
   return { ok: true, count: validPairs.length, created: toInsert.length, updated: updateList.length, merged: toDeleteIds.size, backups: await bcBackups(C) };
 };
 
-export { BC_SHEET, BACKUP_KEEP, BC_DEFCAT, BC_COMPANY, BC_TITLE, BC_SCHEMA, BC_FIELDS, bcClean, bcVals, bcRow, thDateS, bcLog, bcDup, BC_FONTS, BC_FONT_DEF, bcBackups, bcSnapshot, bcBackupRead, bcStage, bcPublishStage, BC_PATS, parseBarGrid };
+export { BC_SHEET, BACKUP_KEEP, BC_DEFCAT, BC_COMPANY, BC_TITLE, BC_SCHEMA, BC_FIELDS, bcClean, bcVals, bcRow, thDateS, bcLog, bcDup, BC_FONTS, BC_FONT_DEF, bcBackups, bcSnapshot, bcBackupRead, bcStage, bcPublishStage, BC_PATS, parseBarGrid, BC_PAIR_KEY, BC_PAIR_TTL };
