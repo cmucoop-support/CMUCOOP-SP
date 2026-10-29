@@ -82,7 +82,7 @@ table.dt{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
 .bchint{display:grid;gap:3px;font-size:14px;margin-top:8px}
 .bchint:empty{display:none}
 .bchint .bad{color:var(--bad)}.bchint .good{color:var(--ok)}
-.bchint a{color:var(--accent-text);cursor:pointer;margin-left:6px;text-decoration:underline}
+.bchint a{color:var(--accent-text);cursor:pointer;margin-left:6px;text-decoration:none}
 
 /* ---------- แท็บปริ้น / ประวัติ ---------- */
 .plist{margin:8px 0 12px;max-height:52vh;overflow:auto;display:grid;gap:4px}

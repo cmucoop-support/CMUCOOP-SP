@@ -6,16 +6,19 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>รายการบาร์เดี่ยว/บาร์แพ็ค · CMUCOOP</title>
 <link href="assets/images/logo.png" rel="icon" type="image/png"/>
-<script src="assets/js/shared/gas-shim.js?v=expiry-1"></script>
-<script src="assets/js/shared/page-url.js?v=d1-opt-1"></script>
+<script src="assets/js/shared/gas-shim.js?v=16.2"></script>
+<script src="assets/js/shared/page-url.js?v=16.2"></script>
 <base target="_top"/>
-<link href="assets/css/shared/fonts.css" rel="stylesheet"/>
+<link href="assets/css/shared/fonts.css?v=16.2" rel="stylesheet"/>
 <script src="assets/vendor/xlsx.full.min.js"></script>
-<link href="assets/css/shared/a11y.css" rel="stylesheet"/>
-<link href="assets/css/shared/app.css" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js" defer></script><link href="assets/css/shared/liquid-glass.css?v=liquid-2" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/css/pages/barcode.css?v=pair-3">
+<link href="assets/css/shared/a11y.css?v=16.2" rel="stylesheet"/>
+<link href="assets/css/shared/app.css?v=16.2" rel="stylesheet"/><link href="assets/css/shared/workspace-ui.css?v=16.2" rel="stylesheet"/><script src="assets/js/shared/workspace-ui.js?v=16.2" defer></script>
+<link rel="stylesheet" href="assets/css/pages/barcode.css?v=16.2">
+<link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.2">
+<script src="assets/js/shared/dashboard-v16.js?v=16.2" defer></script>
+<meta name="theme-color" content="#ede5fa">
 </head>
-<body data-workspace="barcode" class="locked liquid-ui"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
+<body data-dashboard="barcode" data-workspace="barcode" class="locked "><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <header class="top" role="banner">
 <h1>รายการบาร์เดี่ยว/บาร์แพ็ค</h1>
 <span class="me" id="me"></span>
@@ -65,7 +68,7 @@
 </div>
 <datalist id="dlCats"></datalist>
 </div><div class="card">
-<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn ghost small" type="button" id="btnOpenPairTab">จับคู่บาร์เดี่ยว/แพ็คจากชื่อที่คล้ายกัน →</button><select aria-label="รูปแบบชีตส่งออก Excel" id="bcExpSheetMode" style="width:auto"><option value="single">ส่งออก: รวมทุกหมวดในชีตเดียว</option><option value="split">ส่งออก: แยกชีตตามหมวด (1 ชีต = 1 หมวด)</option></select><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
+<div class="cardrow"><h3>นำเข้าข้อมูลจากไฟล์ Excel</h3><span style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="btn ghost small" type="button" hidden id="btnOpenPairTab">จับคู่บาร์เดี่ยว/แพ็คจากชื่อที่คล้ายกัน →</button><select aria-label="รูปแบบชีตส่งออก Excel" id="bcExpSheetMode" style="width:auto"><option value="single">ส่งออก: รวมทุกหมวดในชีตเดียว</option><option value="split">ส่งออก: แยกชีตตามหมวด (1 ชีต = 1 หมวด)</option></select><button class="btn ghost small" id="bcExpBtn">ส่งออก Excel</button><button class="btn ghost small" id="bcBkBtn">สำเนา (0/2)</button></span></div>
 <div class="row">
 <input accept=".xlsx,.xls,.csv" aria-label="ไฟล์นำเข้าบาร์โค้ด" id="bcImpFile" type="file"/>
 <select aria-label="ตัวเลือก bcImpMode" id="bcImpMode" style="width:auto"><option value="replace">แทนที่ข้อมูลทั้งหมด</option><option value="append">เพิ่มต่อท้าย (ข้ามรายการซ้ำ)</option></select>
@@ -126,18 +129,18 @@
   <div class="card hidden" id="bcPairResultCard">
     <div class="pair-head-top">
       <div>
-        <h3 style="margin:0 0 4px">2. ตรวจสอบและกดยืนยันคู่บาร์เดี่ยว / บาร์แพ็ค</h3>
-        <div class="pair-summary-badges" id="bcPairSummaryText"></div>
+        <h3 id="bcPairReviewTitle" style="margin:0 0 4px">2. ตรวจสอบคู่บาร์เดี่ยว / บาร์แพ็ค</h3>
+        <div class="pair-summary-badges" id="bcPairSummaryText" role="status" aria-live="polite"></div>
       </div>
       <div class="pair-head-actions">
-        <button type="button" class="btn pair-export-btn" id="bcPairExportBtn">ส่งออกตารางตรวจสอบ (Excel)</button>
-        <button type="button" class="btn" id="bcPairConfirmSelectedBtn">ยืนยันคู่ที่เลือกเข้าสู่ระบบ</button>
+        <button type="button" class="btn ghost pair-export-btn" id="bcPairExportBtn">ส่งออก Excel</button>
+        <button type="button" class="btn" id="bcPairConfirmSelectedBtn">บันทึกคู่ที่เลือก</button>
       </div>
     </div>
 
     <div class="pair-toolbar">
       <div class="pair-toolbar-left">
-        <input type="search" id="bcPairSearch" placeholder="ค้นหาชื่อสินค้า, รหัสคู่ค้า, หรือเลขบาร์..."/>
+        <input type="search" id="bcPairSearch" aria-label="ค้นหาคู่บาร์" placeholder="ค้นหาชื่อสินค้า รหัสคู่ค้า หรือเลขบาร์"/>
         <select id="bcPairFilterMode" aria-label="กรองรายการจับคู่">
           <option value="all">แสดงทั้งหมด</option>
           <option value="new">เฉพาะรายการใหม่ (ยังไม่มีในระบบ)</option>
@@ -146,24 +149,28 @@
         </select>
       </div>
       <div class="pair-toolbar-right">
-        <button type="button" class="btn ghost small" id="bcPairSelectAllBtn">เลือกทั้งหมด</button>
-        <button type="button" class="btn ghost small" id="bcPairSelectNewBtn">เลือกเฉพาะรายการใหม่</button>
-        <button type="button" class="btn ghost small" id="bcPairSelectHighBtn">เลือกความคล้าย ≥ 70%</button>
-        <button type="button" class="btn ghost small" id="bcPairClearSelBtn">ล้างที่เลือก</button>
+        <details class="v16-more pair-bulk-menu">
+          <summary>เลือกหลายรายการ <span aria-hidden="true">▾</span></summary>
+          <div class="v16-more-panel">
+            <button type="button" class="btn ghost small" id="bcPairSelectAllBtn">เลือกทั้งหมด</button>
+            <button type="button" class="btn ghost small" id="bcPairSelectNewBtn">เลือกเฉพาะรายการใหม่</button>
+            <button type="button" class="btn ghost small" id="bcPairSelectHighBtn">เลือกความคล้าย ≥ 70%</button>
+            <button type="button" class="btn ghost small" id="bcPairClearSelBtn">ล้างที่เลือก</button>
+          </div>
+        </details>
       </div>
     </div>
 
-    <div class="tablewrap pair-tablewrap">
-      <table class="dt pair-dt">
+    <div class="tablewrap pair-tablewrap" role="region" aria-labelledby="bcPairReviewTitle" tabindex="0">
+      <table class="dt pair-dt" aria-labelledby="bcPairReviewTitle">
         <thead>
           <tr>
-            <th style="width:52px">เลือก</th>
-            <th style="width:124px">ความคล้าย / สถานะ</th>
-            <th style="min-width:320px">เปรียบเทียบข้อมูลจากไฟล์ (เดี่ยว ⇄ แพ็ค)</th>
-            <th style="width:52px">สลับ</th>
-            <th style="min-width:310px">ข้อมูลที่จะบันทึกเข้าระบบ</th>
-            <th style="width:240px">เลขบาร์ที่จะบันทึก (ตัด P แล้ว)</th>
-            <th style="width:132px">ยืนยัน / จัดการ</th>
+            <th scope="col" class="pair-col-select">เลือก</th>
+            <th scope="col" class="pair-col-source">รายการจากไฟล์</th>
+            <th scope="col" class="pair-col-status">ความคล้าย / สถานะ</th>
+            <th scope="col" class="pair-col-product">ข้อมูลสินค้า</th>
+            <th scope="col" class="pair-col-bars">บาร์ที่จะบันทึก</th>
+            <th scope="col" class="pair-col-actions">จัดการ</th>
           </tr>
         </thead>
         <tbody id="bcPairTbody"></tbody>
@@ -258,7 +265,7 @@
 </div>
 <div id="printArea"></div>
 <div id="toast" role="status"></div>
-<script src="assets/js/pages/barcode.js?v=pair-3"></script>
-<script src="assets/js/shared/a11y.js"></script>
+<script src="assets/js/pages/barcode.js?v=16.2"></script>
+<script src="assets/js/shared/a11y.js?v=16.2"></script>
 </body>
 </html>

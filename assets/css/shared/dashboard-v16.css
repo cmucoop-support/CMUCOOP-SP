@@ -1,3 +1,5 @@
+/* Links have no underline in any interaction state. Focus outlines remain visible. */
+body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data-dashboard] ins,body[data-dashboard] .link-button,body[data-dashboard] .text-button{text-decoration:none!important}
 /* Dashboard V16 · shared screen design. Report and print geometry is preserved. */
 @media screen {
   :root {
@@ -103,13 +105,6 @@
   .v16-page-intro p { margin:0; color:var(--v16-muted); font-size:13px }
   .v16-breadcrumb { font-size:11px; color:#91869e; margin-bottom:18px }
   .v16-date { color:var(--v16-purple-dark); background:#f0e9f9; padding:7px 12px; border-radius:8px; font-size:11px; width:fit-content }
-  .v16-welcome { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:24px; align-items:center;
-    padding:28px 30px; background:#ece3f8; border-radius:22px; overflow:hidden; position:relative; border:1px solid #e4d7f3 }
-  .v16-welcome h2 { font-size:28px!important; margin:8px 0!important; color:#4a306f }
-  .v16-welcome p { color:#78638f; font-size:13px; margin:0; line-height:1.8 }
-  .v16-welcome-art { width:158px; height:120px; position:relative; color:#b49acb; display:grid; place-items:center }
-  .v16-welcome-art svg { width:98px; height:98px; stroke-width:1 }
-  .v16-welcome-art::before { content:''; position:absolute; width:130px; height:130px; border:18px solid #dac8ed; border-radius:50%; opacity:.4 }
   .v16-portal-toolbar { display:flex; align-items:end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:5px 0 0 }
   .v16-portal-toolbar h3 { margin:0; font-size:18px }
   .v16-portal-toolbar p { margin:5px 0 0; font-size:12px; color:var(--v16-muted) }
@@ -242,9 +237,6 @@
       z-index:55; border-radius:16px; padding:13px 18px; min-height:50px; box-shadow:0 6px 20px #69409933; background:#7951b3; color:#fff; border:1px solid #7951b3; width:auto!important; flex:none }
     body[data-dashboard]:has(dialog[open],.overlay:not(.hidden),.modalwrap:not(.hidden)) .v16-primary-action { visibility:hidden }
     body[data-dashboard] :is(.workspace-intro h2,.intro h1,.v16-page-intro h2) { font-size:23px }
-    .v16-welcome { padding:23px; grid-template-columns:minmax(0,1fr); gap:0; border-radius:18px }
-    .v16-welcome-art { display:none }
-    .v16-welcome h2 { font-size:24px!important }
     .v16-portal-search { width:100%; flex:1 1 100% }
     .v16-filterbar { flex-wrap:nowrap; overflow-x:auto; padding-bottom:5px }
     .v16-filterbar button { white-space:nowrap; flex:none }
@@ -285,6 +277,6 @@
   @media(prefers-reduced-motion:reduce) { body[data-dashboard] *,body[data-dashboard] *::before,body[data-dashboard] *::after { scroll-behavior:auto!important; transition:none!important } }
 }
 @media print {
-  .v16-sidebar,.v16-mobilebar,.v16-nav-backdrop,.v16-menu-toggle,.v16-more,.v16-portal-toolbar,.v16-filterbar,.v16-welcome,.v16-date,.v16-breadcrumb { display:none!important }
+  .v16-sidebar,.v16-mobilebar,.v16-nav-backdrop,.v16-menu-toggle,.v16-more,.v16-portal-toolbar,.v16-filterbar,.v16-date,.v16-breadcrumb { display:none!important }
   body[data-dashboard] { padding-left:0!important; padding-bottom:0!important }
 }

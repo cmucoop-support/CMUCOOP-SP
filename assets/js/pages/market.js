@@ -533,10 +533,10 @@ function renderAll() {
   var m = curGroupMeta(F.g);
   var cyc = cycleStatus(m && m.ts);
   var nextDueTs = m && m.ts ? (m.ts + 15 * 86400000) : 0;
-  $('#info').innerHTML = (D.ver === 'prev' ? '<b style="color:#ffffff;text-decoration:underline">[ฉบับก่อนหน้า]</b> · ' : '') +
+  $('#info').innerHTML = (D.ver === 'prev' ? '<b style="color:#ffffff;text-decoration:none">[ฉบับก่อนหน้า]</b> · ' : '') +
     (D.br ? 'สาขา <b>' + esc(D.br) + '</b> · ' : '') + (m ? (F.g ? 'หมวด <b>' + esc(grpLabel(F.g)) + '</b>' : 'รวมทุกหมวด · อัปโหลดล่าสุด') + ' · อัปข้อมูลเข้าเมื่อ <b>' + esc(fmtTsTh(m.ts)) + '</b> โดย ' + esc(m.who || '–') +
       (m.file ? ' (' + esc(m.file) + ')' : '') : 'รวมทุกหมวด') +
-    (D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:underline">สิทธิ์: ดูอย่างเดียว</b>' : '');
+    (D.me && !D.me.edit ? ' · <b style="color:#ffffff;text-decoration:none">สิทธิ์: ดูอย่างเดียว</b>' : '');
 
   /* แท็บฉบับปัจจุบัน / ฉบับก่อนหน้า */
   var nCur = Object.keys(D.groups).filter(function (g) { return D.groups[g] && D.groups[g].cur; }).length;

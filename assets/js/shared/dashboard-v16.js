@@ -79,7 +79,7 @@
     function update(){details.hidden=!nodes.some(function(n){return !n.hidden&&!n.classList.contains('hidden');});} update();
     nodes.forEach(function(n){new MutationObserver(update).observe(n,{attributes:true,attributeFilter:['class','hidden']});});
   }
-  document.addEventListener('click',function(e){document.querySelectorAll('.v16-more[open]').forEach(function(d){if(!d.contains(e.target))d.open=false;});});
+  document.addEventListener('click',function(e){document.querySelectorAll('.v16-more[open]').forEach(function(d){if(!d.contains(e.target)||e.target.closest('.v16-more-panel button,.v16-more-panel a'))d.open=false;});});
   var homes=['bHome','btnHome','muHome','sHome','stHome'];homes.forEach(function(id){var el=document.getElementById(id);if(el)el.classList.add('v16-home-control');});
   document.querySelectorAll('.topbar a[href="index.html"]:not(.brand)').forEach(function(el){el.classList.add('v16-home-control');});
   moreMenu(header && (header.querySelector('.acts')||header.querySelector('.account')||header.querySelector('nav')||header),
@@ -135,9 +135,7 @@
     var intro=document.createElement('div');intro.className='v16-page-intro';var title=page==='settings'?'ตั้งค่าพื้นที่ทำงาน':'สื่อสารกับทีมและหน้าร้าน';var copy=page==='settings'?'จัดการเมนู ผู้ใช้งาน เสียงประกาศ และจอประชาสัมพันธ์ในที่เดียว':'เลือกประเภทการประกาศ แล้วส่งสัญญาณไปยังหน้าจอ TV';intro.innerHTML='<div class="workspace-eyebrow">CMUCOOP WORKSPACE</div><h2>'+title+'</h2><p>'+copy+'</p>';$('.pwrap').prepend(intro);
   }
   if(page==='index'){
-    var wrap=$('#portal .pwrap'),welcome=document.createElement('section');welcome.className='v16-welcome';welcome.setAttribute('aria-label','ยินดีต้อนรับ');
-    welcome.innerHTML='<div><span class="workspace-eyebrow">YOUR DAILY WORKSPACE</span><h2>ทุกงาน พร้อมในที่เดียว</h2><p>พื้นที่ทำงานของ CMUCOOP<br>จัดการสินค้า ดูแลหน้าร้าน และทำงานร่วมกันอย่างเป็นระบบ</p></div><div class="v16-welcome-art" aria-hidden="true">'+icon('home')+'</div>';
-    wrap.prepend(welcome);var tools=document.createElement('div');tools.className='v16-portal-toolbar';tools.innerHTML='<div><h3>ระบบงานของคุณ</h3><p>เลือกเครื่องมือที่ต้องการเริ่มทำงาน</p></div><input class="v16-portal-search" id="v16PortalSearch" type="search" aria-label="ค้นหาระบบงาน" placeholder="ค้นหาระบบงาน…">';welcome.after(tools);
+    var wrap=$('#portal .pwrap'),tools=document.createElement('div');tools.className='v16-portal-toolbar';tools.innerHTML='<div><h3>ระบบงานของคุณ</h3><p>เลือกเครื่องมือที่ต้องการเริ่มทำงาน</p></div><input class="v16-portal-search" id="v16PortalSearch" type="search" aria-label="ค้นหาระบบงาน" placeholder="ค้นหาระบบงาน…">';wrap.prepend(tools);
     var filters=document.createElement('div');filters.className='v16-filterbar';filters.setAttribute('role','group');filters.setAttribute('aria-label','หมวดระบบงาน');
     [['all','ทั้งหมด'],['products','สินค้าและสินทรัพย์'],['media','สื่อและการสื่อสาร'],['admin','การจัดการ'],['links','ลิงก์อื่น ๆ']].forEach(function(pair){var b=document.createElement('button');b.type='button';b.dataset.v16Filter=pair[0];b.setAttribute('aria-pressed',String(pair[0]==='all'));b.textContent=pair[1];filters.append(b);});tools.after(filters);
     var noResults=document.createElement('p');noResults.className='v16-no-results';noResults.setAttribute('role','status');noResults.hidden=true;noResults.textContent='ไม่พบระบบงานที่ตรงกับคำค้นหรือหมวดที่เลือก';$('#portal .menu').after(noResults);

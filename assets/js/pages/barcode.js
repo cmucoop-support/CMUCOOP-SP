@@ -1781,6 +1781,46 @@ function readWorkbookSheetsFromFile(file, roleHint) {
   });
 }
 
+function pairReviewSource(kind, name, barcode, price, qty) {
+  return '<div class="pair-source">' +
+    '<div class="pair-source-head"><span class="pair-source-kind">' + kind + '</span><span class="pair-source-name">' + esc(name || '–') + '</span></div>' +
+    '<div class="pair-source-meta"><code>' + esc(barcode || '–') + '</code>' +
+      (price !== null ? '<span>ราคา ฿' + esc(fmtOptNum(price)) + '</span>' : '') +
+      '<span>คงเหลือ ' + esc(fmtOptNum(qty)) + '</span></div></div>';
+}
+
+function pairReviewRow(p, idx) {
+  var uCode = cleanBarcodeStr(p.unitBar), pCode = cleanBarcodeStr(p.packBar);
+  var uQty = resolvePairQty(uCode, p.unitQty), pQty = resolvePairQty(pCode, p.packQty);
+  var uPrice = resolvePairPrice(uCode, p.unitPrice), pPrice = resolvePairPrice(pCode, p.packPrice);
+  var dup = p.dupInfo && p.dupInfo.isDup ? p.dupInfo : null;
+  var disabled = p.saved ? ' disabled' : '';
+  var matchNote = p.similarity >= 80 ? 'ตรงกันมาก' : p.similarity >= 65 ? 'คล้ายกัน' : 'ควรตรวจสอบ';
+  var state = p.saved ? 'บันทึกแล้ว' : dup ? 'มีในระบบ' : 'รายการใหม่';
+  var duplicate = dup ? '<details class="pair-existing"><summary>ยืนยันแล้วจะบันทึกทับ: ' + esc(dup.existingName) + '</summary>' +
+    '<div>หมวด ' + esc(dup.existingCat || '–') + '<br>บาร์เดี่ยวเดิม <code>' + esc(dup.existingUnitBar || '–') + '</code>' +
+    '<br>บาร์แพ็คเดิม <code>' + esc(dup.existingPackBar || '–') + '</code></div></details>' : '';
+  return '<tr data-pair-id="' + esc(p.id) + '" class="' + (p.saved ? 'pair-saved' : dup ? 'pair-dup' : '') + '">' +
+    '<td class="pair-select-cell"><input type="checkbox" class="pair-sel-chk" data-pair-act="check"' +
+      (p.selected ? ' checked' : '') + disabled + ' aria-label="เลือกคู่ ' + esc(p.name) + '"><span class="pair-row-no">' + (idx + 1) + '</span></td>' +
+    '<td><div class="pair-sources">' +
+      pairReviewSource('เดี่ยว', p.unitSourceName, uCode, uPrice, uQty) +
+      pairReviewSource('แพ็ค', p.packSourceName, pCode, pPrice, pQty) + duplicate + '</div></td>' +
+    '<td class="pair-status-cell"><span class="pair-sim-value">' + esc(p.similarity) + '%</span><small class="pair-match-note">' + matchNote + '</small>' +
+      '<span class="pair-state ' + (p.saved ? 'saved' : dup ? 'dup' : 'new') + '">' + state + '</span></td>' +
+    '<td><div class="pair-edit-stack"><label class="pair-mini-lbl">ชื่อสินค้า<input type="text" data-pair-field="name" value="' + esc(p.name) + '"' + disabled + '></label>' +
+      '<div class="pair-sub-grid"><label class="pair-mini-lbl">รหัสคู่ค้า<input type="text" data-pair-field="partner" value="' + esc(p.partner) + '"' + disabled + '></label>' +
+        '<label class="pair-mini-lbl">หมวดสินค้า<input type="text" data-pair-field="cat" list="dlCats" value="' + esc(p.cat) + '"' + disabled + '></label>' +
+        '<label class="pair-mini-lbl">จำนวนต่อแพ็ค<input type="text" data-pair-field="perPack" value="' + esc(p.perPack) + '"' + disabled + ' placeholder="เว้นว่างได้"></label></div></div></td>' +
+    '<td><div class="pair-bars-stack"><label class="pair-bar-field"><span>เดี่ยว</span><input type="text" class="code-inp" data-pair-field="unitBar" value="' + esc(uCode) + '"' + disabled + ' placeholder="เลขบาร์เดี่ยว"></label>' +
+      '<label class="pair-bar-field"><span>แพ็ค</span><input type="text" class="code-inp" data-pair-field="packBar" value="' + esc(pCode) + '"' + disabled + ' placeholder="เลขบาร์แพ็ค"></label>' +
+      '<button type="button" class="pair-swap" data-pair-act="swap"' + disabled + ' aria-label="สลับบาร์เดี่ยวกับบาร์แพ็คของ ' + esc(p.name) + '">สลับเดี่ยว / แพ็ค</button></div></td>' +
+    '<td class="act"><div class="pair-act-stack">' + (p.saved ? '<span class="pair-save-note">—</span>' :
+      '<button type="button" class="btn ghost small' + (dup ? ' pair-overwrite' : '') + '" data-pair-act="confirm-one">' + (dup ? 'บันทึกทับ' : 'บันทึก') + '</button>' +
+      '<button type="button" class="pair-remove" data-pair-act="remove">ตัดออก</button>') + '</div></td></tr>';
+}
+
+
 function renderPairTable() {
   var card = $("#bcPairResultCard"), manualCard = $("#bcPairManualCard");
   if (!card) return;
@@ -1816,93 +1856,17 @@ function renderPairTable() {
   });
 
   $("#bcPairSummaryText").innerHTML =
-    "<span class=\"pair-stat-chip\">ทั้งหมด <b>" + pairs.length + "</b> คู่</span>" +
-    "<span class=\"pair-stat-chip new\">รายการใหม่ <b>" + newPairs.length + "</b> คู่</span>" +
-    "<span class=\"pair-stat-chip dup\">มีในระบบแล้ว (ซ้ำ) <b>" + dupPairs.length + "</b> คู่</span>" +
-    "<span class=\"pair-stat-chip sel\">เลือกเตรียมยืนยัน <b>" + selectedPairs.length + "</b> คู่" + (selectedDupCount ? " (บันทึกทับ " + selectedDupCount + ")" : "") + "</span>" +
-    (savedCount ? "<span class=\"pair-stat-chip saved\">บันทึกแล้ว <b>" + savedCount + "</b> คู่</span>" : "");
-
+    '<span class="pair-stat-chip">ทั้งหมด <b>' + pairs.length + '</b> คู่</span>' +
+    '<span class="pair-stat-chip">ใหม่ <b>' + newPairs.length + '</b></span>' +
+    '<span class="pair-stat-chip">มีในระบบ <b>' + dupPairs.length + '</b></span>' +
+    '<span class="pair-stat-chip sel">เลือก <b>' + selectedPairs.length + '</b> คู่' + (selectedDupCount ? ' · บันทึกทับ ' + selectedDupCount : '') + '</span>' +
+    (savedCount ? '<span class="pair-stat-chip">บันทึกแล้ว <b>' + savedCount + '</b></span>' : '');
   var confirmBtn = $("#bcPairConfirmSelectedBtn");
   if (confirmBtn) {
     confirmBtn.disabled = selectedPairs.length === 0;
-    confirmBtn.textContent = "ยืนยันคู่ที่เลือกเข้าสู่ระบบ (" + selectedPairs.length + " คู่" + (selectedDupCount ? " · ทับ " + selectedDupCount : "") + ")";
+    confirmBtn.textContent = 'บันทึก ' + selectedPairs.length + ' คู่ที่เลือก' + (selectedDupCount ? ' (ทับ ' + selectedDupCount + ')' : '');
   }
-
-  $("#bcPairTbody").innerHTML = visible.length ? visible.map(function (p, idx) {
-    var simCls = p.similarity >= 80 ? "high" : p.similarity >= 65 ? "med" : "low";
-    var simLabel = p.similarity >= 80 ? "ตรงกันมาก" : p.similarity >= 65 ? "คล้ายกัน" : "ตรวจสอบ";
-    var uCode = cleanBarcodeStr(p.unitBar);
-    var pCode = cleanBarcodeStr(p.packBar);
-    var uQty = resolvePairQty(uCode, p.unitQty);
-    var pQty = resolvePairQty(pCode, p.packQty);
-    var uPrice = resolvePairPrice(uCode, p.unitPrice);
-    var pPrice = resolvePairPrice(pCode, p.packPrice);
-    var dup = p.dupInfo;
-
-    var sysBadge = p.saved
-      ? "<span class=\"pair-sys-badge saved\">✓ บันทึกแล้ว</span>"
-      : (dup
-        ? "<span class=\"pair-sys-badge dup\">⚠️ มีในระบบแล้ว</span>"
-        : "<span class=\"pair-sys-badge new\">รายการใหม่</span>");
-
-    var dupBanner = dup
-      ? "<div class=\"pair-dup-alert\">⚠️ <b>มีในระบบแล้ว:</b> \"" + esc(dup.existingName) + "\" (หมวด <b>" + esc(dup.existingCat) + "</b> · เดี่ยวเดิม: <code>" + esc(dup.existingUnitBar) + "</code> / แพ็คเดิม: <code>" + esc(dup.existingPackBar) + "</code>) — <i>หากกดยืนยันจะบันทึกทับรายการนี้</i></div>"
-      : "";
-
-    return "<tr data-pair-id=\"" + esc(p.id) + "\" class=\"" + (p.saved ? "pair-saved" : (dup ? "pair-dup" : "")) + "\">" +
-      "<td style=\"text-align:center\">" +
-        "<input type=\"checkbox\" class=\"pair-sel-chk\" data-pair-act=\"check\"" + (p.selected ? " checked" : "") + (p.saved ? " disabled" : "") + " aria-label=\"เลือกคู่ " + esc(p.name) + "\">" +
-        "<span class=\"pair-row-no\">#" + (idx + 1) + "</span>" +
-      "</td>" +
-      "<td style=\"text-align:center\"><div class=\"pair-status-stack\">" +
-        "<span class=\"pair-sim-badge " + simCls + "\">" + p.similarity + "%<small>" + simLabel + "</small></span>" +
-        sysBadge +
-      "</div></td>" +
-      "<td><div class=\"pair-compare\">" +
-        "<div class=\"pair-compare-card\">" +
-          "<div class=\"pair-compare-head\"><span class=\"pair-compare-tag unit\">บาร์เดี่ยว</span><span class=\"pair-src-name\">" + esc(p.unitSourceName) + "</span></div>" +
-          "<div class=\"pair-src-meta\"><span>เลขบาร์: <code>" + esc(uCode || "–") + "</code></span>" +
-            (uPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(uPrice)) + "</span>" : "") +
-            "<span class=\"pair-pill qty" + (uQty === null || uQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(uQty)) + "</span>" +
-          "</div>" +
-        "</div>" +
-        "<div class=\"pair-compare-card\">" +
-          "<div class=\"pair-compare-head\"><span class=\"pair-compare-tag pack\">บาร์แพ็ค</span><span class=\"pair-src-name\">" + esc(p.packSourceName) + "</span></div>" +
-          "<div class=\"pair-src-meta\"><span>เลขบาร์: <code>" + esc(pCode || "–") + "</code></span>" +
-            (pPrice !== null ? "<span class=\"pair-pill price\">ราคา ฿" + esc(fmtOptNum(pPrice)) + "</span>" : "") +
-            "<span class=\"pair-pill qty" + (pQty === null || pQty <= 0 ? " zero" : "") + "\">คงเหลือ " + esc(fmtOptNum(pQty)) + "</span>" +
-          "</div>" +
-        "</div>" +
-        dupBanner +
-      "</div></td>" +
-      "<td style=\"text-align:center;vertical-align:middle\"><button type=\"button\" class=\"btn ghost small\" data-pair-act=\"swap\"" + (p.saved ? " disabled" : "") + " title=\"สลับฝั่งบาร์เดี่ยวกับบาร์แพ็ค\">⇄</button></td>" +
-      "<td><div class=\"pair-edit-stack\">" +
-        "<label class=\"pair-mini-lbl\">ชื่อรายการที่จะบันทึก<input type=\"text\" data-pair-field=\"name\" value=\"" + esc(p.name) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"ชื่อรายการ\"></label>" +
-        "<div class=\"pair-sub-grid\">" +
-          "<label class=\"pair-mini-lbl\">รหัสคู่ค้า (Vender)<input type=\"text\" data-pair-field=\"partner\" value=\"" + esc(p.partner) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"รหัสคู่ค้า\"></label>" +
-          "<label class=\"pair-mini-lbl\">หมวดสินค้า<input type=\"text\" data-pair-field=\"cat\" list=\"dlCats\" value=\"" + esc(p.cat) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"หมวด\"></label>" +
-          "<label class=\"pair-mini-lbl\">ต่อแพ็ค<input type=\"text\" data-pair-field=\"perPack\" value=\"" + esc(p.perPack) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เว้นว่าง\"></label>" +
-        "</div>" +
-      "</div></td>" +
-      "<td><div class=\"pair-bars-stack\">" +
-        "<div class=\"pair-bar-row\">" +
-          "<div class=\"pair-bar-InputLine\"><span class=\"pair-bar-lbl unit\">เดี่ยว</span><input type=\"text\" class=\"code-inp\" data-pair-field=\"unitBar\" value=\"" + esc(uCode) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์เดี่ยว\"></div>" +
-          "<div class=\"pair-bar-meta\"><span>ราคา: <b>" + (uPrice !== null ? "฿" + esc(fmtOptNum(uPrice)) : "–") + "</b></span><span>คงเหลือ: <b>" + esc(fmtOptNum(uQty)) + "</b></span></div>" +
-        "</div>" +
-        "<div class=\"pair-bar-row\">" +
-          "<div class=\"pair-bar-InputLine\"><span class=\"pair-bar-lbl pack\">แพ็ค</span><input type=\"text\" class=\"code-inp\" data-pair-field=\"packBar\" value=\"" + esc(pCode) + "\"" + (p.saved ? " disabled" : "") + " placeholder=\"เลขบาร์แพ็ค\"></div>" +
-          "<div class=\"pair-bar-meta\"><span>ราคา: <b>" + (pPrice !== null ? "฿" + esc(fmtOptNum(pPrice)) : "–") + "</b></span><span>คงเหลือ: <b>" + esc(fmtOptNum(pQty)) + "</b></span></div>" +
-        "</div>" +
-      "</div></td>" +
-      "<td class=\"act\"><div class=\"pair-act-stack\">" +
-        (p.saved
-          ? "<span class=\"pair-sys-badge saved\">บันทึกแล้ว ✓</span>"
-          : (dup
-            ? "<button type=\"button\" class=\"btn warn-btn small\" data-pair-act=\"confirm-one\">บันทึกทับคู่นี้</button><button type=\"button\" class=\"btn danger small\" data-pair-act=\"remove\">ตัดออก</button>"
-            : "<button type=\"button\" class=\"btn small\" data-pair-act=\"confirm-one\">ยืนยันคู่นี้</button><button type=\"button\" class=\"btn danger small\" data-pair-act=\"remove\">ตัดออก</button>")) +
-      "</div></td>" +
-    "</tr>";
-  }).join("") : "<tr><td colspan=\"7\" class=\"empty\">ไม่พบคู่รายการตามตัวกรองหรือคำค้นหา</td></tr>";
+  $("#bcPairTbody").innerHTML = visible.length ? visible.map(pairReviewRow).join('') : '<tr><td colspan="6" class="empty">ไม่พบคู่รายการตามตัวกรองหรือคำค้นหา</td></tr>';
 
   if (manualCard) {
     var uList = PAIR_STATE.unmatchedUnits || [];
