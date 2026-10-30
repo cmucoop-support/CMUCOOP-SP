@@ -10,7 +10,8 @@
     "verify": "npm run check && npm run audit && npm test",
     "migrations": "node worker/scripts/migration.mjs",
     "test:browser": "node worker/tests/browser.e2e.mjs",
-    "test:market:browser": "node worker/tests/market.browser.e2e.mjs"
+    "test:market:browser": "node worker/tests/market.browser.e2e.mjs",
+    "test:barcode:browser": "node worker/tests/barcode.browser.e2e.mjs"
   },
   "engines": {
     "node": ">=24"
