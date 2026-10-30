@@ -79,3 +79,31 @@ test('barcode table renders only one page of 20,000 records and searches every r
   vm.runInContext('renderTable()', context);
   assert.equal(rendered, 1); assert.match(elements['#tbody'].innerHTML, /19999/);
 });
+
+test("barcode pairing does not auto-fill category unless explicitly chosen before upload", async () => {
+  const js = await readFile(new URL("../../assets/js/pages/barcode.js", import.meta.url), "utf8");
+  const start = js.indexOf("var PAIR_STORAGE_KEY =");
+  const end = js.indexOf("function renderDraftBar()", start);
+  const context = vm.createContext({
+    window: {}, Set, Map, Math, Number, String, Boolean, Array, Object, RegExp, Date, JSON,
+    $: () => null
+  });
+  vm.runInContext(js.slice(start, end), context);
+  const sampleSheets = [{
+    name: "ขนมขบเคี้ยว",
+    grid: [
+      ["รหัสคู่ค้า", "หมวด", "ชื่อสินค้า", "เลขบาร์โค้ด", "ราคาขาย", "คงเหลือ"],
+      ["1021", "ขนม", "สาหร่ายเถ้าแก่น้อย 32 กรัม", "8858702499001", 39, 24],
+      ["1021", "ขนม", "สาหร่ายเถ้าแก่น้อย 32 กรัม แพ็ค 6", "P8858702499002", 210, 5]
+    ]
+  }];
+  const withoutCat = context.matchBarcodePairsFromSheets(sampleSheets, { minSim: 50, defaultCat: "", existingRows: [], pairWithDb: true, stockMap: {} });
+  assert.equal(withoutCat.pairs.length, 1);
+  assert.equal(withoutCat.pairs[0].cat, "");
+  assert.equal(withoutCat.pairs[0].unitBar, "8858702499001");
+  assert.equal(withoutCat.pairs[0].packBar, "8858702499002");
+
+  const withCat = context.matchBarcodePairsFromSheets(sampleSheets, { minSim: 50, defaultCat: "ขนม", existingRows: [], pairWithDb: true, stockMap: {} });
+  assert.equal(withCat.pairs.length, 1);
+  assert.equal(withCat.pairs[0].cat, "ขนม");
+});
