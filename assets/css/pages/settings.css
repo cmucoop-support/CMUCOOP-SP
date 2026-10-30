@@ -23,9 +23,9 @@ button{cursor:pointer}
 /* ---------- เลย์เอาต์ ---------- */
 .layout{display:grid;grid-template-columns:300px 1fr;gap:16px;padding:16px 18px;align-items:start}
 @media (max-width:860px){.layout{grid-template-columns:1fr}}
-aside,.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
-aside{padding:12px;max-height:calc(100vh - 100px);overflow:auto;position:sticky;top:70px}
-@media (max-width:860px){aside{position:static;max-height:none}}
+aside:not(.v16-sidebar),.card{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+aside:not(.v16-sidebar){padding:12px;max-height:calc(100vh - 100px);overflow:auto;position:sticky;top:70px}
+@media (max-width:860px){aside:not(.v16-sidebar){position:static;max-height:none}}
 .gh{margin:12px 0 6px;font-weight:700}
 .gh:first-child{margin-top:0}
 .gh small{display:block;font-weight:400;color:var(--steel);font-size:12.5px}

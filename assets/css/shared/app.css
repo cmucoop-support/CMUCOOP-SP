@@ -14,11 +14,11 @@
   .top .btn.onDark,.top .btn.ghost,.phead .btn.ghost{color:#fff;background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.4)}
   .top .btn.exportMain,.top .btn:not(.onDark):not(.ghost){background:#fff;border-color:#fff;color:var(--accent-text);box-shadow:none}
   .top select{background:#fff;color:var(--ink);border-color:#d9c8ff;min-height:36px;font-size:13px}
-  .wrap{max-width:1600px;padding:22px 24px 48px;gap:18px}
-  .layout{max-width:1600px;margin:auto;padding:22px 24px;gap:18px}
+  .wrap{max-width:none;width:100%;padding:20px 16px 40px;gap:18px}
+  .layout{max-width:none;width:100%;margin:0;padding:20px 16px;gap:18px}
   .layout main{min-width:0;grid-template-columns:minmax(0,1fr)}
   .layout main>section{min-width:0;grid-template-columns:minmax(0,1fr)}
-  .card,.kpi,aside,.mcard,.logincard,.bitem{border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  .card,.kpi,aside:not(.v16-sidebar),.mcard,.logincard,.bitem{border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
   .card{padding:18px 20px;min-width:0}
   .card h3{font-size:16px;line-height:1.5}
   .cardhead{margin-bottom:14px;gap:12px}

@@ -1,5 +1,5 @@
 /* TV settings: controls and a preview rendered by tv.html itself. */
-#settingsPage .pwrap.tv-editor-open{max-width:1560px}
+#settingsPage .pwrap.tv-editor-open{max-width:none;width:100%}
 .tv-designer{display:grid;gap:18px;min-width:0}
 .tv-editor-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
 .tv-editor-heading h2{margin:0;font-size:25px;letter-spacing:-.02em}

@@ -45,8 +45,10 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   body[data-dashboard] :is(input,select,textarea):focus { border-color:#a487ce; box-shadow:0 0 0 3px #bca5e32b }
   body[data-dashboard] input[type=checkbox], body[data-dashboard] input[type=radio] { accent-color:var(--v16-purple) }
   body[data-dashboard] :is(.muted,.helper,.hint,.footnote) { color:var(--v16-muted) }
-  .v16-sidebar { position:fixed; inset:0 auto 0 0; width:var(--v16-sidebar); z-index:70;
-    display:flex; flex-direction:column; background:#fff; border-right:1px solid var(--v16-border); padding:22px 18px 18px;
+  .v16-sidebar { position:fixed; inset:0 auto 0 0; top:0; bottom:0; left:0; right:auto;
+    width:var(--v16-sidebar); height:100vh; height:100dvh; max-height:none; margin:0;
+    border:0; border-right:1px solid var(--v16-border); border-radius:0; box-shadow:none; z-index:70;
+    display:flex; flex-direction:column; background:#fff; padding:22px 18px 18px;
     transition:transform .22s ease;
   }
   .v16-brand { display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--v16-ink); padding:0 42px 22px 8px }
@@ -88,11 +90,11 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   body[data-dashboard] .topbar .brand strong { font-size:15px }
   body[data-dashboard] .topbar .brand small { color:var(--v16-muted) }
   body[data-dashboard] .topbar :is(.account,nav) { display:flex; align-items:center; gap:10px; flex-wrap:wrap }
-  body[data-dashboard] :where(.pwrap,#app.wrap,.layout,main:not(.layout main)):not(.center) {
-    max-width:1600px; width:100%; margin-left:auto; margin-right:auto;
+  body[data-dashboard]:not([data-dashboard=tv]):not([data-dashboard=receiver]):not([data-dashboard=banner]) :is(.pwrap,#portal .pwrap,#settingsPage .pwrap,#settingsPage .pwrap.tv-editor-open,#assetsPage .pwrap,#musicPage .pwrap,#app.wrap,.wrap,.layout,.layout.single,main:not(.layout main)):not(.center) {
+    max-width:none; width:100%; margin-left:0; margin-right:0;
   }
-  body[data-dashboard] :is(.pwrap,#app.wrap) { padding:30px 32px 48px; gap:24px }
-  body[data-dashboard] > main { padding:30px 32px 48px }
+  body[data-dashboard] :is(.pwrap,#portal .pwrap,#settingsPage .pwrap,#assetsPage .pwrap,#musicPage .pwrap,#app.wrap) { padding:20px 16px 40px; gap:20px }
+  body[data-dashboard]:not([data-dashboard=tv]):not([data-dashboard=receiver]):not([data-dashboard=banner]) > main { padding:20px 16px 40px }
   body[data-dashboard] #main.wrap { padding:0; max-width:none; margin:0 }
   body[data-dashboard] .v16-home-control { display:none!important }
   .v16-menu-toggle { display:grid; place-items:center; border:1px solid #dfd3ec; background:#fff; border-radius:11px; color:var(--v16-purple-dark); width:42px; height:42px; cursor:pointer; box-shadow:0 3px 12px #50316e14; transition:left .22s ease, opacity .18s ease, background .16s ease }
@@ -121,7 +123,7 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   .v16-filterbar { display:flex; flex-wrap:wrap; gap:7px; margin-top:3px }
   .v16-filterbar button { font:inherit; font-size:12px; background:#fff; border:1px solid var(--v16-border); color:#786a87; padding:8px 15px; border-radius:9px; min-height:38px; cursor:pointer }
   .v16-filterbar button[aria-pressed=true] { background:var(--v16-lilac); border-color:#ddcdef; color:var(--v16-purple-dark); font-weight:700 }
-  body[data-dashboard=index] #portal .pwrap { display:grid; max-width:1500px; gap:20px }
+  body[data-dashboard=index] #portal .pwrap { display:grid; max-width:none; width:100%; gap:20px }
   body[data-dashboard=index] #portal .cardrow { display:none; padding:0; border:0; margin:0 }
   body[data-dashboard=index] #portal .cardrow h2 { display:none }
   body[data-dashboard=index] #portal .menu { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,var(--card-w,240px)),1fr)); gap:18px; align-items:stretch; width:100%; margin:0 }
@@ -152,7 +154,7 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   body[data-dashboard] tbody tr:nth-child(even) td { background-color:#fdfbff }
   body[data-dashboard] tbody tr:hover td { background-color:#f7f3fc }
   body[data-dashboard] :is(.pager,.pagination) { padding-top:14px; gap:9px }
-  body[data-dashboard] .layout { display:grid; grid-template-columns:minmax(0,1fr); gap:22px; padding:30px 32px 48px }
+  body[data-dashboard] .layout { display:grid; grid-template-columns:minmax(0,1fr); gap:20px; padding:20px 16px 40px; max-width:none; width:100%; margin:0 }
   body[data-dashboard] .layout.single { grid-template-columns:minmax(0,1fr) }
   body[data-dashboard] .barcode-rail { background:#fff; border:1px solid var(--v16-border); border-radius:17px; padding:18px; top:20px; max-height:calc(100vh - 40px) }
   body[data-dashboard] .barcode-rail .cat { border-radius:9px; background:#faf8fd; padding:10px }
@@ -201,16 +203,16 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   body[data-dashboard=tv] { --bg:inherit; --tv-fg:inherit; --btn-bg:inherit; --btn-hover:inherit; --btn-border:inherit; --tv-shadow:inherit;
     padding:max(var(--pad-top),env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom)); background:var(--bg); color:var(--tv-fg) }
   body[data-dashboard=tv] > main.wrap { padding:0; max-width:var(--w); display:flex }
-  body[data-dashboard=tv] .head { padding:24px; border-radius:22px; background:#ffffff99; border:1px solid #ffffff9c }
+  body[data-dashboard=tv] .head { padding:0; border-radius:0; background:transparent; border:0; box-shadow:none }
   body[data-dashboard=tv] .txt { text-shadow:var(--tv-shadow,none) }
   body[data-dashboard=tv] .logo { box-shadow:none }
-  body[data-dashboard=tv] .caption { border-radius:14px; background:#ffffff70; padding:10px 0; text-shadow:var(--tv-shadow,none) }
+  body[data-dashboard=tv] .caption { border-radius:0; background:transparent; border:0; box-shadow:none; padding:0; text-shadow:var(--tv-shadow,none) }
   body[data-dashboard=tv] .foot button { border-radius:10px; min-height:38px; font-size:12px }
-  @media(min-width:1500px) { :root { --v16-sidebar:254px } body[data-dashboard] :is(.pwrap,#app.wrap) { padding:36px 42px 56px } }
+  @media(min-width:1500px) { :root { --v16-sidebar:254px } body[data-dashboard] :is(.pwrap,#portal .pwrap,#settingsPage .pwrap,#assetsPage .pwrap,#musicPage .pwrap,#app.wrap,.layout) { padding:22px 18px 44px } body[data-dashboard]:not([data-dashboard=tv]):not([data-dashboard=receiver]):not([data-dashboard=banner]) > main { padding:22px 18px 44px } }
   @media(max-width:1200px) {
     :root { --v16-sidebar:218px }
     .v16-sidebar { padding-left:12px; padding-right:12px }
-    body[data-dashboard] :is(.pwrap,#app.wrap,.layout) { padding:24px; gap:20px }
+    body[data-dashboard] :is(.pwrap,#portal .pwrap,#settingsPage .pwrap,#assetsPage .pwrap,#musicPage .pwrap,#app.wrap,.layout) { padding:18px 14px 32px; gap:18px }
     body[data-dashboard] .layout { grid-template-columns:minmax(0,1fr) }
     body[data-dashboard] .kpis { grid-template-columns:repeat(3,minmax(0,1fr)) }
     body[data-dashboard=music] .music-board { grid-template-columns:minmax(0,1fr) 280px }
@@ -225,12 +227,12 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
     .v16-nav-open .v16-nav-backdrop { display:block; position:fixed; inset:0; background:#2e1b4659; z-index:125; border:0; width:100%; height:100%; cursor:pointer }
     body.v16-nav-open { overflow:hidden }
     body[data-dashboard] .layout { grid-template-columns:minmax(0,1fr) }
-    body[data-dashboard] > main { padding:24px }
+    body[data-dashboard]:not([data-dashboard=tv]):not([data-dashboard=receiver]):not([data-dashboard=banner]) > main { padding:18px 14px 32px }
   }
   @media(max-width:640px) {
     body[data-dashboard].v16-authenticated { padding-bottom:calc(82px + env(safe-area-inset-bottom)) }
-    body[data-dashboard] :is(.pwrap,#app.wrap,.layout) { padding:22px 16px 32px; gap:18px }
-    body[data-dashboard] > main { padding:22px 16px 32px }
+    body[data-dashboard] :is(.pwrap,#portal .pwrap,#settingsPage .pwrap,#assetsPage .pwrap,#musicPage .pwrap,#app.wrap,.layout) { padding:16px 12px 28px; gap:16px }
+    body[data-dashboard]:not([data-dashboard=tv]):not([data-dashboard=receiver]):not([data-dashboard=banner]) > main { padding:16px 12px 28px }
     body[data-dashboard] :is(.top,.phead,.topbar) { padding:13px 16px; gap:9px; min-height:70px }
     body[data-dashboard] :is(.top h1,.phead h1) { font-size:14px; flex:1; min-width:120px }
     body[data-dashboard] :is(.top .me,.phead .me,.topbar #me) { display:none }
@@ -280,7 +282,7 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
     body[data-dashboard] #toast { bottom:calc(80px + env(safe-area-inset-bottom)) }
     body[data-dashboard=receiver] { padding:0 }
     body[data-dashboard=tv] { padding:12px }
-    body[data-dashboard=tv] .head { padding:18px 14px }
+    body[data-dashboard=tv] .head { padding:0 }
     body[data-dashboard=tv] .foot-acts { gap:6px }
   }
   @media(prefers-reduced-motion:reduce) { body[data-dashboard] *,body[data-dashboard] *::before,body[data-dashboard] *::after { scroll-behavior:auto!important; transition:none!important } }

@@ -1,7 +1,7 @@
 /* Shared workspace layout; printed reports keep their original layout. */
 @media screen {
 body[data-workspace]{--workspace-radius:16px;background:#f6f3fc}
-body[data-workspace] .pwrap,body[data-workspace] #app.wrap{max-width:1560px;padding:26px 28px 48px;gap:20px}
+body[data-workspace] .pwrap,body[data-workspace] #app.wrap{max-width:none;width:100%;padding:20px 16px 40px;gap:20px}
 body[data-workspace] #main{width:100%;max-width:none;margin:0}
 body[data-workspace] #main>section.card:first-child:not(.filters),body[data-workspace] .stock-ver-card{padding:12px 18px}
 body[data-workspace] .workspace-intro{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;min-width:0}
@@ -43,7 +43,7 @@ body[data-workspace] tbody tr:nth-child(even) td{background-color:#fcfaff}
 body[data-workspace] tbody tr:hover td{background-color:#f7f2ff}
 
 /* Music: playback first, a clear request form, searchable queue. */
-body[data-workspace=music] .pwrap{max-width:1440px}
+body[data-workspace=music] .pwrap{max-width:none;width:100%}
 .music-board{display:grid;grid-template-columns:minmax(0,1fr) 350px;grid-template-areas:"now request" "queue request" "admin request";gap:20px;align-items:start;min-width:0}
 #musicNowCard{grid-area:now;background:linear-gradient(145deg,#fff,#f7f1ff);border-color:#dcd0f0}
 #musicRequestCard{grid-area:request;position:sticky;top:88px;display:grid;gap:14px;border-top:3px solid var(--accent)}
@@ -89,7 +89,7 @@ body[data-workspace=music] .pwrap{max-width:1440px}
 .mu-empty{padding:48px 16px!important;font-size:14px}
 
 /* Barcode: compact top category toolbar, working table, separate management tools. */
-body[data-workspace=barcode] .layout,body[data-workspace=barcode] .layout.single{max-width:1600px;padding:26px 28px 48px;grid-template-columns:minmax(0,1fr);gap:24px}
+body[data-workspace=barcode] .layout,body[data-workspace=barcode] .layout.single{max-width:none;width:100%;padding:20px 16px 40px;grid-template-columns:minmax(0,1fr);gap:24px}
 body[data-workspace=barcode] main{gap:20px}
 body[data-workspace=barcode] .tabs{position:static;inset:auto;width:100%;border-radius:12px;box-shadow:none;border:1px solid var(--line);padding:6px;background:#eee8f9}
 body[data-workspace=barcode] .tab{flex:1;border-radius:8px;font-size:14px;margin:0;white-space:nowrap;padding:10px 12px}

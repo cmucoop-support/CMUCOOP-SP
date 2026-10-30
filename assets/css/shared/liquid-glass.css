@@ -74,7 +74,7 @@
   body.liquid-ui .topbar .brand small { color: var(--steel); opacity: 1; }
 
   /* The text-bearing layer stays bright enough for dense operational screens. */
-  body.liquid-ui .card, body.liquid-ui .kpi, body.liquid-ui aside,
+  body.liquid-ui .card, body.liquid-ui .kpi, body.liquid-ui aside:not(.v16-sidebar),
   body.liquid-ui .bitem, body.liquid-ui .workspace-stat,
   body.liquid-ui .panel, body.liquid-ui .stat,
   body.liquid-ui .musicbox, body.liquid-ui .tv-controls {
