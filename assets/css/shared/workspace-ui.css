@@ -88,26 +88,15 @@ body[data-workspace=music] .pwrap{max-width:1440px}
 #muCount{font-size:12px}
 .mu-empty{padding:48px 16px!important;font-size:14px}
 
-/* Barcode: category navigation, working table, separate management tools. */
-body[data-workspace=barcode] .layout{max-width:1600px;padding:26px 28px 48px;grid-template-columns:240px minmax(0,1fr);gap:24px}
-body[data-workspace=barcode] .layout.single{grid-template-columns:1fr}
+/* Barcode: compact top category toolbar, working table, separate management tools. */
+body[data-workspace=barcode] .layout,body[data-workspace=barcode] .layout.single{max-width:1600px;padding:26px 28px 48px;grid-template-columns:minmax(0,1fr);gap:24px}
 body[data-workspace=barcode] main{gap:20px}
 body[data-workspace=barcode] .tabs{position:static;inset:auto;width:100%;border-radius:12px;box-shadow:none;border:1px solid var(--line);padding:6px;background:#eee8f9}
 body[data-workspace=barcode] .tab{flex:1;border-radius:8px;font-size:14px;margin:0;white-space:nowrap;padding:10px 12px}
 body[data-workspace=barcode] .tab.on{background:#fff;color:var(--accent-text);box-shadow:0 1px 4px #2a1f4710}
-.barcode-rail{top:85px;padding:16px;border-radius:14px;display:grid;gap:14px;max-height:calc(100vh - 105px);border:1px solid var(--line);background:#fff}
-.workspace-rail-title h2{font-size:16px;margin:0 0 3px}
-.workspace-rail-title small{font-size:12px;color:var(--steel)}
-.barcode-rail input{width:100%;font-size:12px}
-.barcode-rail .cat{border-radius:9px;padding:10px;border-color:transparent;background:#faf8fd}
-.barcode-rail .cat.on{background:var(--accent-soft);border-color:#ccb6f1}
-.barcode-rail .cn{font-size:13px}
-.barcode-rail .cm{font-size:11px}
-.barcode-rail .gh small{font-size:10px;line-height:1.5}
-.barcode-rail #btnNewCat{margin-bottom:0!important;font-size:12px}
 body[data-workspace=barcode] #v-manage{display:grid;gap:20px}
 body[data-workspace=barcode] #dTitle{font-size:16px;margin:0}
-body[data-workspace=barcode] #dTitle:before{content:"หมวดที่เลือก";display:block;font-size:11px;color:var(--steel);font-weight:400;margin-bottom:4px}
+body[data-workspace=barcode] #dTitle:before{content:"หมวดที่เลือก";display:block;font-size:11px;color:var(--steel);font-weight:400;margin-bottom:2px}
 body[data-workspace=barcode] #v-data .row label{min-width:0}
 body[data-workspace=barcode] #q{min-width:0;max-width:320px}
 body[data-workspace=barcode] .tablewrap{max-height:65vh}
@@ -115,7 +104,6 @@ body[data-workspace=barcode] #v-data [data-col=qtyPack],body[data-workspace=barc
 body[data-workspace=barcode] #v-data [data-col=partner]{min-width:85px}
 body[data-workspace=barcode] #v-data [data-col=cat]{min-width:95px}
 body[data-workspace=barcode] #v-data [data-col=packBar],body[data-workspace=barcode] #v-data [data-col=unitBar]{min-width:138px}
-body[data-workspace=barcode] #v-data .card:first-child{background:transparent;border:0;box-shadow:none;padding:0}
 
 /* Market: only essential columns in the working view; full formulas remain available. */
 .market-savebar{position:sticky;bottom:14px;z-index:12;display:flex;align-items:center;justify-content:space-between;gap:16px;border:1px solid #cbb8ea;border-radius:12px;background:#fff;padding:14px 18px;box-shadow:0 4px 20px #2a1f4714}
@@ -141,7 +129,7 @@ body[data-workspace=market].market-focus .mt{min-width:1080px;table-layout:auto}
 @media(max-width:1150px){
 body[data-workspace] .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
 .music-board{grid-template-columns:minmax(0,1fr) 310px;gap:16px}
-body[data-workspace=barcode] .layout{grid-template-columns:200px minmax(0,1fr);gap:16px}
+body[data-workspace=barcode] .layout{grid-template-columns:minmax(0,1fr);gap:16px}
 #musicNowCard .mu-now{grid-template-columns:90px minmax(0,1fr);gap:14px}
 #musicNowCard .mu-art{width:90px}
 #musicNowCard .mu-title{font-size:18px}

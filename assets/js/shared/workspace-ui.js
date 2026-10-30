@@ -37,6 +37,17 @@
     var input=byId('bcCategorySearch');if(!input)return;
     var q=input.value.trim().toLowerCase(),hits=0;
     document.querySelectorAll('#catSide ul').forEach(function(group){var found=0;group.querySelectorAll('li').forEach(function(li){var match=li.textContent.toLowerCase().includes(q);li.hidden=!match;if(match){found++;hits++;}});group.hidden=!found;if(group.previousElementSibling&&group.previousElementSibling.classList.contains('gh'))group.previousElementSibling.hidden=!found;});
+    var sel=byId('bcCatSelect');
+    if(sel&&sel.options.length){
+      Array.from(sel.options).forEach(function(opt,idx){
+        if(idx===0){opt.hidden=false;return;}
+        var match=!q||opt.textContent.toLowerCase().includes(q);
+        opt.hidden=!match;
+        if(match&&hits===0)hits++;
+      });
+    }
+    var drawer=byId('bcCatDrawer');
+    if(drawer&&q)drawer.open=true;
     byId('bcNoCats').hidden=!q||!!hits;
   }
   window.WorkspaceUI={marketRows:marketRows,barcodeStats:barcodeStats,workTab:workTab};

@@ -2,7 +2,12 @@
 (function () {
   'use strict';
   var page = document.body.dataset.dashboard;
-  if (!page || ['tv','banner','receiver'].includes(page)) return;
+  if (!page) return;
+  var inIframe = false;
+  try { inIframe = window.self !== window.top; } catch (_) { inIframe = true; }
+  var isMediaPage = ['tv','banner','receiver'].includes(page);
+  if (inIframe && isMediaPage) return;
+
   var $ = function (s) { return document.querySelector(s); };
   var icons = {
     home:'<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
@@ -14,6 +19,9 @@
     sound:'<path d="m3 10 5-1 8-5v16l-8-5-5-1v-4Zm5 5 2 6h3m6-13a6 6 0 0 1 0 8"/>',
     music:'<path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="17" cy="16" rx="3" ry="3"/>',
     settings:'<path d="m10 3-1 3-3 1-3 3 2 2-2 2 3 3 3 1 1 3h4l1-3 3-1 3-3-2-2 2-2-3-3-3-1-1-3h-4Z"/><circle cx="12" cy="12" r="3"/>',
+    tv:'<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
+    receiver:'<circle cx="12" cy="12" r="3"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4m8.4-8.4a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2m14.2-14.2a10 10 0 0 1 0 14.2"/>',
+    banner:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
     menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
     search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
     more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
@@ -30,37 +38,102 @@
     {key:'assets',label:'ทะเบียนสินทรัพย์',group:'products'},
     {key:'sound',label:'เสียงประกาศ',group:'media'},
     {key:'music',label:'เพลงและคิวเพลง',group:'media'},
+    {key:'tv',label:'หน้าจอ TV',group:'media',icon:'tv',publicPage:true},
+    {key:'receiver',label:'ตัวรับเสียงประกาศ',group:'media',icon:'receiver',publicPage:true},
+    {key:'banner',label:'แบนเนอร์โฆษณา',group:'media',icon:'banner',publicPage:true},
     {key:'settings',label:'ตั้งค่าระบบ',group:'admin'}
   ];
   var sidebar = document.createElement('aside');
   sidebar.id = 'v16Sidebar'; sidebar.className = 'v16-sidebar'; sidebar.setAttribute('aria-label','เมนูระบบ CMUCOOP');
-  sidebar.innerHTML = '<button class="v16-sidebar-close" type="button" aria-label="ปิดเมนู">×</button><a class="v16-brand" target="_self" href="index.html"><img src="assets/images/logo.png" alt=""><span><strong>CMUCOOP</strong><small>SUPPORT WORKSPACE</small></span></a><nav class="v16-nav" aria-label="ระบบงาน"></nav><div class="v16-profile"><span class="v16-avatar" aria-hidden="true">C</span><div><strong id="v16UserName"></strong><small id="v16UserRole"></small></div></div>';
+  sidebar.innerHTML = '<button class="v16-sidebar-close" type="button" aria-label="ซ่อนแถบด้านข้าง" title="ซ่อนแถบด้านข้าง">' + icon('menu') + '</button><a class="v16-brand" target="_self" href="index.html"><img src="assets/images/logo.png" alt=""><span><strong>CMUCOOP</strong><small>SUPPORT WORKSPACE</small></span></a><nav class="v16-nav" aria-label="ระบบงาน"></nav><div class="v16-profile"><span class="v16-avatar" aria-hidden="true">C</span><div><strong id="v16UserName"></strong><small id="v16UserRole"></small></div></div>';
   document.body.prepend(sidebar);
   var backdrop = document.createElement('button'); backdrop.className='v16-nav-backdrop'; backdrop.tabIndex=-1; backdrop.setAttribute('aria-label','ปิดเมนู'); document.body.append(backdrop);
-  var header = $('.top,.phead,.topbar');
-  var toggle = document.createElement('button'); toggle.type='button'; toggle.className='v16-menu-toggle'; toggle.innerHTML=icon('menu'); toggle.setAttribute('aria-label','เปิดเมนูระบบ'); toggle.setAttribute('aria-controls',sidebar.id); toggle.setAttribute('aria-expanded','false');
+  var header = isMediaPage ? null : $('.top,.phead,.topbar');
+  var toggle = document.createElement('button'); toggle.type='button'; toggle.className='v16-menu-toggle'; toggle.id='v16MenuToggle'; toggle.innerHTML=icon('menu'); toggle.setAttribute('aria-label','เปิด/ปิดแถบด้านข้าง'); toggle.title='เปิด/ปิดแถบด้านข้าง'; toggle.setAttribute('aria-controls',sidebar.id); toggle.setAttribute('aria-expanded','true');
   document.body.append(toggle);
   var mobile = document.createElement('nav'); mobile.className='v16-mobilebar'; mobile.setAttribute('aria-label','แถบนำทางมือถือ');
   mobile.innerHTML='<a href="index.html" target="_self"'+(page==='index'?' aria-current="page"':'')+'>'+icon('home')+'ภาพรวม</a><button type="button" id="v16Top"'+(page!=='index'?' aria-current="page"':'')+'>'+icon(page==='index'?'search':page)+(page==='index'?'ค้นหาระบบ':'หน้านี้')+'</button><button type="button" id="v16MobileMenu" aria-controls="v16Sidebar" aria-expanded="false">'+icon('menu')+'เมนูระบบ</button>';
-  document.body.append(mobile);
+  if (!isMediaPage) document.body.append(mobile);
+
   var previousFocus = null;
-  function setMenu(open) {
-    if (open) previousFocus=document.activeElement;
-    document.body.classList.toggle('v16-nav-open',open);
-    toggle.setAttribute('aria-expanded',String(open)); $('#v16MobileMenu').setAttribute('aria-expanded',String(open));
-    if (matchMedia('(max-width:960px)').matches) {
-      sidebar.inert=!open;
-      if(open) { sidebar.setAttribute('role','dialog'); sidebar.setAttribute('aria-modal','true'); sidebar.querySelector('button').focus(); }
-      else { sidebar.removeAttribute('role'); sidebar.removeAttribute('aria-modal'); if(previousFocus && previousFocus.isConnected)previousFocus.focus(); }
-    }
-    if(!open){sidebar.removeAttribute('role');sidebar.removeAttribute('aria-modal');}
+  var desktopCollapsed = false;
+  try {
+    var savedCollapsed = localStorage.getItem('cmucoop_v16_sidebar_collapsed');
+    if (savedCollapsed === '1') desktopCollapsed = true;
+    else if (savedCollapsed === '0') desktopCollapsed = false;
+    else if (isMediaPage) desktopCollapsed = true;
+  } catch (_) {
+    if (isMediaPage) desktopCollapsed = true;
   }
-  function syncBreakpoint() { var narrow=matchMedia('(max-width:960px)').matches; if(!narrow) setMenu(false); sidebar.inert=narrow&&!document.body.classList.contains('v16-nav-open'); }
-  toggle.addEventListener('click',function(){setMenu(true);}); $('#v16MobileMenu').addEventListener('click',function(){setMenu(true);});
-  sidebar.querySelector('button').addEventListener('click',function(){setMenu(false);}); backdrop.addEventListener('click',function(){setMenu(false);});
-  $('#v16Top').addEventListener('click',function(){if(page==='index'&&$('#v16PortalSearch')){$('#v16PortalSearch').focus();return;}window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});});
-  sidebar.addEventListener('click',function(e){if(e.target.closest('a,.v16-side-header button'))setMenu(false);});
-  matchMedia('(max-width:960px)').addEventListener('change',syncBreakpoint); syncBreakpoint();
+
+  function isNarrow() {
+    return typeof matchMedia === 'function' && matchMedia('(max-width:960px)').matches;
+  }
+
+  function isSidebarOpen() {
+    return isNarrow() ? document.body.classList.contains('v16-nav-open') : !desktopCollapsed;
+  }
+
+  function syncSidebarAttrs() {
+    var narrow = isNarrow();
+    document.body.classList.toggle('v16-sidebar-collapsed', !narrow && desktopCollapsed);
+    var open = isSidebarOpen();
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'ซ่อนแถบด้านข้าง' : 'แสดงแถบด้านข้าง');
+    toggle.title = open ? 'ซ่อนแถบด้านข้าง' : 'แสดงแถบด้านข้าง';
+    var mobBtn = $('#v16MobileMenu');
+    if (mobBtn) mobBtn.setAttribute('aria-expanded', String(narrow && open));
+    sidebar.inert = !open;
+  }
+
+  function setMenu(open) {
+    var narrow = isNarrow();
+    if (narrow) {
+      if (open) previousFocus = document.activeElement;
+      document.body.classList.toggle('v16-nav-open', open);
+      syncSidebarAttrs();
+      if (open) {
+        sidebar.setAttribute('role','dialog');
+        sidebar.setAttribute('aria-modal','true');
+        sidebar.querySelector('button').focus();
+      } else {
+        sidebar.removeAttribute('role');
+        sidebar.removeAttribute('aria-modal');
+        if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      }
+    } else {
+      desktopCollapsed = !open;
+      try { localStorage.setItem('cmucoop_v16_sidebar_collapsed', desktopCollapsed ? '1' : '0'); } catch (_) {}
+      document.body.classList.remove('v16-nav-open');
+      sidebar.removeAttribute('role');
+      sidebar.removeAttribute('aria-modal');
+      syncSidebarAttrs();
+    }
+  }
+
+  function toggleMenu() {
+    setMenu(!isSidebarOpen());
+  }
+
+  function syncBreakpoint() {
+    var narrow = isNarrow();
+    if (!narrow) {
+      document.body.classList.remove('v16-nav-open');
+      sidebar.removeAttribute('role');
+      sidebar.removeAttribute('aria-modal');
+    }
+    syncSidebarAttrs();
+  }
+
+  toggle.addEventListener('click', toggleMenu);
+  if ($('#v16MobileMenu')) $('#v16MobileMenu').addEventListener('click', toggleMenu);
+  sidebar.querySelector('.v16-sidebar-close').addEventListener('click', function(){ setMenu(false); });
+  backdrop.addEventListener('click', function(){ setMenu(false); });
+  if ($('#v16Top')) $('#v16Top').addEventListener('click',function(){if(page==='index'&&$('#v16PortalSearch')){$('#v16PortalSearch').focus();return;}window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});});
+  sidebar.addEventListener('click',function(e){if(isNarrow()&&e.target.closest('a,.v16-side-header button'))setMenu(false);});
+  if (typeof matchMedia === 'function') matchMedia('(max-width:960px)').addEventListener('change',syncBreakpoint);
+  syncBreakpoint();
+
   document.addEventListener('keydown',function(e){
     if(e.key==='Escape') { if(document.body.classList.contains('v16-nav-open'))setMenu(false); document.querySelectorAll('.v16-more[open]').forEach(function(d){d.open=false;d.querySelector('summary').focus();}); }
     if(e.key==='Tab'&&document.body.classList.contains('v16-nav-open')) {
@@ -93,6 +166,8 @@
       var label=document.createElement('span');label.textContent=summary.getAttribute('aria-label')||'คำสั่งเพิ่มเติม';summary.append(label);
     });
     document.body.classList.add('v16-sidebar-layout');
+  } else {
+    document.body.classList.add('v16-sidebar-layout');
   }
   if(page==='assets')moreMenu($('.intro-actions'),[$('#printStickersBtn'),$('#exportExcelBtn'),$('#importExcelBtn')],'นำเข้า ส่งออก และพิมพ์');
   var primary={assets:'addAsset',expiry:'addLot',stock:'bUpload',market:'bUpload'}[page];
@@ -100,25 +175,32 @@
   ['assetDialog','lotDialog','historyDialog','importDialog','titleDialog'].forEach(function(id){var d=document.getElementById(id);if(d)d.classList.add('v16-sheet');});
   ['editModal','sizeModal','upDlg','nmDlg','sndModal','schModal'].forEach(function(id){var d=document.getElementById(id);if(d)d.classList.add('v16-sheet-wrap');});
   var me=window.CMUCOOP_SESSION||null, hiddenCards=null, navToken='', pending=false;
+  if(!me){try{var storedMe=sessionStorage.getItem('pm_me');if(storedMe)me=JSON.parse(storedMe);}catch(_){}}
   function token(){if(window.CMUCOOP_SESSION_TOKEN)return window.CMUCOOP_SESSION_TOKEN;try{return sessionStorage.getItem('pm_tok')||'';}catch(_){return '';}}
   function anonymous(){var login=$('#loginPanel,#login');return document.body.classList.contains('locked')||!!(login&&!login.hidden&&!login.classList.contains('hidden'));}
   function renderNav(){
     var nav=sidebar.querySelector('.v16-nav');nav.textContent='';var last='';
     modules.forEach(function(m){
-      var allowed=m.key==='index'||m.key===page||(me&&(m.key==='settings'?me.role==='admin':(me.role==='admin'||!!(me.perms&&me.perms[m.key]))));
-      if(!allowed || (m.key!=='index'&&m.key!==page&&(hiddenCards===null||hiddenCards.includes(m.key))))return;
+      var allowed = m.key==='index' || m.key===page || (isMediaPage && m.publicPage) || (me && (m.key==='settings' ? me.role==='admin' : (me.role==='admin' || !!(me.perms && me.perms[m.key]))));
+      if(!allowed) return;
+      if(!m.publicPage && m.key!=='index' && m.key!==page && (hiddenCards===null || hiddenCards.includes(m.key))) return;
+      if(m.publicPage && m.key!==page && !isMediaPage && !(me && me.role==='admin')) return;
       if(m.group!==last){last=m.group;var title=document.createElement('p');title.className='v16-nav-heading';title.textContent={workspace:'พื้นที่ทำงาน',products:'สินค้าและสินทรัพย์',media:'สื่อและการสื่อสาร',admin:'การจัดการ'}[m.group];nav.append(title);}
       var a=document.createElement('a');a.href=m.key+'.html'+(token()?'#t='+encodeURIComponent(token()):'');a.target='_self';a.innerHTML=icon(m.icon||m.key);var text=document.createElement('span');text.textContent=m.label;a.append(text);if(m.key===page)a.setAttribute('aria-current','page');nav.append(a);
     });
-    $('#v16UserName').textContent=me?(me.name||me.user||'ผู้ใช้งาน'):'';
-    $('#v16UserRole').textContent=me&&me.role==='admin'?'ผู้ดูแลระบบ':'ผู้ใช้งาน';
+    $('#v16UserName').textContent=me?(me.name||me.user||'ผู้ใช้งาน'):(isMediaPage?'โหมดหน้าจอแสดงผล':'');
+    $('#v16UserRole').textContent=me?(me.role==='admin'?'ผู้ดูแลระบบ':'ผู้ใช้งาน'):(isMediaPage?'CMUCOOP DISPLAY':'');
     sidebar.querySelector('.v16-avatar').textContent=me?Array.from(me.name||me.user||'C')[0]:'C';
-    var home='index.html'+(token()?'#t='+encodeURIComponent(token()):'');sidebar.querySelector('.v16-brand').href=home;mobile.querySelector('a').href=home;
+    var home='index.html'+(token()?'#t='+encodeURIComponent(token()):'');sidebar.querySelector('.v16-brand').href=home;
+    var mobHome = mobile.querySelector('a');
+    if (mobHome) mobHome.href=home;
   }
   function syncSession(){
-    pending=false;var signed=!!me&&!!token()&&!anonymous();document.body.classList.toggle('v16-authenticated',signed);
+    pending=false;
+    var signed = isMediaPage ? true : (!!me&&!!token()&&!anonymous());
+    document.body.classList.toggle('v16-authenticated',signed);
     if(!signed){if(document.body.classList.contains('v16-nav-open'))setMenu(false);return;}
-    if(navToken!==token()){
+    if(token() && navToken!==token()){
       navToken=token();hiddenCards=null;renderNav();var requestedToken=navToken;
       if(window.google&&google.script)google.script.run.withSuccessHandler(function(list){if(requestedToken!==token())return;hiddenCards=Array.isArray(list)?list:[];renderNav();}).withFailureHandler(function(){hiddenCards=null;renderNav();}).getHiddenCards(navToken);
     }

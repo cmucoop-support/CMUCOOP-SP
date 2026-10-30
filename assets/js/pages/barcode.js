@@ -112,10 +112,39 @@ function withSaving(p) {
                 function (e) { S.saving--; renderStatus(); throw e; });
 }
 
-/* ============================ รายการหมวด (ซ้าย) ============================ */
+/* ============================ รายการหมวด (ด้านบนตาราง) ============================ */
+function renderPairCatOptions() {
+  var sel = $('#bcPairCatSel'), inp = $('#bcPairDefCat');
+  if (!sel) return;
+  var prevVal = sel.value;
+  var typedVal = inp ? inp.value.trim() : '';
+  var cats = [];
+  (S.cats || []).forEach(function (c) {
+    if (c && c.cat && cats.indexOf(c.cat) < 0) cats.push(c.cat);
+  });
+  var opts = '<option value="">-- ไม่เลือกหมวด (เว้นว่างไว้ก่อน) --</option>' +
+    cats.map(function (cat) { return '<option value="' + esc(cat) + '">' + esc(cat) + '</option>'; }).join('') +
+    '<option value="__new">＋ พิมพ์ชื่อหมวดใหม่…</option>';
+  sel.innerHTML = opts;
+  if (prevVal === '__new') {
+    sel.value = '__new';
+    if (inp) inp.classList.remove('hidden');
+  } else if (typedVal && cats.indexOf(typedVal) >= 0) {
+    sel.value = typedVal;
+    if (inp) inp.classList.add('hidden');
+  } else if (typedVal) {
+    sel.value = '__new';
+    if (inp) inp.classList.remove('hidden');
+  } else {
+    sel.value = '';
+    if (inp) inp.classList.add('hidden');
+  }
+}
 function renderSide() {
   var html = '', lastSheet = null;
+  var totalItems = 0;
   S.cats.forEach(function (c) {
+    totalItems += Number(c.items) || 0;
     if (c.sheet !== lastSheet) {
       if (lastSheet !== null) html += '</ul>';
       html += '<div class="gh">' + esc(c.sheet) + '<small>' + esc(S.sheets[c.sheet].statusText || 'ไม่มีข้อความสถานะ') + '</small></div><ul class="cats">';
@@ -127,8 +156,44 @@ function renderSide() {
       '<span class="cm">' + c.items + ' รายการ' + '</span>' +
       '<span class="cm">' + (c.last ? 'อัพเดต ' + f.rel : 'ยังไม่มีข้อมูลสถานะ') + '</span></button></li>';
   });
-  $('#catSide').innerHTML = html + (lastSheet !== null ? '</ul>' : '') || '<div class="muted">ไม่พบชีตข้อมูล</div>';
+  if ($('#catSide')) $('#catSide').innerHTML = html + (lastSheet !== null ? '</ul>' : '') || '<div class="muted">ไม่พบชีตข้อมูล</div>';
+  var catSel = $('#bcCatSelect');
+  if (catSel) {
+    var aKey = allCat().key;
+    var curKey = S.cur || aKey;
+    var selHtml = '<option value="' + esc(aKey) + '"' + (curKey === aKey ? ' selected' : '') + '>ทุกหมวดรวมกัน (' + S.cats.length + ' หมวด · ' + totalItems + ' รายการ)</option>';
+    S.cats.forEach(function (c) {
+      var f = fresh(c.last);
+      selHtml += '<option value="' + esc(c.key) + '"' + (c.key === curKey ? ' selected' : '') + '>' +
+        esc(c.label) + ' (' + c.items + ' รายการ' + (c.last && f.rel ? ' · อัพเดต ' + f.rel : '') + ')</option>';
+    });
+    catSel.innerHTML = selHtml;
+    catSel.value = curKey;
+  }
+  if ($('#bcCatDrawerCount')) {
+    $('#bcCatDrawerCount').textContent = '(' + S.cats.length + ' หมวด)';
+  }
+  renderPairCatOptions();
   if (window.WorkspaceUI) WorkspaceUI.barcodeStats();
+}
+if ($('#bcCatSelect')) {
+  $('#bcCatSelect').addEventListener('change', function () {
+    if (this.value) selectCat(this.value);
+  });
+}
+if ($('#bcPairCatSel')) {
+  $('#bcPairCatSel').addEventListener('change', function () {
+    var inp = $('#bcPairDefCat');
+    if (!inp) return;
+    if (this.value === '__new') {
+      inp.value = '';
+      inp.classList.remove('hidden');
+      inp.focus();
+    } else {
+      inp.classList.add('hidden');
+      inp.value = this.value || '';
+    }
+  });
 }
 $('#btnNewCat').addEventListener('click', async function () {
   var name = (prompt('ชื่อหมวดใหม่ (เช่น ขนม, นม, บะหมี่)') || '').trim();
@@ -1231,8 +1296,7 @@ function extractRawItemsFromSheet(grid, sheetName, roleHint, defaultCat) {
   if (cols.name === undefined) return { prePaired: prePaired, singleRows: singleRows };
 
   var sheetRole = roleHint || (/แพ็ค|แพค|ลัง|pack|box/i.test(sheetName) ? "pack" : (/เดี่ยว|เดียว|ชิ้น|unit|single/i.test(sheetName) ? "unit" : ""));
-  var fallbackCat = defaultCat || (sheetName && !/^sheet\d*$/i.test(sheetName) ? sheetName : "") || "ไม่ระบุหมวด";
-  var lastCat = "";
+  var explicitCat = String(defaultCat || "").trim();
 
   for (var ri = hRow + 1; ri < grid.length; ri++) {
     var g = grid[ri] || [];
@@ -1240,9 +1304,7 @@ function extractRawItemsFromSheet(grid, sheetName, roleHint, defaultCat) {
     if (!name || /^(?:รวม|รวมทั้งสิ้น|ชื่อสินค้า|ชื่อรายการ)$/i.test(name)) continue;
 
     var partner = cols.partner !== undefined ? String(g[cols.partner] == null ? "" : g[cols.partner]).trim() : "";
-    var cat = cols.cat !== undefined ? String(g[cols.cat] == null ? "" : g[cols.cat]).trim() : "";
-    if (cat) lastCat = cat;
-    else cat = lastCat || fallbackCat;
+    var cat = explicitCat;
     var unit = cols.unit !== undefined ? String(g[cols.unit] == null ? "" : g[cols.unit]).trim() : "";
     var price = cols.price !== undefined ? parseOptNum(g[cols.price]) : null;
     var qty = cols.qty !== undefined ? parseOptNum(g[cols.qty]) : null;
@@ -1412,7 +1474,7 @@ function matchBarcodePairsFromSheets(sheets, options) {
       unitSourceName: pp.unitSourceName,
       packSourceName: pp.packSourceName,
       partner: pp.partner || (uSt && uSt.partner) || (pSt && pSt.partner) || "",
-      cat: defaultCat || pp.cat || "ไม่ระบุหมวด",
+      cat: defaultCat || "",
       name: pp.name,
       perPack: "",
       packBar: pCode,
@@ -1442,7 +1504,7 @@ function matchBarcodePairsFromSheets(sheets, options) {
       unitSourceName: u.name + (u.fromDb ? " (ในระบบ)" : ""),
       packSourceName: p.name + (p.fromDb ? " (ในระบบ)" : ""),
       partner: u.partner || p.partner || "",
-      cat: defaultCat || (u.cat && u.cat !== "ไม่ระบุหมวด" ? u.cat : "") || (p.cat && p.cat !== "ไม่ระบุหมวด" ? p.cat : "") || "ไม่ระบุหมวด",
+      cat: defaultCat || "",
       name: (u.info && u.info.cleanName) || u.name,
       perPack: "",
       packBar: pCode,
@@ -1577,7 +1639,7 @@ function applyLoadedDraftToState(draft) {
       unitSourceName: p.unitSourceName || p.name || "",
       packSourceName: p.packSourceName || p.name || "",
       partner: p.partner || "",
-      cat: p.cat || "ไม่ระบุหมวด",
+      cat: p.cat !== undefined && p.cat !== null ? String(p.cat) : "",
       name: p.name || "",
       perPack: p.perPack !== undefined ? String(p.perPack) : "",
       packBar: cleanBarcodeStr(p.packBar),
@@ -1810,7 +1872,7 @@ function pairReviewRow(p, idx) {
       '<span class="pair-state ' + (p.saved ? 'saved' : dup ? 'dup' : 'new') + '">' + state + '</span></td>' +
     '<td><div class="pair-edit-stack"><label class="pair-mini-lbl">ชื่อสินค้า<input type="text" data-pair-field="name" value="' + esc(p.name) + '"' + disabled + '></label>' +
       '<div class="pair-sub-grid"><label class="pair-mini-lbl">รหัสคู่ค้า<input type="text" data-pair-field="partner" value="' + esc(p.partner) + '"' + disabled + '></label>' +
-        '<label class="pair-mini-lbl">หมวดสินค้า<input type="text" data-pair-field="cat" list="dlCats" value="' + esc(p.cat) + '"' + disabled + '></label>' +
+        '<label class="pair-mini-lbl">หมวดสินค้า<input type="text" data-pair-field="cat" list="dlCats" value="' + esc(p.cat) + '"' + disabled + ' placeholder="เว้นว่างได้"></label>' +
         '<label class="pair-mini-lbl">จำนวนต่อแพ็ค<input type="text" data-pair-field="perPack" value="' + esc(p.perPack) + '"' + disabled + ' placeholder="เว้นว่างได้"></label></div></div></td>' +
     '<td><div class="pair-bars-stack"><label class="pair-bar-field"><span>เดี่ยว</span><input type="text" class="code-inp" data-pair-field="unitBar" value="' + esc(uCode) + '"' + disabled + ' placeholder="เลขบาร์เดี่ยว"></label>' +
       '<label class="pair-bar-field"><span>แพ็ค</span><input type="text" class="code-inp" data-pair-field="packBar" value="' + esc(pCode) + '"' + disabled + ' placeholder="เลขบาร์แพ็ค"></label>' +
@@ -1930,7 +1992,7 @@ async function confirmAndSavePairItems(pairObjs) {
   var payload = pairObjs.map(function (p) {
     return {
       partner: String(p.partner || "").trim(),
-      cat: String(p.cat || "").trim() || ($("#bcPairDefCat") && $("#bcPairDefCat").value.trim()) || "ไม่ระบุหมวด",
+      cat: String(p.cat || "").trim() || "ไม่ระบุหมวด",
       name: String(p.name || "").trim(),
       perPack: String(p.perPack || "").trim(),
       packBar: cleanBarcodeStr(p.packBar),
@@ -1981,7 +2043,7 @@ if ($("#bcPairAnalyzeBtn")) {
       } catch (_) {}
 
       var minSim = Number($("#bcPairMinSim") ? $("#bcPairMinSim").value : 50) || 50;
-      var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim() || (curCat() && !curCat().all ? curCat().cat : "");
+      var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim();
       var pairWithDb = !($("#bcPairWithDb") && !$("#bcPairWithDb").checked);
       var result = matchBarcodePairsFromSheets(allSheets, {
         minSim: minSim,
@@ -2061,6 +2123,20 @@ if ($("#bcPairClearSelBtn")) {
     (PAIR_STATE.pairs || []).forEach(function (p) { p.selected = false; });
     savePairDraftTemp(false);
     renderPairTable();
+  });
+}
+if ($("#bcPairApplyBulkCatBtn")) {
+  $("#bcPairApplyBulkCatBtn").addEventListener("click", function () {
+    var catVal = ($("#bcPairBulkCatInput") ? $("#bcPairBulkCatInput").value : "").trim();
+    var targets = (PAIR_STATE.pairs || []).filter(function (p) { return !p.saved && p.selected; });
+    if (!targets.length) {
+      toast("กรุณาติ๊กเลือกคู่รายการที่ต้องการกำหนดหมวดหมู่ก่อน", true);
+      return;
+    }
+    targets.forEach(function (p) { p.cat = catVal; });
+    savePairDraftTemp(false);
+    renderPairTable();
+    toast(catVal ? ("กำหนดหมวด \"" + catVal + "\" ให้ " + targets.length + " คู่ที่เลือกแล้ว") : ("ล้างหมวดของ " + targets.length + " คู่ที่เลือกแล้ว"));
   });
 }
 if ($("#bcPairConfirmSelectedBtn")) {
@@ -2145,7 +2221,7 @@ if ($("#bcPairManualAddBtn")) {
     var u = oriented.unit, p = oriented.pack;
     var uCode = cleanBarcodeStr(u.barcode), pCode = cleanBarcodeStr(p.barcode);
     var sim = computeBarcodeNameSimilarity(u, p);
-    var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim() || (curCat() && !curCat().all ? curCat().cat : "");
+    var defCat = ($("#bcPairDefCat") ? $("#bcPairDefCat").value : "").trim();
     var newPair = {
       id: "pair_manual_" + (PAIR_STATE.nextId++),
       selected: true,
@@ -2154,7 +2230,7 @@ if ($("#bcPairManualAddBtn")) {
       unitSourceName: u.name,
       packSourceName: p.name,
       partner: u.partner || p.partner || "",
-      cat: defCat || u.cat || p.cat || "ไม่ระบุหมวด",
+      cat: defCat || "",
       name: (u.info && u.info.cleanName) || u.name,
       perPack: "",
       packBar: pCode,
@@ -2230,8 +2306,8 @@ async function openBarcode() {
   document.querySelectorAll(".tab").forEach(function (t) {
     t.classList.toggle("hidden", !admin && (t.dataset.t === "data" || t.dataset.t === "manage" || t.dataset.t === "pair"));
   });
-  $(".layout").classList.toggle("single", !admin);
-  $("aside").classList.toggle("hidden", !admin);
+  $(".layout").classList.add("single");
+  if ($("#bcCatBarCard")) $("#bcCatBarCard").classList.toggle("hidden", !admin);
   switchTab(admin ? "data" : "print");
   if (admin) {
     bcLoadBk();

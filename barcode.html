@@ -26,20 +26,36 @@
 <button class="btn ghost small" id="btnReload">โหลดใหม่</button>
 <button class="btn ghost small" id="btnLogout">ออกจากระบบ</button>
 </header>
-<div class="layout">
-<aside class="barcode-rail"><div class="workspace-rail-title"><h2>หมวดสินค้า</h2><small>เลือกหมวดเพื่อดูรายการ</small></div><label><span class="sr-only">ค้นหาหมวดสินค้า</span><input type="search" id="bcCategorySearch" placeholder="ค้นหาหมวดสินค้า"/></label><button class="btn ghost" id="bcAllCategories" type="button">ดูรายการทุกหมวด</button><p id="bcNoCats" class="muted" hidden>ไม่พบหมวดที่ค้นหา</p>
-<button class="btn ghost small" id="btnNewCat" style="width:100%;margin-bottom:10px">+ สร้างหมวดใหม่</button>
-<div id="catSide"></div>
-</aside>
+<div class="layout single">
 <main id="wcag-main"><div class="workspace-intro"><div><span class="workspace-eyebrow">CMUCOOP WORKSPACE</span><h2>จัดการบาร์เดี่ยว / บาร์แพ็ค</h2><p>ค้นหารายการ เลือกหมวด จับคู่บาร์เดี่ยว/บาร์แพ็คจากชื่อที่คล้ายกัน หรือจัดพิมพ์รายงาน</p></div></div><div class="workspace-stats barcode-stats" id="barcodeStats" aria-label="สรุปรายการบาร์โค้ด"></div>
 <nav class="tabs">
 <button class="tab on" data-t="data">รายการสินค้า</button><button class="tab" data-t="manage">เพิ่มและนำเข้า</button><button class="tab" data-t="pair">จับคู่บาร์เดี่ยว/แพ็ค</button>
 <button class="tab" data-t="print">ปริ้นรายงาน</button>
 </nav>
 <!-- ========== แท็บข้อมูล ========== -->
-<section id="v-data" style="display:grid;gap:14px"><div class="card">
-<h3 id="dTitle" style="margin:0">เลือกหมวดทางซ้าย</h3>
-</div><div class="card">
+<section id="v-data" style="display:grid;gap:14px">
+<div class="card bc-cat-card" id="bcCatBarCard">
+  <div class="bc-cat-bar-top">
+    <div class="bc-cat-select-group">
+      <label class="bc-cat-select-label" for="bcCatSelect">หมวดสินค้า</label>
+      <div class="bc-cat-controls">
+        <select id="bcCatSelect" aria-label="เลือกหมวดสินค้า"></select>
+        <input type="search" id="bcCategorySearch" aria-label="ค้นหาหมวดสินค้า" placeholder="ค้นหาหมวดสินค้า…"/>
+        <button class="btn ghost small" id="bcAllCategories" type="button">ดูทุกหมวด</button>
+        <button class="btn ghost small" id="btnNewCat" type="button">+ สร้างหมวดใหม่</button>
+      </div>
+    </div>
+    <div class="bc-cat-cur-meta">
+      <h3 id="dTitle" style="margin:0">บาร์สินค้า / ทั้งหมด</h3>
+    </div>
+  </div>
+  <p id="bcNoCats" class="muted" hidden style="margin:8px 0 0">ไม่พบหมวดที่ค้นหา</p>
+  <details class="bc-cat-drawer" id="bcCatDrawer">
+    <summary>แสดงรายการหมวดหมู่ทั้งหมด <span id="bcCatDrawerCount" class="muted"></span></summary>
+    <div id="catSide" class="bc-cat-chips-wrap"></div>
+  </details>
+</div>
+<div class="card">
 <div class="row" style="justify-content:space-between;margin-bottom:8px">
 <h3 style="margin:0">รายการสินค้า</h3>
 <div class="row">
@@ -88,14 +104,17 @@
       <span class="muted">รองรับไฟล์รวมในไฟล์เดียว (มีแถวบาร์เดี่ยวและแถวบาร์แพ็คปนกัน) หรือแยก 2 ไฟล์ก็ได้</span>
     </div>
     <div class="pair-upload-grid">
+      <label>เลือกหมวดสินค้าก่อนอัพโหลด (ไม่จำเป็น)
+        <select id="bcPairCatSel" aria-label="เลือกหมวดสินค้าก่อนอัพโหลด (ไม่จำเป็น)">
+          <option value="">-- ไม่เลือกหมวด (เว้นว่างไว้ก่อน) --</option>
+        </select>
+        <input type="text" id="bcPairDefCat" class="hidden" list="dlCats" placeholder="พิมพ์ชื่อหมวดที่ต้องการใช้" style="margin-top:6px"/>
+      </label>
       <label>ไฟล์รายการสินค้าหลัก (.xlsx, .xls, .csv)
         <input type="file" id="bcPairFile" accept=".xlsx,.xls,.csv"/>
       </label>
       <label>ไฟล์บาร์แพ็คแยกต่างหาก (ถ้ามี · ไม่บังคับ)
         <input type="file" id="bcPairPackFile" accept=".xlsx,.xls,.csv"/>
-      </label>
-      <label>หมวดหมู่เริ่มต้น (กรณีในไฟล์ไม่ระบุหมวด)
-        <input type="text" id="bcPairDefCat" list="dlCats" placeholder="เช่น น้ำดื่ม, ขนม, นม (หรือใช้ตามไฟล์)"/>
       </label>
       <label>ระดับความคล้ายของชื่อขั้นต่ำ
         <select id="bcPairMinSim">
@@ -123,7 +142,7 @@
         <button type="button" class="btn ghost small" id="bcPairClearDraftBtn">ล้างข้อมูลชั่วคราว</button>
       </div>
     </div>
-    <div class="muted" id="bcPairHint" style="margin-top:6px">ระบบตัดตัว P ออกจากเลขบาร์ให้อัตโนมัติ · ราคาที่ถูกกว่าจะเป็น "บาร์เดี่ยว" · คอลัมน์ Vender เป็น "รหัสคู่ค้า" · หากเลขบาร์มีในระบบแล้วจะแจ้งเตือนให้เลือกก่อนบันทึกทับ</div>
+    <div class="muted" id="bcPairHint" style="margin-top:6px">ระบบตัดตัว P ออกจากเลขบาร์ให้อัตโนมัติ · ราคาที่ถูกกว่าจะเป็น "บาร์เดี่ยว" · คอลัมน์ Vender เป็น "รหัสคู่ค้า" · ไม่กรอกหมวดให้อัตโนมัติหากไม่ได้เลือกหมวดไว้ล่วงหน้า · หากเลขบาร์มีในระบบแล้วจะแจ้งเตือนให้เลือกก่อนบันทึกทับ</div>
   </div>
 
   <div class="card hidden" id="bcPairResultCard">
@@ -147,6 +166,10 @@
           <option value="dup">เฉพาะที่มีในระบบแล้ว (ซ้ำ)</option>
           <option value="selected">เฉพาะที่ติ๊กเลือกไว้</option>
         </select>
+        <div class="pair-bulk-cat">
+          <input type="text" id="bcPairBulkCatInput" list="dlCats" aria-label="กำหนดหมวดให้คู่ที่เลือก" placeholder="เลือก/พิมพ์หมวดให้คู่ที่ติ๊ก…"/>
+          <button type="button" class="btn ghost small" id="bcPairApplyBulkCatBtn">ใช้หมวดกับที่เลือก</button>
+        </div>
       </div>
       <div class="pair-toolbar-right">
         <details class="v16-more pair-bulk-menu">

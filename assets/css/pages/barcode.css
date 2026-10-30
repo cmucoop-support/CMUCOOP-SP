@@ -61,7 +61,7 @@ input[type=text],input[type=search],input[type=password],select{width:100%;borde
 
 /* ---------- ตารางข้อมูล ---------- */
 .tablewrap{overflow:auto;max-height:60vh;border:1px solid var(--line);border-radius:8px;background:#fff}
-table.dt{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
+table.dt{border-collapse:collapse;width:100%;min-width:860px;font-size:13.5px}
 .dt th{position:sticky;top:0;background:var(--ink);color:#fff;font-weight:600;padding:6px 8px;text-align:center;z-index:1}
 .dt td{border-bottom:1px solid #e6ebf0;padding:3px 8px}
 .dt td.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -415,13 +415,13 @@ td.act{white-space:nowrap;min-width:170px}
   #bcPairResultCard .pair-bulk-menu summary { display:flex; align-items:center; justify-content:space-between; gap:14px; width:auto; min-height:38px; padding:8px 12px; border-radius:6px; background:#fff; font-size:12px }
   #bcPairResultCard .pair-bulk-menu .v16-more-panel { top:44px; border-radius:8px }
   #bcPairResultCard .pair-tablewrap { max-height:72vh; overflow:auto; border-radius:8px; border:1px solid #e6e2eb }
-  #bcPairResultCard .pair-dt { width:100%; min-width:1100px; border-collapse:separate; border-spacing:0; table-layout:fixed }
-  #bcPairResultCard .pair-col-select { width:48px }
-  #bcPairResultCard .pair-col-source { width:29% }
-  #bcPairResultCard .pair-col-status { width:108px }
-  #bcPairResultCard .pair-col-product { width:27% }
-  #bcPairResultCard .pair-col-bars { width:23% }
-  #bcPairResultCard .pair-col-actions { width:100px }
+  #bcPairResultCard .pair-dt { width:100%; min-width:920px; border-collapse:separate; border-spacing:0; table-layout:fixed }
+  #bcPairResultCard .pair-col-select { width:46px }
+  #bcPairResultCard .pair-col-source { width:28% }
+  #bcPairResultCard .pair-col-status { width:98px }
+  #bcPairResultCard .pair-col-product { width:28% }
+  #bcPairResultCard .pair-col-bars { width:22% }
+  #bcPairResultCard .pair-col-actions { width:92px }
   #bcPairResultCard .pair-dt th { position:sticky; top:0; z-index:2; background:#f5f3f8; color:#62596e; font-size:12px; font-weight:500; padding:12px 10px; text-align:left; border-bottom:1px solid #e4dfea }
   #bcPairResultCard .pair-dt td { vertical-align:top; padding:18px 10px; border-bottom:1px solid #ece8f0; background:#fff; font-size:12px }
   #bcPairResultCard .pair-dt tr:hover td { background:#fcfbfd }
@@ -477,5 +477,34 @@ td.act{white-space:nowrap;min-width:170px}
     #bcPairResultCard .pair-toolbar-left select { flex:1; min-width:0 }
     #bcPairResultCard .pair-toolbar-right { width:100%; justify-content:flex-end }
     #bcPairResultCard .pair-tablewrap { max-height:65vh }
+  }
+
+  /* Compact top category selector bar */
+  .bc-cat-card { padding:16px 20px!important }
+  .bc-cat-bar-top { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap }
+  .bc-cat-select-group { display:grid; gap:6px; flex:1 1 520px; min-width:0 }
+  .bc-cat-select-label { font-size:12px; font-weight:600; color:var(--steel) }
+  .bc-cat-controls { display:flex; align-items:center; gap:8px; flex-wrap:wrap }
+  .bc-cat-controls #bcCatSelect { flex:1 1 240px; min-width:200px; max-width:360px; font-weight:600 }
+  .bc-cat-controls #bcCategorySearch { flex:1 1 180px; min-width:150px; max-width:240px }
+  .bc-cat-cur-meta { text-align:right; flex:0 0 auto }
+  .bc-cat-drawer { margin-top:10px; border-top:1px solid var(--line); padding-top:8px }
+  .bc-cat-drawer summary { cursor:pointer; font-size:12px; font-weight:600; color:var(--accent-text); user-select:none; list-style:none; display:inline-flex; align-items:center; gap:6px }
+  .bc-cat-drawer summary::-webkit-details-marker { display:none }
+  .bc-cat-drawer summary::after { content:'▾'; font-size:11px }
+  .bc-cat-drawer[open] summary::after { content:'▴' }
+  .bc-cat-chips-wrap { margin-top:10px; max-height:240px; overflow:auto; padding-right:4px }
+  .bc-cat-chips-wrap .gh { font-size:12px; margin:8px 0 6px; display:flex; align-items:baseline; gap:8px }
+  .bc-cat-chips-wrap .gh:first-child { margin-top:0 }
+  .bc-cat-chips-wrap .cats { display:grid; grid-template-columns:repeat(auto-fill,minmax(175px,1fr)); gap:8px }
+  .bc-cat-chips-wrap .cat { padding:8px 10px; border-radius:10px; border:1px solid var(--line); background:#faf8fd }
+  .bc-cat-chips-wrap .cat.on { background:var(--accent-soft); border-color:#ccb6f1 }
+  .pair-bulk-cat { display:inline-flex; align-items:center; gap:6px; flex:1 1 260px; max-width:360px }
+  .pair-bulk-cat input { flex:1 1 160px; min-width:130px }
+  .pair-bulk-cat .btn { flex:0 0 auto; white-space:nowrap }
+  @media(max-width:640px) {
+    .bc-cat-cur-meta { text-align:left; width:100% }
+    .bc-cat-controls #bcCatSelect, .bc-cat-controls #bcCategorySearch { max-width:none; flex-basis:100% }
+    .pair-bulk-cat { max-width:none; flex-basis:100% }
   }
 }
