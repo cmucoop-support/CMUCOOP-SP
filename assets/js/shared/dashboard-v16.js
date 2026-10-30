@@ -24,7 +24,7 @@
     banner:'<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
     menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
     search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
-    more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    more:'<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
     link:'<path d="m10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(2 1)"/>',
     note:'<path d="M14 3H5v18h14V8l-5-5Zm0 0v6h5M8 13h8m-8 4h5"/>'
   };
@@ -135,9 +135,16 @@
   syncBreakpoint();
 
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape') { if(document.body.classList.contains('v16-nav-open'))setMenu(false); document.querySelectorAll('.v16-more[open]').forEach(function(d){d.open=false;d.querySelector('summary').focus();}); }
+    if(e.key==='Escape') {
+      var openMore=document.querySelectorAll('.v16-more[open]');
+      if(openMore.length)openMore.forEach(function(d){d.open=false;d.querySelector('summary').focus();});
+      else if(document.body.classList.contains('v16-nav-open'))setMenu(false);
+    }
     if(e.key==='Tab'&&document.body.classList.contains('v16-nav-open')) {
-      var items=Array.from(sidebar.querySelectorAll('button,a[href]')).filter(function(el){return el.getClientRects().length;}),first=items[0],last=items[items.length-1];
+      var items=Array.from(sidebar.querySelectorAll('button,a[href],summary')).filter(function(el){
+        var closed=el.closest('details:not([open])');
+        return !el.disabled&&el.getClientRects().length&&(!closed||closed.querySelector('summary')===el);
+      }),first=items[0],last=items[items.length-1];
       if(e.shiftKey&&(document.activeElement===first||!sidebar.contains(document.activeElement))){e.preventDefault();last.focus();}
       else if(!e.shiftKey&&(document.activeElement===last||!sidebar.contains(document.activeElement))){e.preventDefault();first.focus();}
     }
@@ -151,20 +158,19 @@
     panel.addEventListener('click',function(e){if(e.target.closest('button,a'))details.open=false;});
     function update(){details.hidden=!nodes.some(function(n){return !n.hidden&&!n.classList.contains('hidden');});} update();
     nodes.forEach(function(n){new MutationObserver(update).observe(n,{attributes:true,attributeFilter:['class','hidden']});});
+    return details;
   }
   document.addEventListener('click',function(e){document.querySelectorAll('.v16-more[open]').forEach(function(d){if(!d.contains(e.target)||e.target.closest('.v16-more-panel button,.v16-more-panel a'))d.open=false;});});
   var homes=['bHome','btnHome','muHome','sHome','stHome'];homes.forEach(function(id){var el=document.getElementById(id);if(el)el.classList.add('v16-home-control');});
   document.querySelectorAll('.topbar a[href="index.html"]:not(.brand)').forEach(function(el){el.classList.add('v16-home-control');});
-  moreMenu(header && (header.querySelector('.acts')||header.querySelector('.account')||header.querySelector('nav')||header),
+  var accountMenu=moreMenu(header && sidebar.querySelector('.v16-profile'),
     [$('#bNames'),$('#bReload'),$('#btnReload'),$('#btnLogout'),$('#sGoCfg'),$('#logout'),$('.js-pw'),$('.js-logout'),$('#portalSize')]);
+  if(accountMenu){accountMenu.classList.add('v16-account-menu');accountMenu.querySelector('summary').removeAttribute('title');}
   if(header){
     // Reparent the original header so every existing controller keeps its nodes and handlers.
     header.classList.add('v16-side-header');
     header.setAttribute('role','group');header.setAttribute('aria-label','คำสั่งของหน้านี้');
     sidebar.insertBefore(header,sidebar.querySelector('.v16-nav'));
-    header.querySelectorAll('.v16-more summary').forEach(function(summary){
-      var label=document.createElement('span');label.textContent=summary.getAttribute('aria-label')||'คำสั่งเพิ่มเติม';summary.append(label);
-    });
     document.body.classList.add('v16-sidebar-layout');
   } else {
     document.body.classList.add('v16-sidebar-layout');

@@ -623,10 +623,10 @@ function fixedWidths(ctx, sc, rows, tw) {
   return sc.cols.map(function (k, j) { return { k: k, w: need[j] }; });
 }
 
-function layoutSection(ctx, d) {
+function layoutSection(ctx, d, partners) {
   var c = S.cats.filter(function (x) { return x.sheet === d.sheet && x.cat === d.cat; })[0];
-  var sc = schemaOfCat(c), h = d.header;
-  var chosen = selectedPartners(), ip = sc.cols.map(function (k) { return k.k; }).indexOf('partner');
+  var sc = c ? schemaOfCat(c) : S.schemas[S.sheets[d.sheet].schema], h = d.header;
+  var chosen = Array.isArray(partners) ? partners : selectedPartners(), ip = sc.cols.map(function (k) { return k.k; }).indexOf('partner');
   var rows = d.rows.filter(function (x) { return !(chosen.length && chosen.indexOf(String(x.v[ip]).trim()) < 0); });
   var tw = PDF_W - PDF_M * 2;
   var cols = fixedWidths(ctx, sc, rows, tw);
@@ -908,37 +908,53 @@ $('#bcImpBtn').addEventListener('click', function () {
   };
   fr.readAsArrayBuffer(f);
 });
+function bcExcelReport(d, partners) {
+  var sc = S.schemas[S.sheets[d.sheet].schema], ip = sc.cols.map(function (c) { return c.k; }).indexOf('partner');
+  var rows = d.rows.filter(function (x) { return !partners.length || partners.indexOf(String(x.v[ip]).trim()) >= 0; });
+  var ctx = document.createElement('canvas').getContext('2d');
+  var layout = layoutSection(ctx, Object.assign({}, d, { rows: rows }), []), heights = [];
+  layout.pages.forEach(function (p) { p.rows.forEach(function (r) { heights.push(r.it.h * 72 / PDF_DPI); }); });
+  return { name: d.cat || 'บาร์สินค้า', top: layout.top,
+    cols: layout.cols.map(function (c) { return Object.assign({}, c, { header: headSplit(c.k.label).join('\n') }); }), groups: sc.groups,
+    rows: rows.map(function (x, i) { return { v: x.v, height: heights[i] }; }) };
+}
+async function bcExportReports(results, partners) {
+  await ensureThaiFont();
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  var bytes = await bcXlBuild(results.map(function (d) { return bcExcelReport(d, partners); }), { font: PRINT_FONT, printedAt: fmt(nowMs()) });
+  bcXlDownload(bytes, 'รายการบาร์_' + thaiDayIso() + '.xlsx');
+  toast('สร้างไฟล์ Excel เรียบร้อยแล้ว');
+}
 $('#bcExpBtn').addEventListener('click', function () {
-  if (typeof XLSX === 'undefined') { toast('โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้านี้', true); return; }
   busy(this, async function () {
     var d = await call('getCategoryData', allCat().sheet, '*');
-    var mode = ($('#bcExpSheetMode') && $('#bcExpSheetMode').value) || 'single';
-    var head = ['ลำดับ', 'รหัสคู่ค้า', 'หมวด', 'ชื่อรายการ', 'จำนวนต่อแพ็ค', 'เลขบาร์แพ็ค', 'เลขบาร์เดี่ยว'];
-    var wb = XLSX.utils.book_new();
-    if (mode === 'split') {
-      var byCat = {}, cats = [], usedNames = {};
-      (d.rows || []).forEach(function (x) {
+    var mode = ($('#bcExpSheetMode') && $('#bcExpSheetMode').value) || 'single', results = [d];
+    if (mode === 'split' && d.rows.length) {
+      var byCat = new Map();
+      d.rows.forEach(function (x) {
         var cat = String(x.v[2] || '').trim() || 'ไม่ระบุหมวด';
-        if (!byCat[cat]) { byCat[cat] = []; cats.push(cat); }
-        byCat[cat].push(x);
+        if (!byCat.has(cat)) byCat.set(cat, []);
+        byCat.get(cat).push(x);
       });
-      if (!cats.length) cats.push('บาร์สินค้า');
-      cats.forEach(function (cat) {
-        var rows = (byCat[cat] || []).map(function (x, i) { return [i + 1, x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; });
-        var base = cat.replace(/[\\/?*[\]:]/g, '_').slice(0, 31) || 'หมวดสินค้า';
-        var shName = base, seq = 2;
-        while (usedNames[shName.toLowerCase()]) {
-          var sfx = '_' + (seq++);
-          shName = base.slice(0, 31 - sfx.length) + sfx;
-        }
-        usedNames[shName.toLowerCase()] = 1;
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head].concat(rows)), shName);
+      results = Array.from(byCat, function (entry) {
+        var rows = entry[1].map(function (x, i) { var v = x.v.slice(); v[0] = i + 1; return Object.assign({}, x, { v: v }); });
+        var ts = rows.reduce(function (t, x) { return Math.max(t, x.revision || 0); }, 0);
+        return Object.assign({}, d, { cat: entry[0], rows: rows, last: ts ? { ts: ts } : d.last,
+          header: Object.assign({}, d.header, { statusText: ts ? 'ข้อมูลอัพเดตล่าสุดวันที่ ' + thDate(ts) : d.header.statusText }) });
       });
-    } else {
-      var aoa = [head].concat((d.rows || []).map(function (x) { return [x.v[0], x.v[1], x.v[2], x.v[3], x.v[4], x.v[5], x.v[7]]; }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'บาร์สินค้า');
     }
-    XLSX.writeFile(wb, 'รายการบาร์_' + thaiDayIso() + '.xlsx');
+    await bcExportReports(results, []);
+  });
+});
+$('#btnPrintExcel').addEventListener('click', function () {
+  var keys = checkedCatKeys();
+  if (!keys.length) { toast('เลือกหมวดที่ต้องการส่งออกก่อน', true); return; }
+  busy(this, async function () {
+    var results = await Promise.all(keys.map(function (k) {
+      var c = S.cats.filter(function (x) { return x.key === k; })[0];
+      return call('getCategoryData', c.sheet, c.cat);
+    }));
+    await bcExportReports(results, selectedPartners());
   });
 });
 

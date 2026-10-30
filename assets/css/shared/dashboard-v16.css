@@ -64,7 +64,8 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   .v16-icon { width:20px; height:20px; flex:none; vertical-align:middle; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round }
   .v16-nav a[aria-current=page]::after { content:''; width:6px; height:6px; background:#9874c9; border-radius:50%; margin-left:auto }
   .v16-profile { display:flex; align-items:center; gap:10px; padding:17px 8px 0; margin-top:18px; border-top:1px solid var(--v16-border) }
-  .v16-avatar { display:grid; place-items:center; width:37px; height:37px; border-radius:12px; background:#efe8fa; color:var(--v16-purple-dark); font-weight:700 }
+  .v16-profile > div { flex:1; min-width:0 }
+  .v16-avatar { display:grid; place-items:center; flex:none; width:37px; height:37px; border-radius:12px; background:#efe8fa; color:var(--v16-purple-dark); font-weight:700 }
   .v16-profile strong { display:block; font-size:12px; overflow-wrap:anywhere }
   .v16-profile small { display:block; font-size:10px; color:var(--v16-muted) }
   .v16-sidebar-close { position:absolute; top:22px; right:14px; display:grid; place-items:center; border:1px solid #e4daef; background:#f7f3fc; color:var(--v16-purple-dark); width:36px; height:36px; border-radius:10px; cursor:pointer }
@@ -108,6 +109,7 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
     border:1px solid var(--v16-border); background:#fff; box-shadow:0 12px 40px #3523471a; border-radius:14px }
   body[data-dashboard] .v16-more-panel :is(.btn,.button) { display:block; width:100%; text-align:left; background:#fff; color:var(--v16-ink); border:0; padding:10px 12px; white-space:normal }
   body[data-dashboard] .v16-more-panel :is(.btn,.button):hover { background:#f4eefb }
+  .v16-account-menu > .v16-more-panel { top:auto; bottom:calc(100% + 8px); width:min(220px,calc(var(--v16-sidebar) - 52px)); max-height:60dvh; overflow-y:auto }
   body[data-dashboard] .workspace-intro h2,body[data-dashboard] .intro h1 { font-size:27px; line-height:1.45; font-weight:700; letter-spacing:-.02em; margin:5px 0 8px }
   body[data-dashboard] :is(.workspace-intro p,.intro p) { font-size:13px; color:var(--v16-muted); margin:0; line-height:1.8 }
   body[data-dashboard] :is(.workspace-eyebrow,.eyebrow) { color:#8b72ab; font-size:10px; letter-spacing:.12em; font-weight:700 }
