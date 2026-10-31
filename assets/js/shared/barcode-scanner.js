@@ -24,8 +24,56 @@
     constructor(video, status, found) { this.video = video; this.status = status; this.found = found; this.session = 0; }
     stop() {
       this.session++; clearTimeout(this.timer); this.timer = null;
+      if (this.controls) {
+        this.controls.zoomContainer.hidden = true; this.controls.torch.hidden = true;
+        this.controls.torch.setAttribute('aria-pressed', 'false'); this.controls.torch.textContent = 'เปิดไฟฉาย';
+      }
       if (this.stream) this.stream.getTracks().forEach(track => track.stop());
       this.stream = null; this.video.pause(); this.video.srcObject = null; this.reader = null; this.native = null;
+    }
+    async configureControls(session) {
+      if (!this.controls || !this.stream) return;
+      const track = this.stream.getVideoTracks()[0], caps = track.getCapabilities ? track.getCapabilities() : {};
+      this.softwareZoom = 1; this.frame = 0;
+      const { zoom, zoomContainer, torch } = this.controls;
+      zoom.min = caps.zoom ? caps.zoom.min : 1; zoom.max = caps.zoom ? Math.min(6,caps.zoom.max) : 4;
+      zoom.step = caps.zoom ? caps.zoom.step || .1 : .1;
+      zoom.value = track.getSettings && track.getSettings().zoom || zoom.min;
+      zoomContainer.hidden = Number(zoom.max) <= Number(zoom.min);
+      zoom.oninput = async () => {
+        if (session !== this.session) return;
+        if (caps.zoom) { try { await track.applyConstraints({advanced:[{zoom:Number(zoom.value)}]}); } catch (_) { this.status('กล้องปรับซูมไม่ได้ ลองขยับเข้าใกล้บาร์โค้ด'); } }
+        else { this.softwareZoom = Number(zoom.value); this.video.style.transform = 'scale('+this.softwareZoom+')'; }
+      };
+      torch.hidden = !caps.torch;
+      torch.onclick = async () => {
+        if (session !== this.session) return;
+        const on = torch.getAttribute('aria-pressed') !== 'true';
+        try { await track.applyConstraints({advanced:[{torch:on}]}); if (session !== this.session) return; torch.setAttribute('aria-pressed',String(on)); torch.textContent = on ? 'ปิดไฟฉาย' : 'เปิดไฟฉาย'; }
+        catch (_) { this.status('กล้องนี้เปิดไฟฉายไม่ได้ กรุณาเพิ่มแสงรอบสินค้า'); }
+      };
+      const focus = async () => {
+        if (session !== this.session || !caps.focusMode || !caps.focusMode.includes('continuous')) return;
+        try { await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); } catch (_) { /* Optional camera capability. */ }
+      };
+      this.video.onclick = focus; await focus();
+    }
+    scanFrame() {
+      // Match the part of the sensor actually visible in the cover preview.
+      const v = this.video, vw = v.videoWidth, vh = v.videoHeight;
+      const ratio = v.clientWidth / v.clientHeight;
+      let w = vw, h = vh;
+      if (vw/vh > ratio) w = vh*ratio; else h = vw/ratio;
+      const z = this.softwareZoom || 1; w /= z; h /= z;
+      const mode = this.frame++ % 3;
+      if (mode === 1) { w *= .88; h *= .5; }
+      const scale = Math.min(2,1280/Math.max(w,h)), cw = Math.round(w*scale), ch = Math.round(h*scale);
+      const canvas = this.canvas || (this.canvas = document.createElement('canvas'));
+      canvas.width = mode === 2 ? ch : cw; canvas.height = mode === 2 ? cw : ch;
+      const ctx = canvas.getContext('2d', {willReadFrequently:true});
+      if (mode === 2) { ctx.translate(ch,0); ctx.rotate(Math.PI/2); }
+      ctx.drawImage(v,(vw-w)/2,(vh-h)/2,w,h,0,0,cw,ch);
+      return canvas;
     }
     async fallback(session) {
       const Z = await library(); if (session !== this.session) return;
@@ -41,7 +89,7 @@
       this.status('กำลังขออนุญาตเปิดกล้อง…');
       try {
         let stream;
-        try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } }); }
+        try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: this.controls ? 1920 : 1280 }, height: { ideal: this.controls ? 1080 : 720 } } }); }
         catch (error) {
           if (session !== this.session) return;
           if (!['OverconstrainedError', 'NotFoundError'].includes(error.name)) throw error;
@@ -50,7 +98,9 @@
         // A permission prompt can resolve after the user closes the dialog.
         if (session !== this.session) { stream.getTracks().forEach(track => track.stop()); return; }
         this.stream = stream; this.video.srcObject = stream;
+        this.video.style.transform = '';
         await this.video.play(); if (session !== this.session) return;
+        await this.configureControls(session); if (session !== this.session) return;
         if (window.BarcodeDetector) {
           try {
             const supported = await window.BarcodeDetector.getSupportedFormats();
@@ -74,11 +124,17 @@
       try {
         if (this.video.readyState >= 2) {
           let code = '';
+          const frame = this.controls ? this.scanFrame() : this.video;
           if (this.native) {
-            try { const rows = await this.native.detect(this.video); code = rows[0] && rows[0].rawValue || ''; }
+            try { const rows = await this.native.detect(frame); code = rows[0] && rows[0].rawValue || ''; }
             catch (_) { await this.fallback(session); }
           } else if (this.reader) {
-            try { code = this.reader.decode(this.video).getText(); }
+            try {
+              if (this.controls) {
+                const Z = window.ZXing;
+                code = this.reader.decodeBitmap(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(frame)))).getText();
+              } else code = this.reader.decode(this.video).getText();
+            }
             catch (error) {
               const Z = window.ZXing;
               if (!(error instanceof Z.NotFoundException || error instanceof Z.ChecksumException || error instanceof Z.FormatException)) throw error;
@@ -91,13 +147,16 @@
             if (this.hits >= 2) {
               this.stop(); if (navigator.vibrate) navigator.vibrate(70); this.found(code); return;
             }
-          } else { this.lastCode = ''; this.hits = 0; }
+          } else if (!this.controls) { this.lastCode = ''; this.hits = 0; }
+          // Cropped/rotated frames can miss between matching reads. Expire an old candidate.
+          if (this.controls && code) this.lastRead = Date.now();
+          if (this.controls && !code && Date.now() - (this.lastRead || 0) > 1800) { this.lastCode = ''; this.hits = 0; }
         }
       } catch (error) {
         if (session !== this.session) return;
         this.stop(); this.status(cameraError(error), true); return;
       }
-      if (session === this.session) this.timer = setTimeout(() => this.scan(session), this.native ? 170 : 330);
+      if (session === this.session) this.timer = setTimeout(() => this.scan(session), this.native ? 150 : 230);
     }
   }
   window.CMUBarcodeScanner = Scanner;
