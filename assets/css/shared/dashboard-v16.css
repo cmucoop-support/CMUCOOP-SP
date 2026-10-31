@@ -289,6 +289,11 @@ body[data-dashboard] a,body[data-dashboard] a *,body[data-dashboard] u,body[data
   }
   @media(prefers-reduced-motion:reduce) { body[data-dashboard] *,body[data-dashboard] *::before,body[data-dashboard] *::after { scroll-behavior:auto!important; transition:none!important } }
 }
+/* Safari zooms editable fields below 16px. Keep pinch zoom available. */
+@media screen and (max-width:960px), screen and (hover:none) and (pointer:coarse) {
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100% }
+  body[data-dashboard] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]),select,textarea) { font-size:16px }
+}
 @media print {
   .v16-sidebar,.v16-mobilebar,.v16-nav-backdrop,.v16-menu-toggle,.v16-more,.v16-portal-toolbar,.v16-filterbar,.v16-date,.v16-breadcrumb { display:none!important }
   body[data-dashboard] { padding-left:0!important; padding-bottom:0!important }

@@ -81,7 +81,7 @@ function showLogin(msg) {
   if ($('#login')) $('#login').classList.remove('hidden');
   setNav('portal');
   $('#lgErr').textContent = msg || ''; $('#lgPass').value = '';
-  setTimeout(function () { $('#lgUser').focus(); }, 50);
+  if (matchMedia('(pointer:fine)').matches) setTimeout(function () { if (document.body.classList.contains('locked')) $('#lgUser').focus({ preventScroll:true }); }, 50);
 }
 function hasPerm(k) { if (!S.me) return false; if (S.me.role === 'admin') return true; if (!S.me.perms) return false; return !!S.me.perms[k]; }
 function goPortal() {
@@ -97,6 +97,7 @@ function goPortal() {
 }
 async function startApp(me) {
   S.me = me;
+  if ($('#login').contains(document.activeElement)) document.activeElement.blur();
   document.body.classList.remove('locked');
   if ($('#login')) $('#login').classList.add('hidden');
   try { if (me && me.role) sessionStorage.setItem('pm_me', JSON.stringify(me)); } catch (e) {}
@@ -280,6 +281,7 @@ async function doLogin() {
   if ($('#lgBtn').disabled) return;
   var u = $('#lgUser').value.trim(), p = $('#lgPass').value;
   if (!u || !p) { $('#lgErr').textContent = 'กรุณากรอกรหัสผู้ใช้และรหัสผ่าน'; return; }
+  if ($('#login').contains(document.activeElement)) document.activeElement.blur();
   $('#lgBtn').disabled = true; $('#lgErr').textContent = '';
   try {
     var r = await call('login', u, p);

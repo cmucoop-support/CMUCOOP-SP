@@ -42,6 +42,7 @@
   let photoVersion = 0, photoImage = null, photoCrop = null, photoStart = null, photoBusy = false, photoCandidates = [];
   const photoCanvas = $('#datePhotoCanvas'), photoContext = photoCanvas.getContext('2d');
   function closeDatePhoto() {
+    window.CMUExpiryDate.cancel();
     photoVersion++; photoBusy = false; photoImage = null; photoCrop = null; photoStart = null;
     $('#readDateAgain').disabled = false; $('#dateCandidates').innerHTML = '';
     photoCanvas.width = 1; photoCanvas.height = 1;
@@ -54,7 +55,7 @@
     if (photoCrop) {
       const {x,y,w,h} = photoCrop;
       photoContext.fillStyle = '#20102a88'; photoContext.fillRect(0,0,photoCanvas.width,photoCanvas.height);
-      photoContext.drawImage(photoImage,x,y,w,h,x,y,w,h);
+      photoContext.save();photoContext.beginPath();photoContext.rect(x,y,w,h);photoContext.clip();photoContext.drawImage(photoImage,0,0,photoCanvas.width,photoCanvas.height);photoContext.restore();
       photoContext.strokeStyle = '#cb9aff'; photoContext.lineWidth = Math.max(3,photoCanvas.width/200); photoContext.strokeRect(x,y,w,h);
     }
   }
@@ -62,12 +63,19 @@
     const r = photoCanvas.getBoundingClientRect();
     return { x: Math.max(0,Math.min(photoCanvas.width,(event.clientX-r.left)*photoCanvas.width/r.width)), y: Math.max(0,Math.min(photoCanvas.height,(event.clientY-r.top)*photoCanvas.height/r.height)) };
   }
-  photoCanvas.addEventListener('pointerdown', event => { if (!photoImage || photoBusy) return; photoStart = photoPoint(event); photoCanvas.setPointerCapture(event.pointerId); });
+  photoCanvas.addEventListener('pointerdown', event => { if (!photoImage || photoBusy) return; photoStart = photoPoint(event); photoCrop=null; drawPhoto();photoCanvas.setPointerCapture(event.pointerId); });
   photoCanvas.addEventListener('pointermove', event => {
     if (!photoStart || photoBusy) return; const p = photoPoint(event);
     photoCrop = {x:Math.min(p.x,photoStart.x),y:Math.min(p.y,photoStart.y),w:Math.abs(p.x-photoStart.x),h:Math.abs(p.y-photoStart.y)}; drawPhoto();
   });
-  function finishCrop() { photoStart = null; if (photoCrop && (photoCrop.w < 20 || photoCrop.h < 15)) { photoCrop = null; drawPhoto(); } }
+  function finishCrop() {
+    if(photoStart && (!photoCrop || photoCrop.w<20 || photoCrop.h<15)) {
+      const w=photoCanvas.width*.5,h=Math.min(photoCanvas.height,Math.max(photoCanvas.height*.1,photoCanvas.width*.12));
+      photoCrop={x:Math.max(0,Math.min(photoCanvas.width-w,photoStart.x-w/2)),y:Math.max(0,Math.min(photoCanvas.height-h,photoStart.y-h/2)),w,h};
+      drawPhoto();
+    }
+    photoStart=null;
+  }
   photoCanvas.addEventListener('pointerup',finishCrop); photoCanvas.addEventListener('pointercancel',finishCrop);
   function usePhotoDate(value) {
     if (!$('#lotDialog').open || saving || formLocked) return;
@@ -81,15 +89,13 @@
     photoBusy = true; $('#readDateAgain').disabled = true; $('#dateCandidates').innerHTML = '';
     $('#datePhotoStatus').textContent = 'กำลังอ่านวันหมดอายุจากรูป…';
     try {
-      const crop = photoCrop || {x:0,y:0,w:photoCanvas.width,h:photoCanvas.height};
-      const canvas = document.createElement('canvas'), scale = Math.min(3,2000/Math.max(crop.w,crop.h));
-      canvas.width = Math.round(crop.w*scale); canvas.height = Math.round(crop.h*scale);
-      const ctx = canvas.getContext('2d'); ctx.fillStyle = 'white'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.drawImage(photoImage,crop.x,crop.y,crop.w,crop.h,0,0,canvas.width,canvas.height);
-      const text = await window.CMUExpiryDate.recognize(canvas, message => { $('#datePhotoStatus').textContent = message; }, active);
+      const sx=photoImage.width/photoCanvas.width,sy=photoImage.height/photoCanvas.height;
+      const input=photoCrop?window.CMUExpiryImage.prepare(photoImage,{x:photoCrop.x*sx,y:photoCrop.y*sy,w:photoCrop.w*sx,h:photoCrop.h*sy}):photoImage;
+      const result = await window.CMUExpiryDate.read(input, message => { if(active()) $('#datePhotoStatus').textContent = message; }, active);
       if (!active()) return;
-      photoCandidates = window.CMUExpiryDate.parse(text);
-      if (photoCandidates.length === 1) { usePhotoDate(photoCandidates[0].value); return; }
-      $('#datePhotoStatus').textContent = photoCandidates.length ? 'พบหลายวันที่ เลือกวันหมดอายุให้ตรงฉลาก' : 'ยังอ่านวันที่ไม่ชัด ลากกรอบเฉพาะวันที่แล้วอ่านอีกครั้ง หรือปิดเพื่อเลือกวันที่เอง';
+      photoCandidates = result.candidates;
+      if (result.auto) { usePhotoDate(photoCandidates[0].value); return; }
+      $('#datePhotoStatus').textContent = photoCandidates.length ? 'แตะเลือกวันที่ที่ตรงกับวันหมดอายุบนฉลาก แล้วตรวจแก้ก่อนบันทึก' : 'ยังอ่านวันที่ไม่ชัด แตะที่บรรทัดวันที่หรือลากกรอบ แล้วกดอ่านอีกครั้ง';
       $('#dateCandidates').innerHTML = photoCandidates.map((d,i) => '<button type="button" class="button secondary" data-date-candidate="'+i+'">'+esc(d.label)+'<small>'+esc(d.source)+'</small></button>').join('');
     } catch (error) { if (active()) $('#datePhotoStatus').textContent = error.message || 'อ่านรูปไม่สำเร็จ กรุณาเลือกวันที่เอง'; }
     finally { if (version === photoVersion) { photoBusy = false; $('#readDateAgain').disabled = false; } }
@@ -102,9 +108,9 @@
     try {
       await new Promise((resolve,reject) => { img.onload = resolve; img.onerror = () => reject(new Error('เปิดรูปนี้ไม่ได้ กรุณาถ่ายใหม่ หรือใช้รูป JPG / PNG')); img.src = url; });
       if (version !== photoVersion || state !== formState || !$('#lotDialog').open) return;
-      const scale = Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight));
+      const scale = Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)),sourceScale=Math.min(1,2800/Math.max(img.naturalWidth,img.naturalHeight));
       photoCanvas.width = Math.round(img.naturalWidth*scale); photoCanvas.height = Math.round(img.naturalHeight*scale);
-      const source = document.createElement('canvas'); source.width = photoCanvas.width; source.height = photoCanvas.height;
+      const source = document.createElement('canvas'); source.width = Math.round(img.naturalWidth*sourceScale); source.height = Math.round(img.naturalHeight*sourceScale);
       source.getContext('2d').drawImage(img,0,0,source.width,source.height); photoImage = source; photoCrop = null; drawPhoto();
       await readDatePhoto();
     } catch (error) { if (version === photoVersion) $('#datePhotoStatus').textContent = error.message; }
