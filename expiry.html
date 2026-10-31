@@ -4,8 +4,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
 <title>แจ้งเตือนสินค้าหมดอายุ · CMUCOOP</title>
-<link rel="icon" href="assets/images/logo.png"><link rel="stylesheet" href="assets/css/shared/fonts.css?v=16.2"><link rel="stylesheet" href="assets/css/pages/expiry.css?v=16.5">
-<script src="assets/js/shared/gas-shim.js?v=16.2"></script><script src="assets/js/shared/barcode-scanner.js?v=16.5" defer></script><script src="assets/js/shared/expiry-image-processing.js?v=16.6" defer></script><script src="assets/js/shared/expiry-date-reader.js?v=16.6" defer></script><script src="assets/js/pages/expiry.js?v=16.6" defer></script>
+<link rel="icon" href="assets/images/logo.png"><link rel="stylesheet" href="assets/css/shared/fonts.css?v=16.2"><link rel="stylesheet" href="assets/css/pages/expiry.css?v=16.7">
+<script src="assets/js/shared/gas-shim.js?v=16.2"></script><script src="assets/js/shared/barcode-scanner.js?v=16.5" defer></script><script src="assets/js/pages/expiry.js?v=16.7" defer></script>
 
 <link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.6">
 <script src="assets/js/shared/dashboard-v16.js?v=16.4" defer></script>
@@ -23,7 +23,7 @@
     <form id="loginForm"><label>รหัสผู้ใช้<input id="username" autocomplete="username" required></label><label>รหัสผ่าน<input id="password" type="password" autocomplete="current-password" required></label><p class="error" id="loginError" role="alert"></p><button class="button primary" id="loginButton">เข้าสู่ระบบ</button></form>
   </section>
   <div id="workspace" hidden>
-    <section class="intro"><div><div class="eyebrow">EXPIRY ALERTS / ติดตามรายล็อต</div><h1>แจ้งเตือนสินค้าหมดอายุ</h1><p>เพิ่มสินค้าต่อเนื่องในล็อตเดิม อ่านวันหมดอายุจากรูปและตรวจแก้ก่อนบันทึก</p></div><button class="button primary" id="addLot">＋ เพิ่มล็อตใหม่</button></section>
+    <section class="intro"><div><div class="eyebrow">EXPIRY ALERTS / ติดตามรายล็อต</div><h1>แจ้งเตือนสินค้าหมดอายุ</h1><p>เพิ่มสินค้าต่อเนื่องในล็อตเดิม เลือกวันหมดอายุและตรวจสอบก่อนบันทึก</p></div><button class="button primary" id="addLot">＋ เพิ่มล็อตใหม่</button></section>
     <p class="helper catalog-notice" id="catalogNotice" aria-live="polite"></p>
     <div class="notice" id="urgent" role="status"></div>
     <nav class="stats" id="stats" aria-label="กรองตามช่วงวันหมดอายุ"></nav>
@@ -51,10 +51,9 @@
       <div id="productResults" class="product-results" aria-label="ผลการค้นหาสินค้า" hidden></div>
       <div class="form-grid selected-product" id="selectedProduct"><label><span id="barcodeLabel">รหัสสินค้าจากระบบ</span><input id="barcode" maxlength="64" readonly required placeholder="เติมเมื่อเลือกสินค้า"></label><label><span>ชื่อสินค้า <span class="required-mark" aria-hidden="true">*</span></span><input id="productName" maxlength="200" readonly required placeholder="เติมเมื่อเลือกสินค้า"></label></div>
       <label>จุดวางสินค้า<input id="location" maxlength="120" placeholder="เช่น ตู้แช่ 2 / ชั้น A3"></label>
-      <div class="form-grid"><div class="expiry-date-group"><div class="date-heading"><strong>วันหมดอายุ *</strong><button type="button" class="button secondary" id="openDatePhoto">ถ่ายรูปอ่านวันที่</button></div>
-      <input id="datePhotoInput" type="file" accept="image/*" capture="environment" hidden>
+      <div class="form-grid"><div class="expiry-date-group"><div class="date-heading"><strong>วันหมดอายุ *</strong></div>
       <input id="expires" type="hidden"><div class="numeric-date"><label>วัน<select id="expiryDay" required aria-label="วันหมดอายุ: วัน"><option value="">วัน</option></select></label><label>เดือน<select id="expiryMonth" required aria-label="วันหมดอายุ: เดือน"><option value="">เดือน</option></select></label><label>ปี ค.ศ.<select id="expiryYear" required aria-label="วันหมดอายุ: ปี ค.ศ."><option value="">ปี</option></select></label></div>
-      <p class="helper" id="dateInfo" aria-live="polite">วัน / เดือน / ปี ค.ศ. เป็นตัวเลข · อ่านจากรูปแล้วแก้ไขได้</p></div><div class="quantity-group"><label><span>จำนวน <small>(ไม่บังคับ)</small></span><input id="quantity" type="number" min="0" max="1000000000" step="0.001" placeholder="เว้นว่างได้"></label><label>หน่วย<input id="unit" maxlength="20" placeholder="ชิ้น / กล่อง"></label></div></div>
+      <p class="helper" id="dateInfo" aria-live="polite">ปีเริ่มต้นเป็นปีปัจจุบัน · เลือกวันและเดือนตามฉลาก</p></div><div class="quantity-group"><label><span>จำนวน <small>(ไม่บังคับ)</small></span><input id="quantity" type="number" min="0" max="1000000000" step="0.001" placeholder="เว้นว่างได้"></label><label>หน่วย<input id="unit" maxlength="20" placeholder="ชิ้น / กล่อง"></label></div></div>
       <label>หมายเหตุ<textarea id="note" rows="2" maxlength="1000" placeholder="รายละเอียดสำหรับผู้มาตรวจสอบ"></textarea></label>
     </fieldset></div>
     <p class="error" id="formError" role="alert"></p>
@@ -62,7 +61,6 @@
   </form>
 </dialog>
 <dialog id="cameraDialog" aria-labelledby="cameraTitle"><div class="dialog-heading"><h2 id="cameraTitle">สแกนบาร์โค้ดสินค้า</h2><button type="button" class="icon-button" id="closeCamera" aria-label="ปิดกล้อง">×</button></div><div class="camera-preview"><video id="cameraVideo" autoplay muted playsinline aria-label="ภาพจากกล้องสำหรับสแกนบาร์โค้ด"></video><div class="camera-target" aria-hidden="true"></div></div><p id="cameraStatus" class="helper" role="status" aria-live="polite"></p><div class="camera-controls"><label id="zoomControl" hidden>ซูม <input id="cameraZoom" type="range" min="1" max="4" step="0.1" value="1"></label><button type="button" class="button secondary" id="cameraTorch" aria-pressed="false" hidden>เปิดไฟฉาย</button></div><p class="helper">ให้บาร์โค้ดอยู่ในกรอบและเห็นครบทั้งแถบ · แตะภาพเพื่อโฟกัสใหม่ · ภาพประมวลผลบนเครื่องของคุณ</p><div class="dialog-actions"><button type="button" class="button secondary" id="cancelCamera">ปิดและพิมพ์แทน</button><button type="button" class="button primary" id="retryCamera">ลองอีกครั้ง</button></div></dialog>
-<dialog id="datePhotoDialog" aria-labelledby="datePhotoTitle"><div class="dialog-heading"><h2 id="datePhotoTitle">อ่านวันหมดอายุจากรูป</h2><button type="button" class="icon-button" id="closeDatePhoto" aria-label="ปิดรูป">×</button></div><p class="helper">ระบบค้นหาบรรทัดวันที่ให้อัตโนมัติ หากยังไม่ชัด แตะตรงวันที่หรือลากกรอบเฉพาะวันหมดอายุ แล้วกดอ่านอีกครั้ง</p><canvas id="datePhotoCanvas" aria-label="รูปฉลาก ลากเพื่อเลือกบริเวณวันที่"></canvas><p class="helper" id="datePhotoStatus" role="status" aria-live="polite"></p><div id="dateCandidates" class="date-candidates"></div><div class="dialog-actions"><button type="button" class="button secondary" id="cancelDatePhoto">ปิดและเลือกวันที่เอง</button><button type="button" class="button secondary" id="resetDateCrop">ใช้รูปเต็ม</button><button type="button" class="button primary" id="readDateAgain">อ่านอีกครั้ง</button></div></dialog>
 <dialog id="historyDialog" aria-labelledby="historyTitle"><div class="dialog-heading"><h2 id="historyTitle">ประวัติล็อต</h2><button class="icon-button" id="closeHistory" aria-label="ปิดประวัติ">×</button></div><div id="historyContent"></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 </body></html>

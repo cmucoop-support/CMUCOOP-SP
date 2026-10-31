@@ -17,6 +17,13 @@
   let token = '', user = null, data = null, bucket = 'all', page = 1, loadSeq = 0, lookupSeq = 0, historySeq = 0, timer, searchTimer, toastTimer, formState = null, saving = false;
   let formLocked = false, catalog = null, catalogError = '', matches = [], productSelection = null, manualMode = false, lookupTimer;
   const pad = n => String(n).padStart(2, '0');
+  const currentYear = () => new Intl.DateTimeFormat('en-US-u-ca-gregory-nu-latn', { year:'numeric', timeZone:'Asia/Bangkok' }).format(new Date());
+  function expiryIso(day, month, year) {
+    const d=Number(day),m=Number(month),y=Number(year);
+    if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y) || d<1 || d>31 || m<1 || m>12 || y<1900 || y>2200) return '';
+    const result=new Date(Date.UTC(y,m-1,d));
+    return result.getUTCFullYear()===y && result.getUTCMonth()===m-1 && result.getUTCDate()===d ? result.toISOString().slice(0,10) : '';
+  }
   for (const [id, max] of [['expiryDay',31],['expiryMonth',12]]) {
     for (let n=1;n<=max;n++) $('#' + id).add(new Option(pad(n),pad(n)));
   }
@@ -24,12 +31,12 @@
   function setExpiryDate(value) {
     $('#expires').value = value;
     const parts = value.split('-');
-    $('#expiryYear').value = parts[0] || ''; $('#expiryMonth').value = parts[1] || ''; $('#expiryDay').value = parts[2] || '';
+    $('#expiryYear').value = parts[0] || currentYear(); $('#expiryMonth').value = parts[1] || ''; $('#expiryDay').value = parts[2] || '';
     $('#expiryDay').setCustomValidity('');
   }
   function syncExpiryDate() {
     const day = $('#expiryDay'), month = $('#expiryMonth').value, year = $('#expiryYear').value;
-    const value = day.value && month && year ? window.CMUExpiryDate.iso(day.value,month,year) : '';
+    const value = day.value && month && year ? expiryIso(day.value,month,year) : '';
     day.setCustomValidity(day.value && month && year && !value ? 'วันที่ไม่มีอยู่จริง กรุณาตรวจวัน เดือน และปี' : '');
     $('#expires').value = value;
     if (!value) { $('#lotForm').reportValidity(); return false; }
@@ -39,88 +46,6 @@
     $('#dateInfo').textContent = 'วันที่ที่เลือก: ' + $('#expiryDay').value + '/' + $('#expiryMonth').value + '/' + $('#expiryYear').value + ' · ตรวจสอบให้ตรงกับฉลาก';
     syncExpiryDate();
   });
-  let photoVersion = 0, photoImage = null, photoCrop = null, photoStart = null, photoBusy = false, photoCandidates = [];
-  const photoCanvas = $('#datePhotoCanvas'), photoContext = photoCanvas.getContext('2d');
-  function closeDatePhoto() {
-    window.CMUExpiryDate.cancel();
-    photoVersion++; photoBusy = false; photoImage = null; photoCrop = null; photoStart = null;
-    $('#readDateAgain').disabled = false; $('#dateCandidates').innerHTML = '';
-    photoCanvas.width = 1; photoCanvas.height = 1;
-    if ($('#datePhotoDialog').open) $('#datePhotoDialog').close();
-    $('#datePhotoInput').value = '';
-  }
-  function drawPhoto() {
-    if (!photoImage) return;
-    photoContext.drawImage(photoImage,0,0,photoCanvas.width,photoCanvas.height);
-    if (photoCrop) {
-      const {x,y,w,h} = photoCrop;
-      photoContext.fillStyle = '#20102a88'; photoContext.fillRect(0,0,photoCanvas.width,photoCanvas.height);
-      photoContext.save();photoContext.beginPath();photoContext.rect(x,y,w,h);photoContext.clip();photoContext.drawImage(photoImage,0,0,photoCanvas.width,photoCanvas.height);photoContext.restore();
-      photoContext.strokeStyle = '#cb9aff'; photoContext.lineWidth = Math.max(3,photoCanvas.width/200); photoContext.strokeRect(x,y,w,h);
-    }
-  }
-  function photoPoint(event) {
-    const r = photoCanvas.getBoundingClientRect();
-    return { x: Math.max(0,Math.min(photoCanvas.width,(event.clientX-r.left)*photoCanvas.width/r.width)), y: Math.max(0,Math.min(photoCanvas.height,(event.clientY-r.top)*photoCanvas.height/r.height)) };
-  }
-  photoCanvas.addEventListener('pointerdown', event => { if (!photoImage || photoBusy) return; photoStart = photoPoint(event); photoCrop=null; drawPhoto();photoCanvas.setPointerCapture(event.pointerId); });
-  photoCanvas.addEventListener('pointermove', event => {
-    if (!photoStart || photoBusy) return; const p = photoPoint(event);
-    photoCrop = {x:Math.min(p.x,photoStart.x),y:Math.min(p.y,photoStart.y),w:Math.abs(p.x-photoStart.x),h:Math.abs(p.y-photoStart.y)}; drawPhoto();
-  });
-  function finishCrop() {
-    if(photoStart && (!photoCrop || photoCrop.w<20 || photoCrop.h<15)) {
-      const w=photoCanvas.width*.5,h=Math.min(photoCanvas.height,Math.max(photoCanvas.height*.1,photoCanvas.width*.12));
-      photoCrop={x:Math.max(0,Math.min(photoCanvas.width-w,photoStart.x-w/2)),y:Math.max(0,Math.min(photoCanvas.height-h,photoStart.y-h/2)),w,h};
-      drawPhoto();
-    }
-    photoStart=null;
-  }
-  photoCanvas.addEventListener('pointerup',finishCrop); photoCanvas.addEventListener('pointercancel',finishCrop);
-  function usePhotoDate(value) {
-    if (!$('#lotDialog').open || saving || formLocked) return;
-    setExpiryDate(value); $('#dateInfo').textContent = 'อ่านได้ ' + value.slice(8)+'/'+value.slice(5,7)+'/'+value.slice(0,4) + ' · กรุณาตรวจและแก้ให้ตรงฉลากก่อนบันทึก';
-    closeDatePhoto(); $('#expiryDay').focus();
-  }
-  async function readDatePhoto() {
-    if (!photoImage || photoBusy) return;
-    const version = ++photoVersion, state = formState;
-    const active = () => version === photoVersion && state === formState && $('#datePhotoDialog').open && $('#lotDialog').open;
-    photoBusy = true; $('#readDateAgain').disabled = true; $('#dateCandidates').innerHTML = '';
-    $('#datePhotoStatus').textContent = 'กำลังอ่านวันหมดอายุจากรูป…';
-    try {
-      const sx=photoImage.width/photoCanvas.width,sy=photoImage.height/photoCanvas.height;
-      const input=photoCrop?window.CMUExpiryImage.prepare(photoImage,{x:photoCrop.x*sx,y:photoCrop.y*sy,w:photoCrop.w*sx,h:photoCrop.h*sy}):photoImage;
-      const result = await window.CMUExpiryDate.read(input, message => { if(active()) $('#datePhotoStatus').textContent = message; }, active);
-      if (!active()) return;
-      photoCandidates = result.candidates;
-      if (result.auto) { usePhotoDate(photoCandidates[0].value); return; }
-      $('#datePhotoStatus').textContent = photoCandidates.length ? 'แตะเลือกวันที่ที่ตรงกับวันหมดอายุบนฉลาก แล้วตรวจแก้ก่อนบันทึก' : 'ยังอ่านวันที่ไม่ชัด แตะที่บรรทัดวันที่หรือลากกรอบ แล้วกดอ่านอีกครั้ง';
-      $('#dateCandidates').innerHTML = photoCandidates.map((d,i) => '<button type="button" class="button secondary" data-date-candidate="'+i+'">'+esc(d.label)+'<small>'+esc(d.source)+'</small></button>').join('');
-    } catch (error) { if (active()) $('#datePhotoStatus').textContent = error.message || 'อ่านรูปไม่สำเร็จ กรุณาเลือกวันที่เอง'; }
-    finally { if (version === photoVersion) { photoBusy = false; $('#readDateAgain').disabled = false; } }
-  }
-  $('#openDatePhoto').addEventListener('click', () => { if (!saving && !formLocked) { closeCamera(); $('#datePhotoInput').click(); } });
-  $('#datePhotoInput').addEventListener('change', async event => {
-    const file = event.target.files[0]; if (!file || saving || formLocked) return;
-    const version = ++photoVersion, state = formState, url = URL.createObjectURL(file), img = new Image();
-    $('#datePhotoStatus').textContent = 'กำลังเปิดรูป…'; $('#dateCandidates').innerHTML = ''; $('#datePhotoDialog').showModal();
-    try {
-      await new Promise((resolve,reject) => { img.onload = resolve; img.onerror = () => reject(new Error('เปิดรูปนี้ไม่ได้ กรุณาถ่ายใหม่ หรือใช้รูป JPG / PNG')); img.src = url; });
-      if (version !== photoVersion || state !== formState || !$('#lotDialog').open) return;
-      const scale = Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)),sourceScale=Math.min(1,2800/Math.max(img.naturalWidth,img.naturalHeight));
-      photoCanvas.width = Math.round(img.naturalWidth*scale); photoCanvas.height = Math.round(img.naturalHeight*scale);
-      const source = document.createElement('canvas'); source.width = Math.round(img.naturalWidth*sourceScale); source.height = Math.round(img.naturalHeight*sourceScale);
-      source.getContext('2d').drawImage(img,0,0,source.width,source.height); photoImage = source; photoCrop = null; drawPhoto();
-      await readDatePhoto();
-    } catch (error) { if (version === photoVersion) $('#datePhotoStatus').textContent = error.message; }
-    finally { URL.revokeObjectURL(url); event.target.value = ''; }
-  });
-  $('#dateCandidates').addEventListener('click', event => { const b=event.target.closest('[data-date-candidate]'); if (b && photoCandidates[Number(b.dataset.dateCandidate)]) usePhotoDate(photoCandidates[Number(b.dataset.dateCandidate)].value); });
-  $('#readDateAgain').addEventListener('click',readDatePhoto);
-  $('#resetDateCrop').addEventListener('click', () => { if (!photoBusy) { photoCrop = null; drawPhoto(); } });
-  $('#closeDatePhoto').addEventListener('click',closeDatePhoto); $('#cancelDatePhoto').addEventListener('click',closeDatePhoto);
-  $('#datePhotoDialog').addEventListener('cancel',event => { event.preventDefault(); closeDatePhoto(); });
   function toast(message, error = false) {
     if (message === 'SESSION_CHANGED') return;
     const el = $('#toast'); el.textContent = message; el.classList.toggle('error-toast', error); el.setAttribute('role', error ? 'alert' : 'status'); el.hidden = false;
@@ -158,7 +83,7 @@
   }
   function clearDraft(requestId) { try { localStorage.removeItem(draftKey(requestId)); } catch (_) {} }
   function showLogin(message = '') {
-    closeDatePhoto(); closeCamera(); catalog = null; catalogError = ''; productSelection = null; matches = [];
+    closeCamera(); catalog = null; catalogError = ''; productSelection = null; matches = [];
     token = ''; user = null; data = null; formState = null; loadSeq++; lookupSeq++; historySeq++; clearInterval(timer);
     try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (_) {}
     $('#workspace').hidden = true; $('#loginPanel').hidden = false; $('#logout').hidden = true; $('#me').textContent = '';
@@ -288,7 +213,7 @@
     $('#formTitle').textContent = 'เพิ่มรายการแจ้งเตือน'; $('#formEyebrow').textContent = 'สร้างล็อตใหม่ · เลขล็อตอัตโนมัติ'; $('#saveNext').hidden = false; $('#save').textContent = 'บันทึกล็อต';
     formState = { id: null, groupId: continuation && continuation.groupId || 0, requestId: crypto.randomUUID().replace(/-/g, ''), payload: null };
     $('#formHelp').textContent = continuation ? 'ล็อต ' + continuation.groupLot + ' · สินค้าลำดับถัดไป (ระบบกำหนดลำดับเมื่อบันทึก)' : 'เริ่มล็อตใหม่ · สินค้ารายการแรกเป็นลำดับ -1 · บันทึกและเพิ่มถัดไปเพื่อต่อล็อตเดิม';
-    $('#dateInfo').textContent = 'วัน / เดือน / ปี ค.ศ. เป็นตัวเลข · อ่านจากรูปแล้วแก้ไขได้';
+    $('#dateInfo').textContent = 'ปีเริ่มต้นเป็นปีปัจจุบัน · เลือกวันและเดือนตามฉลาก';
     if (pending && pending.requestId && pending.name && pending.expires) { formState.requestId = pending.requestId; formState.groupId = pending.groupId || 0; formState.payload = pending; fillForm(pending); $('#barcode').required = false; lockForm(true); }
     else { fillForm({ location: continuation && continuation.location || '', branch: continuation && continuation.branch || $('#branchFilter').value || storageGet('cmucoop_expiry_branch:' + user.user) || '' }); lockForm(false); }
     if (!$('#lotDialog').open) $('#lotDialog').showModal();
@@ -301,14 +226,14 @@
     productSelection = { code: row.barcode, name: row.name, branch: row.branch };
     $('#lookupInfo').textContent = 'เก็บชื่อและรหัสตามล็อตเดิม หากต้องการเปลี่ยนสินค้าให้ค้นหาแล้วเลือกรายการใหม่';
     $('#formTitle').textContent = 'แก้ไข ' + row.lot; $('#formEyebrow').textContent = 'แก้ไขเฉพาะล็อตนี้'; $('#saveNext').hidden = true; $('#save').textContent = 'บันทึกการแก้ไข';
-    $('#formHelp').textContent = 'แก้ไขเฉพาะรายการนี้ · ตรวจแก้วันที่ได้ด้วยตัวเลขหรืออ่านจากรูป';
+    $('#formHelp').textContent = 'แก้ไขเฉพาะรายการนี้ · ตรวจแก้วัน เดือน และปีได้ด้วยตัวเลข';
     $('#lotDialog').showModal(); $('#expiryDay').focus();
   }
   $('#addLot').addEventListener('click', () => openNew());
-  function closeForm() { if (!saving) { closeDatePhoto(); closeCamera(); $('#lotDialog').close(); lookupSeq++; clearTimeout(lookupTimer); } }
+  function closeForm() { if (!saving) { closeCamera(); $('#lotDialog').close(); lookupSeq++; clearTimeout(lookupTimer); } }
   $('#closeForm').addEventListener('click', closeForm); $('#cancelForm').addEventListener('click', closeForm);
   $('#lotDialog').addEventListener('cancel', event => { if (saving) event.preventDefault(); });
-  $('#lotDialog').addEventListener('close', () => { lookupSeq++; clearTimeout(lookupTimer); closeDatePhoto(); closeCamera(); });
+  $('#lotDialog').addEventListener('close', () => { lookupSeq++; clearTimeout(lookupTimer); closeCamera(); });
   function chooseProduct(row) {
     setManualMode(false); productSelection = row; $('#barcode').value = row.code; $('#productName').value = row.name; $('#branch').value = row.branch;
     $('#barcode').required = true; clearResults();
