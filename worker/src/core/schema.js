@@ -20,7 +20,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
 
-const SCHEMA_VERSION = 'assets-1';
+const SCHEMA_VERSION = 'expiry-items-1';
 
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
@@ -61,6 +61,17 @@ const EXPIRY_SCHEMA = [
 ];
 
 SCHEMA.push(...EXPIRY_SCHEMA);
+
+const EXPIRY_ITEMS_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS expiry_item_links (
+    lot_id INTEGER PRIMARY KEY, group_id INTEGER NOT NULL, item_no INTEGER NOT NULL CHECK(item_no>0),
+    deleted INTEGER NOT NULL DEFAULT 0 CHECK(deleted IN (0,1)), UNIQUE(group_id,item_no)
+  )`,
+  `CREATE VIEW IF NOT EXISTS expiry_records AS SELECT l.*, COALESCE(i.group_id,l.id) AS group_id,
+    COALESCE(i.item_no,1) AS item_no, COALESCE(i.deleted,0) AS deleted
+    FROM expiry_lots l LEFT JOIN expiry_item_links i ON i.lot_id=l.id`
+];
+SCHEMA.push(...EXPIRY_ITEMS_SCHEMA);
 
 const ASSETS_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS asset_items (
@@ -129,4 +140,4 @@ async function ensureSchema(db) {
   return (await ready) && first;
 }
 
-export { SCHEMA, SCHEMA_VERSION, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };
+export { SCHEMA, SCHEMA_VERSION, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };

@@ -36,7 +36,7 @@ function expiryClean(p) {
   const data = { barcode: str(p.barcode).replace(/\s+/g, '').slice(0, 64), name: text(p.name, 200), branch: text(p.branch, 80), location: text(p.location, 120), expires: stockDate(p.expires), quantity: /** @type {number | null} */ (null), unit: '', note: text(p.note, 1000) };
   if (!data.name) throw new Error('กรุณาระบุชื่อสินค้า');
   if (!data.branch) throw new Error('กรุณาระบุสาขา');
-  if (!data.expires || Number(data.expires.slice(0, 4)) < 1900 || Number(data.expires.slice(0, 4)) > 2200) throw new Error('วันหมดอายุไม่ถูกต้อง กรุณาเลือกปี ค.ศ. จากปฏิทิน');
+  if (!data.expires || Number(data.expires.slice(0, 4)) < 1900 || Number(data.expires.slice(0, 4)) > 2200) throw new Error('วันหมดอายุไม่ถูกต้อง กรุณาเลือกวัน เดือน และปี ค.ศ. เป็นตัวเลข');
   if (p.quantity != null && !['number', 'string'].includes(typeof p.quantity)) throw new Error('จำนวนต้องเป็นตัวเลขหรือเว้นว่าง');
   if (p.quantity !== null && p.quantity !== undefined && str(p.quantity) !== '') {
     const value = Number(p.quantity);
@@ -47,7 +47,8 @@ function expiryClean(p) {
 }
 
 function expiryRow(row, bounds = expiryBounds()) {
-  return { id: row.id, lot: 'LOT-' + String(row.id).padStart(6, '0'), barcode: row.barcode, name: row.name, branch: row.branch, location: row.location,
+  const groupId = row.group_id || row.id, itemNo = row.item_no || 1, groupLot = 'LOT-' + String(groupId).padStart(6, '0');
+  return { id: row.id, groupId, itemNo, groupLot, deleted: !!row.deleted, lot: groupLot + '-' + itemNo, barcode: row.barcode, name: row.name, branch: row.branch, location: row.location,
     expires: row.expires, quantity: row.quantity, unit: row.unit, note: row.note, status: row.status, version: row.version,
     createdTs: row.created_ts, createdBy: row.created_by, updatedTs: row.updated_ts, updatedBy: row.updated_by,
     days: Math.round((Date.parse(row.expires + 'T00:00:00Z') - Date.parse(bounds.today + 'T00:00:00Z')) / 86400000), bucket: expiryBucket(row.expires, bounds) };
@@ -63,7 +64,7 @@ function expiryCountsStmt(C, branch, b) {
       COALESCE(SUM(expires>m3 AND expires<=m6),0) AS m6,
       COALESCE(SUM(expires>m6 AND expires<=m12),0) AS m12,
       COALESCE(SUM(expires>m12),0) AS later
-    FROM expiry_lots,cut WHERE status IN ('active','acknowledged') AND (?='' OR branch=?)`, b.today, b.week, b.month, b.m3, b.m6, b.m12, branch, branch);
+    FROM expiry_records,cut WHERE deleted=0 AND status IN ('active','acknowledged') AND (?='' OR branch=?)`, b.today, b.week, b.month, b.m3, b.m6, b.m12, branch, branch);
 }
 
 API.expirySummary = async (C, token, branch) => {
@@ -208,13 +209,13 @@ async function expiryValidateSource(C, data) {
 API.expiryList = async (C, token, options) => {
   const me = await expiryAuth(C, token), o = options && typeof options === 'object' ? options : {}, bounds = expiryBounds();
   const branch = str(o.branch).slice(0, 80), search = str(o.q).slice(0, 120), state = ['open','closed','all'].includes(o.state) ? o.state : 'open';
-  const size = 50, page = Math.min(20000, Math.max(1, Math.floor(Number(o.page) || 1))), where = [], params = [];
+  const size = 50, page = Math.min(20000, Math.max(1, Math.floor(Number(o.page) || 1))), where = ['deleted=0'], params = [];
   if (state === 'open') where.push("status IN ('active','acknowledged')");
   if (state === 'closed') where.push("status='closed'");
   if (branch) { where.push('branch=?'); params.push(branch); }
   if (search) {
     const q = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
-    where.push("(name LIKE ? ESCAPE '\\' OR barcode LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR ('LOT-'||printf('%06d',id)) LIKE ? ESCAPE '\\')"); params.push(q, q, q, q);
+    where.push("(name LIKE ? ESCAPE '\\' OR barcode LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR ('LOT-'||printf('%06d',group_id)||'-'||item_no) LIKE ? ESCAPE '\\')"); params.push(q, q, q, q);
   }
   const ranges = {
     expired: ['expires<?', bounds.today], week: ['expires>=? AND expires<=?', bounds.today, bounds.week],
@@ -228,9 +229,9 @@ API.expiryList = async (C, token, options) => {
   const filter = where.length ? ' WHERE ' + where.join(' AND ') : '';
   // Counts, branches and this page come from one consistent D1 transaction.
   const results = await batch(C, [
-    stmt(C, 'SELECT * FROM expiry_lots' + filter + ' ORDER BY expires,id LIMIT ? OFFSET ?', ...params, size, (page - 1) * size),
-    stmt(C, 'SELECT COUNT(*) AS n FROM expiry_lots' + filter, ...params), expiryCountsStmt(C, branch, bounds),
-    stmt(C, 'SELECT DISTINCT branch FROM expiry_lots ORDER BY branch')
+    stmt(C, 'SELECT * FROM expiry_records' + filter + ' ORDER BY expires,id LIMIT ? OFFSET ?', ...params, size, (page - 1) * size),
+    stmt(C, 'SELECT COUNT(*) AS n FROM expiry_records' + filter, ...params), expiryCountsStmt(C, branch, bounds),
+    stmt(C, 'SELECT DISTINCT branch FROM expiry_records WHERE deleted=0 ORDER BY branch')
   ]);
   return { rows: (results[0].results || []).map(r => expiryRow(r, bounds)), total: results[1].results[0].n, counts: results[2].results[0], branches: (results[3].results || []).map(r => r.branch), page, pageSize: size, bounds, me: { name: me.name, edit: !!me.perms.expiry_edit } };
 };
@@ -238,25 +239,36 @@ API.expiryList = async (C, token, options) => {
 API.expiryCreate = async (C, token, payload) => {
   const me = await expiryAuth(C, token, true), data = expiryClean(payload), requestId = str(payload.requestId);
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new Error('รหัสคำขอไม่ถูกต้อง กรุณาเปิดฟอร์มเพิ่มล็อตใหม่');
-  const digest = await sha256hex(JSON.stringify(data)), ts = now();
+  const groupId = payload.groupId == null ? 0 : Number(payload.groupId);
+  if (!Number.isSafeInteger(groupId) || groupId < 0) throw new Error('กรุณาเปิดฟอร์มเพิ่มล็อตใหม่ (เลขล็อตไม่ถูกต้อง)');
+  const digest = await sha256hex(JSON.stringify(groupId ? { ...data, groupId } : data)), ts = now();
+  const previous = await one(C, 'SELECT * FROM expiry_records WHERE request_id=?', requestId);
+  if (previous) {
+    if (previous.create_hash !== digest || previous.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
+    return { lot: expiryRow(previous), replayed: true };
+  }
+  if (groupId) {
+    const root = await one(C, 'SELECT * FROM expiry_records WHERE id=? AND group_id=?', groupId, groupId);
+    if (!root || root.created_user !== me.user) throw new Error('กรุณาเปิดล็อตใหม่ ไม่พบล็อตเดิมที่คุณสร้าง');
+  }
   // Old clients/pending receipts remain compatible. New forms explicitly select stock data.
   if (payload.stockSource === true) {
-    const previous = await one(C, 'SELECT * FROM expiry_lots WHERE request_id=?', requestId);
-    if (previous) {
-      if (previous.create_hash !== digest || previous.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
-      return { lot: expiryRow(previous), replayed: true };
-    }
     await expiryValidateSource(C, data);
   }
   const results = await batch(C, [
     stmt(C, `INSERT INTO expiry_lots(request_id,create_hash,barcode,name,branch,location,expires,quantity,unit,note,created_ts,created_user,created_by,updated_ts,updated_by)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_id) DO NOTHING`, requestId, digest, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, ts, me.user, me.name, ts, me.name),
+    stmt(C, `INSERT INTO expiry_item_links(lot_id,group_id,item_no)
+      SELECT id,CASE WHEN ?=0 THEN id ELSE ? END,
+        CASE WHEN ?=0 THEN 1 ELSE MAX(1,COALESCE((SELECT MAX(item_no) FROM expiry_item_links WHERE group_id=?),1))+1 END
+      FROM expiry_lots WHERE request_id=? AND create_hash=? AND created_user=?
+      ON CONFLICT(lot_id) DO NOTHING`, groupId, groupId, groupId, groupId, requestId, digest, me.user),
     stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail)
       SELECT id,1,created_ts,created_by,'เพิ่มล็อต',? FROM expiry_lots WHERE request_id=? AND create_hash=? AND created_user=? AND version=1
       AND NOT EXISTS (SELECT 1 FROM expiry_events e WHERE e.lot_id=expiry_lots.id AND e.version=1)`, JSON.stringify(data), requestId, digest, me.user),
-    stmt(C, 'SELECT * FROM expiry_lots WHERE request_id=?', requestId)
+    stmt(C, 'SELECT * FROM expiry_records WHERE request_id=?', requestId)
   ]);
-  const row = results[2].results[0];
+  const row = results[3].results[0];
   if (!row || row.create_hash !== digest || row.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
   const replayed = !results[0].meta.changes;
   if (!replayed) await sysLogTo(C, me.name, 'วันหมดอายุ', 'เพิ่มล็อต', 'LOT-' + row.id + ' · ' + data.name + ' · ' + data.expires);
@@ -265,7 +277,7 @@ API.expiryCreate = async (C, token, payload) => {
 
 API.expiryHistory = async (C, token, id) => {
   await expiryAuth(C, token);
-  const result = await batch(C, [stmt(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0), stmt(C, 'SELECT version,ts,who,action,detail FROM expiry_events WHERE lot_id=? ORDER BY version DESC LIMIT 100', Number(id) || 0)]);
+  const result = await batch(C, [stmt(C, 'SELECT * FROM expiry_records WHERE id=? AND deleted=0', Number(id) || 0), stmt(C, 'SELECT version,ts,who,action,detail FROM expiry_events WHERE lot_id=? ORDER BY version DESC LIMIT 100', Number(id) || 0)]);
   if (!result[0].results.length) throw new Error('ไม่พบล็อตนี้');
   return { lot: expiryRow(result[0].results[0]), events: result[1].results || [] };
 };
@@ -277,10 +289,10 @@ async function expiryWrite(C, me, current, expectedVersion, data, action, detail
   try {
     results = await batch(C, [
       stmt(C, `UPDATE expiry_lots SET barcode=?,name=?,branch=?,location=?,expires=?,quantity=?,unit=?,note=?,status=?,updated_ts=?,updated_by=?,
-        version=CASE WHEN version=? THEN version+1 ELSE 0 END WHERE id=?`, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, data.status, ts, me.name, expectedVersion, current.id),
+        version=CASE WHEN version=? AND NOT EXISTS(SELECT 1 FROM expiry_item_links WHERE lot_id=expiry_lots.id AND deleted=1) THEN version+1 ELSE 0 END WHERE id=?`, data.barcode, data.name, data.branch, data.location, data.expires, data.quantity, data.unit, data.note, data.status, ts, me.name, expectedVersion, current.id),
       stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail)
         SELECT id,version,updated_ts,updated_by,?,? FROM expiry_lots WHERE id=? AND version=? AND updated_ts=?`, action, detail, current.id, nextVersion, ts),
-      stmt(C, 'SELECT * FROM expiry_lots WHERE id=?', current.id)
+      stmt(C, 'SELECT * FROM expiry_records WHERE id=? AND deleted=0', current.id)
     ]);
   } catch (e) {
     if (/expiry_revision_conflict/.test(String(e))) throw new Error('ล็อตนี้ถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดก่อนบันทึก');
@@ -292,7 +304,7 @@ async function expiryWrite(C, me, current, expectedVersion, data, action, detail
 }
 
 API.expiryUpdate = async (C, token, id, version, payload) => {
-  const me = await expiryAuth(C, token, true), data = expiryClean(payload), current = await one(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0);
+  const me = await expiryAuth(C, token, true), data = expiryClean(payload), current = await one(C, 'SELECT * FROM expiry_records WHERE id=? AND deleted=0', Number(id) || 0);
   if (!current) throw new Error('ไม่พบล็อตนี้');
   if (payload.stockSource === true && (data.barcode !== current.barcode || data.name !== current.name || data.branch !== current.branch)) await expiryValidateSource(C, data);
   data.status = current.status;
@@ -302,12 +314,36 @@ API.expiryUpdate = async (C, token, id, version, payload) => {
 API.expirySetStatus = async (C, token, id, version, status) => {
   const me = await expiryAuth(C, token, true);
   if (!['active','acknowledged','closed'].includes(status)) throw new Error('สถานะไม่ถูกต้อง');
-  const current = await one(C, 'SELECT * FROM expiry_lots WHERE id=?', Number(id) || 0);
+  const current = await one(C, 'SELECT * FROM expiry_records WHERE id=? AND deleted=0', Number(id) || 0);
   if (!current) throw new Error('ไม่พบล็อตนี้');
   if (current.version !== version) throw new Error('ล็อตนี้ถูกแก้ไขแล้ว กรุณาโหลดข้อมูลล่าสุด');
   if (current.status === status) return { lot: expiryRow(current) };
   const data = { ...expiryClean(current), status };
   return expiryWrite(C, me, current, version, data, { active: 'เปิดแจ้งเตือนอีกครั้ง', acknowledged: 'รับทราบ', closed: 'ปิดแจ้งเตือน' }[status], JSON.stringify({ from: current.status, to: status }));
+};
+
+API.expiryDelete = async (C, token, id, version) => {
+  const me = await expiryAuth(C, token, true), key = Number(id) || 0;
+  const current = await one(C, 'SELECT * FROM expiry_records WHERE id=?', key);
+  if (!current) throw new Error('ไม่พบรายการนี้');
+  // Repeating a delete after losing its response does not create a new event.
+  if (current.deleted) return { id: key, deleted: true, replayed: true };
+  if (!Number.isInteger(version) || current.version !== version) throw new Error('ล็อตนี้ถูกแก้ไขแล้ว กรุณาโหลดข้อมูลล่าสุดก่อนลบ');
+  const ts = Math.max(now(), current.updated_ts + 1);
+  try {
+    await batch(C, [
+      stmt(C, `UPDATE expiry_lots SET version=CASE WHEN version=? AND NOT EXISTS(SELECT 1 FROM expiry_item_links WHERE lot_id=expiry_lots.id AND deleted=1)
+        THEN version+1 ELSE 0 END,updated_ts=?,updated_by=? WHERE id=?`, version, ts, me.name, key),
+      stmt(C, `INSERT INTO expiry_item_links(lot_id,group_id,item_no,deleted) VALUES(?,?,?,1)
+        ON CONFLICT(lot_id) DO UPDATE SET deleted=1`, key, current.group_id, current.item_no),
+      stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail) VALUES(?,?,?,?,'ลบรายการ',?)`, key, version + 1, ts, me.name, JSON.stringify(expiryRow(current)))
+    ]);
+  } catch (e) {
+    if (/expiry_revision_conflict/.test(String(e))) throw new Error('ล็อตนี้ถูกแก้ไขพร้อมกัน กรุณาโหลดข้อมูลล่าสุดก่อนลบ');
+    throw e;
+  }
+  await sysLogTo(C, me.name, 'วันหมดอายุ', 'ลบรายการ', expiryRow(current).lot + ' · ' + current.name);
+  return { id: key, deleted: true };
 };
 
 export { expiryBounds, expiryBucket, expiryAuth, expiryClean, expiryRow, expiryCountsStmt, expiryCatalogBuilds, expiryCodeKey, expiryBuildCatalog, expiryStockCatalog, expiryValidateSource, expiryWrite };

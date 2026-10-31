@@ -1,5 +1,5 @@
 import { mkdir, writeFile, access } from 'node:fs/promises';
-const { SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP } = await import('../index.js');
+const { SCHEMA, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP } = await import('../index.js');
 await mkdir(new URL('../migrations/', import.meta.url), { recursive: true });
 // Preserve already released migrations 0001-0003.
 const first = new URL('../migrations/0001_stability.sql', import.meta.url);
@@ -18,4 +18,8 @@ const fourth = new URL('../migrations/0004_assets.sql', import.meta.url);
 try { await access(fourth); } catch {
   await writeFile(fourth, ASSETS_SCHEMA.map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','assets-1') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
 }
-console.log('Migrations ready through 0004_assets.sql; existing migrations preserved');
+const fifth = new URL('../migrations/0005_expiry_items.sql', import.meta.url);
+try { await access(fifth); } catch {
+  await writeFile(fifth, EXPIRY_ITEMS_SCHEMA.map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','expiry-items-1') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
+}
+console.log('Migrations ready through 0005_expiry_items.sql; existing migrations preserved');

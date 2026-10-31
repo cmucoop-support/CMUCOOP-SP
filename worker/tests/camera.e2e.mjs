@@ -30,6 +30,10 @@ export async function cameraChecks(page, base) {
   await page.locator('#addLot').click();await page.locator('#branch').selectOption('สาขาทดสอบ');
   await streamMock();await page.locator('#openCamera').click();
   await page.waitForFunction(()=>document.querySelector('#cameraStatus').textContent.startsWith('เล็ง'));
+  assert.equal(await page.locator('#cameraVideo').evaluate(v=>getComputedStyle(v).objectFit),'cover');
+  await page.locator('#cameraZoom').fill('2');
+  assert.equal(await page.locator('#cameraVideo').evaluate(v=>v.style.transform),'scale(2)');
+  await page.locator('#cameraZoom').fill('1');
   await page.waitForTimeout(750);
   assert.equal(await page.locator('#cameraDialog').evaluate(el=>el.open),true);
   assert.equal(await page.locator('#cameraStatus').evaluate(el=>el.classList.contains('error')),false);

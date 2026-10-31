@@ -71,8 +71,9 @@ try {
     await page.locator('#productSearch').fill(query);await page.locator('#productSearch').press('Enter');
     await page.waitForFunction(name=>document.querySelector('#productName').value===name,name);
   };
+  const selectDate = async value => { const [y,m,d]=value.split('-'); await page.locator('#expiryDay').selectOption(d); await page.locator('#expiryMonth').selectOption(m); await page.locator('#expiryYear').selectOption(y); };
   const add = async (quantity=null) => {
-    await page.locator('#addLot').click();await selectProduct('8850999000001','นมทดสอบใหม่');await page.locator('#expires').fill(bounds.month);
+    await page.locator('#addLot').click();await selectProduct('8850999000001','นมทดสอบใหม่');await selectDate(bounds.month);
     if (quantity!==null){await page.locator('#quantity').fill(String(quantity));await page.locator('#unit').fill('กล่อง');}
     await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});await wait(()=>!document.querySelector('#refresh').disabled);
   };
@@ -104,7 +105,7 @@ try {
     const p=route.request().postDataJSON();
     if(p.fn==='expiryCreate'&&!aborted){aborted=true;await dispatch(route.request());await route.abort('failed');}else await route.fallback();
   });
-  await page.locator('#addLot').click();await selectProduct('ทดสอบเน็ตหลุด');await page.locator('#expires').fill(bounds.week);await page.locator('#save').click();
+  await page.locator('#addLot').click();await selectProduct('ทดสอบเน็ตหลุด');await selectDate(bounds.week);await page.locator('#save').click();
   await page.locator('#pendingNotice').waitFor({state:'visible'});
   assert.equal(lotCount(),before+1);assert.equal(await page.locator('#lotFields').evaluate(el=>el.disabled),true);
   await page.reload(); await page.locator('#addLot').waitFor({state:'visible'}); await wait(()=>!document.querySelector('#refresh').disabled);
@@ -112,10 +113,13 @@ try {
   await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});assert.equal(lotCount(),before+1);
   await page.unroute('**/api');console.log('PASS uncertain response retry across reload creates exactly one lot');
   const beforeNext=lotCount();
-  await page.locator('#addLot').click();await selectProduct('สินค้าบันทึกต่อเนื่อง');await page.locator('#expires').fill(bounds.m3);await page.locator('#saveNext').click();
+  await page.locator('#addLot').click();await selectProduct('สินค้าบันทึกต่อเนื่อง');await selectDate(bounds.m3);await page.locator('#saveNext').click();
   await page.waitForFunction(()=>document.querySelector('#lotDialog').open&&document.querySelector('#productName').value===''&&!document.querySelector('#lotFields').disabled);
-  await selectProduct('สินค้าบันทึกต่อเนื่อง');await page.locator('#expires').fill(bounds.m3);await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});
-  assert.equal(lotCount(),beforeNext+2);console.log('PASS save-and-next retains identical prior lots');
+  await selectProduct('สินค้าบันทึกต่อเนื่อง');await selectDate(bounds.m3);await page.locator('#save').click();await page.locator('#lotDialog').waitFor({state:'hidden'});
+  assert.equal(lotCount(),beforeNext+2);
+  const grouped=DB.db.prepare('SELECT * FROM expiry_records ORDER BY id DESC LIMIT 2').all();
+  assert.equal(grouped[0].group_id,grouped[1].group_id); assert.deepEqual(grouped.map(r=>r.item_no),[2,1]);
+  console.log('PASS save-and-next shares the lot and increments item numbers');
   await wait(()=>!document.querySelector('#refresh').disabled);
   let releaseRead, markReadStarted, markReadDone, delayed=false;
   const started=new Promise(r=>{markReadStarted=r;});
@@ -128,17 +132,19 @@ try {
     }else await route.fallback();
   });
   await page.locator('#refresh').click();await started;
-  await page.locator('#addLot').click();await selectProduct('ล็อตหลังอ่านค้าง');await page.locator('#expires').fill(bounds.today);await page.locator('#save').click();
+  await page.locator('#addLot').click();await selectProduct('ล็อตหลังอ่านค้าง');await selectDate(bounds.today);await page.locator('#save').click();
   await page.waitForFunction(()=>document.querySelector('#rows').innerText.includes('ล็อตหลังอ่านค้าง'));
   releaseRead();await finished;await page.unroute('**/api');console.log('PASS pre-save delayed reads cannot replace post-save data');
   await page.locator('#search').fill('');await wait(()=>!document.querySelector('#refresh').disabled);
   await page.locator('#refresh').click();await wait(()=>!document.querySelector('#refresh').disabled);
   const beforeCamera=lotCount();await cameraChecks(page,base);assert.equal(lotCount(),beforeCamera);
+  await (await import('./expiry-photo.e2e.mjs')).photoChecks(page,DB);
   await mkdir(previewDir,{recursive:true});
   await page.evaluate(()=>document.querySelector('#toast').hidden=true);
   await page.screenshot({path:resolve(previewDir, 'expiry-desktop.png'),fullPage:false});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.setViewportSize({width:390,height:844});
+  await page.waitForFunction(()=>document.documentElement.scrollWidth<=innerWidth && document.querySelector('#v16Sidebar').getBoundingClientRect().right<=1 && parseFloat(getComputedStyle(document.body).paddingLeft)<1);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   await page.screenshot({path:resolve(previewDir, 'expiry-mobile.png'),fullPage:false});
   await page.locator('#addLot').click();await page.locator('#branch').selectOption('สาขาทดสอบ');
@@ -150,12 +156,17 @@ try {
   assert.equal(await page.locator('#save').evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),true);
   await page.evaluate(()=>document.querySelector('#lotScroll').scrollTop=0);
   await page.screenshot({path:resolve(previewDir, 'expiry-form-mobile.png'),fullPage:false});
+  await page.locator('#expiryDay').focus();
+  await page.screenshot({path:resolve(previewDir, 'expiry-date-mobile.png'),fullPage:false});
+  await page.locator('#openCamera').click();await page.waitForFunction(()=>document.querySelector('#cameraStatus').textContent.startsWith('เล็ง'));
+  await page.screenshot({path:resolve(previewDir,'expiry-camera-mobile.png'),fullPage:false});await page.locator('#closeCamera').click();
   await page.locator('#cancelForm').click();
   console.log('PASS desktop/mobile layouts and dialog width');
   assert.deepEqual(DB.db.prepare('SELECT * FROM stock_grp ORDER BY g,ver,n').all(),stockSnapshot);
   assert.deepEqual(errors,[]);console.log('PASS no browser JavaScript errors and no stock writes');
   console.log('E2E PASSED');
 } catch (error) {
+  console.error('Date diagnostic',await page.evaluate(()=>({value:document.querySelector('#expires').value,status:document.querySelector('#datePhotoStatus').textContent,candidates:document.querySelector('#dateCandidates').textContent,photoOpen:document.querySelector('#datePhotoDialog').open})).catch(()=>null));
   console.error('Browser diagnostic',await page.evaluate(()=>({cameraStatus:document.querySelector('#cameraStatus')?.textContent,ready:document.querySelector('video')?.readyState,videoWidth:document.querySelector('video')?.videoWidth,decoder:!!window.ZXing,stream:window.__testStream?.getTracks().map(t=>t.readyState),product:document.querySelector('#productName')?.value})).catch(()=>null));
   throw error;
 } finally {await browser.close();}
