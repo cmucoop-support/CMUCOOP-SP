@@ -20,7 +20,7 @@ function expiryBucket(date, b) {
   if (date <= b.month) return 'month';
   if (date <= b.m3) return 'm3';
   if (date <= b.m6) return 'm6';
-  if (date <= b.m12) return 'm12';
+  if (date < b.m12) return 'm12';
   return 'later';
 }
 
@@ -47,8 +47,8 @@ function expiryClean(p) {
 }
 
 function expiryRow(row, bounds = expiryBounds()) {
-  const groupId = row.group_id || row.id, itemNo = row.item_no || 1, groupLot = 'LOT-' + String(groupId).padStart(6, '0');
-  return { id: row.id, groupId, itemNo, groupLot, deleted: !!row.deleted, lot: groupLot + '-' + itemNo, barcode: row.barcode, name: row.name, branch: row.branch, location: row.location,
+  const groupId = row.group_id || row.id, itemNo = row.item_no || 1, groupNo = row.group_no || groupId, groupLot = 'LOT-' + String(groupNo).padStart(6, '0');
+  return { id: row.id, groupId, groupNo, itemNo, groupLot, deleted: !!row.deleted, lot: groupLot + '-' + itemNo, barcode: row.barcode, name: row.name, branch: row.branch, location: row.location,
     expires: row.expires, quantity: row.quantity, unit: row.unit, note: row.note, status: row.status, version: row.version,
     createdTs: row.created_ts, createdBy: row.created_by, updatedTs: row.updated_ts, updatedBy: row.updated_by,
     days: Math.round((Date.parse(row.expires + 'T00:00:00Z') - Date.parse(bounds.today + 'T00:00:00Z')) / 86400000), bucket: expiryBucket(row.expires, bounds) };
@@ -62,8 +62,8 @@ function expiryCountsStmt(C, branch, b) {
       COALESCE(SUM(expires>week AND expires<=month),0) AS month,
       COALESCE(SUM(expires>month AND expires<=m3),0) AS m3,
       COALESCE(SUM(expires>m3 AND expires<=m6),0) AS m6,
-      COALESCE(SUM(expires>m6 AND expires<=m12),0) AS m12,
-      COALESCE(SUM(expires>m12),0) AS later
+      COALESCE(SUM(expires>m6 AND expires<m12),0) AS m12,
+      COALESCE(SUM(expires>=m12),0) AS later
     FROM expiry_records,cut WHERE deleted=0 AND status IN ('active','acknowledged') AND (?='' OR branch=?)`, b.today, b.week, b.month, b.m3, b.m6, b.m12, branch, branch);
 }
 
@@ -215,12 +215,12 @@ API.expiryList = async (C, token, options) => {
   if (branch) { where.push('branch=?'); params.push(branch); }
   if (search) {
     const q = '%' + search.replace(/[\\%_]/g, '\\$&') + '%';
-    where.push("(name LIKE ? ESCAPE '\\' OR barcode LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR ('LOT-'||printf('%06d',group_id)||'-'||item_no) LIKE ? ESCAPE '\\')"); params.push(q, q, q, q);
+    where.push("(name LIKE ? ESCAPE '\\' OR barcode LIKE ? ESCAPE '\\' OR location LIKE ? ESCAPE '\\' OR ('LOT-'||printf('%06d',group_no)||'-'||item_no) LIKE ? ESCAPE '\\')"); params.push(q, q, q, q);
   }
   const ranges = {
     expired: ['expires<?', bounds.today], week: ['expires>=? AND expires<=?', bounds.today, bounds.week],
     month: ['expires>? AND expires<=?', bounds.week, bounds.month], m3: ['expires>? AND expires<=?', bounds.month, bounds.m3],
-    m6: ['expires>? AND expires<=?', bounds.m3, bounds.m6], m12: ['expires>? AND expires<=?', bounds.m6, bounds.m12], later: ['expires>?', bounds.m12]
+    m6: ['expires>? AND expires<=?', bounds.m3, bounds.m6], m12: ['expires>? AND expires<?', bounds.m6, bounds.m12], later: ['expires>=?', bounds.m12]
   };
   if (o.bucket && o.bucket !== 'all') {
     if (!Object.hasOwn(ranges, o.bucket)) throw new Error('ช่วงเวลาแจ้งเตือนไม่ถูกต้อง');
@@ -231,9 +231,21 @@ API.expiryList = async (C, token, options) => {
   const results = await batch(C, [
     stmt(C, 'SELECT * FROM expiry_records' + filter + ' ORDER BY expires,id LIMIT ? OFFSET ?', ...params, size, (page - 1) * size),
     stmt(C, 'SELECT COUNT(*) AS n FROM expiry_records' + filter, ...params), expiryCountsStmt(C, branch, bounds),
-    stmt(C, 'SELECT DISTINCT branch FROM expiry_records WHERE deleted=0 ORDER BY branch')
+    stmt(C, 'SELECT DISTINCT branch FROM expiry_records WHERE deleted=0 ORDER BY branch'),
+    stmt(C, `SELECT branch,name FROM expiry_locations UNION SELECT branch,location AS name FROM expiry_records WHERE deleted=0 AND location<>'' ORDER BY branch,name`)
   ]);
-  return { rows: (results[0].results || []).map(r => expiryRow(r, bounds)), total: results[1].results[0].n, counts: results[2].results[0], branches: (results[3].results || []).map(r => r.branch), page, pageSize: size, bounds, me: { name: me.name, edit: !!me.perms.expiry_edit } };
+  return { rows: (results[0].results || []).map(r => expiryRow(r, bounds)), total: results[1].results[0].n, counts: results[2].results[0], branches: (results[3].results || []).map(r => r.branch), locations: results[4].results || [], page, pageSize: size, bounds, me: { name: me.name, edit: !!me.perms.expiry_edit } };
+};
+
+API.expiryLocationAdd = async (C, token, payload) => {
+  const me=await expiryAuth(C,token,true),p=payload && typeof payload==='object' ? payload : {};
+  const branch=str(p.branch).replace(/\s+/g,' '),name=str(p.name).replace(/\s+/g,' ');
+  if (!branch || branch.length>80) throw new Error('กรุณาเลือกสาขาก่อนเพิ่มจุดวาง');
+  if (!name || name.length>120) throw new Error('กรุณาระบุชื่อจุดวางสินค้าไม่เกิน 120 ตัวอักษร');
+  const catalog=await expiryStockCatalog(C);
+  if (!catalog.branches.includes(branch) && !await one(C,'SELECT id FROM expiry_lots WHERE branch=? LIMIT 1',branch)) throw new Error('กรุณาเลือกสาขาจากระบบสินค้าค้างสต็อก');
+  await batch(C,[stmt(C,'INSERT INTO expiry_locations(branch,name,created_ts,created_by) VALUES(?,?,?,?) ON CONFLICT(branch,name) DO NOTHING',branch,name,now(),me.name)]);
+  return { location:{branch,name} };
 };
 
 API.expiryCreate = async (C, token, payload) => {
@@ -263,15 +275,21 @@ API.expiryCreate = async (C, token, payload) => {
         CASE WHEN ?=0 THEN 1 ELSE MAX(1,COALESCE((SELECT MAX(item_no) FROM expiry_item_links WHERE group_id=?),1))+1 END
       FROM expiry_lots WHERE request_id=? AND create_hash=? AND created_user=?
       ON CONFLICT(lot_id) DO NOTHING`, groupId, groupId, groupId, groupId, requestId, digest, me.user),
+    stmt(C, `INSERT INTO expiry_groups(group_id,lot_no)
+      SELECT i.group_id,(SELECT COALESCE(MAX(lot_no),0)+1 FROM expiry_groups)
+      FROM expiry_item_links i JOIN expiry_lots l ON l.id=i.lot_id
+      WHERE l.request_id=? AND l.create_hash=? AND l.created_user=? AND i.group_id=i.lot_id
+      AND NOT EXISTS(SELECT 1 FROM expiry_groups g WHERE g.group_id=i.group_id)
+      ON CONFLICT(group_id) DO NOTHING`, requestId, digest, me.user),
     stmt(C, `INSERT INTO expiry_events(lot_id,version,ts,who,action,detail)
       SELECT id,1,created_ts,created_by,'เพิ่มล็อต',? FROM expiry_lots WHERE request_id=? AND create_hash=? AND created_user=? AND version=1
       AND NOT EXISTS (SELECT 1 FROM expiry_events e WHERE e.lot_id=expiry_lots.id AND e.version=1)`, JSON.stringify(data), requestId, digest, me.user),
     stmt(C, 'SELECT * FROM expiry_records WHERE request_id=?', requestId)
   ]);
-  const row = results[3].results[0];
+  const row = results[4].results[0];
   if (!row || row.create_hash !== digest || row.created_user !== me.user) throw new Error('คำขอนี้เคยส่งด้วยข้อมูลอื่นแล้ว กรุณาตรวจล็อตเดิมก่อนเพิ่มรายการใหม่');
   const replayed = !results[0].meta.changes;
-  if (!replayed) await sysLogTo(C, me.name, 'วันหมดอายุ', 'เพิ่มล็อต', 'LOT-' + row.id + ' · ' + data.name + ' · ' + data.expires);
+  if (!replayed) await sysLogTo(C, me.name, 'วันหมดอายุ', 'เพิ่มล็อต', expiryRow(row).lot + ' · ' + data.name + ' · ' + data.expires);
   return { lot: expiryRow(row), replayed };
 };
 
@@ -299,7 +317,7 @@ async function expiryWrite(C, me, current, expectedVersion, data, action, detail
     throw e;
   }
   if (!results[0].meta.changes || !results[2].results.length) throw new Error('ไม่พบล็อตนี้ กรุณาโหลดข้อมูลล่าสุด');
-  await sysLogTo(C, me.name, 'วันหมดอายุ', action, 'LOT-' + current.id + ' · ' + data.name);
+  await sysLogTo(C, me.name, 'วันหมดอายุ', action, expiryRow(current).lot + ' · ' + data.name);
   return { lot: expiryRow(results[2].results[0]) };
 }
 

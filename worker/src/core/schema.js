@@ -20,7 +20,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS market_data (n INTEGER PRIMARY KEY, data TEXT)'   // แบ่งสถานะตลาดเป็นก้อน ไม่ให้เกินขนาดแถว D1
 ];
 
-const SCHEMA_VERSION = 'expiry-items-1';
+const SCHEMA_VERSION = 'expiry-options-2';
 
 SCHEMA.push(
   'CREATE TABLE IF NOT EXISTS write_revisions (scope TEXT PRIMARY KEY, revision INTEGER NOT NULL CONSTRAINT revision_conflict CHECK(revision>=0))',
@@ -72,6 +72,21 @@ const EXPIRY_ITEMS_SCHEMA = [
     FROM expiry_lots l LEFT JOIN expiry_item_links i ON i.lot_id=l.id`
 ];
 SCHEMA.push(...EXPIRY_ITEMS_SCHEMA);
+
+const EXPIRY_OPTIONS_SCHEMA = [
+  'CREATE TABLE IF NOT EXISTS expiry_groups (group_id INTEGER PRIMARY KEY,lot_no INTEGER NOT NULL UNIQUE CHECK(lot_no>0))',
+  // Preserve labels already issued. Only new groups consume the next lot number.
+  `INSERT OR IGNORE INTO expiry_groups(group_id,lot_no)
+    SELECT DISTINCT group_id,group_id FROM expiry_records WHERE group_id NOT IN (SELECT group_id FROM expiry_groups)`,
+  'CREATE TABLE IF NOT EXISTS expiry_locations (branch TEXT NOT NULL,name TEXT NOT NULL,created_ts INTEGER NOT NULL,created_by TEXT NOT NULL,PRIMARY KEY(branch,name))',
+  'DROP VIEW IF EXISTS expiry_records',
+  `CREATE VIEW expiry_records AS SELECT l.*,COALESCE(i.group_id,l.id) AS group_id,
+    COALESCE(i.item_no,1) AS item_no,COALESCE(i.deleted,0) AS deleted,
+    COALESCE(g.lot_no,COALESCE(i.group_id,l.id)) AS group_no
+    FROM expiry_lots l LEFT JOIN expiry_item_links i ON i.lot_id=l.id
+    LEFT JOIN expiry_groups g ON g.group_id=COALESCE(i.group_id,l.id)`
+];
+SCHEMA.push(...EXPIRY_OPTIONS_SCHEMA);
 
 const ASSETS_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS asset_items (
@@ -140,4 +155,4 @@ async function ensureSchema(db) {
   return (await ready) && first;
 }
 
-export { SCHEMA, SCHEMA_VERSION, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };
+export { SCHEMA, SCHEMA_VERSION, EXPIRY_OPTIONS_SCHEMA, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP, schemaPromises, ensureSchema };

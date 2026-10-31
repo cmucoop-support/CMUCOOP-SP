@@ -4,12 +4,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="same-origin">
 <title>แจ้งเตือนสินค้าหมดอายุ · CMUCOOP</title>
-<link rel="icon" href="assets/images/logo.png"><link rel="stylesheet" href="assets/css/shared/fonts.css?v=16.2"><link rel="stylesheet" href="assets/css/pages/expiry.css?v=16.7">
-<script src="assets/js/shared/gas-shim.js?v=16.2"></script><script src="assets/js/shared/barcode-scanner.js?v=16.5" defer></script><script src="assets/js/pages/expiry.js?v=16.7" defer></script>
+<link rel="icon" href="assets/images/logo.png"><link rel="stylesheet" href="assets/css/shared/fonts.css?v=16.2"><link rel="stylesheet" href="assets/css/pages/expiry.css?v=16.8">
+<script src="assets/js/shared/gas-shim.js?v=16.2"></script><script src="assets/js/shared/barcode-scanner.js?v=16.5" defer></script><script src="assets/js/pages/expiry.js?v=16.8" defer></script>
 
 <link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.6">
 <script src="assets/js/shared/dashboard-v16.js?v=16.4" defer></script>
 <meta name="theme-color" content="#ede5fa">
+<link rel="stylesheet" href="assets/css/shared/back-navigation.css?v=16.8">
+<script src="assets/js/shared/back-navigation.js?v=16.8" defer></script>
 </head>
 <body data-dashboard="expiry" class="">
 <a class="skip" href="#main">ข้ามไปยังเนื้อหา</a>
@@ -50,7 +52,8 @@
       <button type="button" class="button secondary manual-entry" id="manualEntry" hidden>กรอกสินค้าเอง</button>
       <div id="productResults" class="product-results" aria-label="ผลการค้นหาสินค้า" hidden></div>
       <div class="form-grid selected-product" id="selectedProduct"><label><span id="barcodeLabel">รหัสสินค้าจากระบบ</span><input id="barcode" maxlength="64" readonly required placeholder="เติมเมื่อเลือกสินค้า"></label><label><span>ชื่อสินค้า <span class="required-mark" aria-hidden="true">*</span></span><input id="productName" maxlength="200" readonly required placeholder="เติมเมื่อเลือกสินค้า"></label></div>
-      <label>จุดวางสินค้า<input id="location" maxlength="120" placeholder="เช่น ตู้แช่ 2 / ชั้น A3"></label>
+      <div class="location-picker"><label>จุดวางสินค้า<select id="location"><option value="">ไม่ระบุจุดวาง</option></select></label><button type="button" class="button secondary" id="addLocation">＋ เพิ่มจุดวาง</button></div>
+      <div id="locationAdder" class="location-adder" hidden><label>ชื่อจุดวางใหม่<input id="newLocation" maxlength="120" placeholder="เช่น ตู้แช่ 2 / ชั้น A3" autocomplete="off"></label><div class="location-add-actions"><button type="button" class="button primary" id="saveLocation">เพิ่มตัวเลือก</button><button type="button" class="button secondary" id="cancelLocation">ยกเลิก</button></div></div><p class="helper" id="locationInfo" aria-live="polite"></p>
       <div class="form-grid"><div class="expiry-date-group"><div class="date-heading"><strong>วันหมดอายุ *</strong></div>
       <input id="expires" type="hidden"><div class="numeric-date"><label>วัน<select id="expiryDay" required aria-label="วันหมดอายุ: วัน"><option value="">วัน</option></select></label><label>เดือน<select id="expiryMonth" required aria-label="วันหมดอายุ: เดือน"><option value="">เดือน</option></select></label><label>ปี ค.ศ.<select id="expiryYear" required aria-label="วันหมดอายุ: ปี ค.ศ."><option value="">ปี</option></select></label></div>
       <p class="helper" id="dateInfo" aria-live="polite">ปีเริ่มต้นเป็นปีปัจจุบัน · เลือกวันและเดือนตามฉลาก</p></div><div class="quantity-group"><label><span>จำนวน <small>(ไม่บังคับ)</small></span><input id="quantity" type="number" min="0" max="1000000000" step="0.001" placeholder="เว้นว่างได้"></label><label>หน่วย<input id="unit" maxlength="20" placeholder="ชิ้น / กล่อง"></label></div></div>

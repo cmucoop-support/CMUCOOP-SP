@@ -10,9 +10,9 @@
   const ranges = [
     ['all', 'รายการที่เปิดแจ้งเตือน', 'ทุกช่วงเวลา'], ['expired', 'หมดอายุแล้ว', 'เลยวันหมดอายุ'],
     ['week', 'ภายใน 7 วัน', 'รวมวันนี้'], ['month', 'ภายใน 1 เดือน', 'เกิน 7 วัน'],
-    ['m3', '1–3 เดือน', 'เกิน 1 ถึง 3 เดือน'], ['m6', '3–6 เดือน', 'เกิน 3 ถึง 6 เดือน'], ['m12', '6–12 เดือน', 'เกิน 6 ถึง 12 เดือน']
+    ['m3', '1–3 เดือน', 'เกิน 1 ถึง 3 เดือน'], ['m6', '3–6 เดือน', 'เกิน 3 ถึง 6 เดือน'], ['m12', '6 เดือน–ไม่ถึง 1 ปี', 'เกิน 6 เดือน'], ['later', '1 ปีขึ้นไป', 'ตั้งแต่ 1 ปี']
   ];
-  const labels = Object.fromEntries(ranges.map(([key, title]) => [key, title])); labels.later = 'เกิน 12 เดือน';
+  const labels = Object.fromEntries(ranges.map(([key, title]) => [key, title]));
   const statusLabels = { active: 'ยังไม่รับทราบ', acknowledged: 'รับทราบแล้ว', closed: 'ปิดแจ้งเตือนแล้ว' };
   let token = '', user = null, data = null, bucket = 'all', page = 1, loadSeq = 0, lookupSeq = 0, historySeq = 0, timer, searchTimer, toastTimer, formState = null, saving = false;
   let formLocked = false, catalog = null, catalogError = '', matches = [], productSelection = null, manualMode = false, lookupTimer;
@@ -145,7 +145,7 @@
     $('#pageInfo').textContent = 'หน้า ' + page + ' / ' + numFmt.format(pages); $('#prev').disabled = page <= 1; $('#next').disabled = page >= pages;
     $('#resultInfo').textContent = numFmt.format(data.total) + ' รายการ · ' + labels[bucket] + ' · ' + ($('#stateFilter').selectedOptions[0].textContent);
     $('#listTitle').textContent = bucket === 'all' ? 'รายการล็อต' : labels[bucket];
-    $('#later').hidden = !counts.later; $('#later').textContent = 'ดูรายการที่เหลือเกิน 12 เดือน (' + numFmt.format(counts.later) + ' รายการ)';
+    $('#later').hidden = true; $('#later').textContent = 'ดูรายการที่เหลือเกิน 12 เดือน (' + numFmt.format(counts.later) + ' รายการ)';
     $('#updated').textContent = 'โหลดล่าสุด ' + time(Date.now()); $('#addLot').hidden = !data.me.edit;
   }
   function rowHtml(r) {
@@ -173,6 +173,38 @@
   $('#branchFilter').addEventListener('change', () => { page = 1; load(); });
   $('#stateFilter').addEventListener('change', () => { page = 1; bucket = 'all'; load(); });
   $('#refresh').addEventListener('click', () => load()); $('#prev').addEventListener('click', () => { page--; load(); }); $('#next').addEventListener('click', () => { page++; load(); });
+  let locationBusy=false,locationSequence=0;
+  function renderLocations(selected=$('#location').value) {
+    const branch=$('#branch').value;
+    const names=[...new Set((data && data.locations || []).filter(r=>r.branch===branch).map(r=>r.name))];
+    if(selected && !names.includes(selected)) names.push(selected);
+    names.sort((a,b)=>a.localeCompare(b,'th'));
+    $('#location').innerHTML='<option value="">ไม่ระบุจุดวาง</option>'+names.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join('');
+    $('#location').value=selected;
+  }
+  function resetLocationAdder() {
+    locationSequence++;locationBusy=false;$('#locationAdder').hidden=true;$('#newLocation').value='';$('#locationInfo').textContent='';$('#saveLocation').disabled=false;$('#cancelLocation').disabled=false;
+  }
+  $('#addLocation').addEventListener('click',()=>{
+    if(saving || formLocked) return;
+    if(!$('#branch').value) { $('#locationInfo').textContent='เลือกสาขาก่อนเพิ่มจุดวาง';$('#branch').focus();return; }
+    $('#locationAdder').hidden=false;$('#newLocation').focus();
+  });
+  $('#cancelLocation').addEventListener('click',resetLocationAdder);
+  $('#newLocation').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();$('#saveLocation').click();}});
+  $('#saveLocation').addEventListener('click',async()=>{
+    if(locationBusy || saving || formLocked) return;
+    const branch=$('#branch').value,name=$('#newLocation').value.trim().replace(/\s+/g,' '),state=formState,seq=++locationSequence;
+    if(!name) { $('#locationInfo').textContent='กรุณาระบุชื่อจุดวางสินค้า';$('#newLocation').focus();return; }
+    locationBusy=true;$('#saveLocation').disabled=true;$('#cancelLocation').disabled=true;$('#locationInfo').textContent='กำลังเพิ่มจุดวาง…';
+    try {
+      const result=await call('expiryLocationAdd',{branch,name});
+      if(data) { data.locations=data.locations || [];if(!data.locations.some(r=>r.branch===branch && r.name===result.location.name)) data.locations.push(result.location); }
+      if(seq!==locationSequence || state!==formState || !$('#lotDialog').open || branch!==$('#branch').value) return;
+      renderLocations(result.location.name);$('#locationAdder').hidden=true;$('#newLocation').value='';$('#locationInfo').textContent='เพิ่มจุดวางแล้ว: '+result.location.name;
+    }catch(error){if(seq===locationSequence) $('#locationInfo').textContent=error.message;}
+    finally{if(seq===locationSequence){locationBusy=false;$('#saveLocation').disabled=false;$('#cancelLocation').disabled=false;}}
+  });
   function currentFields() {
     return { barcode: $('#barcode').value.trim(), name: $('#productName').value.trim(), branch: $('#branch').value.trim(), location: $('#location').value.trim(), expires: $('#expires').value,
       quantity: $('#quantity').value === '' ? null : Number($('#quantity').value), unit: $('#unit').value.trim(), note: $('#note').value.trim(), stockSource: !manualMode, manualEntry: manualMode };
@@ -180,7 +212,7 @@
   function fillForm(r) {
     setManualMode(r.manualEntry === true);
     populateBranches(r.branch || '', !!(r.branch && (formState && formState.id || r.requestId)));
-    $('#barcode').value = r.barcode || ''; $('#productName').value = r.name || ''; $('#branch').value = r.branch || ''; $('#location').value = r.location || '';
+    $('#barcode').value = r.barcode || ''; $('#productName').value = r.name || ''; $('#branch').value = r.branch || ''; renderLocations(r.location || ''); resetLocationAdder();
     setExpiryDate(r.expires || ''); $('#quantity').value = r.quantity == null ? '' : r.quantity; $('#unit').value = r.unit || ''; $('#note').value = r.note || '';
   }
   function lockForm(locked) { formLocked = locked; $('#lotFields').disabled = locked; $('#pendingNotice').hidden = !locked; }
@@ -272,7 +304,7 @@
   $('#lookup').addEventListener('click', lookup);
   $('#productSearch').addEventListener('input', () => { resetProduct(); lookupSeq++; clearTimeout(lookupTimer); clearResults(); $('#lookup').disabled = false; lookupTimer = setTimeout(lookup, 450); });
   $('#productSearch').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); lookup().then(() => { if ($('#lotDialog').open && !formLocked && productSelection) $('#expiryDay').focus(); }); } });
-  $('#branch').addEventListener('change', () => { resetProduct(); lookupSeq++; clearResults(); if ($('#productSearch').value.trim()) lookup(); });
+  $('#branch').addEventListener('change', () => { renderLocations(''); resetLocationAdder(); resetProduct(); lookupSeq++; clearResults(); if ($('#productSearch').value.trim()) lookup(); });
   const scanner = new window.CMUBarcodeScanner($('#cameraVideo'), (message, error = false) => { $('#cameraStatus').textContent = message; $('#cameraStatus').classList.toggle('error', error); }, code => {
     closeCamera(); if (!$('#lotDialog').open || formLocked || saving) return;
     resetProduct(); $('#productSearch').value = code; lookup().then(() => { if ($('#lotDialog').open && productSelection) $('#expiryDay').focus(); });
@@ -287,6 +319,7 @@
   window.addEventListener('pagehide', closeCamera);
   $('#lotForm').addEventListener('submit', async event => {
     event.preventDefault(); if (saving || !formState || !user) return;
+    if (locationBusy) { $('#formError').textContent='กรุณารอให้เพิ่มจุดวางเสร็จก่อนบันทึก';return; }
     const next = event.submitter && event.submitter.dataset.next === 'yes', state = formState, owner = user.user;
     if (!state.payload && (!syncExpiryDate() || !$('#lotForm').reportValidity())) return;
     if (!state.payload && !manualMode && (!productSelection || productSelection.code !== $('#barcode').value || productSelection.name !== $('#productName').value || productSelection.branch !== $('#branch').value)) { $('#formError').textContent = 'กรุณาค้นหาและเลือกสินค้า หรือกดกรอกสินค้าเองเมื่อค้นหาไม่พบ'; return; }

@@ -79,7 +79,7 @@ async function loadUsers() {
     var rows = await call('listUsers');
     $('#userBody').innerHTML = rows.map(function (u) {
       return '<tr><td>' + esc(u.username) + '</td><td>' + esc(u.name) + '</td><td>' + esc(ROLE_TH[u.role] || u.role) + (u.link ? ' (มีลิงก์เข้าใช้)' : '') + '</td><td>' + esc(permText(u)) + '</td><td class="act"><div class="actw">' +
-        '<button class="btn ghost small" data-a="link" data-u="' + esc(u.username) + '">' + (u.link ? 'ลิงก์ใหม่' : 'สร้างลิงก์') + '</button> ' +
+        '<button class="btn ghost small" data-a="link" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '">' + (u.link ? 'ลิงก์ใหม่' : 'สร้างลิงก์') + '</button> ' +
         '<button class="btn ghost small" data-a="edit" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '" data-r="' + esc(u.role) + '" data-p="' + esc(JSON.stringify(u.perms || {})) + '">แก้ไข</button> ' +
         (S.me && u.username === S.me.user ? '' : '<button class="btn ghost small" data-a="del" data-u="' + esc(u.username) + '">ลบ</button>') +
         '</div></td></tr>';
@@ -94,13 +94,51 @@ function resetUserForm() {
   $('#uFormTitle').textContent = 'เพิ่มผู้ใช้'; $('#uSave').textContent = 'เพิ่มผู้ใช้';
   $('#uCancel').classList.add('hidden'); $('#uHint').textContent = '';
 }
-function showLink(url, name) {
+var linkQrSequence=0,linkQrData=null;
+function clearUserLink() {
+  linkQrSequence++;linkQrData=null;
+  $('#lkUrl').value='';$('#lkQrPreview').innerHTML='';$('#lkQrStatus').textContent='';$('#lkQuantity').value='1';$('#lkPrint').disabled=true;$('#lkPrintInfo').textContent='';
+}
+function updateLinkQrQuantity() {
+  var quantity=CMUUserQR.count($('#lkQuantity').value);
+  $('#lkPrintInfo').textContent=quantity ? quantity+' QR · '+Math.ceil(quantity/4)+' แผ่น A4 (4 QR ต่อแผ่น)' : 'กรุณาเลือกจำนวนเต็ม 1–100';
+  $('#lkPrint').disabled=!linkQrData || !quantity;
+}
+function showLink(url, name, displayName) {
+  clearUserLink();var sequence=linkQrSequence;
   var m = String(url || '').match(/[?&](u=[^&#]+&k=[^&#]+)/);
   if (m) url = pageUrl('?' + m[1], url);
   $('#lkTitle').textContent = 'ลิงก์เข้าใช้งานของ ' + name;
   $('#lkUrl').value = url;
   $('#linkModal').classList.remove('hidden');
+  $('#lkQrStatus').textContent='กำลังสร้าง QR…';updateLinkQrQuantity();
+  CMUUserQR.library().then(function(Z) {
+    if(sequence!==linkQrSequence || $('#linkModal').classList.contains('hidden')) return;
+    var markup=CMUUserQR.svg(Z,url);
+    linkQrData={url:url,username:name,name:displayName||'',svg:markup};
+    $('#lkQrPreview').innerHTML=markup;$('#lkQrStatus').textContent='สแกน QR นี้เพื่อเข้าสู่บัญชี '+name;updateLinkQrQuantity();
+  }).catch(function(error) { if(sequence===linkQrSequence) $('#lkQrStatus').textContent=error.message; });
 }
+$('#lkQuantity').addEventListener('input',updateLinkQrQuantity);
+$('#lkPrint').addEventListener('click',function() {
+  var quantity=CMUUserQR.count($('#lkQuantity').value);
+  if(!linkQrData || !quantity) { $('#lkQuantity').reportValidity();return; }
+  var preview=window.open('','_blank');
+  if(!preview) { toast('เปิดหน้าพิมพ์ไม่ได้ กรุณาอนุญาตหน้าต่างใหม่ให้เว็บไซต์นี้แล้วลองอีกครั้ง',true);return; }
+  var data=Object.assign({},linkQrData,{quantity:quantity,fontUrl:new URL('assets/css/shared/fonts.css',location.href).href});
+  preview.opener=null;
+  preview.document.open();
+  preview.document.write(CMUUserQR.printDocument(data));preview.document.close();
+  preview.document.getElementById('backQr').addEventListener('click',function() { preview.close(); });
+  var button=preview.document.getElementById('printQr');
+  button.addEventListener('click',function() { preview.focus();preview.print(); });
+  // document.write does not reliably deliver a new window load event in every browser.
+  preview.document.body.getBoundingClientRect();
+  Promise.race([Promise.resolve(preview.document.fonts && preview.document.fonts.ready),new Promise(function(resolve){setTimeout(resolve,5000);})]).then(function() {
+    if(preview.closed) return;
+    button.disabled=false;preview.focus();preview.print();
+  });
+});
 /* ----- รหัสกู้คืน Admin ----- */
 async function loadRecovery() {
   try {
@@ -119,7 +157,7 @@ $('#recIssue').addEventListener('click', function () {
 $('#recCopy').addEventListener('click', function () { copyField('#recCode', 'คัดลอกรหัสแล้ว'); });
 $('#recClose').addEventListener('click', function () { $('#recModal').classList.add('hidden'); $('#recCode').value = ''; });
 $('#lkCopy').addEventListener('click', function () { copyField('#lkUrl', 'คัดลอกลิงก์แล้ว'); });
-$('#lkClose').addEventListener('click', function () { $('#linkModal').classList.add('hidden'); $('#lkUrl').value = ''; });
+$('#lkClose').addEventListener('click', function () { $('#linkModal').classList.add('hidden'); clearUserLink(); });
 $('#uLink').addEventListener('change', function () {
   $('#uPass').disabled = this.checked; if (this.checked) $('#uPass').value = '';
 });
@@ -135,7 +173,7 @@ $('#userBody').addEventListener('click', async function (e) {
     $('#uName').focus();
   } else if (b.dataset.a === 'link') {
     if (!confirm('ออกลิงก์ใหม่ให้ ' + b.dataset.u + ' ?\nลิงก์เดิมจะใช้ไม่ได้ทันที')) return;
-    try { var lr = await call('regenUserLink', b.dataset.u); loadUsers(); showLink(lr.link, b.dataset.u); }
+    try { var lr = await call('regenUserLink', b.dataset.u); loadUsers(); showLink(lr.link, b.dataset.u, b.dataset.n); }
     catch (err) { toast(err.message, true); }
   } else if (b.dataset.a === 'del') {
     if (!confirm('ลบผู้ใช้ ' + b.dataset.u + ' ?')) return;
@@ -214,7 +252,7 @@ $('#uSave').addEventListener('click', function () {
       toast('บันทึกผู้ใช้แล้ว');
       var nm = p.username;
       resetUserForm(); loadUsers();
-      if (r.link) showLink(r.link, nm);
+      if (r.link) showLink(r.link, nm, p.name);
     }
   });
 });
@@ -224,6 +262,7 @@ $('#uSave').addEventListener('click', function () {
 function setNav(n) { document.body.dataset.nav = 'settings'; }
 function showLogin(msg) {
   tvResetSession();
+  clearUserLink();
   S.token = ''; S.me = null;
   try { sessionStorage.removeItem('pm_tok'); sessionStorage.removeItem('pm_me'); } catch (e) {}
   document.body.classList.add('locked');

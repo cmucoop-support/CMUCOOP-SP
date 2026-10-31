@@ -151,6 +151,7 @@ body[data-nav] .top,body[data-nav] .layout,body[data-nav] #printArea{display:non
 .sub{font-weight:600;color:var(--accent-text);margin:0 0 6px}
 /* ---------- พื้นที่พิมพ์ ---------- */
 #printArea{display:none}
+.link-qr-preview{display:grid;place-items:center;background:#fff;padding:10px;border:1px solid var(--line);border-radius:12px;min-height:60px}.link-qr-preview:empty{display:none}.link-qr-preview svg{display:block;width:min(240px,100%);height:auto;aspect-ratio:1}.link-qr-print{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.link-qr-print label{flex:0 1 200px;min-width:0}.link-qr-print>div{flex:1;min-width:140px}.link-qr-print p{font-size:12px;margin:3px 0}#linkModal .modal{max-height:92dvh;overflow-y:auto}#linkModal .addbar{flex-wrap:wrap}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New'),local('THSarabunNew'),local('TH SarabunPSK'),local('THSarabunPSK');font-weight:400}
 @font-face{font-family:'PrintTH';src:local('TH Sarabun New Bold'),local('THSarabunNew-Bold'),local('TH SarabunPSK Bold'),local('THSarabunPSK-Bold');font-weight:700}
 .psec{font-family:var(--pfont,'Bai Jamjuree'),'Bai Jamjuree','PrintTH','TH Sarabun New','THSarabunNew','Sarabun','Noto Sans Thai',Tahoma,sans-serif;color:#000}

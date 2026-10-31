@@ -12,13 +12,15 @@
 <base target="_top"/>
 <link href="assets/css/shared/fonts.css?v=16.2" rel="stylesheet"/>
 <script src="assets/vendor/mqtt.min.js"></script>
-<link rel="stylesheet" href="assets/css/pages/settings.css?v=16.2">
+<link rel="stylesheet" href="assets/css/pages/settings.css?v=16.8">
 <link href="assets/css/shared/a11y.css?v=16.2" rel="stylesheet"/>
 <link href="assets/css/shared/app.css?v=16.2" rel="stylesheet"/>
 <link href="assets/css/pages/tv-designer.css?v=16.2" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.4">
+<link rel="stylesheet" href="assets/css/shared/dashboard-v16.css?v=16.6">
 <script src="assets/js/shared/dashboard-v16.js?v=16.4" defer></script>
 <meta name="theme-color" content="#ede5fa">
+<link rel="stylesheet" href="assets/css/shared/back-navigation.css?v=16.8">
+<script src="assets/js/shared/back-navigation.js?v=16.8" defer></script>
 </head>
 <body data-dashboard="settings" class="locked " data-nav="settings"><a class="wcag-skip" href="#wcag-main">ข้ามไปยังเนื้อหาหลัก</a>
 <!-- ========== ตั้งค่า (Admin) : รวมทุกการตั้งค่าไว้ที่เดียว ========== -->
@@ -255,8 +257,12 @@
 <h3 id="lkTitle">ลิงก์เข้าใช้งาน</h3>
 <div class="muted">ส่งลิงก์นี้ให้ผู้ใช้ เปิดแล้วเข้าระบบได้ทันที ลิงก์จะแสดงครั้งเดียว ถ้าลืมให้กด "ลิงก์ใหม่" ในตารางผู้ใช้ (ลิงก์เดิมจะใช้ไม่ได้)</div>
 <input aria-label="ลิงก์เข้าสู่ระบบ" id="lkUrl" readonly="" type="text"/>
+<div class="link-qr-preview" id="lkQrPreview" aria-label="QR สำหรับเข้าสู่บัญชี"></div>
+<p class="muted" id="lkQrStatus" role="status" aria-live="polite"></p>
+<div class="link-qr-print"><label for="lkQuantity">จำนวนสำเนา QR ของบัญชีนี้<input id="lkQuantity" type="number" min="1" max="100" step="1" value="1" inputmode="numeric" required></label><div><p class="muted" id="lkPrintInfo" aria-live="polite"></p><p class="muted">ขนาด ¼ ของ A4 ต่อใบ · 4 ใบต่อแผ่น</p></div></div>
 <div class="addbar">
 <button class="btn" id="lkCopy">คัดลอกลิงก์</button>
+<button class="btn" id="lkPrint" disabled>พิมพ์ QR</button>
 <button class="btn ghost" id="lkClose">ปิด</button>
 </div>
 </div>
@@ -324,7 +330,8 @@
 </div>
 </div>
 <div id="toast" role="status"></div>
-<script src="assets/js/pages/settings.js?v=16.2"></script>
+<script src="assets/js/pages/user-link-qr.js?v=16.8"></script>
+<script src="assets/js/pages/settings.js?v=16.8"></script>
 <script src="assets/js/shared/a11y.js?v=16.2"></script>
 </body>
 </html>
