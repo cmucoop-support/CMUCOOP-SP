@@ -79,6 +79,7 @@ async function loadUsers() {
     var rows = await call('listUsers');
     $('#userBody').innerHTML = rows.map(function (u) {
       return '<tr><td>' + esc(u.username) + '</td><td>' + esc(u.name) + '</td><td>' + esc(ROLE_TH[u.role] || u.role) + (u.link ? ' (มีลิงก์เข้าใช้)' : '') + '</td><td>' + esc(permText(u)) + '</td><td class="act"><div class="actw">' +
+        (u.link ? '<button class="btn ghost small" data-a="copy-link" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '">คัดลอกลิงก์เดิม</button> ' : '') +
         '<button class="btn ghost small" data-a="link" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '">' + (u.link ? 'ลิงก์ใหม่' : 'สร้างลิงก์') + '</button> ' +
         '<button class="btn ghost small" data-a="edit" data-u="' + esc(u.username) + '" data-n="' + esc(u.name) + '" data-r="' + esc(u.role) + '" data-p="' + esc(JSON.stringify(u.perms || {})) + '">แก้ไข</button> ' +
         (S.me && u.username === S.me.user ? '' : '<button class="btn ghost small" data-a="del" data-u="' + esc(u.username) + '">ลบ</button>') +
@@ -156,7 +157,14 @@ $('#recIssue').addEventListener('click', function () {
 });
 $('#recCopy').addEventListener('click', function () { copyField('#recCode', 'คัดลอกรหัสแล้ว'); });
 $('#recClose').addEventListener('click', function () { $('#recModal').classList.add('hidden'); $('#recCode').value = ''; });
-$('#lkCopy').addEventListener('click', function () { copyField('#lkUrl', 'คัดลอกลิงก์แล้ว'); });
+async function copyCurrentUserLink() {
+  var field=$('#lkUrl');
+  try { if(navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(field.value);toast('คัดลอกลิงก์แล้ว');return true; } } catch (_) {}
+  field.focus({preventScroll:true});field.select();field.setSelectionRange(0,field.value.length);
+  try { if(document.execCommand('copy')) { toast('คัดลอกลิงก์แล้ว');return true; } } catch (_) {}
+  toast('เปิดลิงก์เดิมแล้ว กรุณากดคัดลอกลิงก์อีกครั้ง หรือคัดลอกจากช่องนี้',true);return false;
+}
+$('#lkCopy').addEventListener('click', copyCurrentUserLink);
 $('#lkClose').addEventListener('click', function () { $('#linkModal').classList.add('hidden'); clearUserLink(); });
 $('#uLink').addEventListener('change', function () {
   $('#uPass').disabled = this.checked; if (this.checked) $('#uPass').value = '';
@@ -171,6 +179,14 @@ $('#userBody').addEventListener('click', async function (e) {
     $('#uFormTitle').textContent = 'แก้ไขผู้ใช้: ' + b.dataset.u; $('#uSave').textContent = 'บันทึกการแก้ไข';
     $('#uCancel').classList.remove('hidden'); $('#uHint').textContent = 'เว้นรหัสผ่านว่างไว้ถ้าไม่ต้องการเปลี่ยน';
     $('#uName').focus();
+  } else if (b.dataset.a === 'copy-link') {
+    b.disabled=true;
+    try {
+      var existing=await call('getUserLink',b.dataset.u);
+      if(!existing.available) { toast(existing.reason==='no_link' ? 'บัญชีนี้ยังไม่มีลิงก์เข้าใช้งาน' : 'ลิงก์รุ่นเก่ายังไม่มีต้นฉบับเก็บไว้ ให้ผู้ใช้เข้าสู่ระบบด้วยลิงก์หรือ QR เดิมหนึ่งครั้ง แล้วลองคัดลอกใหม่',true);return; }
+      showLink(existing.link,b.dataset.u,b.dataset.n);await copyCurrentUserLink();
+    }catch(error){toast(error.message,true);}
+    finally{b.disabled=false;}
   } else if (b.dataset.a === 'link') {
     if (!confirm('ออกลิงก์ใหม่ให้ ' + b.dataset.u + ' ?\nลิงก์เดิมจะใช้ไม่ได้ทันที')) return;
     try { var lr = await call('regenUserLink', b.dataset.u); loadUsers(); showLink(lr.link, b.dataset.u, b.dataset.n); }

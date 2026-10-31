@@ -31,7 +31,10 @@ function cleanPerms(p, role) {
   return out;
 }
 
-async function makeUser(pw, role, name) { const salt = uuid(); return { salt, hash: await hashPw(salt, pw), role, name: name || '' }; }
+async function makeUser(pw, role, name) {
+  const salt = uuid();
+  return { salt, hash: await hashPw(salt, pw), role, name: name || '', perms: {}, lk: null };
+}
 
 const saveUserStmt = (C, username, u) => stmt(C,
   'INSERT INTO users(username,salt,hash,role,name,perms,lk_salt,lk_hash) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(username) DO UPDATE SET salt=excluded.salt, hash=excluded.hash, role=excluded.role, name=excluded.name, perms=excluded.perms, lk_salt=excluded.lk_salt, lk_hash=excluded.lk_hash',
@@ -54,6 +57,15 @@ async function newLinkRec(username) {
   const key = (uuid() + uuid()).replace(/-/g, ''), salt = uuid();
   return { key, lk: { salt, hash: await hashPw(salt, key) }, link: '?u=' + encodeURIComponent(username) + '&k=' + key };
 }
+
+// A stored link is still checked against the active verifier before it is returned.
+// The conditional insert also prevents a late old-link login from replacing a newly issued link.
+const rememberUserLinkStmt = (C, username, key, hash) => stmt(C,
+  `INSERT INTO user_login_links(username,login_key,link_hash,saved_ts)
+   SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM users WHERE username=? AND lk_hash=?)
+   ON CONFLICT(username) DO UPDATE SET login_key=excluded.login_key,link_hash=excluded.link_hash,saved_ts=excluded.saved_ts
+   WHERE user_login_links.login_key<>excluded.login_key OR user_login_links.link_hash<>excluded.link_hash`,
+  username,key,hash,now(),username,hash);
 
 async function signStatelessToken(u, username, exp) {
   const sig = await sha256hex('s1|' + u.salt + '|' + u.hash + '|' + u.role + '|' + username + '|' + exp);
@@ -143,6 +155,9 @@ API.loginByLink = async (C, username, key) => {
     throw new Error('ลิงก์เข้าใช้งานไม่ถูกต้องหรือถูกยกเลิกแล้ว กรุณาขอลิงก์ใหม่จาก Admin');
   }
   if (fails > 0) await failClear(C, lockKey);
+  // Successful use can recover a legacy link whose original key was never retained.
+  // Keeping the link is optional for sign-in, including during D1 write-limit incidents.
+  try { await batch(C,[rememberUserLinkStmt(C,username,key,u.lk.hash)]); } catch (_) {}
   return startSession(C, username, u, 'ลิงก์');
 };
 
@@ -218,7 +233,8 @@ API.recoverAdmin = async (C, username, code, newPassword) => {
 
 API.listUsers = async (C, token) => {
   await auth(C, token, true);
-  return (await allUsers(C)).map(u => { const p = userPerms(u); return { username: u.username, name: u.name, role: u.role, assets: p.assets, perms: p, link: !!u.lk }; });
+  const saved=new Map((await all(C,'SELECT username,link_hash FROM user_login_links')).map(r=>[r.username,r.link_hash]));
+  return (await allUsers(C)).map(u => { const p = userPerms(u); return { username: u.username, name: u.name, role: u.role, assets: p.assets, perms: p, link: !!u.lk, linkStored: !!u.lk && saved.get(u.username)===u.lk.hash }; });
 };
 
 API.saveUser = async (C, token, p) => {
@@ -237,19 +253,30 @@ API.saveUser = async (C, token, p) => {
   if (old && password && password.length < 4) throw new Error('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
   /** @type {Record<string, any>} */
   let rec;
-  if (old) { rec = { salt: old.salt, hash: old.hash, role, name: str(p.name), lk: old.lk }; if (password) { rec.salt = uuid(); rec.hash = await hashPw(rec.salt, password); } }
+  if (old) { rec = { salt: old.salt, hash: old.hash, role, name: str(p.name), perms: old.perms, lk: old.lk }; if (password) { rec.salt = uuid(); rec.hash = await hashPw(rec.salt, password); } }
   else if (linkMode) rec = await makeUser(uuid(), role, str(p.name));   // รหัสผ่านสุ่ม → เข้าได้ทางลิงก์เท่านั้น
   else rec = await makeUser(password, role, str(p.name));
   const perms = cleanPerms(p.perms, role); rec.perms = perms;
-  let link = '';
-  if ((!old && linkMode) || (old && old.lk && original !== username)) { const nl = await newLinkRec(username); rec.lk = nl.lk; link = nl.link; }
+  let link = '', issuedLink = null;
+  if ((!old && linkMode) || (old && old.lk && original !== username)) { const nl = await newLinkRec(username); rec.lk = nl.lk; link = nl.link; issuedLink = nl; }
   const next = Object.assign({}, map); if (original && original !== username) delete next[original]; next[username] = rec;
   if (!Object.keys(next).some(k => next[k].role === 'admin')) throw new Error('ต้องมี Admin อย่างน้อย 1 คน');
   const ops = [saveUserStmt(C, username, rec)];
-  if (original && original !== username) ops.push(stmt(C, 'DELETE FROM users WHERE username=?', original), stmt(C, 'DELETE FROM sessions WHERE username=?', original));
+  if (issuedLink) ops.push(rememberUserLinkStmt(C,username,issuedLink.key,issuedLink.lk.hash));
+  if (original && original !== username) ops.push(stmt(C, 'DELETE FROM users WHERE username=?', original), stmt(C, 'DELETE FROM sessions WHERE username=?', original), stmt(C,'DELETE FROM user_login_links WHERE username=?',original));
   await batch(C, ops);
   await sysLog(C, me.name, old ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้', username + ' · ' + ROLES[role] + ' · การ์ด: ' + PERM_KEYS.filter(k => perms[k]).join(','));
   return { ok: true, link, relogin: original === me.user && original !== username };
+};
+
+API.getUserLink = async (C, token, username) => {
+  await auth(C,token,true);username=str(username);
+  const u=await getUser(C,username);
+  if(!u) throw new Error('ไม่พบผู้ใช้ '+username);
+  if(!u.lk) return {available:false,reason:'no_link'};
+  const saved=await one(C,'SELECT login_key FROM user_login_links WHERE username=? AND link_hash=?',username,u.lk.hash);
+  if(!saved || await hashPw(u.lk.salt,saved.login_key)!==u.lk.hash) return {available:false,reason:'not_stored'};
+  return {available:true,link:'?u='+encodeURIComponent(username)+'&k='+encodeURIComponent(saved.login_key)};
 };
 
 API.regenUserLink = async (C, token, username) => {
@@ -257,7 +284,7 @@ API.regenUserLink = async (C, token, username) => {
   const u = await getUser(C, username);
   if (!u) throw new Error('ไม่พบผู้ใช้ ' + username);
   const nl = await newLinkRec(username); u.lk = nl.lk;
-  await saveUserStmt(C, username, u).run();
+  await batch(C,[saveUserStmt(C,username,u),rememberUserLinkStmt(C,username,nl.key,nl.lk.hash)]);
   await sysLog(C, me.name, 'ออกลิงก์ใหม่ให้ผู้ใช้', username);
   return { ok: true, link: nl.link };
 };
@@ -268,9 +295,9 @@ API.deleteUser = async (C, token, username) => {
   const users = await allUsers(C);
   if (!users.some(u => u.username === username)) throw new Error('ไม่พบผู้ใช้ ' + username);
   if (!users.some(u => u.username !== username && u.role === 'admin')) throw new Error('ต้องมี Admin อย่างน้อย 1 คน');
-  await batch(C, [stmt(C, 'DELETE FROM users WHERE username=?', username), stmt(C, 'DELETE FROM sessions WHERE username=?', username), stmt(C, 'DELETE FROM kv WHERE k=?', 'CSZ:' + username)]);
+  await batch(C, [stmt(C, 'DELETE FROM users WHERE username=?', username), stmt(C, 'DELETE FROM sessions WHERE username=?', username), stmt(C, 'DELETE FROM kv WHERE k=?', 'CSZ:' + username),stmt(C,'DELETE FROM user_login_links WHERE username=?',username)]);
   await sysLog(C, me.name, 'ลบผู้ใช้', username);
   return { ok: true };
 };
 
-export { rowToUser, userPerms, cleanPerms, makeUser, saveUserStmt, getUser, allUsers, ensureAdmin, newLinkRec, auth, authPerm, startSession, failCount, failBump, failClear, normRecovery, checkRecovery };
+export { rowToUser, userPerms, cleanPerms, makeUser, saveUserStmt, getUser, allUsers, ensureAdmin, newLinkRec, rememberUserLinkStmt, auth, authPerm, startSession, failCount, failBump, failClear, normRecovery, checkRecovery };

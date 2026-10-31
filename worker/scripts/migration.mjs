@@ -1,10 +1,10 @@
 import { mkdir, writeFile, access } from 'node:fs/promises';
-const { SCHEMA, EXPIRY_OPTIONS_SCHEMA, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP } = await import('../index.js');
+const { SCHEMA, USER_LINK_SCHEMA, EXPIRY_OPTIONS_SCHEMA, EXPIRY_ITEMS_SCHEMA, ASSETS_SCHEMA, EXPIRY_SCHEMA, EXPIRY_PRODUCT_SCHEMA, OBSOLETE_CATALOG_CLEANUP } = await import('../index.js');
 await mkdir(new URL('../migrations/', import.meta.url), { recursive: true });
 // Preserve already released migrations 0001-0003.
 const first = new URL('../migrations/0001_stability.sql', import.meta.url);
 try { await access(first); } catch {
-  await writeFile(first, SCHEMA.filter(sql => !ASSETS_SCHEMA.includes(sql) && !EXPIRY_SCHEMA.includes(sql) && !EXPIRY_ITEMS_SCHEMA.includes(sql) && !EXPIRY_OPTIONS_SCHEMA.includes(sql) && !EXPIRY_PRODUCT_SCHEMA.includes(sql) && !OBSOLETE_CATALOG_CLEANUP.includes(sql)).map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','stable-1') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
+  await writeFile(first, SCHEMA.filter(sql => !USER_LINK_SCHEMA.includes(sql) && !ASSETS_SCHEMA.includes(sql) && !EXPIRY_SCHEMA.includes(sql) && !EXPIRY_ITEMS_SCHEMA.includes(sql) && !EXPIRY_OPTIONS_SCHEMA.includes(sql) && !EXPIRY_PRODUCT_SCHEMA.includes(sql) && !OBSOLETE_CATALOG_CLEANUP.includes(sql)).map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','stable-1') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
 }
 const second = new URL('../migrations/0002_expiry.sql', import.meta.url);
 try { await access(second); } catch {
@@ -26,4 +26,8 @@ const sixth = new URL('../migrations/0006_expiry_options.sql', import.meta.url);
 try { await access(sixth); } catch {
   await writeFile(sixth, EXPIRY_OPTIONS_SCHEMA.map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','expiry-options-2') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
 }
-console.log('Migrations ready through 0006_expiry_options.sql; existing migrations preserved');
+const seventh = new URL('../migrations/0007_user_links.sql', import.meta.url);
+try { await access(seventh); } catch {
+  await writeFile(seventh, USER_LINK_SCHEMA.map(sql => sql + ';').join('\n') + "\nINSERT INTO kv(k,v) VALUES('SCHEMA_VERSION','user-links-1') ON CONFLICT(k) DO UPDATE SET v=excluded.v;\n");
+}
+console.log('Migrations ready through 0007_user_links.sql; existing migrations preserved');
