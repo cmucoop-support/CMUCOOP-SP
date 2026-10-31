@@ -1,5 +1,8 @@
 # CMUCOOP SUPPORT — Liquid Glass และตั้งค่าการ์ด
 
+อัปเดตระบบวันหมดอายุ 31/10/2026: กล้องเต็มกรอบพร้อมซูม/ไฟฉาย อ่านวันที่จากรูปและแก้ค่าได้ ต่อล็อตพร้อมลำดับสินค้า ลบแยกรายการ และเลือกวันที่ด้วยตัวเลข ดู [วิธีติดตั้งและผลตรวจ](docs/EXPIRY-UPDATE-2026-10-31-TH.md) ต้องอัปเดต Worker พร้อมไฟล์หน้าเว็บและโฟลเดอร์ OCR ทั้งชุด
+
+
 เว็บเข้าใช้งานผ่าน `index.html`, `barcode.html`, `stock.html`, `market.html`, `expiry.html`, `music.html`, `sound.html`, `settings.html`, `tv.html`, `banner.html` และ `receiver.html` ตาม URL เดิม
 
 รุ่นล่าสุดปรับธีมกระจก นำกรอบต้อนรับและไอคอนหน้าฟีเจอร์ออก เพิ่มช่อง **ซ่อนการ์ดนี้** และตัวเลือก **เปิดแท็บเดิม / เปิดแท็บใหม่** ในหน้า Admin ตั้งค่า อ่านรายละเอียดใน [UI-UPDATE-TH.md](UI-UPDATE-TH.md), [CARD-VISIBILITY-TH.md](CARD-VISIBILITY-TH.md) และ [CARD-TABS-TH.md](CARD-TABS-TH.md) ชุดรวมมี Worker แบบไฟล์เดียวใน `Cloudflare-Worker/worker-copy.txt` สำหรับคัดลอกลง Dashboard
